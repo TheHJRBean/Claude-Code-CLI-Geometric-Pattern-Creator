@@ -1,0 +1,52 @@
+import { Vec2, pointInPolygon, EPSILON } from '../utils/math'
+import type { Polygon, Segment } from '../types/geometry'
+import type { ContactRay } from './stellation'
+import { rayRayIntersect } from './intersect'
+
+/**
+ * For each polygon, intersect all its contact rays pairwise.
+ * Keep intersections where both t values are positive and the point
+ * is inside the polygon. Trim each ray to its nearest such intersection.
+ */
+export function trimRays(poly: Polygon, rays: ContactRay[]): Segment[] {
+  const segments: Segment[] = []
+  const n = rays.length
+
+  // For each ray, find the nearest valid intersection
+  for (let i = 0; i < n; i++) {
+    const r1 = rays[i]
+    let nearestT = Infinity
+    let nearestPoint: Vec2 | null = null
+
+    for (let j = 0; j < n; j++) {
+      if (i === j) continue
+      const r2 = rays[j]
+
+      // Skip rays from the same edge — they share an origin
+      if (r1.edgeIndex === r2.edgeIndex) continue
+
+      const result = rayRayIntersect(r1.origin, r1.dir, r2.origin, r2.dir)
+      if (!result) continue
+      if (result.t1 < EPSILON || result.t2 < EPSILON) continue
+
+      // Must be inside the polygon
+      if (!pointInPolygon(result.point, poly.vertices)) continue
+
+      if (result.t1 < nearestT) {
+        nearestT = result.t1
+        nearestPoint = result.point
+      }
+    }
+
+    if (nearestPoint) {
+      segments.push({
+        from: r1.origin,
+        to: nearestPoint,
+        edgeMidpoint: r1.origin,
+        polygonId: poly.id,
+      })
+    }
+  }
+
+  return segments
+}

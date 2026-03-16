@@ -13,173 +13,146 @@ interface Props {
   onLoadJSON: () => void
 }
 
-const SIDEBAR_WIDTH = 280
+const W = 300
 
-export function Sidebar({
-  config, dispatch, showTileLayer, onToggleTileLayer,
-  onExportSVG, onExportPNG, onSaveJSON, onLoadJSON,
-}: Props) {
-  // Collect which polygon side counts are present in this tiling
-  const def = TILINGS[config.tiling.type]
-  const polygonTypes = def ? [...new Set(def.vertexConfig)].sort((a, b) => a - b) : []
+// Generates points for an 8-pointed star polygon
+function starPoints(cx: number, cy: number, r1: number, r2: number): string {
+  return Array.from({ length: 16 }, (_, i) => {
+    const angle = (i * Math.PI / 8) - Math.PI / 2
+    const r = i % 2 === 0 ? r1 : r2
+    return `${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`
+  }).join(' ')
+}
 
+function OctaStar({ size = 20, color = '#c9943a', opacity = 1 }: { size?: number; color?: string; opacity?: number }) {
+  const c = size / 2
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ display: 'block', flexShrink: 0 }}>
+      <polygon points={starPoints(c, c, c * 0.9, c * 0.42)} fill={color} opacity={opacity} />
+    </svg>
+  )
+}
+
+function DiamondDivider() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 20, marginBottom: 4 }}>
+      <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, transparent, #2c2418)' }} />
+      <div style={{ width: 5, height: 5, background: '#c9943a', transform: 'rotate(45deg)', opacity: 0.5 }} />
+      <div style={{ flex: 1, height: 1, background: 'linear-gradient(270deg, transparent, #2c2418)' }} />
+    </div>
+  )
+}
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
     <div style={{
-      width: SIDEBAR_WIDTH,
-      height: '100%',
-      background: '#1a1a2e',
-      color: '#e8e4d9',
       display: 'flex',
-      flexDirection: 'column',
-      fontFamily: 'system-ui, sans-serif',
-      fontSize: 13,
-      overflowY: 'auto',
-      flexShrink: 0,
+      alignItems: 'center',
+      gap: 7,
+      marginBottom: 14,
     }}>
-      <div style={{ padding: '16px 16px 8px', borderBottom: '1px solid #2d2d4e' }}>
-        <h1 style={{ fontSize: 15, fontWeight: 600, color: '#c9a96e', marginBottom: 2 }}>
-          Islamic Pattern Generator
-        </h1>
-        <p style={{ fontSize: 11, color: '#888', margin: 0 }}>PIC method · Kaplan 2005</p>
-      </div>
-
-      <Section title="Tiling">
-        <Label>Type</Label>
-        <select
-          value={config.tiling.type}
-          onChange={e => dispatch({ type: 'SET_TILING_TYPE', payload: e.target.value })}
-          style={selectStyle}
-        >
-          {TILING_NAMES.map(name => (
-            <option key={name} value={name}>{TILINGS[name].label}</option>
-          ))}
-        </select>
-
-        <Label>Tile Scale</Label>
-        <SliderRow
-          value={config.tiling.scale}
-          min={30} max={300} step={5}
-          onChange={v => dispatch({ type: 'SET_SCALE', payload: v })}
-        />
-      </Section>
-
-      <Section title="Contact Angles">
-        {polygonTypes.map(sides => {
-          const fig = config.figures[sides]
-          const angle = fig?.contactAngle ?? 60
-          return (
-            <div key={sides}>
-              <Label>{sides}-gon  ({angle.toFixed(1)}°)</Label>
-              <SliderRow
-                value={angle}
-                min={10} max={85} step={0.5}
-                onChange={v => dispatch({ type: 'SET_CONTACT_ANGLE', payload: { sides, angle: v } })}
-              />
-            </div>
-          )
-        })}
-      </Section>
-
-      <Section title="Lacing">
-        <label style={checkboxLabelStyle}>
-          <input
-            type="checkbox"
-            checked={config.lacing.enabled}
-            onChange={e => dispatch({ type: 'SET_LACING', payload: { enabled: e.target.checked } })}
-            style={{ marginRight: 8 }}
-          />
-          Enable lacing
-        </label>
-        {config.lacing.enabled && (
-          <>
-            <Label>Strand width ({config.lacing.strandWidth}px)</Label>
-            <SliderRow
-              value={config.lacing.strandWidth}
-              min={1} max={20} step={0.5}
-              onChange={v => dispatch({ type: 'SET_LACING', payload: { strandWidth: v } })}
-            />
-            <Label>Gap width ({config.lacing.gapWidth}px)</Label>
-            <SliderRow
-              value={config.lacing.gapWidth}
-              min={1} max={12} step={0.5}
-              onChange={v => dispatch({ type: 'SET_LACING', payload: { gapWidth: v } })}
-            />
-          </>
-        )}
-      </Section>
-
-      <Section title="Display">
-        <label style={checkboxLabelStyle}>
-          <input
-            type="checkbox"
-            checked={showTileLayer}
-            onChange={onToggleTileLayer}
-            style={{ marginRight: 8 }}
-          />
-          Show tile outlines
-        </label>
-      </Section>
-
-      <Section title="Export">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <Button onClick={onExportSVG}>Export SVG</Button>
-          <Button onClick={onExportPNG}>Export PNG</Button>
-          <Button onClick={onSaveJSON}>Save JSON</Button>
-          <Button onClick={onLoadJSON} variant="secondary">Load JSON</Button>
-        </div>
-      </Section>
+      <OctaStar size={10} color="#c9943a" opacity={0.7} />
+      <span style={{
+        fontFamily: "'Cinzel', Georgia, serif",
+        fontSize: 10,
+        fontWeight: 600,
+        color: '#c9943a',
+        letterSpacing: '0.20em',
+        textTransform: 'uppercase' as const,
+      }}>
+        {children}
+      </span>
+      <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, #2c2418, transparent)' }} />
     </div>
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function FieldLabel({ label, value, unit }: { label: string; value?: string; unit?: string }) {
   return (
-    <div style={{ padding: '12px 16px', borderBottom: '1px solid #2d2d4e' }}>
-      <h2 style={{ fontSize: 11, fontWeight: 600, color: '#c9a96e', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
-        {title}
-      </h2>
-      {children}
+    <div style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'baseline',
+      marginBottom: 7,
+      marginTop: 12,
+    }}>
+      <span style={{
+        fontFamily: "'EB Garamond', Georgia, serif",
+        fontSize: 13,
+        color: '#a09880',
+        letterSpacing: '0.02em',
+      }}>
+        {label}
+      </span>
+      {value !== undefined && (
+        <span style={{
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 11,
+          color: '#c9943a',
+          letterSpacing: '0.04em',
+        }}>
+          {value}{unit}
+        </span>
+      )}
     </div>
   )
 }
 
-function Label({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontSize: 12, color: '#aaa', marginBottom: 4, marginTop: 8 }}>{children}</div>
-}
-
-function SliderRow({ value, min, max, step, onChange }: {
-  value: number; min: number; max: number; step: number
-  onChange: (v: number) => void
-}) {
+function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
-    <input
-      type="range"
-      min={min} max={max} step={step}
-      value={value}
-      onChange={e => onChange(Number(e.target.value))}
-      style={{ width: '100%', accentColor: '#c9a96e' }}
-    />
+    <label style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 12,
+      cursor: 'pointer',
+      fontFamily: "'EB Garamond', Georgia, serif",
+      fontSize: 13,
+      color: checked ? '#ede8dc' : '#7a7060',
+      transition: 'color 0.15s',
+    }}>
+      <input
+        type="checkbox"
+        className="pattern-checkbox"
+        checked={checked}
+        onChange={e => onChange(e.target.checked)}
+      />
+      {label}
+    </label>
   )
 }
 
-function Button({ children, onClick, variant = 'primary' }: {
+function ExportBtn({ children, onClick, wide = false, secondary = false }: {
   children: React.ReactNode
   onClick: () => void
-  variant?: 'primary' | 'secondary'
+  wide?: boolean
+  secondary?: boolean
 }) {
   return (
     <button
       onClick={onClick}
       style={{
-        background: variant === 'primary' ? '#c9a96e' : 'transparent',
-        color: variant === 'primary' ? '#1a1a2e' : '#c9a96e',
-        border: `1px solid #c9a96e`,
-        borderRadius: 4,
-        padding: '6px 12px',
-        fontSize: 12,
+        background: secondary ? 'transparent' : 'linear-gradient(180deg, #c9943a 0%, #a87830 100%)',
+        color: secondary ? '#c9943a' : '#07070f',
+        border: `1px solid ${secondary ? '#2c2418' : '#c9943a'}`,
+        padding: '8px 10px',
+        fontFamily: "'Cinzel', Georgia, serif",
+        fontSize: 10,
         fontWeight: 600,
+        letterSpacing: '0.12em',
+        textTransform: 'uppercase' as const,
         cursor: 'pointer',
-        letterSpacing: '0.04em',
+        gridColumn: wide ? 'span 2' : undefined,
+        transition: 'border-color 0.15s, opacity 0.15s',
+      }}
+      onMouseEnter={e => {
+        const el = e.currentTarget
+        if (secondary) el.style.borderColor = '#c9943a66'
+        else el.style.opacity = '0.85'
+      }}
+      onMouseLeave={e => {
+        const el = e.currentTarget
+        if (secondary) el.style.borderColor = '#2c2418'
+        else el.style.opacity = '1'
       }}
     >
       {children}
@@ -187,19 +160,219 @@ function Button({ children, onClick, variant = 'primary' }: {
   )
 }
 
-const selectStyle: React.CSSProperties = {
-  width: '100%',
-  background: '#2d2d4e',
-  color: '#e8e4d9',
-  border: '1px solid #3d3d5e',
-  borderRadius: 4,
-  padding: '4px 8px',
-  fontSize: 12,
-}
+export function Sidebar({
+  config, dispatch, showTileLayer, onToggleTileLayer,
+  onExportSVG, onExportPNG, onSaveJSON, onLoadJSON,
+}: Props) {
+  const def = TILINGS[config.tiling.type]
+  const polygonTypes = def ? [...new Set(def.vertexConfig)].sort((a, b) => a - b) : []
 
-const checkboxLabelStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  cursor: 'pointer',
-  fontSize: 12,
+  return (
+    <div
+      className="sidebar"
+      style={{
+        width: W,
+        height: '100%',
+        background: '#07070f',
+        color: '#ede8dc',
+        display: 'flex',
+        flexDirection: 'column',
+        overflowY: 'auto',
+        flexShrink: 0,
+        borderRight: '1px solid #14141f',
+      }}
+    >
+      {/* ── Header ──────────────────────────────────────── */}
+      <div style={{
+        padding: '28px 22px 22px',
+        borderBottom: '1px solid #14141f',
+        background: 'linear-gradient(180deg, #0d0d1e 0%, #07070f 100%)',
+        textAlign: 'center',
+        position: 'relative',
+      }}>
+        {/* Corner ornaments */}
+        <div style={{ position: 'absolute', top: 10, left: 12, opacity: 0.25 }}>
+          <OctaStar size={9} color="#c9943a" />
+        </div>
+        <div style={{ position: 'absolute', top: 10, right: 12, opacity: 0.25 }}>
+          <OctaStar size={9} color="#c9943a" />
+        </div>
+
+        {/* Rule + star + rule */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, justifyContent: 'center' }}>
+          <div style={{ width: 42, height: 1, background: 'linear-gradient(90deg, transparent, #c9943a66)' }} />
+          <OctaStar size={22} color="#c9943a" />
+          <div style={{ width: 42, height: 1, background: 'linear-gradient(270deg, transparent, #c9943a66)' }} />
+        </div>
+
+        <h1 style={{
+          fontFamily: "'Cinzel', Georgia, serif",
+          fontSize: 15,
+          fontWeight: 700,
+          color: '#ede8dc',
+          letterSpacing: '0.22em',
+          textTransform: 'uppercase',
+          marginBottom: 5,
+        }}>
+          Geometric Atlas
+        </h1>
+
+        <p style={{
+          fontFamily: "'EB Garamond', Georgia, serif",
+          fontStyle: 'italic',
+          fontSize: 12,
+          color: '#5a5440',
+          letterSpacing: '0.06em',
+          marginBottom: 14,
+        }}>
+          Islamic Patterns · PIC Method
+        </p>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
+          <div style={{ width: 20, height: 1, background: '#2c2418' }} />
+          <div style={{ width: 4, height: 4, background: '#c9943a', transform: 'rotate(45deg)', opacity: 0.5 }} />
+          <div style={{ width: 40, height: 1, background: '#2c2418' }} />
+          <div style={{ width: 4, height: 4, background: '#c9943a', transform: 'rotate(45deg)', opacity: 0.5 }} />
+          <div style={{ width: 20, height: 1, background: '#2c2418' }} />
+        </div>
+      </div>
+
+      {/* ── Sections ────────────────────────────────────── */}
+      <div style={{ padding: '0 20px', flex: 1 }}>
+
+        {/* Tiling */}
+        <div style={{ paddingTop: 20, paddingBottom: 4, borderBottom: '1px solid #14141f' }}>
+          <SectionTitle>Tiling</SectionTitle>
+
+          <FieldLabel label="Type" />
+          <select
+            value={config.tiling.type}
+            onChange={e => dispatch({ type: 'SET_TILING_TYPE', payload: e.target.value })}
+            className="pattern-select"
+          >
+            {TILING_NAMES.map(name => (
+              <option key={name} value={name}>{TILINGS[name].label}</option>
+            ))}
+          </select>
+
+          <FieldLabel label="Scale" value={String(config.tiling.scale)} unit=" px" />
+          <input
+            type="range"
+            className="pattern-slider"
+            min={30} max={300} step={5}
+            value={config.tiling.scale}
+            onChange={e => dispatch({ type: 'SET_SCALE', payload: Number(e.target.value) })}
+          />
+          <div style={{ marginBottom: 4 }} />
+        </div>
+
+        {/* Contact Angles */}
+        <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid #14141f' }}>
+          <DiamondDivider />
+          <SectionTitle>Contact Angles</SectionTitle>
+
+          {polygonTypes.map(sides => {
+            const fig = config.figures[sides]
+            const angle = fig?.contactAngle ?? 60
+            return (
+              <div key={sides}>
+                <FieldLabel label={`${sides}-gon`} value={angle.toFixed(1)} unit="°" />
+                <input
+                  type="range"
+                  className="pattern-slider"
+                  min={10} max={85} step={0.5}
+                  value={angle}
+                  onChange={e => dispatch({ type: 'SET_CONTACT_ANGLE', payload: { sides, angle: Number(e.target.value) } })}
+                />
+              </div>
+            )
+          })}
+          <div style={{ marginBottom: 4 }} />
+        </div>
+
+        {/* Lacing */}
+        <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid #14141f' }}>
+          <DiamondDivider />
+          <SectionTitle>Lacing</SectionTitle>
+
+          <Toggle
+            checked={config.lacing.enabled}
+            onChange={v => dispatch({ type: 'SET_LACING', payload: { enabled: v } })}
+            label="Enable strand weaving"
+          />
+
+          {config.lacing.enabled && (
+            <div style={{ marginTop: 4 }}>
+              <FieldLabel label="Strand width" value={config.lacing.strandWidth.toFixed(1)} unit=" px" />
+              <input
+                type="range"
+                className="pattern-slider"
+                min={1} max={20} step={0.5}
+                value={config.lacing.strandWidth}
+                onChange={e => dispatch({ type: 'SET_LACING', payload: { strandWidth: Number(e.target.value) } })}
+              />
+              <FieldLabel label="Gap width" value={config.lacing.gapWidth.toFixed(1)} unit=" px" />
+              <input
+                type="range"
+                className="pattern-slider"
+                min={1} max={12} step={0.5}
+                value={config.lacing.gapWidth}
+                onChange={e => dispatch({ type: 'SET_LACING', payload: { gapWidth: Number(e.target.value) } })}
+              />
+            </div>
+          )}
+          <div style={{ marginBottom: 4 }} />
+        </div>
+
+        {/* Display */}
+        <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid #14141f' }}>
+          <DiamondDivider />
+          <SectionTitle>Display</SectionTitle>
+
+          <Toggle
+            checked={showTileLayer}
+            onChange={onToggleTileLayer}
+            label="Show tile grid"
+          />
+          <div style={{ marginBottom: 4 }} />
+        </div>
+
+        {/* Export */}
+        <div style={{ paddingTop: 4, paddingBottom: 28 }}>
+          <DiamondDivider />
+          <SectionTitle>Export</SectionTitle>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <ExportBtn onClick={onExportSVG}>SVG</ExportBtn>
+            <ExportBtn onClick={onExportPNG}>PNG</ExportBtn>
+            <ExportBtn onClick={onSaveJSON} secondary>Save JSON</ExportBtn>
+            <ExportBtn onClick={onLoadJSON} secondary>Load JSON</ExportBtn>
+          </div>
+        </div>
+
+      </div>
+
+      {/* ── Footer ──────────────────────────────────────── */}
+      <div style={{
+        padding: '12px 20px',
+        borderTop: '1px solid #14141f',
+        textAlign: 'center',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+      }}>
+        <OctaStar size={8} color="#2c2418" opacity={1} />
+        <span style={{
+          fontFamily: "'EB Garamond', Georgia, serif",
+          fontSize: 10,
+          color: '#2c2418',
+          letterSpacing: '0.08em',
+        }}>
+          Kaplan 2005
+        </span>
+        <OctaStar size={8} color="#2c2418" opacity={1} />
+      </div>
+    </div>
+  )
 }

@@ -2,7 +2,7 @@ import type { Polygon, Segment } from '../types/geometry'
 import type { PatternConfig, FigureConfig } from '../types/pattern'
 import { computeContactRays, type ContactRay } from './stellation'
 import { rayRayIntersect } from './intersect'
-import { EPSILON } from '../utils/math'
+import { EPSILON, dist } from '../utils/math'
 
 /**
  * Build a vertex-based adjacency map: polygons sharing at least one vertex
@@ -49,22 +49,24 @@ function buildVertexAdjacency(polygons: Polygon[]): Map<string, Set<string>> {
  * This ensures lines connect across polygon boundaries while avoiding
  * O(N²) all-pairs checks.
  *
- * When autoLineLength is false, segments are scaled by the figure's
- * lineLength multiplier relative to the auto-computed length.
+ * When autoLineLength is false, line length is an absolute value based
+ * on the polygon's inradius, independent of the contact angle.
  */
 export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
   // Step 1: Compute all rays, grouped by polygon
-  const tagged: { ray: ContactRay; fig: FigureConfig }[] = []
+  const tagged: { ray: ContactRay; fig: FigureConfig; inradius: number }[] = []
   const raysByPolygon = new Map<string, number[]>()
 
   for (const poly of polygons) {
     const fig = config.figures[poly.sides]
     if (!fig) continue
     const rays = computeContactRays(poly, fig.contactAngle)
+    // Inradius = distance from center to edge midpoint (ray origin)
+    const inradius = rays.length > 0 ? dist(poly.center, rays[0].origin) : 0
     const indices: number[] = []
     for (const ray of rays) {
       indices.push(tagged.length)
-      tagged.push({ ray, fig })
+      tagged.push({ ray, fig, inradius })
     }
     raysByPolygon.set(poly.id, indices)
   }
@@ -77,7 +79,7 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
   const segments: Segment[] = []
 
   for (let i = 0; i < tagged.length; i++) {
-    const { ray: r1, fig } = tagged[i]
+    const { ray: r1, fig, inradius } = tagged[i]
     let nearestT = Infinity
 
     const neighbors = adj.get(r1.polygonId)
@@ -105,10 +107,21 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
       }
     }
 
-    if (nearestT < Infinity) {
-      const scale = fig.autoLineLength ? 1.0 : fig.lineLength
-      const t = nearestT * scale
-
+    if (fig.autoLineLength) {
+      if (nearestT < Infinity) {
+        segments.push({
+          from: r1.origin,
+          to: {
+            x: r1.origin.x + r1.dir.x * nearestT,
+            y: r1.origin.y + r1.dir.y * nearestT,
+          },
+          edgeMidpoint: r1.origin,
+          polygonId: r1.polygonId,
+        })
+      }
+    } else {
+      // Absolute line length based on inradius, independent of contact angle
+      const t = fig.lineLength * inradius
       segments.push({
         from: r1.origin,
         to: {

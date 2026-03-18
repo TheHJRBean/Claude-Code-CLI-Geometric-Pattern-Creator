@@ -273,12 +273,40 @@ export function Sidebar({
 
           {polygonTypes.map(sides => {
             const fig = config.figures[sides]
+            const figType = fig?.type ?? 'star'
             const angle = fig?.contactAngle ?? 60
             const lineLength = fig?.lineLength ?? 1.0
             const autoLen = fig?.autoLineLength ?? true
+            const rosetteQ = fig?.rosetteQ ?? 0.5
             return (
               <div key={sides} style={{ marginBottom: 16 }}>
-                <FieldLabel label={`${sides}-gon · angle`} value={angle.toFixed(1)} unit="°" />
+                <FieldLabel label={`${sides}-gon · figure`} />
+                <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
+                  {(['star', 'rosette'] as const).map(ft => (
+                    <button
+                      key={ft}
+                      onClick={() => dispatch({ type: 'SET_FIGURE_TYPE', payload: { sides, figureType: ft } })}
+                      style={{
+                        flex: 1,
+                        padding: '5px 0',
+                        fontFamily: "'Cinzel', Georgia, serif",
+                        fontSize: 9,
+                        fontWeight: 600,
+                        letterSpacing: '0.10em',
+                        textTransform: 'uppercase' as const,
+                        cursor: 'pointer',
+                        border: `1px solid ${figType === ft ? '#c9943a' : '#1a1a2e'}`,
+                        background: figType === ft ? 'rgba(201,148,58,0.15)' : 'transparent',
+                        color: figType === ft ? '#c9943a' : '#5a5440',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      {ft}
+                    </button>
+                  ))}
+                </div>
+
+                <FieldLabel label="Contact angle" value={angle.toFixed(1)} unit="°" />
                 <input
                   type="range"
                   className="pattern-slider"
@@ -286,6 +314,20 @@ export function Sidebar({
                   value={angle}
                   onChange={e => dispatch({ type: 'SET_CONTACT_ANGLE', payload: { sides, angle: Number(e.target.value) } })}
                 />
+
+                {figType === 'rosette' && (
+                  <>
+                    <FieldLabel label="Petal shape (q)" value={rosetteQ.toFixed(2)} />
+                    <input
+                      type="range"
+                      className="pattern-slider"
+                      min={0} max={100} step={1}
+                      value={rosetteQ * 100}
+                      onChange={e => dispatch({ type: 'SET_ROSETTE_Q', payload: { sides, q: Number(e.target.value) / 100 } })}
+                    />
+                  </>
+                )}
+
                 <div style={{ marginTop: 8, marginBottom: 8 }}>
                   <Toggle
                     checked={autoLen}

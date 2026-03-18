@@ -58,6 +58,16 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         },
       }
     }
+    case 'SET_ROSETTE_Q': {
+      const existing = state.figures[action.payload.sides] ?? { type: 'rosette', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
+      return {
+        ...state,
+        figures: {
+          ...state.figures,
+          [action.payload.sides]: { ...existing, rosetteQ: action.payload.q },
+        },
+      }
+    }
     case 'SET_LACING':
       return { ...state, lacing: { ...state.lacing, ...action.payload } }
     case 'LOAD_CONFIG':

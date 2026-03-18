@@ -2,7 +2,7 @@ import type { Polygon, Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
 import { computeContactRays, type ContactRay } from './stellation'
 import { rayRayIntersect, type IntersectResult } from './intersect'
-import { EPSILON, dist } from '../utils/math'
+import { EPSILON, dist, lerp, type Vec2 } from '../utils/math'
 
 /**
  * For a given vertex (shared by prevEdge and currEdge), find the correct
@@ -34,15 +34,64 @@ function pairAtVertex(
 }
 
 /**
+ * Emit star arm segments for a single vertex pairing.
+ */
+function emitStarArms(
+  pair: { ray1: ContactRay; ray2: ContactRay; result: IntersectResult },
+  autoLineLength: boolean,
+  lineLength: number,
+  inradius: number,
+  polygonId: string,
+  segments: Segment[],
+): void {
+  const { ray1, ray2, result } = pair
+
+  if (autoLineLength) {
+    segments.push({
+      from: ray1.origin,
+      to: result.point,
+      edgeMidpoint: ray1.origin,
+      polygonId,
+    })
+    segments.push({
+      from: ray2.origin,
+      to: result.point,
+      edgeMidpoint: ray2.origin,
+      polygonId,
+    })
+  } else {
+    const t = lineLength * inradius
+    segments.push({
+      from: ray1.origin,
+      to: {
+        x: ray1.origin.x + ray1.dir.x * t,
+        y: ray1.origin.y + ray1.dir.y * t,
+      },
+      edgeMidpoint: ray1.origin,
+      polygonId,
+    })
+    segments.push({
+      from: ray2.origin,
+      to: {
+        x: ray2.origin.x + ray2.dir.x * t,
+        y: ray2.origin.y + ray2.dir.y * t,
+      },
+      edgeMidpoint: ray2.origin,
+      polygonId,
+    })
+  }
+}
+
+/**
  * Run the full PIC pipeline for all polygons.
  *
- * For each polygon vertex, pairs the two adjacent rays (one from each
- * flanking edge) and intersects them to find the star tip. This is
- * Kaplan's correct PIC construction: rays from adjacent edges sharing
- * a vertex meet at a star tip, producing connected star figures.
+ * For 'star' figures: rays from adjacent edges sharing a vertex meet at
+ * a star tip (Kaplan's PIC construction).
  *
- * When autoLineLength is false, line length is an absolute value based
- * on the polygon's inradius, independent of the contact angle.
+ * For 'rosette' figures: same star arms plus petal connections between
+ * adjacent star tips. The rosetteQ parameter (0–1) controls petal shape:
+ *   q=0 → straight tip-to-tip connections
+ *   q=1 → full knee through edge midpoint
  */
 export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
   const segments: Segment[] = []
@@ -53,53 +102,71 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
 
     const rays = computeContactRays(poly, fig.contactAngle)
     const n = poly.sides
-
-    // Inradius = distance from center to edge midpoint (constant for regular polygon)
     const inradius = n > 0 ? dist(poly.center, rays[0].origin) : 0
 
-    // For each vertex k (shared by edge k-1 and edge k),
-    // find the correct ray pair and intersect them.
+    // Compute star tips for all vertices
+    const starTips: (Vec2 | null)[] = []
+
     for (let k = 0; k < n; k++) {
       const prevEdge = (k - 1 + n) % n
       const pair = pairAtVertex(rays, prevEdge, k)
-      if (!pair) continue
+      if (!pair) {
+        starTips.push(null)
+        continue
+      }
 
-      const { ray1, ray2, result } = pair
+      starTips.push(pair.result.point)
+      emitStarArms(pair, fig.autoLineLength, fig.lineLength, inradius, poly.id, segments)
+    }
 
-      if (fig.autoLineLength) {
-        segments.push({
-          from: ray1.origin,
-          to: result.point,
-          edgeMidpoint: ray1.origin,
-          polygonId: poly.id,
-        })
-        segments.push({
-          from: ray2.origin,
-          to: result.point,
-          edgeMidpoint: ray2.origin,
-          polygonId: poly.id,
-        })
-      } else {
-        // Absolute line length based on inradius, independent of contact angle
-        const t = fig.lineLength * inradius
-        segments.push({
-          from: ray1.origin,
-          to: {
-            x: ray1.origin.x + ray1.dir.x * t,
-            y: ray1.origin.y + ray1.dir.y * t,
-          },
-          edgeMidpoint: ray1.origin,
-          polygonId: poly.id,
-        })
-        segments.push({
-          from: ray2.origin,
-          to: {
-            x: ray2.origin.x + ray2.dir.x * t,
-            y: ray2.origin.y + ray2.dir.y * t,
-          },
-          edgeMidpoint: ray2.origin,
-          polygonId: poly.id,
-        })
+    // Rosette: add petal connections between adjacent star tips
+    if (fig.type === 'rosette') {
+      const q = fig.rosetteQ ?? 0.5
+      for (let k = 0; k < n; k++) {
+        const tipA = starTips[k]
+        const tipB = starTips[(k + 1) % n]
+        if (!tipA || !tipB) continue
+
+        // Edge midpoint for edge k (between vertex k and vertex k+1)
+        const edgeMid = rays[k * 2].origin
+
+        if (Math.abs(q) < EPSILON) {
+          // Direct connection between tips
+          segments.push({
+            from: tipA,
+            to: tipB,
+            edgeMidpoint: edgeMid,
+            polygonId: poly.id,
+          })
+        } else {
+          // Kneed connection: two knee points displaced toward edge midpoint
+          // K1 = lerp(tipA, edgeMid, q), K2 = lerp(tipB, edgeMid, q)
+          // Creates a trapezoidal petal: narrow at tips, wide near edge
+          const knee1 = lerp(tipA, edgeMid, q)
+          const knee2 = lerp(tipB, edgeMid, q)
+
+          segments.push({
+            from: tipA,
+            to: knee1,
+            edgeMidpoint: edgeMid,
+            polygonId: poly.id,
+          })
+          // Only add middle segment if knees aren't coincident
+          if (dist(knee1, knee2) > EPSILON) {
+            segments.push({
+              from: knee1,
+              to: knee2,
+              edgeMidpoint: edgeMid,
+              polygonId: poly.id,
+            })
+          }
+          segments.push({
+            from: knee2,
+            to: tipB,
+            edgeMidpoint: edgeMid,
+            polygonId: poly.id,
+          })
+        }
       }
     }
   }

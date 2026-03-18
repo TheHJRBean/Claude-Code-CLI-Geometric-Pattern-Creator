@@ -35,7 +35,7 @@ export const TILINGS: Record<string, TilingDefinition> = {
     seedSides: 8,
     defaultConfig: {
       figures: {
-        4: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 45 },
+        4: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 67.5 },
         8: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 67.5 },
       },
     },
@@ -48,7 +48,7 @@ export const TILINGS: Record<string, TilingDefinition> = {
     defaultConfig: {
       figures: {
         3: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 60 },
-        4: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 45 },
+        4: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 67.5 },
         6: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 60 },
       },
     },
@@ -84,7 +84,7 @@ export const TILINGS: Record<string, TilingDefinition> = {
     seedSides: 12,
     defaultConfig: {
       figures: {
-        4: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 45 },
+        4: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 67.5 },
         6: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 60 },
         12: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 75 },
       },

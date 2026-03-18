@@ -52,12 +52,25 @@ export function computeAutoLineLength(sides: number, contactAngleDeg: number): n
 }
 
 /**
+ * Build snap points from the auto-meet value:
+ * - 50% of auto (half-star)
+ * - 100% of auto (full meet-neighbors)
+ * - 200% of auto (double extension)
+ * Only includes points within the slider range (0.1 – 5.0).
+ */
+export function getSnapPoints(autoValue: number): number[] {
+  const candidates = [autoValue * 0.5, autoValue, autoValue * 2]
+  return candidates.filter(v => v >= 0.1 && v <= 5.0)
+}
+
+/**
  * Snap a value to the nearest snap point if within threshold.
+ * Threshold is in lineLength units (e.g., 0.15 = ±15 percentage points).
  */
 export function snapToNearest(
   value: number,
   snapPoints: number[],
-  threshold: number = 0.05,
+  threshold: number = 0.15,
 ): number {
   let closest = value
   let minDist = threshold

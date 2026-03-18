@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import type { PatternConfig } from '../types/pattern'
 import type { Action } from '../state/actions'
 import { TILINGS, TILING_NAMES } from '../tilings/index'
-import { computeAutoLineLength, snapToNearest } from '../pic/snapPoints'
+import { computeAutoLineLength, getSnapPoints, snapToNearest } from '../pic/snapPoints'
 
 interface Props {
   config: PatternConfig
@@ -175,19 +175,20 @@ function FigureControls({
   dispatch: React.Dispatch<Action>
 }) {
   const autoValue = useMemo(() => computeAutoLineLength(sides, angle), [sides, angle])
-  const snapPoints = useMemo(() => [autoValue], [autoValue])
-  const isSnapped = snapEnabled && Math.abs(lineLength - autoValue) < 0.001
+  const snapPoints = useMemo(() => getSnapPoints(autoValue), [autoValue])
+  const snappedTo = snapEnabled ? snapPoints.find(s => Math.abs(lineLength - s) < 0.001) : undefined
 
   const handleLineLengthChange = (rawPercent: number) => {
     let ll = rawPercent / 100
     if (snapEnabled) {
-      ll = snapToNearest(ll, snapPoints, 0.05)
+      ll = snapToNearest(ll, snapPoints)
     }
     dispatch({ type: 'SET_LINE_LENGTH', payload: { sides, lineLength: ll } })
   }
 
-  // Snap marker position as percentage of slider track (10–500 range)
-  const snapMarkerPct = Math.max(0, Math.min(100, ((autoValue * 100 - 10) / (500 - 10)) * 100))
+  const sliderMin = 10, sliderMax = 500
+  const toTrackPct = (val: number) =>
+    Math.max(0, Math.min(100, ((val * 100 - sliderMin) / (sliderMax - sliderMin)) * 100))
 
   return (
     <div style={{ marginBottom: 16 }}>
@@ -251,32 +252,37 @@ function FigureControls({
           <FieldLabel
             label="Line length"
             value={(lineLength * 100).toFixed(0)}
-            unit={isSnapped ? '% (snapped)' : '%'}
+            unit={snappedTo !== undefined ? '% (snapped)' : '%'}
           />
           <div style={{ position: 'relative' }}>
             <input
               type="range"
               className="pattern-slider"
-              min={10} max={500} step={1}
+              min={sliderMin} max={sliderMax} step={1}
               value={Math.round(lineLength * 100)}
               onChange={e => handleLineLengthChange(Number(e.target.value))}
             />
-            {snapEnabled && (
-              <div
-                style={{
-                  position: 'absolute',
-                  left: `calc(${snapMarkerPct}% + ${(0.5 - snapMarkerPct / 100) * 14}px)`,
-                  bottom: -2,
-                  width: 5,
-                  height: 5,
-                  background: isSnapped ? '#c9943a' : '#c9943a88',
-                  transform: 'translateX(-50%) rotate(45deg)',
-                  pointerEvents: 'none',
-                  transition: 'background 0.15s',
-                }}
-                title={`Meet neighbors: ${(autoValue * 100).toFixed(0)}%`}
-              />
-            )}
+            {snapEnabled && snapPoints.map(snap => {
+              const pct = toTrackPct(snap)
+              const isActive = snappedTo !== undefined && Math.abs(snap - snappedTo) < 0.001
+              return (
+                <div
+                  key={snap}
+                  style={{
+                    position: 'absolute',
+                    left: `calc(${pct}% + ${(0.5 - pct / 100) * 14}px)`,
+                    bottom: -2,
+                    width: 5,
+                    height: 5,
+                    background: isActive ? '#c9943a' : '#c9943a55',
+                    transform: 'translateX(-50%) rotate(45deg)',
+                    pointerEvents: 'none',
+                    transition: 'background 0.15s',
+                  }}
+                  title={`${snap === autoValue ? 'Meet neighbors' : `${(snap / autoValue * 100).toFixed(0)}% of auto`}: ${(snap * 100).toFixed(0)}%`}
+                />
+              )
+            })}
           </div>
           <div style={{ marginTop: 6, marginBottom: 4 }}>
             <Toggle

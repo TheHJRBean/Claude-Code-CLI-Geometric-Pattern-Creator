@@ -6,7 +6,7 @@ export const DEFAULT_CONFIG: PatternConfig = {
     scale: 100,
   },
   figures: {
-    4: { type: 'star', contactAngle: 67.5 },
+    4: { type: 'star', contactAngle: 67.5, lineLength: 1.0, autoLineLength: true },
   },
   lacing: {
     enabled: false,

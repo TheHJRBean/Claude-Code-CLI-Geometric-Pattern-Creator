@@ -266,17 +266,19 @@ export function Sidebar({
           <div style={{ marginBottom: 4 }} />
         </div>
 
-        {/* Contact Angles */}
+        {/* Figures */}
         <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid #14141f' }}>
           <DiamondDivider />
-          <SectionTitle>Contact Angles</SectionTitle>
+          <SectionTitle>Figures</SectionTitle>
 
           {polygonTypes.map(sides => {
             const fig = config.figures[sides]
             const angle = fig?.contactAngle ?? 60
+            const lineLength = fig?.lineLength ?? 1.0
+            const autoLen = fig?.autoLineLength ?? true
             return (
-              <div key={sides}>
-                <FieldLabel label={`${sides}-gon`} value={angle.toFixed(1)} unit="°" />
+              <div key={sides} style={{ marginBottom: 16 }}>
+                <FieldLabel label={`${sides}-gon · angle`} value={angle.toFixed(1)} unit="°" />
                 <input
                   type="range"
                   className="pattern-slider"
@@ -284,6 +286,25 @@ export function Sidebar({
                   value={angle}
                   onChange={e => dispatch({ type: 'SET_CONTACT_ANGLE', payload: { sides, angle: Number(e.target.value) } })}
                 />
+                <div style={{ marginTop: 8, marginBottom: 8 }}>
+                  <Toggle
+                    checked={autoLen}
+                    onChange={v => dispatch({ type: 'SET_AUTO_LINE_LENGTH', payload: { sides, auto: v } })}
+                    label="Auto line length"
+                  />
+                </div>
+                {!autoLen && (
+                  <>
+                    <FieldLabel label="Line length" value={(lineLength * 100).toFixed(0)} unit="%" />
+                    <input
+                      type="range"
+                      className="pattern-slider"
+                      min={10} max={200} step={1}
+                      value={lineLength * 100}
+                      onChange={e => dispatch({ type: 'SET_LINE_LENGTH', payload: { sides, lineLength: Number(e.target.value) / 100 } })}
+                    />
+                  </>
+                )}
               </div>
             )
           })}

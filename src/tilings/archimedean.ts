@@ -1,6 +1,7 @@
 import type { Polygon } from '../types/geometry'
 import type { TilingDefinition } from '../types/tiling'
 import { circumradius, createPolygon, neighborPolygon, polygonKey, resetIds } from './shared'
+import { computeNeighborSides } from './neighborSides'
 import { midpoint, Vec2 } from '../utils/math'
 
 export interface Viewport {
@@ -31,36 +32,8 @@ function intersectsViewport(poly: Polygon, vp: Viewport): boolean {
   return maxX >= vp.x && minX <= vp.x + vp.width && maxY >= vp.y && minY <= vp.y + vp.height
 }
 
-/**
- * For a given polygon and edge index, return which polygon side count
- * the neighbor on that edge should have, according to the vertex configuration.
- *
- * This is the core of the Archimedean tiling generator.
- * The vertex configuration defines the sequence of polygon types around each vertex.
- * For a polygon with `sides` sides, the neighbor on edge k is determined by
- * reading the vertex config cyclically.
- */
-function neighborSides(
-  currentSides: number,
-  _edgeIndex: number,
-  vertexConfig: number[],
-): number {
-  // Find position of currentSides in the vertex config
-  const idx = vertexConfig.indexOf(currentSides)
-  if (idx === -1) {
-    // Polygon type not in config — use the first type as fallback
-    return vertexConfig[0]
-  }
-  // The neighbor across edge k is the polygon type that comes after currentSides
-  // in the vertex config at the shared vertex. For a regular tiling, we cycle
-  // through the vertex config as we walk around the polygon's edges.
-  // Each edge k connects vertex k to vertex k+1.
-  // At vertex k+1, the polygons around it are in cyclic order of vertexConfig.
-  // The neighbor across edge k shares vertices k and k+1 of our polygon.
-  // We pick the next type in the config after the current one.
-  const nextIdx = (idx + 1) % vertexConfig.length
-  return vertexConfig[nextIdx]
-}
+/** Maximum polygons to generate (safety limit against runaway BFS) */
+const MAX_POLYGONS = 10_000
 
 /**
  * Generate all polygons visible in the given viewport for a tiling.
@@ -78,28 +51,40 @@ export function generateTiling(
   const cx = viewport.x + viewport.width / 2
   const cy = viewport.y + viewport.height / 2
   const R = circumradius(seedSides, edgeLen)
-  // Orient so flat edge is at top (phi = -π/seedSides + π/2 for flat-top, 0 for point-top)
   const seedPhi = seedSides === 6 ? Math.PI / 6 : 0
   const seed = createPolygon(seedSides, { x: cx, y: cy }, R, seedPhi)
 
-  const placed = new Map<string, Polygon>()
-  const queue: Polygon[] = [seed]
+  // Track each polygon's vertex-config position at vertex 0
+  const configPosMap = new Map<string, number>()
+  const seedConfigPos = vertexConfig.indexOf(seedSides)
 
-  while (queue.length > 0) {
-    const poly = queue.shift()!
-    const key = polygonKey(poly)
+  const placed = new Map<string, Polygon>()
+  const queue: Array<{ poly: Polygon; key: string }> = []
+  const seedKey = polygonKey(seed)
+  configPosMap.set(seedKey, seedConfigPos)
+  queue.push({ poly: seed, key: seedKey })
+
+  while (queue.length > 0 && placed.size < MAX_POLYGONS) {
+    const { poly, key } = queue.shift()!
     if (placed.has(key)) continue
     placed.set(key, poly)
+
+    const configPos = configPosMap.get(key)!
 
     // Expand to all neighbors
     for (let edgeIdx = 0; edgeIdx < poly.sides; edgeIdx++) {
       const A = poly.vertices[edgeIdx]
       const B = poly.vertices[(edgeIdx + 1) % poly.sides]
-      const nSides = neighborSides(poly.sides, edgeIdx, vertexConfig)
+      const { sides: nSides, configPos: nConfigPos } = computeNeighborSides(
+        configPos, edgeIdx, poly.sides, vertexConfig,
+      )
       const neighbor = neighborPolygon(A, B, nSides, edgeLen)
       const nKey = polygonKey(neighbor)
       if (!placed.has(nKey) && intersectsViewport(neighbor, paddedVP)) {
-        queue.push(neighbor)
+        if (!configPosMap.has(nKey)) {
+          configPosMap.set(nKey, nConfigPos)
+        }
+        queue.push({ poly: neighbor, key: nKey })
       }
     }
   }

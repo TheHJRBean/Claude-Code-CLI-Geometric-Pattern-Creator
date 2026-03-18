@@ -1,4 +1,4 @@
-import { add, scale, normalize, perp, midpoint, Vec2 } from '../utils/math'
+import { add, scale, normalize, midpoint, Vec2 } from '../utils/math'
 import type { Polygon } from '../types/geometry'
 
 let _idCounter = 0
@@ -31,7 +31,10 @@ export const circumradius = (sides: number, edgeLen: number): number =>
 export function neighborPolygon(A: Vec2, B: Vec2, sides: number, edgeLen: number): Polygon {
   const mid = midpoint(A, B)
   const edgeDir = normalize({ x: B.x - A.x, y: B.y - A.y })
-  const outward = perp(edgeDir)                        // left-hand normal (outward)
+  // Right-hand perpendicular = outward normal for CW polygon in SVG (y-down coords).
+  // perp() is the CCW (left-hand) perp, which is the INWARD normal for CW polygons,
+  // so we negate it to get the outward direction.
+  const outward = { x: edgeDir.y, y: -edgeDir.x }
   const apothem = (edgeLen / 2) / Math.tan(Math.PI / sides)
   const center = add(mid, scale(outward, apothem))
   // Initial rotation: vertex 0 at position A

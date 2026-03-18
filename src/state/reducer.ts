@@ -19,7 +19,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     case 'SET_SCALE':
       return { ...state, tiling: { ...state.tiling, scale: action.payload } }
     case 'SET_CONTACT_ANGLE': {
-      const existing = state.figures[action.payload.sides] ?? { type: 'star', contactAngle: 60 }
+      const existing = state.figures[action.payload.sides] ?? { type: 'star', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
       return {
         ...state,
         figures: {
@@ -28,8 +28,28 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         },
       }
     }
+    case 'SET_LINE_LENGTH': {
+      const existing = state.figures[action.payload.sides] ?? { type: 'star', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
+      return {
+        ...state,
+        figures: {
+          ...state.figures,
+          [action.payload.sides]: { ...existing, lineLength: action.payload.lineLength },
+        },
+      }
+    }
+    case 'SET_AUTO_LINE_LENGTH': {
+      const existing = state.figures[action.payload.sides] ?? { type: 'star', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
+      return {
+        ...state,
+        figures: {
+          ...state.figures,
+          [action.payload.sides]: { ...existing, autoLineLength: action.payload.auto },
+        },
+      }
+    }
     case 'SET_FIGURE_TYPE': {
-      const existing = state.figures[action.payload.sides] ?? { type: 'star', contactAngle: 60 }
+      const existing = state.figures[action.payload.sides] ?? { type: 'star', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
       return {
         ...state,
         figures: {

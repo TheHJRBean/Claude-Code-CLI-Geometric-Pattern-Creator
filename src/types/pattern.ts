@@ -6,6 +6,10 @@ export interface TilingConfig {
 export interface FigureConfig {
   type: 'star' | 'rosette' | 'infer'
   contactAngle: number  // degrees
+  /** Line length as a fraction of auto-computed length (1.0 = meet neighbours) */
+  lineLength: number
+  /** When true, lineLength is ignored and lines extend to meet neighbours */
+  autoLineLength: boolean
   rosetteS?: number
 }
 

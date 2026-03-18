@@ -7,8 +7,10 @@ import { rayRayIntersect } from './intersect'
  * For each polygon, intersect all its contact rays pairwise.
  * Keep intersections where both t values are positive and the point
  * is inside the polygon. Trim each ray to its nearest such intersection.
+ *
+ * @param lengthScale - optional multiplier on the auto-computed length (1.0 = meet neighbours)
  */
-export function trimRays(poly: Polygon, rays: ContactRay[]): Segment[] {
+export function trimRays(poly: Polygon, rays: ContactRay[], lengthScale?: number): Segment[] {
   const segments: Segment[] = []
   const n = rays.length
 
@@ -39,9 +41,16 @@ export function trimRays(poly: Polygon, rays: ContactRay[]): Segment[] {
     }
 
     if (nearestPoint) {
+      let to = nearestPoint
+      if (lengthScale !== undefined && lengthScale !== 1.0) {
+        to = {
+          x: r1.origin.x + (nearestPoint.x - r1.origin.x) * lengthScale,
+          y: r1.origin.y + (nearestPoint.y - r1.origin.y) * lengthScale,
+        }
+      }
       segments.push({
         from: r1.origin,
-        to: nearestPoint,
+        to,
         edgeMidpoint: r1.origin,
         polygonId: poly.id,
       })

@@ -1,4 +1,4 @@
-import { Vec2, normalize, rotate, midpoint, degToRad } from '../utils/math'
+import { Vec2, normalize, rotate, perp, midpoint, degToRad } from '../utils/math'
 import type { Polygon } from '../types/geometry'
 
 export interface ContactRay {
@@ -28,20 +28,23 @@ export function computeContactRays(poly: Polygon, contactAngleDeg: number): Cont
     const origin = midpoint(A, B)
     const edgeDir = normalize({ x: B.x - A.x, y: B.y - A.y })
 
-    // Two rays symmetrically about the inward normal at angle theta from the edge
-    // rotate edgeDir by +(π/2 - θ) and -(π/2 - θ) toward the interior
+    // Two rays symmetrically about the inward normal at angle (π/2 - θ) from it.
+    // For a CW polygon in SVG (y-down), the inward normal is perp(edgeDir)
+    // (the left-hand / CCW perpendicular). We rotate the inward normal by
+    // ±(π/2 - θ) to get two rays that both point into the polygon interior.
     const alpha = Math.PI / 2 - theta
+    const inwardNormal = perp(edgeDir)
 
     rays.push({
       origin,
-      dir: rotate(edgeDir, alpha),
+      dir: rotate(inwardNormal, alpha),
       polygonId: poly.id,
       edgeIndex: i,
       side: 'plus',
     })
     rays.push({
       origin,
-      dir: rotate(edgeDir, -alpha),
+      dir: rotate(inwardNormal, -alpha),
       polygonId: poly.id,
       edgeIndex: i,
       side: 'minus',

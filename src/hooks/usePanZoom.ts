@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 export interface ViewTransform {
   x: number
@@ -10,10 +10,12 @@ export interface PanZoomHandlers {
   onPointerDown: (e: React.PointerEvent<SVGSVGElement>) => void
   onPointerMove: (e: React.PointerEvent<SVGSVGElement>) => void
   onPointerUp: (e: React.PointerEvent<SVGSVGElement>) => void
-  onWheel: (e: React.WheelEvent<SVGSVGElement>) => void
 }
 
-export function usePanZoom(initialZoom = 1): {
+export function usePanZoom(
+  initialZoom = 1,
+  svgRef: React.RefObject<SVGSVGElement | null>,
+): {
   viewTransform: ViewTransform
   handlers: PanZoomHandlers
   setViewTransform: React.Dispatch<React.SetStateAction<ViewTransform>>
@@ -44,27 +46,34 @@ export function usePanZoom(initialZoom = 1): {
     dragging.current = false
   }, [])
 
-  const onWheel = useCallback((e: React.WheelEvent<SVGSVGElement>) => {
-    e.preventDefault()
-    const factor = e.deltaY < 0 ? 1.1 : 0.9
-    const rect = (e.currentTarget as SVGSVGElement).getBoundingClientRect()
-    // Screen position of cursor relative to SVG element
-    const sx = e.clientX - rect.left
-    const sy = e.clientY - rect.top
+  // Attach wheel listener natively with { passive: false } so
+  // preventDefault works and the page doesn't scroll while zooming.
+  useEffect(() => {
+    const el = svgRef.current
+    if (!el) return
 
-    setVt(prev => {
-      const newZoom = prev.zoom * factor
-      // Pattern-space point under the cursor (before zoom)
-      const px = prev.x + sx / prev.zoom
-      const py = prev.y + sy / prev.zoom
-      // After zoom, keep that pattern point under the cursor
-      return {
-        zoom: newZoom,
-        x: px - sx / newZoom,
-        y: py - sy / newZoom,
-      }
-    })
-  }, [])
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const factor = e.deltaY < 0 ? 1.1 : 0.9
+      const rect = el.getBoundingClientRect()
+      const sx = e.clientX - rect.left
+      const sy = e.clientY - rect.top
 
-  return { viewTransform: vt, handlers: { onPointerDown, onPointerMove, onPointerUp, onWheel }, setViewTransform: setVt }
+      setVt(prev => {
+        const newZoom = prev.zoom * factor
+        const px = prev.x + sx / prev.zoom
+        const py = prev.y + sy / prev.zoom
+        return {
+          zoom: newZoom,
+          x: px - sx / newZoom,
+          y: py - sy / newZoom,
+        }
+      })
+    }
+
+    el.addEventListener('wheel', handleWheel, { passive: false })
+    return () => el.removeEventListener('wheel', handleWheel)
+  }, [svgRef])
+
+  return { viewTransform: vt, handlers: { onPointerDown, onPointerMove, onPointerUp }, setViewTransform: setVt }
 }

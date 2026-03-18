@@ -36,7 +36,6 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
       onPointerDown={handlers.onPointerDown}
       onPointerMove={handlers.onPointerMove}
       onPointerUp={handlers.onPointerUp}
-      onWheel={handlers.onWheel}
     >
       <TileLayer polygons={polygons} visible={showTileLayer} />
       <StrandLayer segments={segments} lacing={config.lacing} />

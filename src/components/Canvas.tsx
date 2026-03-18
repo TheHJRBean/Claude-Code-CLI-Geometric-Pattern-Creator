@@ -24,7 +24,7 @@ export function Canvas({ config, showTileLayer, svgRef }: Props) {
     return () => observer.disconnect()
   }, [])
 
-  const { viewTransform, handlers } = usePanZoom(1)
+  const { viewTransform, handlers } = usePanZoom(1, svgRef)
   const { polygons, segments } = usePattern(config, viewTransform, size.width, size.height)
 
   return (

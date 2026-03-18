@@ -183,15 +183,17 @@ export function generateTiling(
   const registry = new VertexRegistry()
   const spatial = new SpatialHash(edgeLen * 2)
   const placed = new Map<string, Polygon>()
+  const queued = new Set<string>()
   const queue: Array<{ poly: Polygon; key: string }> = []
   const seedKey = polygonKey(seed)
+  registry.addPolygon(seed)
+  queued.add(seedKey)
   queue.push({ poly: seed, key: seedKey })
 
   while (queue.length > 0 && placed.size < MAX_POLYGONS) {
     const { poly, key } = queue.shift()!
     if (placed.has(key)) continue
     placed.set(key, poly)
-    registry.addPolygon(poly)
     spatial.add(poly)
 
     for (let edgeIdx = 0; edgeIdx < poly.sides; edgeIdx++) {
@@ -203,10 +205,12 @@ export function generateTiling(
 
       const neighbor = neighborPolygon(A, B, nSides, edgeLen)
       const nKey = polygonKey(neighbor)
-      if (placed.has(nKey)) continue
+      if (placed.has(nKey) || queued.has(nKey)) continue
       if (!intersectsViewport(neighbor, paddedVP)) continue
       if (spatial.overlaps(neighbor, edgeLen)) continue
 
+      registry.addPolygon(neighbor)
+      queued.add(nKey)
       queue.push({ poly: neighbor, key: nKey })
     }
   }

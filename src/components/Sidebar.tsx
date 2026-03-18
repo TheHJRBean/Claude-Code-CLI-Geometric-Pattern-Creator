@@ -341,7 +341,7 @@ export function Sidebar({
                     <input
                       type="range"
                       className="pattern-slider"
-                      min={10} max={200} step={1}
+                      min={10} max={500} step={1}
                       value={lineLength * 100}
                       onChange={e => dispatch({ type: 'SET_LINE_LENGTH', payload: { sides, lineLength: Number(e.target.value) / 100 } })}
                     />

@@ -1,136 +1,106 @@
 import type { Polygon, Segment } from '../types/geometry'
-import type { PatternConfig, FigureConfig } from '../types/pattern'
+import type { PatternConfig } from '../types/pattern'
 import { computeContactRays, type ContactRay } from './stellation'
-import { rayRayIntersect } from './intersect'
+import { rayRayIntersect, type IntersectResult } from './intersect'
 import { EPSILON, dist } from '../utils/math'
 
 /**
- * Build a vertex-based adjacency map: polygons sharing at least one vertex
- * are considered neighbors. Returns polygonId → Set of neighbor polygonIds.
+ * For a given vertex (shared by prevEdge and currEdge), find the correct
+ * ray pairing. The pairing depends on polygon winding, so we try both
+ * combinations and pick the one where both t values are positive.
  */
-function buildVertexAdjacency(polygons: Polygon[]): Map<string, Set<string>> {
-  const adj = new Map<string, Set<string>>()
-  const vertexToPolygons = new Map<string, string[]>()
-  const f = 1000
-
-  for (const poly of polygons) {
-    adj.set(poly.id, new Set())
+function pairAtVertex(
+  rays: ContactRay[],
+  prevEdge: number,
+  currEdge: number,
+): { ray1: ContactRay; ray2: ContactRay; result: IntersectResult } | null {
+  // Try pairing A: prev.minus + curr.plus
+  const rA1 = rays[prevEdge * 2 + 1]
+  const rA2 = rays[currEdge * 2]
+  const resA = rayRayIntersect(rA1.origin, rA1.dir, rA2.origin, rA2.dir)
+  if (resA && resA.t1 > EPSILON && resA.t2 > EPSILON) {
+    return { ray1: rA1, ray2: rA2, result: resA }
   }
 
-  for (const poly of polygons) {
-    for (const v of poly.vertices) {
-      const key = `${Math.round(v.x * f)},${Math.round(v.y * f)}`
-      const list = vertexToPolygons.get(key)
-      if (list) {
-        list.push(poly.id)
-      } else {
-        vertexToPolygons.set(key, [poly.id])
-      }
-    }
+  // Try pairing B: prev.plus + curr.minus
+  const rB1 = rays[prevEdge * 2]
+  const rB2 = rays[currEdge * 2 + 1]
+  const resB = rayRayIntersect(rB1.origin, rB1.dir, rB2.origin, rB2.dir)
+  if (resB && resB.t1 > EPSILON && resB.t2 > EPSILON) {
+    return { ray1: rB1, ray2: rB2, result: resB }
   }
 
-  for (const polyIds of vertexToPolygons.values()) {
-    for (let i = 0; i < polyIds.length; i++) {
-      for (let j = i + 1; j < polyIds.length; j++) {
-        adj.get(polyIds[i])!.add(polyIds[j])
-        adj.get(polyIds[j])!.add(polyIds[i])
-      }
-    }
-  }
-
-  return adj
+  return null
 }
 
 /**
  * Run the full PIC pipeline for all polygons.
  *
- * Uses neighbor-scoped ray intersection: each ray finds its nearest
- * intersection with rays from the same polygon or vertex-adjacent polygons.
- * This ensures lines connect across polygon boundaries while avoiding
- * O(N²) all-pairs checks.
+ * For each polygon vertex, pairs the two adjacent rays (one from each
+ * flanking edge) and intersects them to find the star tip. This is
+ * Kaplan's correct PIC construction: rays from adjacent edges sharing
+ * a vertex meet at a star tip, producing connected star figures.
  *
  * When autoLineLength is false, line length is an absolute value based
  * on the polygon's inradius, independent of the contact angle.
  */
 export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
-  // Step 1: Compute all rays, grouped by polygon
-  const tagged: { ray: ContactRay; fig: FigureConfig; inradius: number }[] = []
-  const raysByPolygon = new Map<string, number[]>()
+  const segments: Segment[] = []
 
   for (const poly of polygons) {
     const fig = config.figures[poly.sides]
     if (!fig) continue
+
     const rays = computeContactRays(poly, fig.contactAngle)
-    // Inradius = distance from center to edge midpoint (ray origin)
-    const inradius = rays.length > 0 ? dist(poly.center, rays[0].origin) : 0
-    const indices: number[] = []
-    for (const ray of rays) {
-      indices.push(tagged.length)
-      tagged.push({ ray, fig, inradius })
-    }
-    raysByPolygon.set(poly.id, indices)
-  }
+    const n = poly.sides
 
-  // Step 2: Build vertex-based adjacency (polygons sharing a vertex)
-  const adj = buildVertexAdjacency(polygons)
+    // Inradius = distance from center to edge midpoint (constant for regular polygon)
+    const inradius = n > 0 ? dist(poly.center, rays[0].origin) : 0
 
-  // Step 3: For each ray, find nearest intersection with rays from
-  // the same polygon and vertex-adjacent polygons only
-  const segments: Segment[] = []
+    // For each vertex k (shared by edge k-1 and edge k),
+    // find the correct ray pair and intersect them.
+    for (let k = 0; k < n; k++) {
+      const prevEdge = (k - 1 + n) % n
+      const pair = pairAtVertex(rays, prevEdge, k)
+      if (!pair) continue
 
-  for (let i = 0; i < tagged.length; i++) {
-    const { ray: r1, fig, inradius } = tagged[i]
-    let nearestT = Infinity
+      const { ray1, ray2, result } = pair
 
-    const neighbors = adj.get(r1.polygonId)
-    const candidatePolyIds = neighbors
-      ? [r1.polygonId, ...neighbors]
-      : [r1.polygonId]
-
-    for (const polyId of candidatePolyIds) {
-      const indices = raysByPolygon.get(polyId)
-      if (!indices) continue
-      for (const j of indices) {
-        if (i === j) continue
-        const { ray: r2 } = tagged[j]
-
-        // Skip rays from the same edge (they share an origin)
-        if (r1.polygonId === r2.polygonId && r1.edgeIndex === r2.edgeIndex) continue
-
-        const result = rayRayIntersect(r1.origin, r1.dir, r2.origin, r2.dir)
-        if (!result) continue
-        if (result.t1 < EPSILON || result.t2 < EPSILON) continue
-
-        if (result.t1 < nearestT) {
-          nearestT = result.t1
-        }
-      }
-    }
-
-    if (fig.autoLineLength) {
-      if (nearestT < Infinity) {
+      if (fig.autoLineLength) {
         segments.push({
-          from: r1.origin,
+          from: ray1.origin,
+          to: result.point,
+          edgeMidpoint: ray1.origin,
+          polygonId: poly.id,
+        })
+        segments.push({
+          from: ray2.origin,
+          to: result.point,
+          edgeMidpoint: ray2.origin,
+          polygonId: poly.id,
+        })
+      } else {
+        // Absolute line length based on inradius, independent of contact angle
+        const t = fig.lineLength * inradius
+        segments.push({
+          from: ray1.origin,
           to: {
-            x: r1.origin.x + r1.dir.x * nearestT,
-            y: r1.origin.y + r1.dir.y * nearestT,
+            x: ray1.origin.x + ray1.dir.x * t,
+            y: ray1.origin.y + ray1.dir.y * t,
           },
-          edgeMidpoint: r1.origin,
-          polygonId: r1.polygonId,
+          edgeMidpoint: ray1.origin,
+          polygonId: poly.id,
+        })
+        segments.push({
+          from: ray2.origin,
+          to: {
+            x: ray2.origin.x + ray2.dir.x * t,
+            y: ray2.origin.y + ray2.dir.y * t,
+          },
+          edgeMidpoint: ray2.origin,
+          polygonId: poly.id,
         })
       }
-    } else {
-      // Absolute line length based on inradius, independent of contact angle
-      const t = fig.lineLength * inradius
-      segments.push({
-        from: r1.origin,
-        to: {
-          x: r1.origin.x + r1.dir.x * t,
-          y: r1.origin.y + r1.dir.y * t,
-        },
-        edgeMidpoint: r1.origin,
-        polygonId: r1.polygonId,
-      })
     }
   }
 

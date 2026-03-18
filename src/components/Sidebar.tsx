@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import type { PatternConfig } from '../types/pattern'
 import type { Action } from '../state/actions'
 import { TILINGS, TILING_NAMES } from '../tilings/index'
-import { computeAutoLineLength, getSnapPoints, snapToNearest } from '../pic/snapPoints'
+import { computeSnapPoints, snapToNearest } from '../pic/snapPoints'
 
 interface Props {
   config: PatternConfig
@@ -163,7 +163,8 @@ function ExportBtn({ children, onClick, wide = false, secondary = false }: {
 }
 
 function FigureControls({
-  sides, figType, angle, lineLength, autoLen, snapEnabled, rosetteQ, dispatch,
+  sides, figType, angle, lineLength, autoLen, snapEnabled, rosetteQ,
+  tilingType, allFigures, dispatch,
 }: {
   sides: number
   figType: 'star' | 'rosette' | 'infer'
@@ -172,11 +173,20 @@ function FigureControls({
   autoLen: boolean
   snapEnabled: boolean
   rosetteQ: number
+  tilingType: string
+  allFigures: Record<number, { contactAngle: number }>
   dispatch: React.Dispatch<Action>
 }) {
-  const autoValue = useMemo(() => computeAutoLineLength(sides, angle), [sides, angle])
-  const snapPoints = useMemo(() => getSnapPoints(autoValue), [autoValue])
-  const snappedTo = snapEnabled ? snapPoints.find(s => Math.abs(lineLength - s) < 0.001) : undefined
+  // Stable key from all contact angles so useMemo only recomputes when angles change
+  const anglesKey = Object.entries(allFigures)
+    .map(([s, f]) => `${s}:${f.contactAngle}`)
+    .join(',')
+  const snapPoints = useMemo(
+    () => computeSnapPoints(tilingType, sides, allFigures),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tilingType, sides, anglesKey],
+  )
+  const snappedTo = snapEnabled ? snapPoints.find(s => Math.abs(lineLength - s) < 0.005) : undefined
 
   const handleLineLengthChange = (rawPercent: number) => {
     let ll = rawPercent / 100
@@ -279,7 +289,7 @@ function FigureControls({
                     pointerEvents: 'none',
                     transition: 'background 0.15s',
                   }}
-                  title={`${snap === autoValue ? 'Meet neighbors' : `${(snap / autoValue * 100).toFixed(0)}% of auto`}: ${(snap * 100).toFixed(0)}%`}
+                  title={`${(snap * 100).toFixed(0)}%`}
                 />
               )
             })}
@@ -426,6 +436,8 @@ export function Sidebar({
                 autoLen={autoLen}
                 snapEnabled={snapEnabled}
                 rosetteQ={rosetteQ}
+                tilingType={config.tiling.type}
+                allFigures={config.figures}
                 dispatch={dispatch}
               />
             )

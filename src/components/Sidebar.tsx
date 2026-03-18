@@ -264,7 +264,32 @@ function FigureControls({
             value={(lineLength * 100).toFixed(0)}
             unit={snappedTo !== undefined ? '% (snapped)' : '%'}
           />
-          <div style={{ position: 'relative' }}>
+          <div style={{ position: 'relative', paddingTop: snapEnabled ? 8 : 0 }}>
+            {snapEnabled && (
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '100%', pointerEvents: 'none' }}>
+                {snapPoints.map(snap => {
+                  const pct = toTrackPct(snap)
+                  const isActive = snappedTo !== undefined && Math.abs(snap - snappedTo) < 0.001
+                  return (
+                    <div
+                      key={snap}
+                      style={{
+                        position: 'absolute',
+                        left: `calc(${pct}% + ${(0.5 - pct / 100) * 13}px)`,
+                        top: 0,
+                        width: 1,
+                        height: '100%',
+                        background: isActive
+                          ? '#c9943a'
+                          : 'linear-gradient(180deg, #c9943a88, #c9943a33)',
+                        transition: 'background 0.15s',
+                      }}
+                      title={`${(snap * 100).toFixed(0)}%`}
+                    />
+                  )
+                })}
+              </div>
+            )}
             <input
               type="range"
               className="pattern-slider"
@@ -272,27 +297,6 @@ function FigureControls({
               value={Math.round(lineLength * 100)}
               onChange={e => handleLineLengthChange(Number(e.target.value))}
             />
-            {snapEnabled && snapPoints.map(snap => {
-              const pct = toTrackPct(snap)
-              const isActive = snappedTo !== undefined && Math.abs(snap - snappedTo) < 0.001
-              return (
-                <div
-                  key={snap}
-                  style={{
-                    position: 'absolute',
-                    left: `calc(${pct}% + ${(0.5 - pct / 100) * 14}px)`,
-                    bottom: -2,
-                    width: 5,
-                    height: 5,
-                    background: isActive ? '#c9943a' : '#c9943a55',
-                    transform: 'translateX(-50%) rotate(45deg)',
-                    pointerEvents: 'none',
-                    transition: 'background 0.15s',
-                  }}
-                  title={`${(snap * 100).toFixed(0)}%`}
-                />
-              )
-            })}
           </div>
           <div style={{ marginTop: 6, marginBottom: 4 }}>
             <Toggle

@@ -48,6 +48,16 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         },
       }
     }
+    case 'SET_SNAP_LINE_LENGTH': {
+      const existing = state.figures[action.payload.sides] ?? { type: 'star', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
+      return {
+        ...state,
+        figures: {
+          ...state.figures,
+          [action.payload.sides]: { ...existing, snapLineLength: action.payload.snap },
+        },
+      }
+    }
     case 'SET_FIGURE_TYPE': {
       const existing = state.figures[action.payload.sides] ?? { type: 'star', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
       return {

@@ -1,6 +1,8 @@
+import { useMemo } from 'react'
 import type { PatternConfig } from '../types/pattern'
 import type { Action } from '../state/actions'
 import { TILINGS, TILING_NAMES } from '../tilings/index'
+import { computeAutoLineLength, snapToNearest } from '../pic/snapPoints'
 
 interface Props {
   config: PatternConfig
@@ -160,6 +162,135 @@ function ExportBtn({ children, onClick, wide = false, secondary = false }: {
   )
 }
 
+function FigureControls({
+  sides, figType, angle, lineLength, autoLen, snapEnabled, rosetteQ, dispatch,
+}: {
+  sides: number
+  figType: 'star' | 'rosette' | 'infer'
+  angle: number
+  lineLength: number
+  autoLen: boolean
+  snapEnabled: boolean
+  rosetteQ: number
+  dispatch: React.Dispatch<Action>
+}) {
+  const autoValue = useMemo(() => computeAutoLineLength(sides, angle), [sides, angle])
+  const snapPoints = useMemo(() => [autoValue], [autoValue])
+  const isSnapped = snapEnabled && Math.abs(lineLength - autoValue) < 0.001
+
+  const handleLineLengthChange = (rawPercent: number) => {
+    let ll = rawPercent / 100
+    if (snapEnabled) {
+      ll = snapToNearest(ll, snapPoints, 0.05)
+    }
+    dispatch({ type: 'SET_LINE_LENGTH', payload: { sides, lineLength: ll } })
+  }
+
+  // Snap marker position as percentage of slider track (10–500 range)
+  const snapMarkerPct = Math.max(0, Math.min(100, ((autoValue * 100 - 10) / (500 - 10)) * 100))
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <FieldLabel label={`${sides}-gon · figure`} />
+      <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
+        {(['star', 'rosette'] as const).map(ft => (
+          <button
+            key={ft}
+            onClick={() => dispatch({ type: 'SET_FIGURE_TYPE', payload: { sides, figureType: ft } })}
+            style={{
+              flex: 1,
+              padding: '5px 0',
+              fontFamily: "'Cinzel', Georgia, serif",
+              fontSize: 9,
+              fontWeight: 600,
+              letterSpacing: '0.10em',
+              textTransform: 'uppercase' as const,
+              cursor: 'pointer',
+              border: `1px solid ${figType === ft ? '#c9943a' : '#1a1a2e'}`,
+              background: figType === ft ? 'rgba(201,148,58,0.15)' : 'transparent',
+              color: figType === ft ? '#c9943a' : '#5a5440',
+              transition: 'all 0.15s',
+            }}
+          >
+            {ft}
+          </button>
+        ))}
+      </div>
+
+      <FieldLabel label="Contact angle" value={angle.toFixed(1)} unit="°" />
+      <input
+        type="range"
+        className="pattern-slider"
+        min={10} max={85} step={0.5}
+        value={angle}
+        onChange={e => dispatch({ type: 'SET_CONTACT_ANGLE', payload: { sides, angle: Number(e.target.value) } })}
+      />
+
+      {figType === 'rosette' && (
+        <>
+          <FieldLabel label="Petal shape (q)" value={rosetteQ.toFixed(2)} />
+          <input
+            type="range"
+            className="pattern-slider"
+            min={0} max={100} step={1}
+            value={rosetteQ * 100}
+            onChange={e => dispatch({ type: 'SET_ROSETTE_Q', payload: { sides, q: Number(e.target.value) / 100 } })}
+          />
+        </>
+      )}
+
+      <div style={{ marginTop: 8, marginBottom: 8 }}>
+        <Toggle
+          checked={autoLen}
+          onChange={v => dispatch({ type: 'SET_AUTO_LINE_LENGTH', payload: { sides, auto: v } })}
+          label="Auto line length"
+        />
+      </div>
+      {!autoLen && (
+        <>
+          <FieldLabel
+            label="Line length"
+            value={(lineLength * 100).toFixed(0)}
+            unit={isSnapped ? '% (snapped)' : '%'}
+          />
+          <div style={{ position: 'relative' }}>
+            <input
+              type="range"
+              className="pattern-slider"
+              min={10} max={500} step={1}
+              value={Math.round(lineLength * 100)}
+              onChange={e => handleLineLengthChange(Number(e.target.value))}
+            />
+            {snapEnabled && (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: `calc(${snapMarkerPct}% + ${(0.5 - snapMarkerPct / 100) * 14}px)`,
+                  bottom: -2,
+                  width: 5,
+                  height: 5,
+                  background: isSnapped ? '#c9943a' : '#c9943a88',
+                  transform: 'translateX(-50%) rotate(45deg)',
+                  pointerEvents: 'none',
+                  transition: 'background 0.15s',
+                }}
+                title={`Meet neighbors: ${(autoValue * 100).toFixed(0)}%`}
+              />
+            )}
+          </div>
+          <div style={{ marginTop: 6, marginBottom: 4 }}>
+            <Toggle
+              checked={snapEnabled}
+              onChange={v => dispatch({ type: 'SET_SNAP_LINE_LENGTH', payload: { sides, snap: v } })}
+              label="Snap to neighbors"
+            />
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export function Sidebar({
   config, dispatch, showTileLayer, onToggleTileLayer,
   onExportSVG, onExportPNG, onSaveJSON, onLoadJSON,
@@ -277,77 +408,20 @@ export function Sidebar({
             const angle = fig?.contactAngle ?? 60
             const lineLength = fig?.lineLength ?? 1.0
             const autoLen = fig?.autoLineLength ?? true
+            const snapEnabled = fig?.snapLineLength ?? false
             const rosetteQ = fig?.rosetteQ ?? 0.5
             return (
-              <div key={sides} style={{ marginBottom: 16 }}>
-                <FieldLabel label={`${sides}-gon · figure`} />
-                <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
-                  {(['star', 'rosette'] as const).map(ft => (
-                    <button
-                      key={ft}
-                      onClick={() => dispatch({ type: 'SET_FIGURE_TYPE', payload: { sides, figureType: ft } })}
-                      style={{
-                        flex: 1,
-                        padding: '5px 0',
-                        fontFamily: "'Cinzel', Georgia, serif",
-                        fontSize: 9,
-                        fontWeight: 600,
-                        letterSpacing: '0.10em',
-                        textTransform: 'uppercase' as const,
-                        cursor: 'pointer',
-                        border: `1px solid ${figType === ft ? '#c9943a' : '#1a1a2e'}`,
-                        background: figType === ft ? 'rgba(201,148,58,0.15)' : 'transparent',
-                        color: figType === ft ? '#c9943a' : '#5a5440',
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      {ft}
-                    </button>
-                  ))}
-                </div>
-
-                <FieldLabel label="Contact angle" value={angle.toFixed(1)} unit="°" />
-                <input
-                  type="range"
-                  className="pattern-slider"
-                  min={10} max={85} step={0.5}
-                  value={angle}
-                  onChange={e => dispatch({ type: 'SET_CONTACT_ANGLE', payload: { sides, angle: Number(e.target.value) } })}
-                />
-
-                {figType === 'rosette' && (
-                  <>
-                    <FieldLabel label="Petal shape (q)" value={rosetteQ.toFixed(2)} />
-                    <input
-                      type="range"
-                      className="pattern-slider"
-                      min={0} max={100} step={1}
-                      value={rosetteQ * 100}
-                      onChange={e => dispatch({ type: 'SET_ROSETTE_Q', payload: { sides, q: Number(e.target.value) / 100 } })}
-                    />
-                  </>
-                )}
-
-                <div style={{ marginTop: 8, marginBottom: 8 }}>
-                  <Toggle
-                    checked={autoLen}
-                    onChange={v => dispatch({ type: 'SET_AUTO_LINE_LENGTH', payload: { sides, auto: v } })}
-                    label="Auto line length"
-                  />
-                </div>
-                {!autoLen && (
-                  <>
-                    <FieldLabel label="Line length" value={(lineLength * 100).toFixed(0)} unit="%" />
-                    <input
-                      type="range"
-                      className="pattern-slider"
-                      min={10} max={500} step={1}
-                      value={lineLength * 100}
-                      onChange={e => dispatch({ type: 'SET_LINE_LENGTH', payload: { sides, lineLength: Number(e.target.value) / 100 } })}
-                    />
-                  </>
-                )}
-              </div>
+              <FigureControls
+                key={sides}
+                sides={sides}
+                figType={figType}
+                angle={angle}
+                lineLength={lineLength}
+                autoLen={autoLen}
+                snapEnabled={snapEnabled}
+                rosetteQ={rosetteQ}
+                dispatch={dispatch}
+              />
             )
           })}
           <div style={{ marginBottom: 4 }} />

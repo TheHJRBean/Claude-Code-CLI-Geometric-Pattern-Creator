@@ -10,6 +10,8 @@ export interface FigureConfig {
   lineLength: number
   /** When true, lineLength is ignored and lines extend to meet neighbours */
   autoLineLength: boolean
+  /** When true, manual slider snaps to values where lines meet neighbors */
+  snapLineLength?: boolean
   /** Rosette petal shape: 0 = straight tip-to-tip, 1 = full knee at edge midpoint */
   rosetteQ?: number
   rosetteS?: number

@@ -1,4 +1,5 @@
 import type { Vec2 } from '../utils/math'
+import type { Polygon } from '../types/geometry'
 import { dist, EPSILON } from '../utils/math'
 import { computeContactRays } from './stellation'
 import { rayRayIntersect } from './intersect'
@@ -6,12 +7,36 @@ import { generateTiling } from '../tilings/archimedean'
 import { TILINGS } from '../tilings/index'
 
 /**
+ * Compute the auto-meet distance for a polygon: the t-value at which
+ * adjacent rays within the same polygon meet at a star tip.
+ */
+function autoTForPolygon(poly: Polygon, contactAngle: number): number {
+  const rays = computeContactRays(poly, contactAngle)
+  const n = poly.sides
+  for (let k = 0; k < n; k++) {
+    const prevEdge = (k - 1 + n) % n
+    const rA1 = rays[prevEdge * 2 + 1]
+    const rA2 = rays[k * 2]
+    const resA = rayRayIntersect(rA1.origin, rA1.dir, rA2.origin, rA2.dir)
+    if (resA && resA.t1 > EPSILON && resA.t2 > EPSILON) return resA.t1
+    const rB1 = rays[prevEdge * 2]
+    const rB2 = rays[k * 2 + 1]
+    const resB = rayRayIntersect(rB1.origin, rB1.dir, rB2.origin, rB2.dir)
+    if (resB && resB.t1 > EPSILON && resB.t2 > EPSILON) return resB.t1
+  }
+  return Infinity
+}
+
+/**
  * Compute snap points for a polygon type by generating a tiling patch
- * and finding ray-ray intersections across neighboring tiles.
+ * and finding meaningful ray-ray intersections across tiles.
  *
- * Keeps intersections where both rays' equivalent lineLength values
- * fall within the slider range (10%–500%), so every reachable meeting
- * point is captured.
+ * A snap point is kept if EITHER:
+ *   (a) The target tip hits the other ray's auto-rendered segment
+ *       (t2 <= autoT), i.e. our extended line touches a line that's
+ *       visible in the default pattern.
+ *   (b) Both polygons at the SAME lineLength would have tips touching
+ *       (targetLL ≈ otherLL), i.e. symmetric extensions meet.
  *
  * Returns lineLength values (fractions of inradius) sorted ascending.
  */
@@ -23,7 +48,6 @@ export function computeSnapPoints(
   const def = TILINGS[tilingType]
   if (!def) return []
 
-  // Patch with 2-3 rings of neighbors to catch non-adjacent meetings
   const edgeLen = 100
   const patchSize = edgeLen * 8
   const polygons = generateTiling(def, {
@@ -46,24 +70,26 @@ export function computeSnapPoints(
   const targetInradius = dist(targetPoly.center, targetRays[0].origin)
   if (targetInradius < EPSILON) return []
 
-  // Precompute inradius per polygon type
-  const inradiusByType = new Map<number, number>()
+  // Precompute auto-meet distance and inradius per polygon type
+  const infoByType = new Map<number, { inradius: number; autoT: number }>()
   for (const poly of polygons) {
-    if (inradiusByType.has(poly.sides)) continue
+    if (infoByType.has(poly.sides)) continue
     const angle = figures[poly.sides]?.contactAngle ?? 60
     const rays = computeContactRays(poly, angle)
-    inradiusByType.set(poly.sides, dist(poly.center, rays[0].origin))
+    const ir = dist(poly.center, rays[0].origin)
+    const at = autoTForPolygon(poly, angle)
+    infoByType.set(poly.sides, { inradius: ir, autoT: at })
   }
 
-  // Compute rays for all polygons, tagged with their inradius
-  interface TaggedRay { origin: Vec2; dir: Vec2; inradius: number }
+  // Compute rays for all polygons, tagged with per-type info
+  interface TaggedRay { origin: Vec2; dir: Vec2; inradius: number; autoT: number }
   const allRays: TaggedRay[] = []
   for (const poly of polygons) {
     const angle = figures[poly.sides]?.contactAngle ?? 60
     const rays = computeContactRays(poly, angle)
-    const ir = inradiusByType.get(poly.sides) ?? 1
+    const info = infoByType.get(poly.sides)!
     for (const r of rays) {
-      allRays.push({ origin: r.origin, dir: r.dir, inradius: ir })
+      allRays.push({ origin: r.origin, dir: r.dir, inradius: info.inradius, autoT: info.autoT })
     }
   }
 
@@ -79,11 +105,16 @@ export function computeSnapPoints(
       if (!res || res.t1 < EPSILON || res.t2 < EPSILON) continue
 
       const targetLL = res.t1 / targetInradius
-      const otherLL = res.t2 / oRay.inradius
-
-      // Both rays must be within slider range for the meeting to be reachable
       if (targetLL < 0.1 || targetLL > 5.0) continue
-      if (otherLL < 0.1 || otherLL > 5.0) continue
+
+      // (a) Our tip lands on the other ray's auto-rendered segment
+      const hitsAutoSegment = res.t2 <= oRay.autoT + EPSILON
+
+      // (b) Both polygons at the same lineLength have tips touching
+      const otherLL = res.t2 / oRay.inradius
+      const tipsTouch = Math.abs(targetLL - otherLL) < 0.01 && otherLL <= 5.0
+
+      if (!hitsAutoSegment && !tipsTouch) continue
 
       values.add(Math.round(targetLL * 1000) / 1000)
     }
@@ -111,7 +142,6 @@ export function computeThreshold(snapPoints: number[]): number {
   for (let i = 1; i < snapPoints.length; i++) {
     minGap = Math.min(minGap, snapPoints[i] - snapPoints[i - 1])
   }
-  // Use 45% of the smallest gap, capped between 1.5pp and 8pp
   return Math.min(0.08, Math.max(0.015, minGap * 0.45))
 }
 

@@ -368,6 +368,23 @@
   flex: 1;
 }
 
+/* ── Sandstone edge decoration ────────────────────────────── */
+.sandstone-edge-wrapper {
+  width: 0;
+  position: relative;
+  z-index: 50;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+.sandstone-edge-wrapper > svg {
+  position: absolute;
+  top: 0;
+  left: -13px;
+  width: 26px;
+  height: 100%;
+}
+
 /* ── Canvas container ────────────────────────────────────── */
 .canvas-container {
   flex: 1;
@@ -414,6 +431,10 @@
 
   .sidebar-close {
     display: flex;
+  }
+
+  .sandstone-edge-wrapper {
+    display: none;
   }
 
   .sidebar-backdrop {

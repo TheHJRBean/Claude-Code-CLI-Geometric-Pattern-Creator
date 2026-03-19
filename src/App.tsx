@@ -1,6 +1,7 @@
 import { useReducer, useRef, useState } from 'react'
 import { Canvas } from './components/Canvas'
 import { Sidebar } from './components/Sidebar'
+import { SandstoneEdge } from './components/SandstoneEdge'
 import { reducer, DEFAULT_CONFIG } from './state/reducer'
 import { exportSVG, exportPNG } from './export/exportSVG'
 import { saveJSON, loadJSON } from './export/exportJSON'
@@ -56,6 +57,9 @@ export default function App() {
         onSaveJSON={handleSaveJSON}
         onLoadJSON={handleLoadJSON}
       />
+      <div className="sandstone-edge-wrapper" aria-hidden="true">
+        <SandstoneEdge />
+      </div>
       <Canvas config={config} showTileLayer={showTileLayer} svgRef={svgRef} />
     </div>
   )

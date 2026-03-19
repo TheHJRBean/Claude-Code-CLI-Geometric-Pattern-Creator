@@ -3,6 +3,7 @@ import type { PatternConfig } from '../types/pattern'
 import type { Action } from '../state/actions'
 import { TILINGS, TILING_NAMES } from '../tilings/index'
 import { computeSnapPoints, snapToNearest } from '../pic/snapPoints'
+import { useTheme } from '../theme/ThemeContext'
 
 interface Props {
   config: PatternConfig
@@ -13,11 +14,12 @@ interface Props {
   onExportPNG: () => void
   onSaveJSON: () => void
   onLoadJSON: () => void
+  open: boolean
+  onClose: () => void
 }
 
-const W = 300
+/* ── Decorative SVG components ─────────────────────────────── */
 
-// Generates points for an 8-pointed star polygon
 function starPoints(cx: number, cy: number, r1: number, r2: number): string {
   return Array.from({ length: 16 }, (_, i) => {
     const angle = (i * Math.PI / 8) - Math.PI / 2
@@ -26,7 +28,7 @@ function starPoints(cx: number, cy: number, r1: number, r2: number): string {
   }).join(' ')
 }
 
-function OctaStar({ size = 20, color = '#c9943a', opacity = 1 }: { size?: number; color?: string; opacity?: number }) {
+function OctaStar({ size = 20, color = 'var(--accent)', opacity = 1 }: { size?: number; color?: string; opacity?: number }) {
   const c = size / 2
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ display: 'block', flexShrink: 0 }}>
@@ -35,12 +37,20 @@ function OctaStar({ size = 20, color = '#c9943a', opacity = 1 }: { size?: number
   )
 }
 
-function DiamondDivider() {
+/** Lotus-bud divider — three geometric petals flanked by gradient lines */
+function LotusDivider() {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 20, marginBottom: 4 }}>
-      <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, transparent, #2c2418)' }} />
-      <div style={{ width: 5, height: 5, background: '#c9943a', transform: 'rotate(45deg)', opacity: 0.5 }} />
-      <div style={{ flex: 1, height: 1, background: 'linear-gradient(270deg, transparent, #2c2418)' }} />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginTop: 20, marginBottom: 6 }}>
+      <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, transparent, var(--divider))' }} />
+      <svg viewBox="0 0 28 10" width="28" height="10" style={{ flexShrink: 0, display: 'block' }}>
+        {/* Center petal */}
+        <path d="M14 0 L16 7 L14 10 L12 7Z" fill="var(--accent)" opacity="0.5" />
+        {/* Left petal */}
+        <path d="M8 3 L10 7 L8 9 L6 7Z" fill="var(--accent)" opacity="0.25" />
+        {/* Right petal */}
+        <path d="M20 3 L18 7 L20 9 L22 7Z" fill="var(--accent)" opacity="0.25" />
+      </svg>
+      <div style={{ flex: 1, height: 1, background: 'linear-gradient(270deg, transparent, var(--divider))' }} />
     </div>
   )
 }
@@ -53,18 +63,18 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
       gap: 7,
       marginBottom: 14,
     }}>
-      <OctaStar size={10} color="#c9943a" opacity={0.7} />
+      <OctaStar size={10} opacity={0.7} />
       <span style={{
         fontFamily: "'Cinzel', Georgia, serif",
         fontSize: 10,
         fontWeight: 600,
-        color: '#c9943a',
+        color: 'var(--accent)',
         letterSpacing: '0.20em',
         textTransform: 'uppercase' as const,
       }}>
         {children}
       </span>
-      <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, #2c2418, transparent)' }} />
+      <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, var(--divider), transparent)' }} />
     </div>
   )
 }
@@ -80,8 +90,8 @@ function FieldLabel({ label, value, unit }: { label: string; value?: string; uni
     }}>
       <span style={{
         fontFamily: "'EB Garamond', Georgia, serif",
-        fontSize: 13,
-        color: '#a09880',
+        fontSize: 13.5,
+        color: 'var(--text-secondary)',
         letterSpacing: '0.02em',
       }}>
         {label}
@@ -90,7 +100,7 @@ function FieldLabel({ label, value, unit }: { label: string; value?: string; uni
         <span style={{
           fontFamily: "'JetBrains Mono', monospace",
           fontSize: 11,
-          color: '#c9943a',
+          color: 'var(--accent)',
           letterSpacing: '0.04em',
         }}>
           {value}{unit}
@@ -108,8 +118,8 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: 
       gap: 12,
       cursor: 'pointer',
       fontFamily: "'EB Garamond', Georgia, serif",
-      fontSize: 13,
-      color: checked ? '#ede8dc' : '#7a7060',
+      fontSize: 13.5,
+      color: checked ? 'var(--text)' : 'var(--text-muted)',
       transition: 'color 0.15s',
     }}>
       <input
@@ -133,9 +143,11 @@ function ExportBtn({ children, onClick, wide = false, secondary = false }: {
     <button
       onClick={onClick}
       style={{
-        background: secondary ? 'transparent' : 'linear-gradient(180deg, #c9943a 0%, #a87830 100%)',
-        color: secondary ? '#c9943a' : '#07070f',
-        border: `1px solid ${secondary ? '#2c2418' : '#c9943a'}`,
+        background: secondary
+          ? 'transparent'
+          : 'linear-gradient(180deg, var(--btn-primary-from) 0%, var(--btn-primary-to) 100%)',
+        color: secondary ? 'var(--accent)' : 'var(--btn-primary-text)',
+        border: `1px solid ${secondary ? 'var(--border-accent)' : 'var(--btn-primary-border)'}`,
         padding: '8px 10px',
         fontFamily: "'Cinzel', Georgia, serif",
         fontSize: 10,
@@ -148,12 +160,12 @@ function ExportBtn({ children, onClick, wide = false, secondary = false }: {
       }}
       onMouseEnter={e => {
         const el = e.currentTarget
-        if (secondary) el.style.borderColor = '#c9943a66'
+        if (secondary) el.style.borderColor = 'var(--accent-border)'
         else el.style.opacity = '0.85'
       }}
       onMouseLeave={e => {
         const el = e.currentTarget
-        if (secondary) el.style.borderColor = '#2c2418'
+        if (secondary) el.style.borderColor = 'var(--border-accent)'
         else el.style.opacity = '1'
       }}
     >
@@ -161,6 +173,34 @@ function ExportBtn({ children, onClick, wide = false, secondary = false }: {
     </button>
   )
 }
+
+/* ── Theme toggle icons ──────────────────────────────────── */
+
+function SunIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+      <circle cx="12" cy="12" r="5" />
+      <line x1="12" y1="1" x2="12" y2="3" />
+      <line x1="12" y1="21" x2="12" y2="23" />
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+      <line x1="1" y1="12" x2="3" y2="12" />
+      <line x1="21" y1="12" x2="23" y2="12" />
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+    </svg>
+  )
+}
+
+function MoonIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+    </svg>
+  )
+}
+
+/* ── Figure controls ─────────────────────────────────────── */
 
 function FigureControls({
   sides, figType, angle, lineLength, autoLen, snapEnabled, rosetteQ,
@@ -183,7 +223,6 @@ function FigureControls({
   allFigures: Record<number, { contactAngle: number }>
   dispatch: React.Dispatch<Action>
 }) {
-  // Stable key from all contact angles so useMemo only recomputes when angles change
   const anglesKey = Object.entries(allFigures)
     .map(([s, f]) => `${s}:${f.contactAngle}`)
     .join(',')
@@ -216,16 +255,16 @@ function FigureControls({
             onClick={() => dispatch({ type: 'SET_FIGURE_TYPE', payload: { sides, figureType: ft } })}
             style={{
               flex: 1,
-              padding: '5px 0',
+              padding: '6px 0',
               fontFamily: "'Cinzel', Georgia, serif",
               fontSize: 9,
               fontWeight: 600,
               letterSpacing: '0.10em',
               textTransform: 'uppercase' as const,
               cursor: 'pointer',
-              border: `1px solid ${figType === ft ? '#c9943a' : '#1a1a2e'}`,
-              background: figType === ft ? 'rgba(201,148,58,0.15)' : 'transparent',
-              color: figType === ft ? '#c9943a' : '#5a5440',
+              border: `1px solid ${figType === ft ? 'var(--accent)' : 'var(--border)'}`,
+              background: figType === ft ? 'var(--accent-bg)' : 'transparent',
+              color: figType === ft ? 'var(--accent)' : 'var(--text-muted)',
               transition: 'all 0.15s',
             }}
           >
@@ -286,8 +325,8 @@ function FigureControls({
                         width: 1,
                         height: '100%',
                         background: isActive
-                          ? '#c9943a'
-                          : 'linear-gradient(180deg, #c9943a88, #c9943a33)',
+                          ? 'var(--accent)'
+                          : 'var(--snap-gradient)',
                         transition: 'background 0.15s',
                       }}
                       title={`${(snap * 100).toFixed(0)}%`}
@@ -368,56 +407,76 @@ function FigureControls({
   )
 }
 
+/* ── Main Sidebar ────────────────────────────────────────── */
+
 export function Sidebar({
   config, dispatch, showTileLayer, onToggleTileLayer,
   onExportSVG, onExportPNG, onSaveJSON, onLoadJSON,
+  open, onClose,
 }: Props) {
+  const { theme, toggleTheme } = useTheme()
   const def = TILINGS[config.tiling.type]
   const polygonTypes = def ? [...new Set(def.vertexConfig)].sort((a, b) => a - b) : []
 
   return (
-    <div
-      className="sidebar"
-      style={{
-        width: W,
-        height: '100%',
-        background: '#07070f',
-        color: '#ede8dc',
-        display: 'flex',
-        flexDirection: 'column',
-        overflowY: 'auto',
-        flexShrink: 0,
-        borderRight: '1px solid #14141f',
-      }}
-    >
+    <div className={`sidebar ${open ? 'sidebar--open' : ''}`}>
       {/* ── Header ──────────────────────────────────────── */}
-      <div style={{
-        padding: '28px 22px 22px',
-        borderBottom: '1px solid #14141f',
-        background: 'linear-gradient(180deg, #0d0d1e 0%, #07070f 100%)',
-        textAlign: 'center',
-        position: 'relative',
-      }}>
+      <div className="sidebar-header">
+        {/* Mobile close button */}
+        <button
+          className="sidebar-close"
+          onClick={onClose}
+          aria-label="Close sidebar"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+
+        {/* Theme toggle */}
+        <button
+          className="theme-toggle"
+          onClick={toggleTheme}
+          aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+          title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+        >
+          {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+        </button>
+
         {/* Corner ornaments */}
         <div style={{ position: 'absolute', top: 10, left: 12, opacity: 0.25 }}>
-          <OctaStar size={9} color="#c9943a" />
-        </div>
-        <div style={{ position: 'absolute', top: 10, right: 12, opacity: 0.25 }}>
-          <OctaStar size={9} color="#c9943a" />
+          <OctaStar size={9} />
         </div>
 
-        {/* Rule + star + rule */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, justifyContent: 'center' }}>
-          <div style={{ width: 42, height: 1, background: 'linear-gradient(90deg, transparent, #c9943a66)' }} />
-          <OctaStar size={22} color="#c9943a" />
-          <div style={{ width: 42, height: 1, background: 'linear-gradient(270deg, transparent, #c9943a66)' }} />
+        {/* Art Deco fan motif */}
+        <div style={{ marginBottom: 10, marginTop: 2 }}>
+          <svg viewBox="0 0 100 20" style={{ width: 100, height: 'auto', display: 'block', margin: '0 auto' }}>
+            {Array.from({ length: 9 }, (_, i) => {
+              const mid = 4
+              const spread = 80
+              const frac = i / 8
+              const angleDeg = -90 - spread / 2 + frac * spread
+              const rad = angleDeg * Math.PI / 180
+              const len = 16 - Math.abs(i - mid) * 1.2
+              const x = 50 + Math.cos(rad) * len
+              const y = 18 + Math.sin(rad) * len
+              return (
+                <line key={i} x1="50" y1="18" x2={x} y2={y}
+                  stroke="var(--accent)" strokeWidth="0.8" strokeLinecap="round"
+                  opacity={0.5 - Math.abs(i - mid) * 0.07}
+                />
+              )
+            })}
+            <circle cx="50" cy="2.5" r="2" fill="var(--accent)" opacity="0.35" />
+          </svg>
         </div>
 
         <h1 style={{
           fontFamily: "'Cinzel', Georgia, serif",
-          fontSize: 15,
+          fontSize: 16,
           fontWeight: 700,
-          color: '#ede8dc',
+          color: 'var(--text)',
           letterSpacing: '0.22em',
           textTransform: 'uppercase',
           marginBottom: 5,
@@ -428,28 +487,28 @@ export function Sidebar({
         <p style={{
           fontFamily: "'EB Garamond', Georgia, serif",
           fontStyle: 'italic',
-          fontSize: 12,
-          color: '#5a5440',
+          fontSize: 12.5,
+          color: 'var(--text-muted)',
           letterSpacing: '0.06em',
-          marginBottom: 14,
+          marginBottom: 12,
         }}>
           Islamic Patterns · PIC Method
         </p>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
-          <div style={{ width: 20, height: 1, background: '#2c2418' }} />
-          <div style={{ width: 4, height: 4, background: '#c9943a', transform: 'rotate(45deg)', opacity: 0.5 }} />
-          <div style={{ width: 40, height: 1, background: '#2c2418' }} />
-          <div style={{ width: 4, height: 4, background: '#c9943a', transform: 'rotate(45deg)', opacity: 0.5 }} />
-          <div style={{ width: 20, height: 1, background: '#2c2418' }} />
+          <div style={{ width: 20, height: 1, background: 'var(--border-accent)' }} />
+          <div style={{ width: 4, height: 4, background: 'var(--accent)', transform: 'rotate(45deg)', opacity: 0.5 }} />
+          <div style={{ width: 40, height: 1, background: 'var(--border-accent)' }} />
+          <div style={{ width: 4, height: 4, background: 'var(--accent)', transform: 'rotate(45deg)', opacity: 0.5 }} />
+          <div style={{ width: 20, height: 1, background: 'var(--border-accent)' }} />
         </div>
       </div>
 
       {/* ── Sections ────────────────────────────────────── */}
-      <div style={{ padding: '0 20px', flex: 1 }}>
+      <div className="sidebar-sections">
 
         {/* Tiling */}
-        <div style={{ paddingTop: 20, paddingBottom: 4, borderBottom: '1px solid #14141f' }}>
+        <div style={{ paddingTop: 20, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
           <SectionTitle>Tiling</SectionTitle>
 
           <FieldLabel label="Type" />
@@ -475,8 +534,8 @@ export function Sidebar({
         </div>
 
         {/* Figures */}
-        <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid #14141f' }}>
-          <DiamondDivider />
+        <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
+          <LotusDivider />
           <SectionTitle>Figures</SectionTitle>
 
           {polygonTypes.map(sides => {
@@ -517,8 +576,8 @@ export function Sidebar({
         </div>
 
         {/* Lacing */}
-        <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid #14141f' }}>
-          <DiamondDivider />
+        <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
+          <LotusDivider />
           <SectionTitle>Lacing</SectionTitle>
 
           <Toggle
@@ -551,8 +610,8 @@ export function Sidebar({
         </div>
 
         {/* Display */}
-        <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid #14141f' }}>
-          <DiamondDivider />
+        <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
+          <LotusDivider />
           <SectionTitle>Display</SectionTitle>
 
           <Toggle
@@ -565,7 +624,7 @@ export function Sidebar({
 
         {/* Export */}
         <div style={{ paddingTop: 4, paddingBottom: 28 }}>
-          <DiamondDivider />
+          <LotusDivider />
           <SectionTitle>Export</SectionTitle>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
@@ -581,23 +640,23 @@ export function Sidebar({
       {/* ── Footer ──────────────────────────────────────── */}
       <div style={{
         padding: '12px 20px',
-        borderTop: '1px solid #14141f',
+        borderTop: '1px solid var(--border-subtle)',
         textAlign: 'center',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,
       }}>
-        <OctaStar size={8} color="#2c2418" opacity={1} />
+        <OctaStar size={8} color="var(--border-accent)" opacity={1} />
         <span style={{
           fontFamily: "'EB Garamond', Georgia, serif",
           fontSize: 10,
-          color: '#2c2418',
+          color: 'var(--border-accent)',
           letterSpacing: '0.08em',
         }}>
           Kaplan 2005
         </span>
-        <OctaStar size={8} color="#2c2418" opacity={1} />
+        <OctaStar size={8} color="var(--border-accent)" opacity={1} />
       </div>
     </div>
   )

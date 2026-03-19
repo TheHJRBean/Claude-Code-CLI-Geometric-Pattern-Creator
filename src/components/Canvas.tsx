@@ -12,7 +12,7 @@ interface Props {
 
 export function Canvas({ config, showTileLayer, svgRef }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [size, setSize] = useState({ width: window.innerWidth - 280, height: window.innerHeight })
+  const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
   useEffect(() => {
     const observer = new ResizeObserver(entries => {
@@ -28,7 +28,7 @@ export function Canvas({ config, showTileLayer, svgRef }: Props) {
   const { polygons, segments } = usePattern(config, viewTransform, size.width, size.height)
 
   return (
-    <div ref={containerRef} style={{ flex: 1, overflow: 'hidden' }}>
+    <div ref={containerRef} className="canvas-container">
       <PatternSVG
         ref={svgRef}
         polygons={polygons}

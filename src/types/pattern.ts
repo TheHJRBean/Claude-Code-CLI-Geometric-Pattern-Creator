@@ -15,6 +15,16 @@ export interface FigureConfig {
   /** Rosette petal shape: 0 = straight tip-to-tip, 1 = full knee at edge midpoint */
   rosetteQ?: number
   rosetteS?: number
+  /** Whether vertex-based lines are enabled */
+  vertexLinesEnabled?: boolean
+  /** When true, vertex lines use their own angle/lineLength instead of the edge-midpoint values */
+  vertexLinesDecoupled?: boolean
+  /** Contact angle for vertex lines (used only when decoupled) */
+  vertexContactAngle?: number
+  /** Line length for vertex lines (used only when decoupled) */
+  vertexLineLength?: number
+  /** Auto line length for vertex lines (used only when decoupled) */
+  vertexAutoLineLength?: boolean
 }
 
 export interface LacingConfig {

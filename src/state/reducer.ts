@@ -80,6 +80,56 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     }
     case 'SET_LACING':
       return { ...state, lacing: { ...state.lacing, ...action.payload } }
+    case 'SET_VERTEX_LINES_ENABLED': {
+      const existing = state.figures[action.payload.sides] ?? { type: 'star', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
+      return {
+        ...state,
+        figures: {
+          ...state.figures,
+          [action.payload.sides]: { ...existing, vertexLinesEnabled: action.payload.enabled },
+        },
+      }
+    }
+    case 'SET_VERTEX_LINES_DECOUPLED': {
+      const existing = state.figures[action.payload.sides] ?? { type: 'star', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
+      return {
+        ...state,
+        figures: {
+          ...state.figures,
+          [action.payload.sides]: { ...existing, vertexLinesDecoupled: action.payload.decoupled },
+        },
+      }
+    }
+    case 'SET_VERTEX_CONTACT_ANGLE': {
+      const existing = state.figures[action.payload.sides] ?? { type: 'star', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
+      return {
+        ...state,
+        figures: {
+          ...state.figures,
+          [action.payload.sides]: { ...existing, vertexContactAngle: action.payload.angle },
+        },
+      }
+    }
+    case 'SET_VERTEX_LINE_LENGTH': {
+      const existing = state.figures[action.payload.sides] ?? { type: 'star', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
+      return {
+        ...state,
+        figures: {
+          ...state.figures,
+          [action.payload.sides]: { ...existing, vertexLineLength: action.payload.lineLength },
+        },
+      }
+    }
+    case 'SET_VERTEX_AUTO_LINE_LENGTH': {
+      const existing = state.figures[action.payload.sides] ?? { type: 'star', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
+      return {
+        ...state,
+        figures: {
+          ...state.figures,
+          [action.payload.sides]: { ...existing, vertexAutoLineLength: action.payload.auto },
+        },
+      }
+    }
     case 'LOAD_CONFIG':
       return action.payload
     default:

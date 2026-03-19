@@ -1,6 +1,6 @@
 import type { Polygon, Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
-import { computeContactRays, type ContactRay } from './stellation'
+import { computeContactRays, computeVertexRays, type ContactRay, type VertexRay } from './stellation'
 import { rayRayIntersect, type IntersectResult } from './intersect'
 import { EPSILON, dist, lerp, type Vec2 } from '../utils/math'
 
@@ -61,6 +61,83 @@ function emitStarArms(
     })
   } else {
     const t = lineLength * inradius
+    segments.push({
+      from: ray1.origin,
+      to: {
+        x: ray1.origin.x + ray1.dir.x * t,
+        y: ray1.origin.y + ray1.dir.y * t,
+      },
+      edgeMidpoint: ray1.origin,
+      polygonId,
+    })
+    segments.push({
+      from: ray2.origin,
+      to: {
+        x: ray2.origin.x + ray2.dir.x * t,
+        y: ray2.origin.y + ray2.dir.y * t,
+      },
+      edgeMidpoint: ray2.origin,
+      polygonId,
+    })
+  }
+}
+
+/**
+ * Pair vertex rays from two adjacent vertices sharing an edge.
+ * Mirrors pairAtVertex but for vertex-origin rays.
+ */
+function pairVertexAtEdge(
+  vertexRays: VertexRay[],
+  vIdx1: number,
+  vIdx2: number,
+): { ray1: VertexRay; ray2: VertexRay; result: IntersectResult } | null {
+  // Try pairing A: v1.minus + v2.plus
+  const rA1 = vertexRays[vIdx1 * 2 + 1]
+  const rA2 = vertexRays[vIdx2 * 2]
+  const resA = rayRayIntersect(rA1.origin, rA1.dir, rA2.origin, rA2.dir)
+  if (resA && resA.t1 > EPSILON && resA.t2 > EPSILON) {
+    return { ray1: rA1, ray2: rA2, result: resA }
+  }
+
+  // Try pairing B: v1.plus + v2.minus
+  const rB1 = vertexRays[vIdx1 * 2]
+  const rB2 = vertexRays[vIdx2 * 2 + 1]
+  const resB = rayRayIntersect(rB1.origin, rB1.dir, rB2.origin, rB2.dir)
+  if (resB && resB.t1 > EPSILON && resB.t2 > EPSILON) {
+    return { ray1: rB1, ray2: rB2, result: resB }
+  }
+
+  return null
+}
+
+/**
+ * Emit vertex arm segments for a single edge pairing.
+ */
+function emitVertexArms(
+  pair: { ray1: VertexRay; ray2: VertexRay; result: IntersectResult },
+  autoLineLength: boolean,
+  lineLength: number,
+  circumradius: number,
+  polygonId: string,
+  segments: Segment[],
+): void {
+  const { ray1, ray2, result } = pair
+
+  if (autoLineLength) {
+    segments.push({
+      from: ray1.origin,
+      to: result.point,
+      edgeMidpoint: ray1.origin,
+      polygonId,
+    })
+    segments.push({
+      from: ray2.origin,
+      to: result.point,
+      edgeMidpoint: ray2.origin,
+      polygonId,
+    })
+  } else {
+    const t = lineLength * circumradius
     segments.push({
       from: ray1.origin,
       to: {
@@ -167,6 +244,29 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
             polygonId: poly.id,
           })
         }
+      }
+    }
+
+    // Vertex lines: rays from polygon vertices
+    if (fig.vertexLinesEnabled) {
+      const vtxAngle = fig.vertexLinesDecoupled
+        ? (fig.vertexContactAngle ?? fig.contactAngle)
+        : fig.contactAngle
+      const vtxAutoLen = fig.vertexLinesDecoupled
+        ? (fig.vertexAutoLineLength ?? fig.autoLineLength)
+        : fig.autoLineLength
+      const vtxLineLen = fig.vertexLinesDecoupled
+        ? (fig.vertexLineLength ?? fig.lineLength)
+        : fig.lineLength
+
+      const vertexRays = computeVertexRays(poly, vtxAngle)
+      const circumradius = n > 0 ? dist(poly.center, poly.vertices[0]) : 0
+
+      for (let k = 0; k < n; k++) {
+        const nextV = (k + 1) % n
+        const pair = pairVertexAtEdge(vertexRays, k, nextV)
+        if (!pair) continue
+        emitVertexArms(pair, vtxAutoLen, vtxLineLen, circumradius, poly.id, segments)
       }
     }
   }

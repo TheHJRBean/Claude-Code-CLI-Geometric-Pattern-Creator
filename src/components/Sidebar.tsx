@@ -164,6 +164,7 @@ function ExportBtn({ children, onClick, wide = false, secondary = false }: {
 
 function FigureControls({
   sides, figType, angle, lineLength, autoLen, snapEnabled, rosetteQ,
+  vertexEnabled, vertexDecoupled, vertexAngle, vertexLineLength, vertexAutoLen,
   tilingType, allFigures, dispatch,
 }: {
   sides: number
@@ -173,6 +174,11 @@ function FigureControls({
   autoLen: boolean
   snapEnabled: boolean
   rosetteQ: number
+  vertexEnabled: boolean
+  vertexDecoupled: boolean
+  vertexAngle: number
+  vertexLineLength: number
+  vertexAutoLen: boolean
   tilingType: string
   allFigures: Record<number, { contactAngle: number }>
   dispatch: React.Dispatch<Action>
@@ -307,6 +313,57 @@ function FigureControls({
           </div>
         </>
       )}
+
+      {/* Vertex Lines */}
+      <div style={{ marginTop: 12 }}>
+        <Toggle
+          checked={vertexEnabled}
+          onChange={v => dispatch({ type: 'SET_VERTEX_LINES_ENABLED', payload: { sides, enabled: v } })}
+          label="Vertex lines"
+        />
+      </div>
+
+      {vertexEnabled && (
+        <div style={{ marginTop: 8 }}>
+          <Toggle
+            checked={vertexDecoupled}
+            onChange={v => dispatch({ type: 'SET_VERTEX_LINES_DECOUPLED', payload: { sides, decoupled: v } })}
+            label="Decouple vertex params"
+          />
+          {vertexDecoupled && (
+            <div style={{ marginTop: 8 }}>
+              <FieldLabel label="Vertex angle" value={vertexAngle.toFixed(1)} unit="°" />
+              <input
+                type="range"
+                className="pattern-slider"
+                min={10} max={85} step={0.5}
+                value={vertexAngle}
+                onChange={e => dispatch({ type: 'SET_VERTEX_CONTACT_ANGLE', payload: { sides, angle: Number(e.target.value) } })}
+              />
+
+              <div style={{ marginTop: 8, marginBottom: 8 }}>
+                <Toggle
+                  checked={vertexAutoLen}
+                  onChange={v => dispatch({ type: 'SET_VERTEX_AUTO_LINE_LENGTH', payload: { sides, auto: v } })}
+                  label="Auto vertex length"
+                />
+              </div>
+              {!vertexAutoLen && (
+                <>
+                  <FieldLabel label="Vertex length" value={(vertexLineLength * 100).toFixed(0)} unit="%" />
+                  <input
+                    type="range"
+                    className="pattern-slider"
+                    min={10} max={500} step={1}
+                    value={Math.round(vertexLineLength * 100)}
+                    onChange={e => dispatch({ type: 'SET_VERTEX_LINE_LENGTH', payload: { sides, lineLength: Number(e.target.value) / 100 } })}
+                  />
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -430,6 +487,11 @@ export function Sidebar({
             const autoLen = fig?.autoLineLength ?? true
             const snapEnabled = fig?.snapLineLength ?? false
             const rosetteQ = fig?.rosetteQ ?? 0.5
+            const vertexEnabled = fig?.vertexLinesEnabled ?? false
+            const vertexDecoupled = fig?.vertexLinesDecoupled ?? false
+            const vertexAngle = fig?.vertexContactAngle ?? angle
+            const vertexLineLength = fig?.vertexLineLength ?? lineLength
+            const vertexAutoLen = fig?.vertexAutoLineLength ?? autoLen
             return (
               <FigureControls
                 key={sides}
@@ -440,6 +502,11 @@ export function Sidebar({
                 autoLen={autoLen}
                 snapEnabled={snapEnabled}
                 rosetteQ={rosetteQ}
+                vertexEnabled={vertexEnabled}
+                vertexDecoupled={vertexDecoupled}
+                vertexAngle={vertexAngle}
+                vertexLineLength={vertexLineLength}
+                vertexAutoLen={vertexAutoLen}
                 tilingType={config.tiling.type}
                 allFigures={config.figures}
                 dispatch={dispatch}

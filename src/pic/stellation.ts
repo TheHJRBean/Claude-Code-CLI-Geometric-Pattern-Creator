@@ -1,4 +1,4 @@
-import { Vec2, normalize, rotate, perp, midpoint, degToRad } from '../utils/math'
+import { Vec2, normalize, rotate, perp, midpoint, degToRad, sub, add } from '../utils/math'
 import type { Polygon } from '../types/geometry'
 
 export interface ContactRay {
@@ -47,6 +47,59 @@ export function computeContactRays(poly: Polygon, contactAngleDeg: number): Cont
       dir: rotate(inwardNormal, -alpha),
       polygonId: poly.id,
       edgeIndex: i,
+      side: 'minus',
+    })
+  }
+
+  return rays
+}
+
+export interface VertexRay {
+  origin: Vec2       // vertex position
+  dir: Vec2          // direction into the polygon
+  polygonId: string
+  vertexIndex: number
+  side: 'plus' | 'minus'
+}
+
+/**
+ * For a given polygon and contact angle θ (degrees),
+ * compute two rays at each vertex, symmetric about the
+ * interior angle bisector.
+ *
+ * The bisector points inward (toward polygon center).
+ * Rays are rotated by ±(π/2 − θ) from the bisector,
+ * mirroring the edge-midpoint convention.
+ */
+export function computeVertexRays(poly: Polygon, contactAngleDeg: number): VertexRay[] {
+  const theta = degToRad(contactAngleDeg)
+  const alpha = Math.PI / 2 - theta
+  const rays: VertexRay[] = []
+
+  for (let k = 0; k < poly.sides; k++) {
+    const V = poly.vertices[k]
+    const prev = poly.vertices[(k - 1 + poly.sides) % poly.sides]
+    const next = poly.vertices[(k + 1) % poly.sides]
+
+    // Two edge directions emanating from vertex k
+    const toPrev = normalize(sub(prev, V))
+    const toNext = normalize(sub(next, V))
+
+    // Interior angle bisector (points inward for convex polygons)
+    const bisector = normalize(add(toPrev, toNext))
+
+    rays.push({
+      origin: V,
+      dir: rotate(bisector, alpha),
+      polygonId: poly.id,
+      vertexIndex: k,
+      side: 'plus',
+    })
+    rays.push({
+      origin: V,
+      dir: rotate(bisector, -alpha),
+      polygonId: poly.id,
+      vertexIndex: k,
       side: 'minus',
     })
   }

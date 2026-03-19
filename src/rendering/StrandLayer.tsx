@@ -11,29 +11,30 @@ export function StrandLayer({ segments, lacing }: Props) {
 
   const { strandWidth, gapWidth, strandColor, gapColor } = lacing
 
+  // Each segment renders its gap knock-out then its strand as a unit.
+  // Later segments paint on top of earlier ones, so a later segment's
+  // gap erases the earlier strand at crossings → visible over/under.
   return (
     <g id="strand-layer">
-      {/* Pass 1: gap knock-out (thick background stroke) */}
-      {lacing.enabled && segments.map((seg, i) => (
-        <line
-          key={`gap-${i}`}
-          x1={seg.from.x} y1={seg.from.y}
-          x2={seg.to.x} y2={seg.to.y}
-          stroke={gapColor}
-          strokeWidth={strandWidth + gapWidth * 2}
-          strokeLinecap="round"
-        />
-      ))}
-      {/* Pass 2: colored strands */}
       {segments.map((seg, i) => (
-        <line
-          key={`strand-${i}`}
-          x1={seg.from.x} y1={seg.from.y}
-          x2={seg.to.x} y2={seg.to.y}
-          stroke={strandColor}
-          strokeWidth={strandWidth}
-          strokeLinecap="round"
-        />
+        <g key={i}>
+          {lacing.enabled && (
+            <line
+              x1={seg.from.x} y1={seg.from.y}
+              x2={seg.to.x} y2={seg.to.y}
+              stroke={gapColor}
+              strokeWidth={strandWidth + gapWidth * 2}
+              strokeLinecap="round"
+            />
+          )}
+          <line
+            x1={seg.from.x} y1={seg.from.y}
+            x2={seg.to.x} y2={seg.to.y}
+            stroke={strandColor}
+            strokeWidth={strandWidth}
+            strokeLinecap="round"
+          />
+        </g>
       ))}
     </g>
   )

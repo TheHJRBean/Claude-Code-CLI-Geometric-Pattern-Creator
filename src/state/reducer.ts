@@ -92,11 +92,21 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     }
     case 'SET_VERTEX_LINES_DECOUPLED': {
       const existing = state.figures[action.payload.sides] ?? { type: 'star', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
+      // When decoupling, snapshot current main values so vertex lines become truly independent
+      const decoupled = action.payload.decoupled
       return {
         ...state,
         figures: {
           ...state.figures,
-          [action.payload.sides]: { ...existing, vertexLinesDecoupled: action.payload.decoupled },
+          [action.payload.sides]: {
+            ...existing,
+            vertexLinesDecoupled: decoupled,
+            ...(decoupled ? {
+              vertexContactAngle: existing.vertexContactAngle ?? existing.contactAngle,
+              vertexLineLength: existing.vertexLineLength ?? existing.lineLength,
+              vertexAutoLineLength: existing.vertexAutoLineLength ?? existing.autoLineLength,
+            } : {}),
+          },
         },
       }
     }

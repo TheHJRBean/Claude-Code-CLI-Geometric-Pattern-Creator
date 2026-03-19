@@ -575,6 +575,22 @@ export function Sidebar({
           <div style={{ marginBottom: 4 }} />
         </div>
 
+        {/* Line thickness — always visible since strands render regardless of lacing */}
+        <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
+          <LotusDivider />
+          <SectionTitle>Line Thickness</SectionTitle>
+
+          <FieldLabel label="Stroke width" value={config.lacing.strandWidth.toFixed(1)} unit=" px" />
+          <input
+            type="range"
+            className="pattern-slider"
+            min={1} max={20} step={0.5}
+            value={config.lacing.strandWidth}
+            onChange={e => dispatch({ type: 'SET_LACING', payload: { strandWidth: Number(e.target.value) } })}
+          />
+          <div style={{ marginBottom: 4 }} />
+        </div>
+
         {/* Lacing */}
         <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
           <LotusDivider />
@@ -588,14 +604,6 @@ export function Sidebar({
 
           {config.lacing.enabled && (
             <div style={{ marginTop: 4 }}>
-              <FieldLabel label="Strand width" value={config.lacing.strandWidth.toFixed(1)} unit=" px" />
-              <input
-                type="range"
-                className="pattern-slider"
-                min={1} max={20} step={0.5}
-                value={config.lacing.strandWidth}
-                onChange={e => dispatch({ type: 'SET_LACING', payload: { strandWidth: Number(e.target.value) } })}
-              />
               <FieldLabel label="Gap width" value={config.lacing.gapWidth.toFixed(1)} unit=" px" />
               <input
                 type="range"
@@ -616,7 +624,7 @@ export function Sidebar({
 
           <Toggle
             checked={showTileLayer}
-            onChange={onToggleTileLayer}
+            onChange={() => onToggleTileLayer()}
             label="Show tile grid"
           />
           <div style={{ marginBottom: 4 }} />

@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import type { PatternConfig } from '../types/pattern'
 import type { Action } from '../state/actions'
-import { TILINGS, TILING_NAMES } from '../tilings/index'
+import { TILINGS, SYMMETRY_GROUPS } from '../tilings/index'
 import { computeSnapPoints, snapToNearest } from '../pic/snapPoints'
 import { useTheme } from '../theme/ThemeContext'
 
@@ -12,6 +12,7 @@ interface Props {
   onToggleTileLayer: () => void
   onExportSVG: () => void
   onExportPNG: () => void
+  onExportUnwovenSVG: () => void
   onSaveJSON: () => void
   onLoadJSON: () => void
   open: boolean
@@ -411,7 +412,7 @@ function FigureControls({
 
 export function Sidebar({
   config, dispatch, showTileLayer, onToggleTileLayer,
-  onExportSVG, onExportPNG, onSaveJSON, onLoadJSON,
+  onExportSVG, onExportPNG, onExportUnwovenSVG, onSaveJSON, onLoadJSON,
   open, onClose,
 }: Props) {
   const { theme, toggleTheme } = useTheme()
@@ -517,8 +518,12 @@ export function Sidebar({
             onChange={e => dispatch({ type: 'SET_TILING_TYPE', payload: e.target.value })}
             className="pattern-select"
           >
-            {TILING_NAMES.map(name => (
-              <option key={name} value={name}>{TILINGS[name].label}</option>
+            {SYMMETRY_GROUPS.map(group => (
+              <optgroup key={group.fold} label={`${group.label} Symmetry`}>
+                {group.tilings.map(name => (
+                  <option key={name} value={name}>{TILINGS[name].label}</option>
+                ))}
+              </optgroup>
             ))}
           </select>
 
@@ -638,6 +643,7 @@ export function Sidebar({
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <ExportBtn onClick={onExportSVG}>SVG</ExportBtn>
             <ExportBtn onClick={onExportPNG}>PNG</ExportBtn>
+            <ExportBtn onClick={onExportUnwovenSVG}>Unwoven SVG</ExportBtn>
             <ExportBtn onClick={onSaveJSON} secondary>Save JSON</ExportBtn>
             <ExportBtn onClick={onLoadJSON} secondary>Load JSON</ExportBtn>
           </div>

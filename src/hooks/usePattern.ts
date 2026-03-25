@@ -4,6 +4,7 @@ import type { Polygon, Segment } from '../types/geometry'
 import type { ViewTransform } from './usePanZoom'
 import { TILINGS } from '../tilings/index'
 import { generateTiling } from '../tilings/archimedean'
+import { generateRosettePatch } from '../tilings/rosettePatch'
 import { runPIC } from '../pic/index'
 
 export interface PatternData {
@@ -28,7 +29,9 @@ export function usePattern(
       height: containerHeight / viewTransform.zoom,
     }
 
-    const polygons = generateTiling(def, viewport, config.tiling.scale)
+    const polygons = def.category === 'rosette-patch'
+      ? generateRosettePatch(def, viewport, config.tiling.scale)
+      : generateTiling(def, viewport, config.tiling.scale)
     const segments = runPIC(polygons, config)
 
     return { polygons, segments }

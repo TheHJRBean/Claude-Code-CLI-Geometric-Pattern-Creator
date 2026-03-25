@@ -3,17 +3,27 @@ import { Canvas } from './components/Canvas'
 import { Sidebar } from './components/Sidebar'
 import { SandstoneEdge } from './components/SandstoneEdge'
 import { reducer, DEFAULT_CONFIG } from './state/reducer'
-import { exportSVG, exportPNG } from './export/exportSVG'
+import { exportSVG, exportPNG, exportUnwovenSVG } from './export/exportSVG'
 import { saveJSON, loadJSON } from './export/exportJSON'
+import type { Segment } from './types/geometry'
 
 export default function App() {
   const [config, dispatch] = useReducer(reducer, DEFAULT_CONFIG)
   const [showTileLayer, setShowTileLayer] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const svgRef = useRef<SVGSVGElement>(null)
+  const segmentsRef = useRef<Segment[]>([])
 
   const handleExportSVG = () => { if (svgRef.current) exportSVG(svgRef.current) }
   const handleExportPNG = () => { if (svgRef.current) exportPNG(svgRef.current) }
+  const handleExportUnwovenSVG = () => {
+    if (!svgRef.current) return
+    const el = svgRef.current
+    const viewBox = el.getAttribute('viewBox') || '0 0 100 100'
+    const w = el.clientWidth || 1200
+    const h = el.clientHeight || 900
+    exportUnwovenSVG(segmentsRef.current, viewBox, w, h)
+  }
   const handleSaveJSON = () => saveJSON(config)
   const handleLoadJSON = async () => {
     try {
@@ -54,13 +64,23 @@ export default function App() {
         onToggleTileLayer={() => setShowTileLayer(s => !s)}
         onExportSVG={handleExportSVG}
         onExportPNG={handleExportPNG}
+        onExportUnwovenSVG={handleExportUnwovenSVG}
         onSaveJSON={handleSaveJSON}
         onLoadJSON={handleLoadJSON}
       />
       <div className="sandstone-edge-wrapper" aria-hidden="true">
         <SandstoneEdge />
       </div>
-      <Canvas config={config} showTileLayer={showTileLayer} svgRef={svgRef} />
+      <Canvas config={config} showTileLayer={showTileLayer} svgRef={svgRef} segmentsRef={segmentsRef} />
+      <div style={{
+        position: 'fixed', bottom: 8, right: 8,
+        fontSize: 10, fontFamily: 'monospace',
+        background: 'rgba(0,0,0,0.5)', color: '#aaa',
+        padding: '2px 6px', borderRadius: 4, zIndex: 9999,
+        pointerEvents: 'none',
+      }}>
+        {import.meta.env.VITE_COMMIT_MSG}
+      </div>
     </div>
   )
 }

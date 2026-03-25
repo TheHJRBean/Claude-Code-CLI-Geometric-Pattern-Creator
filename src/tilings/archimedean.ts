@@ -1,6 +1,7 @@
 import type { Polygon } from '../types/geometry'
 import type { TilingDefinition } from '../types/tiling'
 import { circumradius, createPolygon, neighborPolygon, polygonKey, resetIds, roundKey } from './shared'
+import { computeNeighborSides } from './neighborSides'
 import { midpoint, Vec2 } from '../utils/math'
 
 export interface Viewport {
@@ -38,7 +39,7 @@ const vtxKey = (v: Vec2): string => roundKey(v, 1)
 
 /**
  * Vertex registry: tracks which polygon side-counts are already placed
- * at each vertex position. Used to determine the correct neighbor type.
+ * at each vertex position. Used to validate neighbor placement.
  */
 class VertexRegistry {
   private map = new Map<string, number[]>()
@@ -114,56 +115,11 @@ class SpatialHash {
 }
 
 /**
- * Determine the neighbor polygon type across an edge using the vertex registry.
- */
-function inferNeighborSides(
-  vertexConfig: number[],
-  registry: VertexRegistry,
-  A: Vec2,
-  B: Vec2,
-  parentSides: number,
-): number | null {
-  const required = new Map<number, number>()
-  for (const s of vertexConfig) required.set(s, (required.get(s) ?? 0) + 1)
-
-  // Adjacency constraint: which polygon types appear next to parentSides in the config?
-  const L = vertexConfig.length
-  const adjacentTypes = new Set<number>()
-  for (let i = 0; i < L; i++) {
-    if (vertexConfig[i] === parentSides) {
-      adjacentTypes.add(vertexConfig[(i + 1) % L])
-      adjacentTypes.add(vertexConfig[(i - 1 + L) % L])
-    }
-  }
-
-  const candidates: number[] = []
-  for (const [sides, maxCount] of required) {
-    if (!adjacentTypes.has(sides)) continue
-    const countA = registry.countOf(A, sides)
-    const countB = registry.countOf(B, sides)
-    if (countA < maxCount && countB < maxCount) {
-      candidates.push(sides)
-    }
-  }
-
-  if (candidates.length === 1) return candidates[0]
-  if (candidates.length === 0) return null
-
-  // Prefer the most constrained candidate (fewest remaining slots)
-  candidates.sort((a, b) => {
-    const slotsA = (required.get(a)! - registry.countOf(A, a)) + (required.get(a)! - registry.countOf(B, a))
-    const slotsB = (required.get(b)! - registry.countOf(A, b)) + (required.get(b)! - registry.countOf(B, b))
-    return slotsA - slotsB
-  })
-
-  return candidates[0]
-}
-
-/**
  * Generate all polygons visible in the given viewport for a tiling.
  *
- * Uses a vertex registry to determine neighbor polygon types and a spatial
- * hash to prevent overlapping polygon placement.
+ * Uses computeNeighborSides (with configPos tracking) for chirality-correct
+ * neighbor inference, plus a vertex registry and spatial hash to validate
+ * placement and prevent overlaps.
  */
 export function generateTiling(
   definition: TilingDefinition,
@@ -177,18 +133,28 @@ export function generateTiling(
   const cx = viewport.x + viewport.width / 2
   const cy = viewport.y + viewport.height / 2
   const R = circumradius(seedSides, edgeLen)
-  const seedPhi = seedSides === 6 ? Math.PI / 6 : 0
+  // Flat-top orientation: when n is divisible by 4, phi=0 puts a vertex at 90° (pointy-top).
+  // Rotate by π/n to shift it to flat-top (horizontal edge at top/bottom).
+  const seedPhi = seedSides % 4 === 0 ? Math.PI / seedSides : 0
   const seed = createPolygon(seedSides, { x: cx, y: cy }, R, seedPhi)
+
+  // Pre-compute max count per polygon type in vertex config
+  const maxCountPerType = new Map<number, number>()
+  for (const s of vertexConfig) maxCountPerType.set(s, (maxCountPerType.get(s) ?? 0) + 1)
 
   const registry = new VertexRegistry()
   const spatial = new SpatialHash(edgeLen * 2)
   const placed = new Map<string, Polygon>()
+  const configPosMap = new Map<string, number>()
   const queued = new Set<string>()
   const queue: Array<{ poly: Polygon; key: string }> = []
+
   const seedKey = polygonKey(seed)
+  const seedConfigPos = vertexConfig.indexOf(seedSides)
   registry.addPolygon(seed)
   queued.add(seedKey)
   queue.push({ poly: seed, key: seedKey })
+  configPosMap.set(seedKey, seedConfigPos)
 
   while (queue.length > 0 && placed.size < MAX_POLYGONS) {
     const { poly, key } = queue.shift()!
@@ -196,12 +162,17 @@ export function generateTiling(
     placed.set(key, poly)
     spatial.add(poly)
 
+    const cp0 = configPosMap.get(key) ?? vertexConfig.indexOf(poly.sides)
+
     for (let edgeIdx = 0; edgeIdx < poly.sides; edgeIdx++) {
       const A = poly.vertices[edgeIdx]
       const B = poly.vertices[(edgeIdx + 1) % poly.sides]
 
-      const nSides = inferNeighborSides(vertexConfig, registry, A, B, poly.sides)
-      if (nSides === null) continue
+      const { sides: nSides, configPos: nConfigPos } = computeNeighborSides(cp0, edgeIdx, poly.sides, vertexConfig)
+
+      // Validate: check vertex registry hasn't exceeded max count for this polygon type
+      const maxCount = maxCountPerType.get(nSides) ?? 0
+      if (registry.countOf(A, nSides) >= maxCount || registry.countOf(B, nSides) >= maxCount) continue
 
       const neighbor = neighborPolygon(A, B, nSides, edgeLen)
       const nKey = polygonKey(neighbor)
@@ -212,6 +183,7 @@ export function generateTiling(
       registry.addPolygon(neighbor)
       queued.add(nKey)
       queue.push({ poly: neighbor, key: nKey })
+      configPosMap.set(nKey, nConfigPos)
     }
   }
 

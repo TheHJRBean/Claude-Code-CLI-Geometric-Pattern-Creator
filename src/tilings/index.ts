@@ -59,12 +59,15 @@ export const TILINGS: Record<string, TilingDefinition> = {
   'pentagonal-rosette': {
     name: 'pentagonal-rosette',
     label: 'Pentagonal Rosette',
-    vertexConfig: [5],
+    vertexConfig: [5, 4],
     seedSides: 5,
     foldSymmetry: 5,
     category: 'rosette-patch',
     defaultConfig: {
-      figures: { 5: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 72 } },
+      figures: {
+        4: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 67.5 },
+        5: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 72 },
+      },
     },
   },
 
@@ -128,12 +131,15 @@ export const TILINGS: Record<string, TilingDefinition> = {
   'heptagonal-rosette': {
     name: 'heptagonal-rosette',
     label: 'Heptagonal Rosette',
-    vertexConfig: [7],
+    vertexConfig: [7, 5],
     seedSides: 7,
     foldSymmetry: 7,
     category: 'rosette-patch',
     defaultConfig: {
-      figures: { 7: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 64.3 } },
+      figures: {
+        5: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 72 },
+        7: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 64.3 },
+      },
     },
   },
 
@@ -157,25 +163,34 @@ export const TILINGS: Record<string, TilingDefinition> = {
   'nonagonal-rosette': {
     name: 'nonagonal-rosette',
     label: 'Nonagonal Rosette',
-    vertexConfig: [9],
+    vertexConfig: [9, 6, 5],
     seedSides: 9,
     foldSymmetry: 9,
     category: 'rosette-patch',
     defaultConfig: {
-      figures: { 9: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 70 } },
+      figures: {
+        5: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 72 },
+        6: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 60 },
+        9: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 70 },
+      },
     },
   },
 
   // ── 10-fold (rosette patch) ─────────────────────────
   'decagonal-rosette': {
     name: 'decagonal-rosette',
-    label: 'Decagonal Rosette',
-    vertexConfig: [10],
+    label: 'Decagonal Rosette (Girih)',
+    vertexConfig: [10, 6, 5, 4],
     seedSides: 10,
     foldSymmetry: 10,
     category: 'rosette-patch',
     defaultConfig: {
-      figures: { 10: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 72 } },
+      figures: {
+        4: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 67.5 },
+        5: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 72 },
+        6: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 60 },
+        10: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 72 },
+      },
     },
   },
 

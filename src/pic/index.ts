@@ -2,7 +2,7 @@ import type { Polygon, Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
 import { computeContactRays, computeVertexRays, type ContactRay, type VertexRay } from './stellation'
 import { rayRayIntersect, type IntersectResult } from './intersect'
-import { EPSILON, dist, lerp, midpoint, type Vec2 } from '../utils/math'
+import { EPSILON, dist, lerp, midpoint, pointInPolygon, type Vec2 } from '../utils/math'
 
 /**
  * For a given vertex (shared by prevEdge and currEdge), find the correct
@@ -85,17 +85,19 @@ function emitStarArms(
 /**
  * Pair vertex rays from two adjacent vertices sharing an edge.
  * Mirrors pairAtVertex but for vertex-origin rays.
+ * Only accepts intersections that fall inside the polygon.
  */
 function pairVertexAtEdge(
   vertexRays: VertexRay[],
   vIdx1: number,
   vIdx2: number,
+  polyVertices: Vec2[],
 ): { ray1: VertexRay; ray2: VertexRay; result: IntersectResult } | null {
   // Try pairing A: v1.minus + v2.plus
   const rA1 = vertexRays[vIdx1 * 2 + 1]
   const rA2 = vertexRays[vIdx2 * 2]
   const resA = rayRayIntersect(rA1.origin, rA1.dir, rA2.origin, rA2.dir)
-  if (resA && resA.t1 > EPSILON && resA.t2 > EPSILON) {
+  if (resA && resA.t1 > EPSILON && resA.t2 > EPSILON && pointInPolygon(resA.point, polyVertices)) {
     return { ray1: rA1, ray2: rA2, result: resA }
   }
 
@@ -103,7 +105,7 @@ function pairVertexAtEdge(
   const rB1 = vertexRays[vIdx1 * 2]
   const rB2 = vertexRays[vIdx2 * 2 + 1]
   const resB = rayRayIntersect(rB1.origin, rB1.dir, rB2.origin, rB2.dir)
-  if (resB && resB.t1 > EPSILON && resB.t2 > EPSILON) {
+  if (resB && resB.t1 > EPSILON && resB.t2 > EPSILON && pointInPolygon(resB.point, polyVertices)) {
     return { ray1: rB1, ray2: rB2, result: resB }
   }
 
@@ -289,7 +291,7 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
         if (!internalEdges.has(eKey)) continue
 
         const nextV = (k + 1) % n
-        const pair = pairVertexAtEdge(vertexRays, k, nextV)
+        const pair = pairVertexAtEdge(vertexRays, k, nextV, poly.vertices)
         if (!pair) continue
         emitVertexArms(pair, vtxAutoLen, vtxLineLen, circumradius, poly.id, segments)
       }

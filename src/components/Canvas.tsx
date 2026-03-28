@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState } from 'react'
 import type { PatternConfig } from '../types/pattern'
+import type { Segment } from '../types/geometry'
 import { usePattern } from '../hooks/usePattern'
 import { usePanZoom } from '../hooks/usePanZoom'
 import { PatternSVG } from '../rendering/PatternSVG'
@@ -8,9 +9,10 @@ interface Props {
   config: PatternConfig
   showTileLayer: boolean
   svgRef: React.RefObject<SVGSVGElement>
+  segmentsRef: React.MutableRefObject<Segment[]>
 }
 
-export function Canvas({ config, showTileLayer, svgRef }: Props) {
+export function Canvas({ config, showTileLayer, svgRef, segmentsRef }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -26,6 +28,9 @@ export function Canvas({ config, showTileLayer, svgRef }: Props) {
 
   const { viewTransform, handlers } = usePanZoom(1, svgRef)
   const { polygons, segments } = usePattern(config, viewTransform, size.width, size.height)
+
+  // Keep segments ref up to date for export
+  segmentsRef.current = segments
 
   return (
     <div ref={containerRef} className="canvas-container">

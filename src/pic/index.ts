@@ -2,7 +2,7 @@ import type { Polygon, Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
 import { computeContactRays, computeVertexRays, type ContactRay, type VertexRay } from './stellation'
 import { rayRayIntersect, type IntersectResult } from './intersect'
-import { EPSILON, dist, lerp, type Vec2 } from '../utils/math'
+import { EPSILON, dist, lerp, midpoint, type Vec2 } from '../utils/math'
 
 /**
  * For a given vertex (shared by prevEdge and currEdge), find the correct
@@ -170,8 +170,28 @@ function emitVertexArms(
  *   q=0 → straight tip-to-tip connections
  *   q=1 → full knee through edge midpoint
  */
+/** Build a set of edge-midpoint keys that are shared by 2+ polygons (internal edges). */
+function buildInternalEdgeSet(polygons: Polygon[]): Set<string> {
+  const f = 1e3
+  const edgeCounts = new Map<string, number>()
+  for (const poly of polygons) {
+    for (let i = 0; i < poly.sides; i++) {
+      const mid = midpoint(poly.vertices[i], poly.vertices[(i + 1) % poly.sides])
+      const key = `${Math.round(mid.x * f)},${Math.round(mid.y * f)}`
+      edgeCounts.set(key, (edgeCounts.get(key) ?? 0) + 1)
+    }
+  }
+  const internal = new Set<string>()
+  for (const [key, count] of edgeCounts) {
+    if (count >= 2) internal.add(key)
+  }
+  return internal
+}
+
 export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
   const segments: Segment[] = []
+  const internalEdges = buildInternalEdgeSet(polygons)
+  const edgeKeyF = 1e3
 
   for (const poly of polygons) {
     const fig = config.figures[poly.sides]
@@ -263,6 +283,11 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
       const circumradius = n > 0 ? dist(poly.center, poly.vertices[0]) : 0
 
       for (let k = 0; k < n; k++) {
+        // Only emit vertex lines for internal edges (shared by 2 polygons)
+        const eMid = midpoint(poly.vertices[k], poly.vertices[(k + 1) % n])
+        const eKey = `${Math.round(eMid.x * edgeKeyF)},${Math.round(eMid.y * edgeKeyF)}`
+        if (!internalEdges.has(eKey)) continue
+
         const nextV = (k + 1) % n
         const pair = pairVertexAtEdge(vertexRays, k, nextV)
         if (!pair) continue

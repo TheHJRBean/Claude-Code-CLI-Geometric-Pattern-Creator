@@ -117,9 +117,11 @@ class SpatialHash {
 /**
  * Generate all polygons visible in the given viewport for a tiling.
  *
- * Uses computeNeighborSides (with configPos tracking) for chirality-correct
- * neighbor inference, plus a vertex registry and spatial hash to validate
- * placement and prevent overlaps.
+ * For each edge, tries both chirality directions (d0 = +1 and -1) in
+ * computeNeighborSides and accepts the first candidate that passes
+ * vertex-registry and spatial-hash validation. This avoids the need
+ * for d0 propagation, which is unreliable for vertex configs with many
+ * repeated polygon types (e.g. [3,3,3,3,6]).
  */
 export function generateTiling(
   definition: TilingDefinition,
@@ -168,22 +170,27 @@ export function generateTiling(
       const A = poly.vertices[edgeIdx]
       const B = poly.vertices[(edgeIdx + 1) % poly.sides]
 
-      const { sides: nSides, configPos: nConfigPos } = computeNeighborSides(cp0, edgeIdx, poly.sides, vertexConfig)
+      // Try both chirality directions; accept the first valid candidate
+      let placed_neighbor = false
+      for (const tryD0 of [1 as const, -1 as const]) {
+        if (placed_neighbor) break
+        const { sides: nSides, configPos: nConfigPos } = computeNeighborSides(cp0, edgeIdx, poly.sides, vertexConfig, tryD0)
 
-      // Validate: check vertex registry hasn't exceeded max count for this polygon type
-      const maxCount = maxCountPerType.get(nSides) ?? 0
-      if (registry.countOf(A, nSides) >= maxCount || registry.countOf(B, nSides) >= maxCount) continue
+        const maxCount = maxCountPerType.get(nSides) ?? 0
+        if (registry.countOf(A, nSides) >= maxCount || registry.countOf(B, nSides) >= maxCount) continue
 
-      const neighbor = neighborPolygon(A, B, nSides, edgeLen)
-      const nKey = polygonKey(neighbor)
-      if (placed.has(nKey) || queued.has(nKey)) continue
-      if (!intersectsViewport(neighbor, paddedVP)) continue
-      if (spatial.overlaps(neighbor, edgeLen)) continue
+        const neighbor = neighborPolygon(A, B, nSides, edgeLen)
+        const nKey = polygonKey(neighbor)
+        if (placed.has(nKey) || queued.has(nKey)) { placed_neighbor = true; continue }
+        if (!intersectsViewport(neighbor, paddedVP)) continue
+        if (spatial.overlaps(neighbor, edgeLen)) continue
 
-      registry.addPolygon(neighbor)
-      queued.add(nKey)
-      queue.push({ poly: neighbor, key: nKey })
-      configPosMap.set(nKey, nConfigPos)
+        registry.addPolygon(neighbor)
+        queued.add(nKey)
+        queue.push({ poly: neighbor, key: nKey })
+        configPosMap.set(nKey, nConfigPos)
+        placed_neighbor = true
+      }
     }
   }
 

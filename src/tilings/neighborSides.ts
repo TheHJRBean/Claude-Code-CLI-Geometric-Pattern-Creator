@@ -21,16 +21,17 @@ export function computeNeighborSides(
   edgeIndex: number,
   sides: number,
   vertexConfig: number[],
-): { sides: number; configPos: number } {
+  d0: 1 | -1 = 1,
+): { sides: number; configPos: number; d0: 1 | -1 } {
   const L = vertexConfig.length
   let p = configPos0
-  let d = 1 // direction: +1 at even vertices, -1 at odd
+  let d = d0 // initial direction at vertex 0
 
   for (let v = 0; v < edgeIndex; v++) {
     const neighborType = vertexConfig[((p + d) % L + L) % L]
     // Walk to vertex v+1: direction flips
     const prevD = d
-    d = -d
+    d = -d as 1 | -1
     // Find p_{v+1}: vertexConfig[p'] === sides AND
     // vertexConfig[(p' + prevD + L) % L] === neighborType
     let nextP = -1
@@ -52,5 +53,5 @@ export function computeNeighborSides(
   }
 
   const neighborConfigPos = ((p + d) % L + L) % L
-  return { sides: vertexConfig[neighborConfigPos], configPos: neighborConfigPos }
+  return { sides: vertexConfig[neighborConfigPos], configPos: neighborConfigPos, d0: d as 1 | -1 }
 }

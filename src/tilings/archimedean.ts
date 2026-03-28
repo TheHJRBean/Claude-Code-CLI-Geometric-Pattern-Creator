@@ -201,7 +201,7 @@ export function generateTiling(
  * Deduplicate edges: polygons share edges, so each edge appears in 2 polygons.
  * Returns a map from edge-midpoint key to the set of polygon IDs that share it.
  */
-export function buildEdgeMap(polygons: Polygon[], _edgeLen: number): Map<string, { a: Vec2; b: Vec2; polygonIds: string[] }> {
+export function buildEdgeMap(polygons: Polygon[]): Map<string, { a: Vec2; b: Vec2; polygonIds: string[] }> {
   const edgeMap = new Map<string, { a: Vec2; b: Vec2; polygonIds: string[] }>()
   const f = 10 ** 3
 

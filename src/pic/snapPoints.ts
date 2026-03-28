@@ -136,7 +136,7 @@ export function computeSnapPoints(
  * Compute an adaptive snap threshold based on the minimum gap between
  * adjacent snap points. Ensures there's always free space between snaps.
  */
-export function computeThreshold(snapPoints: number[]): number {
+function computeThreshold(snapPoints: number[]): number {
   if (snapPoints.length < 2) return 0.08
   let minGap = Infinity
   for (let i = 1; i < snapPoints.length; i++) {

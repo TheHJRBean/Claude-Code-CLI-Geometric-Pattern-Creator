@@ -74,7 +74,7 @@ describe('generateTiling — mixed 4.8.8', () => {
 describe('buildEdgeMap', () => {
   it('interior edges shared by exactly 2 polygons', () => {
     const polys = generateTiling(TILINGS['square'], viewport, edgeLen)
-    const edgeMap = buildEdgeMap(polys, edgeLen)
+    const edgeMap = buildEdgeMap(polys)
     let sharedCount = 0
     for (const [, edge] of edgeMap) {
       if (edge.polygonIds.length === 2) sharedCount++
@@ -84,7 +84,7 @@ describe('buildEdgeMap', () => {
 
   it('boundary edges belong to only 1 polygon', () => {
     const polys = generateTiling(TILINGS['square'], viewport, edgeLen)
-    const edgeMap = buildEdgeMap(polys, edgeLen)
+    const edgeMap = buildEdgeMap(polys)
     let boundaryCount = 0
     for (const [, edge] of edgeMap) {
       if (edge.polygonIds.length === 1) boundaryCount++

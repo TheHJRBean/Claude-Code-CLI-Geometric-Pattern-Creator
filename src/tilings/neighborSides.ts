@@ -22,7 +22,7 @@ export function computeNeighborSides(
   sides: number,
   vertexConfig: number[],
   d0: 1 | -1 = 1,
-): { sides: number; configPos: number; d0: 1 | -1 } {
+): { sides: number; configPos: number } {
   const L = vertexConfig.length
   let p = configPos0
   let d = d0 // initial direction at vertex 0
@@ -53,5 +53,5 @@ export function computeNeighborSides(
   }
 
   const neighborConfigPos = ((p + d) % L + L) % L
-  return { sides: vertexConfig[neighborConfigPos], configPos: neighborConfigPos, d0: d as 1 | -1 }
+  return { sides: vertexConfig[neighborConfigPos], configPos: neighborConfigPos }
 }

@@ -180,14 +180,12 @@ export const TILINGS: Record<string, TilingDefinition> = {
   'decagonal-rosette': {
     name: 'decagonal-rosette',
     label: 'Decagonal Rosette (Girih)',
-    vertexConfig: [10, 6, 5, 4],
+    vertexConfig: [10, 6],
     seedSides: 10,
     foldSymmetry: 10,
     category: 'rosette-patch',
     defaultConfig: {
       figures: {
-        4: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 67.5 },
-        5: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 72 },
         6: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 60 },
         10: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 72 },
       },
@@ -198,12 +196,15 @@ export const TILINGS: Record<string, TilingDefinition> = {
   'hendecagonal-rosette': {
     name: 'hendecagonal-rosette',
     label: 'Hendecagonal Rosette',
-    vertexConfig: [11],
+    vertexConfig: [11, 16],
     seedSides: 11,
     foldSymmetry: 11,
     category: 'rosette-patch',
     defaultConfig: {
-      figures: { 11: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 73.6 } },
+      figures: {
+        11: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 73.6 },
+        16: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 78.75 },
+      },
     },
   },
 

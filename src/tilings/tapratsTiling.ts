@@ -33,6 +33,8 @@ interface TileType {
   vertices?: Vec2[]
   /** Affine transforms for each copy within the fundamental domain */
   transforms: AffineTransform[]
+  /** Explicit tile type ID override (for grouping variants, e.g. all gap lobes as one type) */
+  tileTypeId?: string
 }
 
 interface TapratsTilingData {
@@ -85,6 +87,47 @@ function computeCanonicalEdgeLen(data: TapratsTilingData): number {
   return 1
 }
 
+// ── Tile type ID assignment ──────────────────────────────
+
+/**
+ * Assign a unique tileTypeId to each tile entry.
+ * If a tile has an explicit tileTypeId, use it.
+ * Otherwise: unique side count → "N", duplicate → "N.1", "N.2", etc.
+ */
+function assignTileTypeIds(tiles: TileType[]): string[] {
+  // Count how many tiles share each side count (ignoring explicit overrides)
+  const sidesCounts = new Map<number, number>()
+  for (const t of tiles) {
+    if (!t.tileTypeId) sidesCounts.set(t.sides, (sidesCounts.get(t.sides) ?? 0) + 1)
+  }
+
+  const sidesSeen = new Map<number, number>()
+  return tiles.map(t => {
+    if (t.tileTypeId) return t.tileTypeId
+    const count = sidesCounts.get(t.sides)!
+    if (count === 1) return String(t.sides)
+    const idx = (sidesSeen.get(t.sides) ?? 0) + 1
+    sidesSeen.set(t.sides, idx)
+    return `${t.sides}.${idx}`
+  })
+}
+
+/** Get tile type info for a tiling (used by UI to show controls per tile type). */
+export function getTapratsTileTypes(tilingKey: string): { id: string; sides: number }[] {
+  const data = TAPRATS_DATA[tilingKey]
+  if (!data) return []
+  const ids = assignTileTypeIds(data.tiles)
+  const seen = new Set<string>()
+  const result: { id: string; sides: number }[] = []
+  for (let i = 0; i < data.tiles.length; i++) {
+    if (!seen.has(ids[i])) {
+      seen.add(ids[i])
+      result.push({ id: ids[i], sides: data.tiles[i].sides })
+    }
+  }
+  return result
+}
+
 // ── Tiling generation ────────────────────────────────────
 
 function intersectsViewport(verts: Vec2[], vp: Viewport): boolean {
@@ -111,6 +154,9 @@ export function generateTapratsTiling(
   if (!data) return []
 
   resetIds()
+
+  // Compute tileTypeId for each tile entry
+  const tileTypeIds = assignTileTypeIds(data.tiles)
 
   const canonicalEdge = computeCanonicalEdgeLen(data)
   const scale = edgeLen / canonicalEdge
@@ -191,6 +237,7 @@ export function generateTapratsTiling(
           polygons.push({
             id: nextId(),
             sides: tile.sides,
+            tileTypeId: tileTypeIds[tileIdx],
             vertices,
             center,
           })
@@ -527,7 +574,7 @@ const TAPRATS_DATA: Record<string, TapratsTilingData> = {
       },
       // Gap region decomposed into 6 convex lobes (4 quads + 2 triangles)
       {
-        sides: 4, regular: false,
+        sides: 4, regular: false, tileTypeId: '4',
         vertices: [
           { x: 1, y: 0.29362649293836673 },
           { x: 0.6825070656623624, y: 0.7876551419728285 },
@@ -537,7 +584,7 @@ const TAPRATS_DATA: Record<string, TapratsTilingData> = {
         transforms: [{ a: 1, b: 0, tx: 0, c: 0, d: 1, ty: 0 }],
       },
       {
-        sides: 3, regular: false,
+        sides: 3, regular: false, tileTypeId: '3',
         vertices: [
           { x: -0.4329526368879809, y: 0.9480340350256571 },
           { x: -0.26750435166416486, y: 1.5114991487085165 },
@@ -546,7 +593,7 @@ const TAPRATS_DATA: Record<string, TapratsTilingData> = {
         transforms: [{ a: 1, b: 0, tx: 0, c: 0, d: 1, ty: 0 }],
       },
       {
-        sides: 4, regular: false,
+        sides: 4, regular: false, tileTypeId: '4',
         vertices: [
           { x: -0.4329526368879808, y: 2.0749642623913758 },
           { x: 0.14832296034141024, y: 1.9913894486808246 },
@@ -556,7 +603,7 @@ const TAPRATS_DATA: Record<string, TapratsTilingData> = {
         transforms: [{ a: 1, b: 0, tx: 0, c: 0, d: 1, ty: 0 }],
       },
       {
-        sides: 4, regular: false,
+        sides: 4, regular: false, tileTypeId: '4',
         vertices: [
           { x: 0.9999999999999996, y: 2.7293718044786663 },
           { x: 1.3174929343376374, y: 2.2353431554442045 },
@@ -566,7 +613,7 @@ const TAPRATS_DATA: Record<string, TapratsTilingData> = {
         transforms: [{ a: 1, b: 0, tx: 0, c: 0, d: 1, ty: 0 }],
       },
       {
-        sides: 3, regular: false,
+        sides: 3, regular: false, tileTypeId: '3',
         vertices: [
           { x: 2.432952636887981, y: 2.074964262391376 },
           { x: 2.267504351664164, y: 1.5114991487085168 },
@@ -575,7 +622,7 @@ const TAPRATS_DATA: Record<string, TapratsTilingData> = {
         transforms: [{ a: 1, b: 0, tx: 0, c: 0, d: 1, ty: 0 }],
       },
       {
-        sides: 4, regular: false,
+        sides: 4, regular: false, tileTypeId: '4',
         vertices: [
           { x: 2.432952636887981, y: 0.9480340350256571 },
           { x: 1.8516770396585893, y: 1.0316088487362085 },

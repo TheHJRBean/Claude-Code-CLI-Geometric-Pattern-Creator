@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import type { PatternConfig } from '../types/pattern'
 import type { Action } from '../state/actions'
 import { TILINGS, SYMMETRY_GROUPS } from '../tilings/index'
+import type { TileTypeInfo } from '../types/tiling'
 import { computeSnapPoints, snapToNearest } from '../pic/snapPoints'
 import { useTheme } from '../theme/ThemeContext'
 
@@ -204,11 +205,13 @@ function MoonIcon() {
 /* ── Figure controls ─────────────────────────────────────── */
 
 function FigureControls({
-  sides, figType, angle, lineLength, autoLen, snapEnabled, rosetteQ,
+  tileTypeId, sides, displayLabel, figType, angle, lineLength, autoLen, snapEnabled, rosetteQ,
   vertexEnabled, vertexDecoupled, vertexAngle, vertexLineLength, vertexAutoLen,
   tilingType, allFigures, dispatch,
 }: {
+  tileTypeId: string
   sides: number
+  displayLabel: string
   figType: 'star' | 'rosette' | 'infer'
   angle: number
   lineLength: number
@@ -221,7 +224,7 @@ function FigureControls({
   vertexLineLength: number
   vertexAutoLen: boolean
   tilingType: string
-  allFigures: Record<number, { contactAngle: number }>
+  allFigures: Record<string, { contactAngle: number }>
   dispatch: React.Dispatch<Action>
 }) {
   const anglesKey = Object.entries(allFigures)
@@ -239,7 +242,7 @@ function FigureControls({
     if (snapEnabled) {
       ll = snapToNearest(ll, snapPoints)
     }
-    dispatch({ type: 'SET_LINE_LENGTH', payload: { sides, lineLength: ll } })
+    dispatch({ type: 'SET_LINE_LENGTH', payload: { tileTypeId, lineLength: ll } })
   }
 
   const sliderMin = 10, sliderMax = 500
@@ -248,12 +251,12 @@ function FigureControls({
 
   return (
     <div style={{ marginBottom: 16 }}>
-      <FieldLabel label={`${sides}-gon · figure`} />
+      <FieldLabel label={`${displayLabel} · figure`} />
       <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
         {(['star', 'rosette'] as const).map(ft => (
           <button
             key={ft}
-            onClick={() => dispatch({ type: 'SET_FIGURE_TYPE', payload: { sides, figureType: ft } })}
+            onClick={() => dispatch({ type: 'SET_FIGURE_TYPE', payload: { tileTypeId, figureType: ft } })}
             style={{
               flex: 1,
               padding: '6px 0',
@@ -280,7 +283,7 @@ function FigureControls({
         className="pattern-slider"
         min={10} max={85} step={0.5}
         value={angle}
-        onChange={e => dispatch({ type: 'SET_CONTACT_ANGLE', payload: { sides, angle: Number(e.target.value) } })}
+        onChange={e => dispatch({ type: 'SET_CONTACT_ANGLE', payload: { tileTypeId, angle: Number(e.target.value) } })}
       />
 
       {figType === 'rosette' && (
@@ -291,7 +294,7 @@ function FigureControls({
             className="pattern-slider"
             min={0} max={100} step={1}
             value={rosetteQ * 100}
-            onChange={e => dispatch({ type: 'SET_ROSETTE_Q', payload: { sides, q: Number(e.target.value) / 100 } })}
+            onChange={e => dispatch({ type: 'SET_ROSETTE_Q', payload: { tileTypeId, q: Number(e.target.value) / 100 } })}
           />
         </>
       )}
@@ -299,7 +302,7 @@ function FigureControls({
       <div style={{ marginTop: 8, marginBottom: 8 }}>
         <Toggle
           checked={autoLen}
-          onChange={v => dispatch({ type: 'SET_AUTO_LINE_LENGTH', payload: { sides, auto: v } })}
+          onChange={v => dispatch({ type: 'SET_AUTO_LINE_LENGTH', payload: { tileTypeId, auto: v } })}
           label="Auto line length"
         />
       </div>
@@ -347,7 +350,7 @@ function FigureControls({
           <div style={{ marginTop: 6, marginBottom: 4 }}>
             <Toggle
               checked={snapEnabled}
-              onChange={v => dispatch({ type: 'SET_SNAP_LINE_LENGTH', payload: { sides, snap: v } })}
+              onChange={v => dispatch({ type: 'SET_SNAP_LINE_LENGTH', payload: { tileTypeId, snap: v } })}
               label="Snap to neighbors"
             />
           </div>
@@ -358,7 +361,7 @@ function FigureControls({
       <div style={{ marginTop: 12 }}>
         <Toggle
           checked={vertexEnabled}
-          onChange={v => dispatch({ type: 'SET_VERTEX_LINES_ENABLED', payload: { sides, enabled: v } })}
+          onChange={v => dispatch({ type: 'SET_VERTEX_LINES_ENABLED', payload: { tileTypeId, enabled: v } })}
           label="Vertex lines"
         />
       </div>
@@ -367,7 +370,7 @@ function FigureControls({
         <div style={{ marginTop: 8 }}>
           <Toggle
             checked={vertexDecoupled}
-            onChange={v => dispatch({ type: 'SET_VERTEX_LINES_DECOUPLED', payload: { sides, decoupled: v } })}
+            onChange={v => dispatch({ type: 'SET_VERTEX_LINES_DECOUPLED', payload: { tileTypeId, decoupled: v } })}
             label="Decouple vertex params"
           />
           {vertexDecoupled && (
@@ -378,13 +381,13 @@ function FigureControls({
                 className="pattern-slider"
                 min={10} max={85} step={0.5}
                 value={vertexAngle}
-                onChange={e => dispatch({ type: 'SET_VERTEX_CONTACT_ANGLE', payload: { sides, angle: Number(e.target.value) } })}
+                onChange={e => dispatch({ type: 'SET_VERTEX_CONTACT_ANGLE', payload: { tileTypeId, angle: Number(e.target.value) } })}
               />
 
               <div style={{ marginTop: 8, marginBottom: 8 }}>
                 <Toggle
                   checked={vertexAutoLen}
-                  onChange={v => dispatch({ type: 'SET_VERTEX_AUTO_LINE_LENGTH', payload: { sides, auto: v } })}
+                  onChange={v => dispatch({ type: 'SET_VERTEX_AUTO_LINE_LENGTH', payload: { tileTypeId, auto: v } })}
                   label="Auto vertex length"
                 />
               </div>
@@ -396,7 +399,7 @@ function FigureControls({
                     className="pattern-slider"
                     min={10} max={500} step={1}
                     value={Math.round(vertexLineLength * 100)}
-                    onChange={e => dispatch({ type: 'SET_VERTEX_LINE_LENGTH', payload: { sides, lineLength: Number(e.target.value) / 100 } })}
+                    onChange={e => dispatch({ type: 'SET_VERTEX_LINE_LENGTH', payload: { tileTypeId, lineLength: Number(e.target.value) / 100 } })}
                   />
                 </>
               )}
@@ -417,7 +420,12 @@ export function Sidebar({
 }: Props) {
   const { theme, toggleTheme } = useTheme()
   const def = TILINGS[config.tiling.type]
-  const polygonTypes = def ? [...new Set(def.vertexConfig)].sort((a, b) => a - b) : []
+  // Derive tile types: use explicit tileTypes if defined, else one per unique side count
+  const tileTypes: TileTypeInfo[] = def
+    ? (def.tileTypes ?? [...new Set(def.vertexConfig)].sort((a, b) => a - b).map(s => ({
+        id: String(s), sides: s, label: `${s}-gon`,
+      })))
+    : []
 
   return (
     <div className={`sidebar ${open ? 'sidebar--open' : ''}`}>
@@ -543,8 +551,8 @@ export function Sidebar({
           <LotusDivider />
           <SectionTitle>Figures</SectionTitle>
 
-          {polygonTypes.map(sides => {
-            const fig = config.figures[sides]
+          {tileTypes.map(tt => {
+            const fig = config.figures[tt.id]
             const figType = fig?.type ?? 'star'
             const angle = fig?.contactAngle ?? 60
             const lineLength = fig?.lineLength ?? 1.0
@@ -558,8 +566,10 @@ export function Sidebar({
             const vertexAutoLen = fig?.vertexAutoLineLength ?? autoLen
             return (
               <FigureControls
-                key={sides}
-                sides={sides}
+                key={tt.id}
+                tileTypeId={tt.id}
+                sides={tt.sides}
+                displayLabel={tt.label}
                 figType={figType}
                 angle={angle}
                 lineLength={lineLength}

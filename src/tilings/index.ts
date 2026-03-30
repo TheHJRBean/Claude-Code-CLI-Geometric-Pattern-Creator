@@ -63,10 +63,16 @@ export const TILINGS: Record<string, TilingDefinition> = {
     seedSides: 5,
     foldSymmetry: 5,
     category: 'rosette-patch',
+    tileTypes: [
+      { id: '5', sides: 5, label: 'Pentagon' },
+      { id: '4.1', sides: 4, label: '4-gon (thin rhombus)' },
+      { id: '4.2', sides: 4, label: '4-gon (wide rhombus)' },
+    ],
     defaultConfig: {
       figures: {
-        4: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 67.5 },
-        5: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 72 },
+        '4.1': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 67.5 },
+        '4.2': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 67.5 },
+        '5': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 72 },
       },
     },
   },
@@ -184,10 +190,16 @@ export const TILINGS: Record<string, TilingDefinition> = {
     seedSides: 10,
     foldSymmetry: 10,
     category: 'rosette-patch',
+    tileTypes: [
+      { id: '10', sides: 10, label: 'Decagon' },
+      { id: '6.1', sides: 6, label: '6-gon (bowtie)' },
+      { id: '6.2', sides: 6, label: '6-gon (elongated)' },
+    ],
     defaultConfig: {
       figures: {
-        6: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 72 },
-        10: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 72 },
+        '6.1': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 72 },
+        '6.2': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 72 },
+        '10': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 72 },
       },
     },
   },

@@ -43,7 +43,7 @@ function autoTForPolygon(poly: Polygon, contactAngle: number): number {
 export function computeSnapPoints(
   tilingType: string,
   targetSides: number,
-  figures: Record<number, { contactAngle: number }>,
+  figures: Record<string, { contactAngle: number }>,
 ): number[] {
   const def = TILINGS[tilingType]
   if (!def) return []
@@ -65,7 +65,7 @@ export function computeSnapPoints(
     )[0]
   if (!targetPoly) return []
 
-  const targetAngle = figures[targetSides]?.contactAngle ?? 60
+  const targetAngle = figures[String(targetSides)]?.contactAngle ?? 60
   const targetRays = computeContactRays(targetPoly, targetAngle)
   const targetInradius = dist(targetPoly.center, targetRays[0].origin)
   if (targetInradius < EPSILON) return []
@@ -74,7 +74,7 @@ export function computeSnapPoints(
   const infoByType = new Map<number, { inradius: number; autoT: number }>()
   for (const poly of polygons) {
     if (infoByType.has(poly.sides)) continue
-    const angle = figures[poly.sides]?.contactAngle ?? 60
+    const angle = figures[poly.tileTypeId]?.contactAngle ?? 60
     const rays = computeContactRays(poly, angle)
     const ir = dist(poly.center, rays[0].origin)
     const at = autoTForPolygon(poly, angle)
@@ -85,7 +85,7 @@ export function computeSnapPoints(
   interface TaggedRay { origin: Vec2; dir: Vec2; inradius: number; autoT: number }
   const allRays: TaggedRay[] = []
   for (const poly of polygons) {
-    const angle = figures[poly.sides]?.contactAngle ?? 60
+    const angle = figures[poly.tileTypeId]?.contactAngle ?? 60
     const rays = computeContactRays(poly, angle)
     const info = infoByType.get(poly.sides)!
     for (const r of rays) {

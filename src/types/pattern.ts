@@ -37,8 +37,8 @@ export interface LacingConfig {
 
 export interface PatternConfig {
   tiling: TilingConfig
-  /** keyed by polygon side count */
-  figures: Record<number, FigureConfig>
+  /** keyed by tile type ID (e.g. "6", "6.1", "6.2") */
+  figures: Record<string, FigureConfig>
   edgeAngles?: Record<string, number>
   lacing: LacingConfig
 }

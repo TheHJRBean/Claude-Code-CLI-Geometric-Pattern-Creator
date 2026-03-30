@@ -9,13 +9,13 @@ export const nextId = () => `p${_idCounter++}`
  * Create a regular n-gon centered at `center` with circumradius `R`
  * and initial rotation angle `phi` (radians).
  */
-export function createPolygon(sides: number, center: Vec2, R: number, phi: number): Polygon {
+export function createPolygon(sides: number, center: Vec2, R: number, phi: number, tileTypeId?: string): Polygon {
   const vertices: Vec2[] = []
   for (let k = 0; k < sides; k++) {
     const angle = phi + (2 * Math.PI * k) / sides
     vertices.push({ x: center.x + R * Math.cos(angle), y: center.y + R * Math.sin(angle) })
   }
-  return { id: nextId(), sides, vertices, center }
+  return { id: nextId(), sides, tileTypeId: tileTypeId ?? String(sides), vertices, center }
 }
 
 /**

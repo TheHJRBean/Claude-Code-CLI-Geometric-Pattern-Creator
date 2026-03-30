@@ -3,6 +3,8 @@ import type { Vec2 } from '../utils/math'
 export interface Polygon {
   id: string
   sides: number
+  /** Unique tile-type key for figure config lookup (e.g. "6", "6.1", "6.2") */
+  tileTypeId: string
   vertices: Vec2[]
   center: Vec2
 }

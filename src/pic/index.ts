@@ -200,7 +200,7 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
   const edgeKeyF = 1e3
 
   for (const poly of polygons) {
-    const fig = config.figures[poly.sides]
+    const fig = config.figures[poly.tileTypeId]
     if (!fig) continue
 
     const rays = computeContactRays(poly, fig.contactAngle)

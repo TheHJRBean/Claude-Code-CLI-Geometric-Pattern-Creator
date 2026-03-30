@@ -40,6 +40,23 @@ export const clamp = (v: number, min: number, max: number): number =>
 export const degToRad = (d: number): number => (d * Math.PI) / 180
 export const radToDeg = (r: number): number => (r * 180) / Math.PI
 
+/** Test if a polygon's vertices are all convex (no reflex angles) */
+export function isConvexPolygon(poly: Vec2[]): boolean {
+  const n = poly.length
+  if (n < 3) return true
+  let sign = 0
+  for (let i = 0; i < n; i++) {
+    const o = poly[i]
+    const a = poly[(i + 1) % n]
+    const b = poly[(i + 2) % n]
+    const c = (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x)
+    if (Math.abs(c) < EPSILON) continue
+    if (sign === 0) sign = c > 0 ? 1 : -1
+    else if ((c > 0 ? 1 : -1) !== sign) return false
+  }
+  return true
+}
+
 /** Test if point P is strictly inside a convex or concave polygon using ray casting */
 export function pointInPolygon(p: Vec2, poly: Vec2[]): boolean {
   let inside = false

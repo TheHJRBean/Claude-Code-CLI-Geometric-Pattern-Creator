@@ -2,7 +2,7 @@ import type { Polygon, Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
 import { computeContactRays, computeVertexRays, type ContactRay, type VertexRay } from './stellation'
 import { rayRayIntersect, type IntersectResult } from './intersect'
-import { EPSILON, dist, lerp, midpoint, pointInPolygon, type Vec2 } from '../utils/math'
+import { EPSILON, dist, lerp, midpoint, pointInPolygon, isConvexPolygon, type Vec2 } from '../utils/math'
 
 /**
  * For a given vertex (shared by prevEdge and currEdge), find the correct
@@ -13,12 +13,15 @@ function pairAtVertex(
   rays: ContactRay[],
   prevEdge: number,
   currEdge: number,
+  polyVertices: Vec2[],
+  convex: boolean,
 ): { ray1: ContactRay; ray2: ContactRay; result: IntersectResult } | null {
   // Try pairing A: prev.minus + curr.plus
   const rA1 = rays[prevEdge * 2 + 1]
   const rA2 = rays[currEdge * 2]
   const resA = rayRayIntersect(rA1.origin, rA1.dir, rA2.origin, rA2.dir)
-  if (resA && resA.t1 > EPSILON && resA.t2 > EPSILON) {
+  if (resA && resA.t1 > EPSILON && resA.t2 > EPSILON &&
+      (convex || pointInPolygon(resA.point, polyVertices))) {
     return { ray1: rA1, ray2: rA2, result: resA }
   }
 
@@ -26,7 +29,8 @@ function pairAtVertex(
   const rB1 = rays[prevEdge * 2]
   const rB2 = rays[currEdge * 2 + 1]
   const resB = rayRayIntersect(rB1.origin, rB1.dir, rB2.origin, rB2.dir)
-  if (resB && resB.t1 > EPSILON && resB.t2 > EPSILON) {
+  if (resB && resB.t1 > EPSILON && resB.t2 > EPSILON &&
+      (convex || pointInPolygon(resB.point, polyVertices))) {
     return { ray1: rB1, ray2: rB2, result: resB }
   }
 
@@ -202,13 +206,14 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
     const rays = computeContactRays(poly, fig.contactAngle)
     const n = poly.sides
     const inradius = n > 0 ? dist(poly.center, rays[0].origin) : 0
+    const convex = isConvexPolygon(poly.vertices)
 
     // Compute star tips for all vertices
     const starTips: (Vec2 | null)[] = []
 
     for (let k = 0; k < n; k++) {
       const prevEdge = (k - 1 + n) % n
-      const pair = pairAtVertex(rays, prevEdge, k)
+      const pair = pairAtVertex(rays, prevEdge, k, poly.vertices, convex)
       if (!pair) {
         starTips.push(null)
         continue

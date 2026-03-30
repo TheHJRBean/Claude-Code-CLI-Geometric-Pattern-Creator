@@ -18,16 +18,28 @@ export function usePattern(
   containerWidth: number,
   containerHeight: number,
 ): PatternData {
+  // Visible viewport in world coordinates
+  const vw = containerWidth / viewTransform.zoom
+  const vh = containerHeight / viewTransform.zoom
+
+  // Quantize the viewport position so most pan frames hit the memo cache.
+  // Step = 25% of viewport size; with 50% padding the generated area
+  // fully covers at least one full step of panning in any direction.
+  const step = Math.max(vw, vh) * 0.25 || 1
+  const qx = Math.floor(viewTransform.x / step) * step
+  const qy = Math.floor(viewTransform.y / step) * step
+
+  const pad = 0.5
+  const genX = qx - vw * pad
+  const genY = qy - vh * pad
+  const genW = vw * (1 + 2 * pad)
+  const genH = vh * (1 + 2 * pad)
+
   return useMemo(() => {
     const def = TILINGS[config.tiling.type]
     if (!def) return { polygons: [], segments: [] }
 
-    const viewport = {
-      x: viewTransform.x,
-      y: viewTransform.y,
-      width: containerWidth / viewTransform.zoom,
-      height: containerHeight / viewTransform.zoom,
-    }
+    const viewport = { x: genX, y: genY, width: genW, height: genH }
 
     const polygons = def.category === 'rosette-patch'
       ? generateRosettePatch(def, viewport, config.tiling.scale)
@@ -35,5 +47,5 @@ export function usePattern(
     const segments = runPIC(polygons, config)
 
     return { polygons, segments }
-  }, [config, viewTransform, containerWidth, containerHeight])
+  }, [config, genX, genY, genW, genH])
 }

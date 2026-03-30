@@ -72,15 +72,6 @@ export default function App() {
         <SandstoneEdge />
       </div>
       <Canvas config={config} showTileLayer={showTileLayer} svgRef={svgRef} segmentsRef={segmentsRef} />
-      <div style={{
-        position: 'fixed', bottom: 8, right: 8,
-        fontSize: 10, fontFamily: 'monospace',
-        background: 'rgba(0,0,0,0.5)', color: '#aaa',
-        padding: '2px 6px', borderRadius: 4, zIndex: 9999,
-        pointerEvents: 'none',
-      }}>
-        {import.meta.env.VITE_COMMIT_MSG}
-      </div>
     </div>
   )
 }

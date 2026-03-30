@@ -61,3 +61,7 @@ Add a `TilingDefinition` entry to `tilings/index.ts` with the vertex configurati
 ### Planned stages (see plan file)
 
 The implementation follows 10 staged builds. Stages 1–6 (foundation, PIC, Archimedean tilings, strand graph, lacing, export) are complete or in progress. Stages 7–10 add: Rosette figures + Infer algorithm, Girih tiles (Lu & Steinhardt 2007), quasi-periodic/Penrose tilings, and per-edge angle control.
+
+## Commit Status Tag
+
+After each commit, mention the short commit hash and message in your chat response (e.g. `a1b2c3d: Fix header layout`). This is for the developer's awareness in the conversation — do NOT render it in the application UI.

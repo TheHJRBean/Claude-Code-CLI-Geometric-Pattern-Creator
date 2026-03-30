@@ -212,15 +212,18 @@ export const TILINGS: Record<string, TilingDefinition> = {
   'hendecagonal-rosette': {
     name: 'hendecagonal-rosette',
     label: 'Hendecagonal Rosette',
-    vertexConfig: [11, 4, 3],
+    vertexConfig: [11, 16],
     seedSides: 11,
     foldSymmetry: 11,
     category: 'rosette-patch',
+    tileTypes: [
+      { id: '11', sides: 11, label: 'Hendecagon' },
+      { id: '16', sides: 16, label: '16-gon (gap)' },
+    ],
     defaultConfig: {
       figures: {
-        3: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 73.6 },
-        4: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 73.6 },
-        11: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 73.6 },
+        '11': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 73.6 },
+        '16': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 73.6 },
       },
     },
   },

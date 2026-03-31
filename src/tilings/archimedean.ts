@@ -153,6 +153,7 @@ export function generateTiling(
 
   const seedKey = polygonKey(seed)
   const seedConfigPos = vertexConfig.indexOf(seedSides)
+  registry.addPolygon(seed)
   queued.add(seedKey)
   queue.push({ poly: seed, key: seedKey })
   configPosMap.set(seedKey, seedConfigPos)
@@ -160,22 +161,8 @@ export function generateTiling(
   while (queue.length > 0 && placed.size < MAX_POLYGONS) {
     const { poly, key } = queue.shift()!
     if (placed.has(key)) continue
-
-    // Lazy validation: re-check constraints that may have changed since queueing
-    if (spatial.overlaps(poly, edgeLen)) continue
-    const polyMaxCount = maxCountPerType.get(poly.sides) ?? 0
-    let vertexValid = true
-    for (const v of poly.vertices) {
-      if (registry.countOf(v, poly.sides) >= polyMaxCount) {
-        vertexValid = false
-        break
-      }
-    }
-    if (!vertexValid) continue
-
     placed.set(key, poly)
     spatial.add(poly)
-    registry.addPolygon(poly)
 
     const cp0 = configPosMap.get(key) ?? vertexConfig.indexOf(poly.sides)
 
@@ -198,6 +185,7 @@ export function generateTiling(
         if (!intersectsViewport(neighbor, paddedVP)) continue
         if (spatial.overlaps(neighbor, edgeLen)) continue
 
+        registry.addPolygon(neighbor)
         queued.add(nKey)
         queue.push({ poly: neighbor, key: nKey })
         configPosMap.set(nKey, nConfigPos)

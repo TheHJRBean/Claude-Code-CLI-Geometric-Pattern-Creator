@@ -38,28 +38,30 @@ const MAX_POLYGONS = 2_000
 const vtxKey = (v: Vec2): string => roundKey(v, 1)
 
 /**
- * Vertex registry: tracks which polygon side-counts are already placed
- * at each vertex position. Used to validate neighbor placement.
+ * Vertex registry: tracks which polygon side-counts are present at each
+ * vertex position. Keyed by (vertexPosition, polygonKey) so that
+ * edge-vertex pre-registration at queue time and full registration at
+ * placement time don't double-count.
  */
 class VertexRegistry {
-  private map = new Map<string, number[]>()
+  private map = new Map<string, Map<string, number>>()
 
-  add(v: Vec2, sides: number): void {
+  add(v: Vec2, sides: number, polyKey: string): void {
     const key = vtxKey(v)
-    const list = this.map.get(key)
-    if (list) list.push(sides)
-    else this.map.set(key, [sides])
+    let m = this.map.get(key)
+    if (!m) { m = new Map(); this.map.set(key, m) }
+    m.set(polyKey, sides)
   }
 
-  addPolygon(poly: Polygon): void {
-    for (const v of poly.vertices) this.add(v, poly.sides)
+  addPolygon(poly: Polygon, polyKey: string): void {
+    for (const v of poly.vertices) this.add(v, poly.sides, polyKey)
   }
 
   countOf(v: Vec2, sides: number): number {
-    const list = this.map.get(vtxKey(v))
-    if (!list) return 0
+    const m = this.map.get(vtxKey(v))
+    if (!m) return 0
     let c = 0
-    for (const s of list) if (s === sides) c++
+    for (const s of m.values()) if (s === sides) c++
     return c
   }
 }
@@ -148,49 +150,56 @@ export function generateTiling(
   const spatial = new SpatialHash(edgeLen * 2)
   const placed = new Map<string, Polygon>()
   const configPosMap = new Map<string, number>()
+  const chiralityMap = new Map<string, 1 | -1>()
   const queued = new Set<string>()
   const queue: Array<{ poly: Polygon; key: string }> = []
 
   const seedKey = polygonKey(seed)
   const seedConfigPos = vertexConfig.indexOf(seedSides)
-  registry.addPolygon(seed)
   queued.add(seedKey)
   queue.push({ poly: seed, key: seedKey })
   configPosMap.set(seedKey, seedConfigPos)
+  chiralityMap.set(seedKey, 1)
 
   while (queue.length > 0 && placed.size < MAX_POLYGONS) {
     const { poly, key } = queue.shift()!
     if (placed.has(key)) continue
     placed.set(key, poly)
     spatial.add(poly)
+    registry.addPolygon(poly, key)
 
     const cp0 = configPosMap.get(key) ?? vertexConfig.indexOf(poly.sides)
+    const d0 = chiralityMap.get(key) ?? 1 as 1 | -1
 
     for (let edgeIdx = 0; edgeIdx < poly.sides; edgeIdx++) {
       const A = poly.vertices[edgeIdx]
       const B = poly.vertices[(edgeIdx + 1) % poly.sides]
 
-      // Try both chirality directions; accept the first valid candidate
-      let placed_neighbor = false
-      for (const tryD0 of [1 as const, -1 as const]) {
-        if (placed_neighbor) break
-        const { sides: nSides, configPos: nConfigPos } = computeNeighborSides(cp0, edgeIdx, poly.sides, vertexConfig, tryD0)
+      const { sides: nSides, configPos: nConfigPos, direction: parentDirAtVertex } =
+        computeNeighborSides(cp0, edgeIdx, poly.sides, vertexConfig, d0)
 
-        const maxCount = maxCountPerType.get(nSides) ?? 0
-        if (registry.countOf(A, nSides) >= maxCount || registry.countOf(B, nSides) >= maxCount) continue
+      const maxCount = maxCountPerType.get(nSides) ?? 0
+      if (registry.countOf(A, nSides) >= maxCount || registry.countOf(B, nSides) >= maxCount) continue
 
-        const neighbor = neighborPolygon(A, B, nSides, edgeLen)
-        const nKey = polygonKey(neighbor)
-        if (placed.has(nKey) || queued.has(nKey)) { placed_neighbor = true; continue }
-        if (!intersectsViewport(neighbor, paddedVP)) continue
-        if (spatial.overlaps(neighbor, edgeLen)) continue
+      const neighbor = neighborPolygon(A, B, nSides, edgeLen)
+      const nKey = polygonKey(neighbor)
+      if (placed.has(nKey) || queued.has(nKey)) continue
+      if (!intersectsViewport(neighbor, paddedVP)) continue
+      if (spatial.overlaps(neighbor, edgeLen)) continue
 
-        registry.addPolygon(neighbor)
-        queued.add(nKey)
-        queue.push({ poly: neighbor, key: nKey })
-        configPosMap.set(nKey, nConfigPos)
-        placed_neighbor = true
-      }
+      // The neighbor's d0 at vertex 0 (= shared vertex A) matches the
+      // parent's direction at that vertex — both polygons read the vertex
+      // config in the same rotational sense at the shared vertex.
+      const neighborD0 = parentDirAtVertex
+
+      // Register only the shared edge vertices now; remaining vertices
+      // are registered when the polygon is dequeued and placed.
+      registry.add(A, nSides, nKey)
+      registry.add(B, nSides, nKey)
+      queued.add(nKey)
+      queue.push({ poly: neighbor, key: nKey })
+      configPosMap.set(nKey, nConfigPos)
+      chiralityMap.set(nKey, neighborD0)
     }
   }
 

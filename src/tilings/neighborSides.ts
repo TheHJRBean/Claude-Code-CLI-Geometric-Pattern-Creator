@@ -22,7 +22,7 @@ export function computeNeighborSides(
   sides: number,
   vertexConfig: number[],
   d0: 1 | -1 = 1,
-): { sides: number; configPos: number } {
+): { sides: number; configPos: number; direction: 1 | -1 } {
   const L = vertexConfig.length
   let p = configPos0
   let d = d0 // initial direction at vertex 0
@@ -34,24 +34,27 @@ export function computeNeighborSides(
     d = -d as 1 | -1
     // Find p_{v+1}: vertexConfig[p'] === sides AND
     // vertexConfig[(p' + prevD + L) % L] === neighborType
-    let nextP = -1
-    let fallback = -1
+    // Among all valid candidates, pick the one farthest from the current
+    // position in the new direction d. This disambiguates configs with many
+    // repeated elements (e.g. four 3s in [3,3,3,3,6]) where multiple
+    // candidates satisfy the algebraic constraints.
+    let bestP = -1
+    let bestDist = -1
     for (let candidate = 0; candidate < L; candidate++) {
       if (
         vertexConfig[candidate] === sides &&
         vertexConfig[((candidate + prevD) % L + L) % L] === neighborType
       ) {
-        if (fallback === -1) fallback = candidate
-        if (candidate !== p) {
-          nextP = candidate
-          break
+        const dist = ((candidate - p) * d % L + L) % L
+        if (dist > bestDist) {
+          bestDist = dist
+          bestP = candidate
         }
       }
     }
-    if (nextP === -1) nextP = fallback
-    p = nextP !== -1 ? nextP : vertexConfig.indexOf(sides)
+    p = bestP !== -1 ? bestP : vertexConfig.indexOf(sides)
   }
 
   const neighborConfigPos = ((p + d) % L + L) % L
-  return { sides: vertexConfig[neighborConfigPos], configPos: neighborConfigPos }
+  return { sides: vertexConfig[neighborConfigPos], configPos: neighborConfigPos, direction: d }
 }

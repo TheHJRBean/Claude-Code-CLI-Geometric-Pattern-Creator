@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { generateTiling, buildEdgeMap, Viewport } from './archimedean'
 import { TILINGS } from './index'
 import { resetIds } from './shared'
-import { midpoint, Vec2 } from '../utils/math'
+import { midpoint } from '../utils/math'
 
 beforeEach(() => resetIds())
 
@@ -133,7 +133,7 @@ const archimedeanTilings = [
 describe('gap detection — no unshared interior edges', () => {
   for (const key of archimedeanTilings) {
     it(`${key} has zero interior gaps`, () => {
-      const { gaps, interiorEdges, totalPolygons } = countInteriorGaps(key)
+      const { gaps, interiorEdges } = countInteriorGaps(key)
       // Sanity: must have enough interior edges to be meaningful
       expect(interiorEdges).toBeGreaterThan(5)
       expect(gaps).toBe(0)

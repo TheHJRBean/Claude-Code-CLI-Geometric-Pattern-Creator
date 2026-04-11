@@ -197,7 +197,8 @@ function pathD(pts: Pt[]): string {
 /* ── Component ──────────────────────────────────────────────────── */
 
 export function StrandLayer({ segments, lacing }: Props) {
-  const strands = useMemo(() => buildStrands(segments), [segments])
+  const strandData = useMemo(() => buildStrands(segments), [segments])
+  const strands = useMemo(() => strandData.map(sd => sd.points), [strandData])
 
   const { continuousPaths, strandSubPaths } = useMemo(() => {
     const continuous = strands.map(s => pathD(s))

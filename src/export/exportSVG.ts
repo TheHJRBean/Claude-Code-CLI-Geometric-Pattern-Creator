@@ -1,5 +1,4 @@
 import type { Segment } from '../types/geometry'
-import type { Vec2 } from '../utils/math'
 import { buildStrands } from '../strand/buildStrands'
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -26,7 +25,7 @@ export function exportSVG(svgEl: SVGSVGElement) {
 /** Export clean editable SVG — one <path> per strand with nodes at every vertex.
  *  No lacing, no thick strokes — just the raw geometry for Inkscape editing. */
 export function exportUnwovenSVG(segments: Segment[], viewBox: string, width: number, height: number) {
-  const strands = buildStrands(segments)
+  const strandData = buildStrands(segments)
 
   // Compute a stroke width ~0.1% of the viewBox diagonal so lines are visible but thin
   const vbParts = viewBox.split(/[\s,]+/).map(Number)
@@ -34,7 +33,8 @@ export function exportUnwovenSVG(segments: Segment[], viewBox: string, width: nu
   const vbH = vbParts[3] || height
   const strokeWidth = Math.sqrt(vbW * vbW + vbH * vbH) * 0.001
 
-  const pathEls = strands.map((pts: Vec2[], i: number) => {
+  const pathEls = strandData.map((sd, i: number) => {
+    const pts = sd.points
     const d = pts.map((p, j) => `${j === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')
     return `  <path id="strand-${i}" d="${d}" fill="none" stroke="#000000" stroke-width="${strokeWidth.toFixed(4)}" stroke-linecap="round" stroke-linejoin="round"/>`
   }).join('\n')

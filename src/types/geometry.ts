@@ -9,10 +9,16 @@ export interface Polygon {
   center: Vec2
 }
 
+export type SegmentKind = 'star-arm' | 'petal' | 'vertex-line'
+
 export interface Segment {
   from: Vec2
   to: Vec2
   /** edge midpoint this segment starts from */
   edgeMidpoint: Vec2
   polygonId: string
+  /** tile type ID for per-polygon-type config lookup */
+  tileTypeId: string
+  /** what kind of segment this is — for selective curve application */
+  kind: SegmentKind
 }

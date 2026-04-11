@@ -1,4 +1,4 @@
-import type { FigureConfig, PatternConfig } from '../types/pattern'
+import type { CurvePoint, FigureConfig, PatternConfig } from '../types/pattern'
 import type { Action } from './actions'
 import { TILINGS } from '../tilings/index'
 import { DEFAULT_CONFIG } from './defaults'
@@ -68,6 +68,35 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       return updateFigure(state, action.payload.tileTypeId, { vertexLineLength: action.payload.lineLength })
     case 'SET_VERTEX_AUTO_LINE_LENGTH':
       return updateFigure(state, action.payload.tileTypeId, { vertexAutoLineLength: action.payload.auto })
+    case 'SET_CURVE_ENABLED': {
+      const fig = getFigure(state, action.payload.tileTypeId)
+      const curve = fig.curve ?? { enabled: false, points: [{ position: 0.5, offset: 0.2 }] }
+      return updateFigure(state, action.payload.tileTypeId, {
+        curve: { ...curve, enabled: action.payload.enabled },
+      })
+    }
+    case 'SET_CURVE_POINT_COUNT': {
+      const fig = getFigure(state, action.payload.tileTypeId)
+      const curve = fig.curve ?? { enabled: true, points: [{ position: 0.5, offset: 0.2 }] }
+      const count = Math.max(1, Math.min(3, action.payload.count))
+      const existing = curve.points
+      const points: CurvePoint[] = []
+      for (let i = 0; i < count; i++) {
+        points.push(existing[i] ?? { position: (i + 1) / (count + 1), offset: 0.2 })
+      }
+      return updateFigure(state, action.payload.tileTypeId, {
+        curve: { ...curve, points },
+      })
+    }
+    case 'SET_CURVE_POINT': {
+      const { tileTypeId, index, point } = action.payload
+      const fig = getFigure(state, tileTypeId)
+      const curve = fig.curve ?? { enabled: true, points: [{ position: 0.5, offset: 0.2 }] }
+      const points = curve.points.map((p, i) =>
+        i === index ? { ...p, ...point } : p,
+      )
+      return updateFigure(state, tileTypeId, { curve: { ...curve, points } })
+    }
     case 'LOAD_CONFIG':
       return action.payload
     default:

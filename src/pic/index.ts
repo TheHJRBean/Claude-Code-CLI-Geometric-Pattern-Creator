@@ -46,6 +46,7 @@ function emitStarArms(
   lineLength: number,
   inradius: number,
   polygonId: string,
+  tileTypeId: string,
   segments: Segment[],
 ): void {
   const { ray1, ray2, result } = pair
@@ -56,12 +57,16 @@ function emitStarArms(
       to: result.point,
       edgeMidpoint: ray1.origin,
       polygonId,
+      tileTypeId,
+      kind: 'star-arm',
     })
     segments.push({
       from: ray2.origin,
       to: result.point,
       edgeMidpoint: ray2.origin,
       polygonId,
+      tileTypeId,
+      kind: 'star-arm',
     })
   } else {
     const t = lineLength * inradius
@@ -73,6 +78,8 @@ function emitStarArms(
       },
       edgeMidpoint: ray1.origin,
       polygonId,
+      tileTypeId,
+      kind: 'star-arm',
     })
     segments.push({
       from: ray2.origin,
@@ -82,6 +89,8 @@ function emitStarArms(
       },
       edgeMidpoint: ray2.origin,
       polygonId,
+      tileTypeId,
+      kind: 'star-arm',
     })
   }
 }
@@ -125,6 +134,7 @@ function emitVertexArms(
   lineLength: number,
   circumradius: number,
   polygonId: string,
+  tileTypeId: string,
   segments: Segment[],
 ): void {
   const { ray1, ray2, result } = pair
@@ -135,12 +145,16 @@ function emitVertexArms(
       to: result.point,
       edgeMidpoint: ray1.origin,
       polygonId,
+      tileTypeId,
+      kind: 'vertex-line',
     })
     segments.push({
       from: ray2.origin,
       to: result.point,
       edgeMidpoint: ray2.origin,
       polygonId,
+      tileTypeId,
+      kind: 'vertex-line',
     })
   } else {
     const t = lineLength * circumradius
@@ -152,6 +166,8 @@ function emitVertexArms(
       },
       edgeMidpoint: ray1.origin,
       polygonId,
+      tileTypeId,
+      kind: 'vertex-line',
     })
     segments.push({
       from: ray2.origin,
@@ -161,6 +177,8 @@ function emitVertexArms(
       },
       edgeMidpoint: ray2.origin,
       polygonId,
+      tileTypeId,
+      kind: 'vertex-line',
     })
   }
 }
@@ -220,7 +238,7 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
       }
 
       starTips.push(pair.result.point)
-      emitStarArms(pair, fig.autoLineLength, fig.lineLength, inradius, poly.id, segments)
+      emitStarArms(pair, fig.autoLineLength, fig.lineLength, inradius, poly.id, poly.tileTypeId, segments)
     }
 
     // Rosette: add petal connections between adjacent star tips
@@ -241,6 +259,8 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
             to: tipB,
             edgeMidpoint: edgeMid,
             polygonId: poly.id,
+            tileTypeId: poly.tileTypeId,
+            kind: 'petal',
           })
         } else {
           // Kneed connection: two knee points displaced toward edge midpoint
@@ -254,6 +274,8 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
             to: knee1,
             edgeMidpoint: edgeMid,
             polygonId: poly.id,
+            tileTypeId: poly.tileTypeId,
+            kind: 'petal',
           })
           // Only add middle segment if knees aren't coincident
           if (dist(knee1, knee2) > EPSILON) {
@@ -262,6 +284,8 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
               to: knee2,
               edgeMidpoint: edgeMid,
               polygonId: poly.id,
+              tileTypeId: poly.tileTypeId,
+              kind: 'petal',
             })
           }
           segments.push({
@@ -269,6 +293,8 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
             to: tipB,
             edgeMidpoint: edgeMid,
             polygonId: poly.id,
+            tileTypeId: poly.tileTypeId,
+            kind: 'petal',
           })
         }
       }
@@ -298,7 +324,7 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
         const nextV = (k + 1) % n
         const pair = pairVertexAtEdge(vertexRays, k, nextV, poly.vertices)
         if (!pair) continue
-        emitVertexArms(pair, vtxAutoLen, vtxLineLen, circumradius, poly.id, segments)
+        emitVertexArms(pair, vtxAutoLen, vtxLineLen, circumradius, poly.id, poly.tileTypeId, segments)
       }
     }
   }

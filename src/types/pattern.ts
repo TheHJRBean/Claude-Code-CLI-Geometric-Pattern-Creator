@@ -3,6 +3,19 @@ export interface TilingConfig {
   scale: number
 }
 
+export interface CurvePoint {
+  /** Where along the segment the bend peaks (0 = start, 0.5 = center, 1 = end) */
+  position: number
+  /** Perpendicular displacement as fraction of segment length (-1 to 1) */
+  offset: number
+}
+
+export interface CurveConfig {
+  enabled: boolean
+  /** 1–3 control points defining the curve shape */
+  points: CurvePoint[]
+}
+
 export interface FigureConfig {
   type: 'star' | 'rosette' | 'infer'
   contactAngle: number  // degrees
@@ -25,6 +38,8 @@ export interface FigureConfig {
   vertexLineLength?: number
   /** Auto line length for vertex lines (used only when decoupled) */
   vertexAutoLineLength?: boolean
+  /** Curve configuration for bending straight segments into Bezier curves */
+  curve?: CurveConfig
 }
 
 export interface LacingConfig {

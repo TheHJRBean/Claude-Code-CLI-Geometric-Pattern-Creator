@@ -1,6 +1,12 @@
 import type { Vec2 } from '../utils/math'
 import type { Segment } from '../types/geometry'
 
+export interface StrandData {
+  points: Vec2[]
+  /** segmentIndices[i] = index into the input segments array for edge points[i] → points[i+1] */
+  segmentIndices: number[]
+}
+
 function ptKey(p: Vec2): string {
   return `${p.x.toFixed(4)},${p.y.toFixed(4)}`
 }
@@ -10,7 +16,7 @@ function ptKey(p: Vec2): string {
  * at each vertex by angle continuity — the most collinear pair
  * (angle difference closest to π) continues as the same strand.
  */
-export function buildStrands(segments: Segment[]): Vec2[][] {
+export function buildStrands(segments: Segment[]): StrandData[] {
   if (segments.length === 0) return []
 
   const adj = new Map<string, { segIdx: number; other: Vec2; angle: number }[]>()
@@ -52,16 +58,17 @@ export function buildStrands(segments: Segment[]): Vec2[][] {
   }
 
   const visited = new Set<number>()
-  const strands: Vec2[][] = []
+  const strands: StrandData[] = []
 
   for (let i = 0; i < segments.length; i++) {
     if (visited.has(i)) continue
     visited.add(i)
-    const strand: Vec2[] = [segments[i].from, segments[i].to]
+    const points: Vec2[] = [segments[i].from, segments[i].to]
+    const segIdxs: number[] = [i]
 
     let fwdSeg = i
     for (;;) {
-      const tail = strand[strand.length - 1]
+      const tail = points[points.length - 1]
       const vk = ptKey(tail)
       const pairMap = pairing.get(vk)
       if (!pairMap) break
@@ -70,13 +77,14 @@ export function buildStrands(segments: Segment[]): Vec2[][] {
       visited.add(nextSeg)
       const neighbors = adj.get(vk)!
       const entry = neighbors.find(n => n.segIdx === nextSeg)!
-      strand.push(entry.other)
+      points.push(entry.other)
+      segIdxs.push(nextSeg)
       fwdSeg = nextSeg
     }
 
     let bwdSeg = i
     for (;;) {
-      const head = strand[0]
+      const head = points[0]
       const vk = ptKey(head)
       const pairMap = pairing.get(vk)
       if (!pairMap) break
@@ -85,11 +93,12 @@ export function buildStrands(segments: Segment[]): Vec2[][] {
       visited.add(prevSeg)
       const neighbors = adj.get(vk)!
       const entry = neighbors.find(n => n.segIdx === prevSeg)!
-      strand.unshift(entry.other)
+      points.unshift(entry.other)
+      segIdxs.unshift(prevSeg)
       bwdSeg = prevSeg
     }
 
-    strands.push(strand)
+    strands.push({ points, segmentIndices: segIdxs })
   }
 
   return strands

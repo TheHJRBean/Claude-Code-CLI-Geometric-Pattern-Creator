@@ -15,4 +15,7 @@ export type Action =
   | { type: 'SET_VERTEX_CONTACT_ANGLE'; payload: { tileTypeId: string; angle: number } }
   | { type: 'SET_VERTEX_LINE_LENGTH'; payload: { tileTypeId: string; lineLength: number } }
   | { type: 'SET_VERTEX_AUTO_LINE_LENGTH'; payload: { tileTypeId: string; auto: boolean } }
+  | { type: 'SET_CURVE_ENABLED'; payload: { tileTypeId: string; enabled: boolean } }
+  | { type: 'SET_CURVE_POINT_COUNT'; payload: { tileTypeId: string; count: number } }
+  | { type: 'SET_CURVE_POINT'; payload: { tileTypeId: string; index: number; point: Partial<{ position: number; offset: number }> } }
   | { type: 'LOAD_CONFIG'; payload: PatternConfig }

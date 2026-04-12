@@ -38,7 +38,7 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
       onPointerUp={handlers.onPointerUp}
     >
       <TileLayer polygons={polygons} visible={showTileLayer} />
-      <StrandLayer segments={segments} lacing={config.lacing} />
+      <StrandLayer segments={segments} config={config} />
     </svg>
   )
 })

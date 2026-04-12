@@ -18,4 +18,5 @@ export type Action =
   | { type: 'SET_CURVE_ENABLED'; payload: { tileTypeId: string; enabled: boolean } }
   | { type: 'SET_CURVE_POINT_COUNT'; payload: { tileTypeId: string; count: number } }
   | { type: 'SET_CURVE_POINT'; payload: { tileTypeId: string; index: number; point: Partial<{ position: number; offset: number }> } }
+  | { type: 'SET_CURVE_ALTERNATING'; payload: { tileTypeId: string; alternating: boolean } }
   | { type: 'LOAD_CONFIG'; payload: PatternConfig }

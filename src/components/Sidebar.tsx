@@ -207,7 +207,7 @@ function MoonIcon() {
 function FigureControls({
   tileTypeId, sides, displayLabel, figType, angle, lineLength, autoLen, snapEnabled, rosetteQ,
   vertexEnabled, vertexDecoupled, vertexAngle, vertexLineLength, vertexAutoLen,
-  curveEnabled, curvePoints,
+  curveEnabled, curvePoints, curveAlternating,
   tilingType, allFigures, dispatch,
 }: {
   tileTypeId: string
@@ -226,6 +226,7 @@ function FigureControls({
   vertexAutoLen: boolean
   curveEnabled: boolean
   curvePoints: { position: number; offset: number }[]
+  curveAlternating: boolean
   tilingType: string
   allFigures: Record<string, { contactAngle: number }>
   dispatch: React.Dispatch<Action>
@@ -422,6 +423,15 @@ function FigureControls({
 
       {curveEnabled && (
         <div style={{ marginTop: 8 }}>
+          {sides % 2 === 0 && (
+            <div style={{ marginBottom: 8 }}>
+              <Toggle
+                checked={curveAlternating}
+                onChange={v => dispatch({ type: 'SET_CURVE_ALTERNATING', payload: { tileTypeId, alternating: v } })}
+                label="Alternating direction"
+              />
+            </div>
+          )}
           <FieldLabel label="Control points" value={String(curvePoints.length)} />
           <div style={{ display: 'flex', gap: 0, marginBottom: 8 }}>
             {[1, 2, 3].map(n => (
@@ -644,6 +654,7 @@ export function Sidebar({
             const vertexAutoLen = fig?.vertexAutoLineLength ?? autoLen
             const curveEnabled = fig?.curve?.enabled ?? false
             const curvePoints = fig?.curve?.points ?? [{ position: 0.5, offset: 0.2 }]
+            const curveAlternating = fig?.curve?.alternating ?? false
             return (
               <FigureControls
                 key={tt.id}
@@ -663,6 +674,7 @@ export function Sidebar({
                 vertexAutoLen={vertexAutoLen}
                 curveEnabled={curveEnabled}
                 curvePoints={curvePoints}
+                curveAlternating={curveAlternating}
                 tilingType={config.tiling.type}
                 allFigures={config.figures}
                 dispatch={dispatch}

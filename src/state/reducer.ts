@@ -97,6 +97,13 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       )
       return updateFigure(state, tileTypeId, { curve: { ...curve, points } })
     }
+    case 'SET_CURVE_ALTERNATING': {
+      const fig = getFigure(state, action.payload.tileTypeId)
+      const curve = fig.curve ?? { enabled: true, points: [{ position: 0.5, offset: 0.2 }] }
+      return updateFigure(state, action.payload.tileTypeId, {
+        curve: { ...curve, alternating: action.payload.alternating },
+      })
+    }
     case 'LOAD_CONFIG':
       return action.payload
     default:

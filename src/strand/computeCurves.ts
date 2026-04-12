@@ -23,6 +23,7 @@ export function computeCurves(
   return strandData.map(sd => {
     const { points, segmentIndices } = sd
     const curves: (Vec2[] | null)[] = []
+    let starArmCount = 0
 
     for (let i = 0; i < segmentIndices.length; i++) {
       const seg = segments[segmentIndices[i]]
@@ -37,6 +38,7 @@ export function computeCurves(
       const curve = fig?.curve
       if (!curve?.enabled || !curve.points.length) {
         curves.push(null)
+        starArmCount++
         continue
       }
 
@@ -45,6 +47,7 @@ export function computeCurves(
       const edgeLen = dist(from, to)
       if (edgeLen < 1e-10) {
         curves.push(null)
+        starArmCount++
         continue
       }
 
@@ -54,12 +57,16 @@ export function computeCurves(
       const originalDir = normalize(sub(seg.to, seg.from))
       const normal = perp(originalDir)
 
+      // When alternating, flip normal for every other star-arm segment in the strand
+      const sign = curve.alternating && starArmCount % 2 === 1 ? -1 : 1
+
       const controlPoints: Vec2[] = curve.points.map(cp => {
         const basePoint = lerp(from, to, cp.position)
-        return add(basePoint, scale(normal, cp.offset * edgeLen))
+        return add(basePoint, scale(normal, sign * cp.offset * edgeLen))
       })
 
       curves.push(controlPoints)
+      starArmCount++
     }
 
     return { points, curves }

@@ -10,14 +10,30 @@ export interface CurvedStrand {
 }
 
 /**
- * Precompute alternation parity for each segment based on its edge's
- * angular position within its polygon. Adjacent edges get opposite parity,
- * and both rays from the same edge share the same parity.
+ * Build alternation parity via graph-based 2-coloring.
+ *
+ * Adjacency graph:
+ * - Polygon edges: within each polygon, star-arm segments sorted by ray angle
+ *   form a cycle — consecutive pairs (including wrap-around) must alternate.
+ * - Strand edges: consecutive star-arm segments in a strand cross polygon
+ *   boundaries and must also alternate.
+ *
+ * BFS 2-colors the graph. For regular n-gons the polygon cycle has 2n nodes
+ * (always even / bipartite). If an odd cycle is encountered, the conflict is
+ * accepted gracefully — one pair will be inconsistent rather than all boundaries.
  */
-function buildAlternatingParity(segments: Segment[]): Map<number, boolean> {
-  const parity = new Map<number, boolean>()
+function buildAlternatingParity(segments: Segment[], strandData: StrandData[]): Map<number, boolean> {
+  const adj = new Map<number, number[]>()
 
-  // Group star-arm segment indices by polygonId
+  function addEdge(a: number, b: number) {
+    if (a === b) return
+    if (!adj.has(a)) adj.set(a, [])
+    if (!adj.has(b)) adj.set(b, [])
+    adj.get(a)!.push(b)
+    adj.get(b)!.push(a)
+  }
+
+  // 1. Polygon adjacency: connect angular neighbors within each polygon
   const byPolygon = new Map<string, number[]>()
   for (let i = 0; i < segments.length; i++) {
     if (segments[i].kind !== 'star-arm') continue
@@ -27,22 +43,45 @@ function buildAlternatingParity(segments: Segment[]): Map<number, boolean> {
   }
 
   for (const segIndices of byPolygon.values()) {
-    // Sort individual segments by their ray direction angle around the polygon.
-    // Each edge has two rays — sorting by angle interleaves rays from adjacent
-    // edges, so alternating parity applies to every individual line, not pairs.
     const sorted = [...segIndices].sort((a, b) => {
       const sa = segments[a], sb = segments[b]
-      const angA = Math.atan2(sa.to.y - sa.from.y, sa.to.x - sa.from.x)
-      const angB = Math.atan2(sb.to.y - sb.from.y, sb.to.x - sb.from.x)
-      return angA - angB
+      return Math.atan2(sa.to.y - sa.from.y, sa.to.x - sa.from.x)
+           - Math.atan2(sb.to.y - sb.from.y, sb.to.x - sb.from.x)
     })
-
     for (let k = 0; k < sorted.length; k++) {
-      parity.set(sorted[k], k % 2 === 1)
+      addEdge(sorted[k], sorted[(k + 1) % sorted.length])
     }
   }
 
-  return parity
+  // 2. Strand adjacency: connect consecutive star-arm segments in each strand
+  for (const sd of strandData) {
+    let prevStarArm = -1
+    for (const si of sd.segmentIndices) {
+      if (segments[si].kind !== 'star-arm') continue
+      if (prevStarArm >= 0) addEdge(prevStarArm, si)
+      prevStarArm = si
+    }
+  }
+
+  // 3. BFS 2-coloring
+  const color = new Map<number, boolean>()
+  for (const node of adj.keys()) {
+    if (color.has(node)) continue
+    color.set(node, false)
+    const queue = [node]
+    while (queue.length > 0) {
+      const cur = queue.shift()!
+      const curColor = color.get(cur)!
+      for (const neighbor of adj.get(cur)!) {
+        if (!color.has(neighbor)) {
+          color.set(neighbor, !curColor)
+          queue.push(neighbor)
+        }
+      }
+    }
+  }
+
+  return color
 }
 
 /**
@@ -56,7 +95,7 @@ export function computeCurves(
   segments: Segment[],
   config: PatternConfig,
 ): CurvedStrand[] {
-  const altParity = buildAlternatingParity(segments)
+  const altParity = buildAlternatingParity(segments, strandData)
 
   return strandData.map(sd => {
     const { points, segmentIndices } = sd

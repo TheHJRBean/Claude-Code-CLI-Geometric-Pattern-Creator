@@ -423,15 +423,13 @@ function FigureControls({
 
       {curveEnabled && (
         <div style={{ marginTop: 8 }}>
-          {sides % 2 === 0 && (
-            <div style={{ marginBottom: 8 }}>
-              <Toggle
-                checked={curveAlternating}
-                onChange={v => dispatch({ type: 'SET_CURVE_ALTERNATING', payload: { tileTypeId, alternating: v } })}
-                label="Alternating direction"
-              />
-            </div>
-          )}
+          <div style={{ marginBottom: 8 }}>
+            <Toggle
+              checked={curveAlternating}
+              onChange={v => dispatch({ type: 'SET_CURVE_ALTERNATING', payload: { tileTypeId, alternating: v } })}
+              label="Alternating direction"
+            />
+          </div>
           <FieldLabel label="Control points" value={String(curvePoints.length)} />
           <div style={{ display: 'flex', gap: 0, marginBottom: 8 }}>
             {[1, 2, 3].map(n => (

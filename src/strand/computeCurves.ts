@@ -33,21 +33,35 @@ function buildAlternatingParity(segments: Segment[], strandData: StrandData[]): 
     adj.get(b)!.push(a)
   }
 
-  // 1. Polygon adjacency: connect angular neighbors within each polygon
-  const byPolygon = new Map<string, number[]>()
+  // 1. Polygon adjacency: connect angular neighbors within each polygon.
+  //    Build SEPARATE cycles for star-arms and vertex-lines so that each
+  //    kind alternates among itself. Mixing them into one cycle causes
+  //    vertex-lines to all land on the same parity and never alternate.
+  const starByPolygon = new Map<string, number[]>()
+  const vtxByPolygon = new Map<string, number[]>()
   for (let i = 0; i < segments.length; i++) {
-    if (segments[i].kind === 'petal') continue
+    const kind = segments[i].kind
+    if (kind === 'petal') continue
     const pid = segments[i].polygonId
-    if (!byPolygon.has(pid)) byPolygon.set(pid, [])
-    byPolygon.get(pid)!.push(i)
+    const map = kind === 'vertex-line' ? vtxByPolygon : starByPolygon
+    if (!map.has(pid)) map.set(pid, [])
+    map.get(pid)!.push(i)
   }
 
-  for (const segIndices of byPolygon.values()) {
-    const sorted = [...segIndices].sort((a, b) => {
-      const sa = segments[a], sb = segments[b]
-      return Math.atan2(sa.to.y - sa.from.y, sa.to.x - sa.from.x)
-           - Math.atan2(sb.to.y - sb.from.y, sb.to.x - sb.from.x)
-    })
+  const angleSorter = (a: number, b: number) => {
+    const sa = segments[a], sb = segments[b]
+    return Math.atan2(sa.to.y - sa.from.y, sa.to.x - sa.from.x)
+         - Math.atan2(sb.to.y - sb.from.y, sb.to.x - sb.from.x)
+  }
+
+  for (const segIndices of starByPolygon.values()) {
+    const sorted = [...segIndices].sort(angleSorter)
+    for (let k = 0; k < sorted.length; k++) {
+      addEdge(sorted[k], sorted[(k + 1) % sorted.length])
+    }
+  }
+  for (const segIndices of vtxByPolygon.values()) {
+    const sorted = [...segIndices].sort(angleSorter)
     for (let k = 0; k < sorted.length; k++) {
       addEdge(sorted[k], sorted[(k + 1) % sorted.length])
     }

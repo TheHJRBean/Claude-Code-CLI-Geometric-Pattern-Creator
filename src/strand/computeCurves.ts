@@ -27,29 +27,18 @@ function buildAlternatingParity(segments: Segment[]): Map<number, boolean> {
   }
 
   for (const segIndices of byPolygon.values()) {
-    // Group by edge midpoint (two rays per edge share the same midpoint)
-    const edges = new Map<string, { mid: Vec2; indices: number[] }>()
-    for (const si of segIndices) {
-      const m = segments[si].edgeMidpoint
-      const k = `${m.x.toFixed(4)},${m.y.toFixed(4)}`
-      if (!edges.has(k)) edges.set(k, { mid: m, indices: [] })
-      edges.get(k)!.indices.push(si)
-    }
+    // Sort individual segments by their ray direction angle around the polygon.
+    // Each edge has two rays — sorting by angle interleaves rays from adjacent
+    // edges, so alternating parity applies to every individual line, not pairs.
+    const sorted = [...segIndices].sort((a, b) => {
+      const sa = segments[a], sb = segments[b]
+      const angA = Math.atan2(sa.to.y - sa.from.y, sa.to.x - sa.from.x)
+      const angB = Math.atan2(sb.to.y - sb.from.y, sb.to.x - sb.from.x)
+      return angA - angB
+    })
 
-    // Centroid of edge midpoints ≈ polygon center
-    const edgeList = [...edges.values()]
-    const cx = edgeList.reduce((s, e) => s + e.mid.x, 0) / edgeList.length
-    const cy = edgeList.reduce((s, e) => s + e.mid.y, 0) / edgeList.length
-
-    // Sort edges by angle around the centroid → consistent edge ordering
-    edgeList.sort((a, b) =>
-      Math.atan2(a.mid.y - cy, a.mid.x - cx) - Math.atan2(b.mid.y - cy, b.mid.x - cx),
-    )
-
-    // Assign parity: even edge index → no flip, odd → flip
-    for (let ei = 0; ei < edgeList.length; ei++) {
-      const flip = ei % 2 === 1
-      for (const si of edgeList[ei].indices) parity.set(si, flip)
+    for (let k = 0; k < sorted.length; k++) {
+      parity.set(sorted[k], k % 2 === 1)
     }
   }
 

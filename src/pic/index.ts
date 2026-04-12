@@ -216,6 +216,9 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
   const segments: Segment[] = []
   const internalEdges = buildInternalEdgeSet(polygons)
   const edgeKeyF = 1e3
+  // Track which edges already emitted vertex-line segments to avoid
+  // both polygons on a shared edge emitting duplicates.
+  const vertexLineEmitted = new Set<string>()
 
   for (const poly of polygons) {
     const fig = config.figures[poly.tileTypeId]
@@ -320,6 +323,8 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
         const eMid = midpoint(poly.vertices[k], poly.vertices[(k + 1) % n])
         const eKey = `${Math.round(eMid.x * edgeKeyF)},${Math.round(eMid.y * edgeKeyF)}`
         if (!internalEdges.has(eKey)) continue
+        if (vertexLineEmitted.has(eKey)) continue
+        vertexLineEmitted.add(eKey)
 
         const nextV = (k + 1) % n
         const pair = pairVertexAtEdge(vertexRays, k, nextV, poly.vertices)

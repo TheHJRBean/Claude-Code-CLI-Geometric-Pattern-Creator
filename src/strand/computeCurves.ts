@@ -42,15 +42,17 @@ export function computeCurves(
 
       const from = points[i]
       const to = points[i + 1]
-      const edgeVec = sub(to, from)
       const edgeLen = dist(from, to)
       if (edgeLen < 1e-10) {
         curves.push(null)
         continue
       }
 
-      const dir = normalize(edgeVec)
-      const normal = perp(dir) // left-hand perpendicular
+      // Use original segment direction (edgeMidpoint → interior) for consistent
+      // normal orientation — strand traversal may reverse the edge direction,
+      // which would flip the perpendicular and cause inconsistent curve bulging.
+      const originalDir = normalize(sub(seg.to, seg.from))
+      const normal = perp(originalDir)
 
       const controlPoints: Vec2[] = curve.points.map(cp => {
         const basePoint = lerp(from, to, cp.position)

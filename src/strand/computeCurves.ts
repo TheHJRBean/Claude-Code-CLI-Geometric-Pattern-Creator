@@ -13,9 +13,9 @@ export interface CurvedStrand {
  * Build alternation parity via graph-based 2-coloring.
  *
  * Adjacency graph:
- * - Polygon edges: within each polygon, star-arm segments sorted by ray angle
- *   form a cycle — consecutive pairs (including wrap-around) must alternate.
- * - Strand edges: consecutive star-arm segments in a strand cross polygon
+ * - Polygon edges: within each polygon, star-arm and vertex-line segments sorted
+ *   by ray angle form a cycle — consecutive pairs (including wrap-around) must alternate.
+ * - Strand edges: consecutive curvable segments in a strand cross polygon
  *   boundaries and must also alternate.
  *
  * BFS 2-colors the graph. For regular n-gons the polygon cycle has 2n nodes
@@ -36,7 +36,7 @@ function buildAlternatingParity(segments: Segment[], strandData: StrandData[]): 
   // 1. Polygon adjacency: connect angular neighbors within each polygon
   const byPolygon = new Map<string, number[]>()
   for (let i = 0; i < segments.length; i++) {
-    if (segments[i].kind !== 'star-arm') continue
+    if (segments[i].kind === 'petal') continue
     const pid = segments[i].polygonId
     if (!byPolygon.has(pid)) byPolygon.set(pid, [])
     byPolygon.get(pid)!.push(i)
@@ -57,7 +57,7 @@ function buildAlternatingParity(segments: Segment[], strandData: StrandData[]): 
   for (const sd of strandData) {
     let prevStarArm = -1
     for (const si of sd.segmentIndices) {
-      if (segments[si].kind !== 'star-arm') continue
+      if (segments[si].kind === 'petal') continue
       if (prevStarArm >= 0) addEdge(prevStarArm, si)
       prevStarArm = si
     }
@@ -88,7 +88,7 @@ function buildAlternatingParity(segments: Segment[], strandData: StrandData[]): 
  * Compute Bézier control points for each edge in each strand,
  * based on the per-polygon-type CurveConfig.
  *
- * Only applies to 'star-arm' segments; petals and vertex lines remain straight.
+ * Only applies to 'star-arm' and 'vertex-line' segments; petals remain straight.
  */
 export function computeCurves(
   strandData: StrandData[],
@@ -104,8 +104,8 @@ export function computeCurves(
     for (let i = 0; i < segmentIndices.length; i++) {
       const seg = segments[segmentIndices[i]]
 
-      // Only curve star-arm segments
-      if (seg.kind !== 'star-arm') {
+      // Only curve star-arm and vertex-line segments
+      if (seg.kind === 'petal') {
         curves.push(null)
         continue
       }

@@ -207,6 +207,7 @@ function MoonIcon() {
 function FigureControls({
   tileTypeId, sides, displayLabel, figType, angle, lineLength, autoLen, snapEnabled, rosetteQ,
   vertexEnabled, vertexDecoupled, vertexAngle, vertexLineLength, vertexAutoLen,
+  curveEnabled, curvePoints,
   tilingType, allFigures, dispatch,
 }: {
   tileTypeId: string
@@ -223,6 +224,8 @@ function FigureControls({
   vertexAngle: number
   vertexLineLength: number
   vertexAutoLen: boolean
+  curveEnabled: boolean
+  curvePoints: { position: number; offset: number }[]
   tilingType: string
   allFigures: Record<string, { contactAngle: number }>
   dispatch: React.Dispatch<Action>
@@ -407,6 +410,81 @@ function FigureControls({
           )}
         </div>
       )}
+
+      {/* Curve */}
+      <div style={{ marginTop: 12 }}>
+        <Toggle
+          checked={curveEnabled}
+          onChange={v => dispatch({ type: 'SET_CURVE_ENABLED', payload: { tileTypeId, enabled: v } })}
+          label="Curve lines"
+        />
+      </div>
+
+      {curveEnabled && (
+        <div style={{ marginTop: 8 }}>
+          <FieldLabel label="Control points" value={String(curvePoints.length)} />
+          <div style={{ display: 'flex', gap: 0, marginBottom: 8 }}>
+            {[1, 2, 3].map(n => (
+              <button
+                key={n}
+                onClick={() => dispatch({ type: 'SET_CURVE_POINT_COUNT', payload: { tileTypeId, count: n } })}
+                style={{
+                  flex: 1,
+                  padding: '5px 0',
+                  fontFamily: "'Cinzel', Georgia, serif",
+                  fontSize: 9,
+                  fontWeight: 600,
+                  letterSpacing: '0.08em',
+                  cursor: 'pointer',
+                  border: `1px solid ${curvePoints.length === n ? 'var(--accent)' : 'var(--border)'}`,
+                  background: curvePoints.length === n ? 'var(--accent-bg)' : 'transparent',
+                  color: curvePoints.length === n ? 'var(--accent)' : 'var(--text-muted)',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+
+          {curvePoints.map((cp, i) => (
+            <div key={i} style={{ marginBottom: i < curvePoints.length - 1 ? 10 : 0 }}>
+              {curvePoints.length > 1 && (
+                <span style={{
+                  fontFamily: "'EB Garamond', Georgia, serif",
+                  fontSize: 12,
+                  color: 'var(--text-muted)',
+                  letterSpacing: '0.02em',
+                }}>
+                  Point {i + 1}
+                </span>
+              )}
+              <FieldLabel label="Position" value={(cp.position * 100).toFixed(0)} unit="%" />
+              <input
+                type="range"
+                className="pattern-slider"
+                min={5} max={95} step={1}
+                value={Math.round(cp.position * 100)}
+                onChange={e => dispatch({
+                  type: 'SET_CURVE_POINT',
+                  payload: { tileTypeId, index: i, point: { position: Number(e.target.value) / 100 } },
+                })}
+              />
+              <FieldLabel label="Offset" value={(cp.offset * 100).toFixed(0)} unit="%" />
+              <input
+                type="range"
+                className="pattern-slider"
+                min={-100} max={100} step={1}
+                value={Math.round(cp.offset * 100)}
+                onChange={e => dispatch({
+                  type: 'SET_CURVE_POINT',
+                  payload: { tileTypeId, index: i, point: { offset: Number(e.target.value) / 100 } },
+                })}
+              />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -564,6 +642,8 @@ export function Sidebar({
             const vertexAngle = fig?.vertexContactAngle ?? angle
             const vertexLineLength = fig?.vertexLineLength ?? lineLength
             const vertexAutoLen = fig?.vertexAutoLineLength ?? autoLen
+            const curveEnabled = fig?.curve?.enabled ?? false
+            const curvePoints = fig?.curve?.points ?? [{ position: 0.5, offset: 0.2 }]
             return (
               <FigureControls
                 key={tt.id}
@@ -581,6 +661,8 @@ export function Sidebar({
                 vertexAngle={vertexAngle}
                 vertexLineLength={vertexLineLength}
                 vertexAutoLen={vertexAutoLen}
+                curveEnabled={curveEnabled}
+                curvePoints={curvePoints}
                 tilingType={config.tiling.type}
                 allFigures={config.figures}
                 dispatch={dispatch}

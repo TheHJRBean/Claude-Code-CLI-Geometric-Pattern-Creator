@@ -224,6 +224,7 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
     const fig = config.figures[poly.tileTypeId]
     if (!fig) continue
 
+    const edgeEnabled = fig.edgeLinesEnabled !== false
     const rays = computeContactRays(poly, fig.contactAngle)
     const n = poly.sides
     const inradius = n > 0 ? dist(poly.center, rays[0].origin) : 0
@@ -241,11 +242,13 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
       }
 
       starTips.push(pair.result.point)
-      emitStarArms(pair, fig.autoLineLength, fig.lineLength, inradius, poly.id, poly.tileTypeId, segments)
+      if (edgeEnabled) {
+        emitStarArms(pair, fig.autoLineLength, fig.lineLength, inradius, poly.id, poly.tileTypeId, segments)
+      }
     }
 
     // Rosette: add petal connections between adjacent star tips
-    if (fig.type === 'rosette') {
+    if (edgeEnabled && fig.type === 'rosette') {
       const q = fig.rosetteQ ?? 0.5
       for (let k = 0; k < n; k++) {
         const tipA = starTips[k]

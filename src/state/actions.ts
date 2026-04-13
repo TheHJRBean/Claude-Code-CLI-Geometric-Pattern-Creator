@@ -10,6 +10,7 @@ export type Action =
   | { type: 'SET_FIGURE_TYPE'; payload: { tileTypeId: string; figureType: FigureConfig['type'] } }
   | { type: 'SET_ROSETTE_Q'; payload: { tileTypeId: string; q: number } }
   | { type: 'SET_LACING'; payload: Partial<LacingConfig> }
+  | { type: 'SET_EDGE_LINES_ENABLED'; payload: { tileTypeId: string; enabled: boolean } }
   | { type: 'SET_VERTEX_LINES_ENABLED'; payload: { tileTypeId: string; enabled: boolean } }
   | { type: 'SET_VERTEX_LINES_DECOUPLED'; payload: { tileTypeId: string; decoupled: boolean } }
   | { type: 'SET_VERTEX_CONTACT_ANGLE'; payload: { tileTypeId: string; angle: number } }

@@ -206,7 +206,7 @@ function MoonIcon() {
 
 function FigureControls({
   tileTypeId, sides, displayLabel, figType, angle, lineLength, autoLen, snapEnabled, rosetteQ,
-  vertexEnabled, vertexDecoupled, vertexAngle, vertexLineLength, vertexAutoLen,
+  edgeEnabled, vertexEnabled, vertexDecoupled, vertexAngle, vertexLineLength, vertexAutoLen,
   curveEnabled, curvePoints, curveAlternating,
   tilingType, allFigures, dispatch,
 }: {
@@ -219,6 +219,7 @@ function FigureControls({
   autoLen: boolean
   snapEnabled: boolean
   rosetteQ: number
+  edgeEnabled: boolean
   vertexEnabled: boolean
   vertexDecoupled: boolean
   vertexAngle: number
@@ -361,8 +362,13 @@ function FigureControls({
         </>
       )}
 
-      {/* Vertex Lines */}
-      <div style={{ marginTop: 12 }}>
+      {/* Edge / Vertex Lines */}
+      <div style={{ marginTop: 12, display: 'flex', gap: 16 }}>
+        <Toggle
+          checked={edgeEnabled}
+          onChange={v => dispatch({ type: 'SET_EDGE_LINES_ENABLED', payload: { tileTypeId, enabled: v } })}
+          label="Edge lines"
+        />
         <Toggle
           checked={vertexEnabled}
           onChange={v => dispatch({ type: 'SET_VERTEX_LINES_ENABLED', payload: { tileTypeId, enabled: v } })}
@@ -645,6 +651,7 @@ export function Sidebar({
             const autoLen = fig?.autoLineLength ?? true
             const snapEnabled = fig?.snapLineLength ?? false
             const rosetteQ = fig?.rosetteQ ?? 0.5
+            const edgeEnabled = fig?.edgeLinesEnabled !== false
             const vertexEnabled = fig?.vertexLinesEnabled ?? false
             const vertexDecoupled = fig?.vertexLinesDecoupled ?? false
             const vertexAngle = fig?.vertexContactAngle ?? angle
@@ -665,6 +672,7 @@ export function Sidebar({
                 autoLen={autoLen}
                 snapEnabled={snapEnabled}
                 rosetteQ={rosetteQ}
+                edgeEnabled={edgeEnabled}
                 vertexEnabled={vertexEnabled}
                 vertexDecoupled={vertexDecoupled}
                 vertexAngle={vertexAngle}

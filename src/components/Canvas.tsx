@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState } from 'react'
+import { useRef, useEffect, useCallback, useState, useDeferredValue } from 'react'
 import type { PatternConfig } from '../types/pattern'
 import type { Segment } from '../types/geometry'
 import { usePattern } from '../hooks/usePattern'
@@ -29,7 +29,9 @@ export function Canvas({ config, showTileLayer, svgRef, segmentsRef }: Props) {
   }, [])
 
   const { viewTransform, handlers, setViewTransform } = usePanZoom(INITIAL_ZOOM, svgRef)
-  const { polygons, segments } = usePattern(config, viewTransform, size.width, size.height)
+  // Defer the heavy tiling computation so pointer events stay responsive
+  const deferredVT = useDeferredValue(viewTransform)
+  const { polygons, segments } = usePattern(config, deferredVT, size.width, size.height)
 
   const resetCamera = useCallback(() => {
     setViewTransform({ x: 0, y: 0, zoom: INITIAL_ZOOM })

@@ -125,17 +125,18 @@ class SpatialHash {
  * for d0 propagation, which is unreliable for vertex configs with many
  * repeated polygon types (e.g. [3,3,3,3,6]).
  */
-export function generateTiling(
+/** Core BFS — takes an explicit seed center (private). */
+function generateTilingCore(
   definition: TilingDefinition,
   viewport: Viewport,
   edgeLen: number,
+  seedCenter: Vec2,
 ): Polygon[] {
   resetIds()
   const { vertexConfig, seedSides } = definition
   const paddedVP = padViewport(viewport, edgeLen * 3)
 
-  const cx = viewport.x + viewport.width / 2
-  const cy = viewport.y + viewport.height / 2
+  const { x: cx, y: cy } = seedCenter
   const R = circumradius(seedSides, edgeLen)
   // Flat-top orientation: when n is divisible by 4, phi=0 puts a vertex at 90° (pointy-top).
   // Rotate by π/n to shift it to flat-top (horizontal edge at top/bottom).
@@ -204,6 +205,99 @@ export function generateTiling(
   }
 
   return [...placed.values()]
+}
+
+/* ── Lattice snapping ─────────────────────────────────────────────────
+ * The BFS is seeded from a single polygon. When the generation viewport
+ * shifts (during panning), the seed must land on an equivalent lattice
+ * point so that tile positions stay deterministic across regenerations.
+ * ──────────────────────────────────────────────────────────────────── */
+
+/** Check if `candidate` is an exact translate of `seed` (same orientation). */
+function isSameOrientation(seed: Polygon, candidate: Polygon, tol: number): boolean {
+  const dx = candidate.center.x - seed.center.x
+  const dy = candidate.center.y - seed.center.y
+  for (const sv of seed.vertices) {
+    if (!candidate.vertices.some(cv =>
+      Math.abs(cv.x - sv.x - dx) < tol && Math.abs(cv.y - sv.y - dy) < tol))
+      return false
+  }
+  return true
+}
+
+/** Snap `target` to the nearest point on the lattice spanned by t1, t2. */
+function snapToLattice(target: Vec2, t1: Vec2, t2: Vec2): Vec2 {
+  const det = t1.x * t2.y - t1.y * t2.x
+  if (Math.abs(det) < 1e-10) return { x: 0, y: 0 }
+  const n = Math.round((target.x * t2.y - target.y * t2.x) / det)
+  const m = Math.round((t1.x * target.y - t1.y * target.x) / det)
+  return { x: n * t1.x + m * t2.x, y: n * t1.y + m * t2.y }
+}
+
+const latticeCache = new Map<string, [Vec2, Vec2]>()
+
+/** Compute two linearly-independent translation vectors for the tiling. */
+function getTilingLattice(def: TilingDefinition, edgeLen: number): [Vec2, Vec2] {
+  const key = `${def.name}:${edgeLen}`
+  const cached = latticeCache.get(key)
+  if (cached) return cached
+
+  const size = edgeLen * 30
+  const miniVP: Viewport = { x: -size / 2, y: -size / 2, width: size, height: size }
+  const polys = generateTilingCore(def, miniVP, edgeLen, { x: 0, y: 0 })
+
+  const seedPoly = polys
+    .filter(p => p.sides === def.seedSides)
+    .sort((a, b) => (a.center.x ** 2 + a.center.y ** 2)
+                   - (b.center.x ** 2 + b.center.y ** 2))[0]
+
+  const fallback: [Vec2, Vec2] = [{ x: edgeLen, y: 0 }, { x: 0, y: edgeLen }]
+  if (!seedPoly) { latticeCache.set(key, fallback); return fallback }
+
+  const tol = edgeLen * 0.01
+  const sameOrient = polys
+    .filter(p => p !== seedPoly && p.sides === def.seedSides && isSameOrientation(seedPoly, p, tol))
+    .sort((a, b) => (a.center.x ** 2 + a.center.y ** 2)
+                   - (b.center.x ** 2 + b.center.y ** 2))
+
+  const pool = sameOrient.length > 0
+    ? sameOrient
+    : polys.filter(p => p !== seedPoly && p.sides === def.seedSides)
+        .sort((a, b) => (a.center.x ** 2 + a.center.y ** 2)
+                       - (b.center.x ** 2 + b.center.y ** 2))
+
+  if (pool.length === 0) { latticeCache.set(key, fallback); return fallback }
+
+  const t1 = pool[0].center
+  let t2: Vec2 = { x: -t1.y, y: t1.x }
+  for (let i = 1; i < pool.length; i++) {
+    const c = pool[i].center
+    if (Math.abs(t1.x * c.y - t1.y * c.x) > tol) { t2 = c; break }
+  }
+
+  const result: [Vec2, Vec2] = [t1, t2]
+  latticeCache.set(key, result)
+  return result
+}
+
+/**
+ * Generate all polygons visible in the given viewport for a tiling.
+ *
+ * The seed centre is snapped to the tiling's translation lattice so that
+ * tile positions are stable across viewport shifts (panning).
+ */
+export function generateTiling(
+  definition: TilingDefinition,
+  viewport: Viewport,
+  edgeLen: number,
+): Polygon[] {
+  const desired: Vec2 = {
+    x: viewport.x + viewport.width / 2,
+    y: viewport.y + viewport.height / 2,
+  }
+  const [t1, t2] = getTilingLattice(definition, edgeLen)
+  const snapped = snapToLattice(desired, t1, t2)
+  return generateTilingCore(definition, viewport, edgeLen, snapped)
 }
 
 /**

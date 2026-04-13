@@ -23,13 +23,14 @@ export function usePattern(
   const vh = containerHeight / viewTransform.zoom
 
   // Quantize the viewport position so most pan frames hit the memo cache.
-  // Step = 25% of viewport size; with 50% padding the generated area
-  // fully covers at least one full step of panning in any direction.
-  const step = Math.max(vw, vh) * 0.25 || 1
+  // Step = 12% of viewport size; with 75% padding the generated area
+  // fully covers several steps of panning in any direction, and combined
+  // with useDeferredValue in Canvas the regeneration never blocks input.
+  const step = Math.max(vw, vh) * 0.12 || 1
   const qx = Math.floor(viewTransform.x / step) * step
   const qy = Math.floor(viewTransform.y / step) * step
 
-  const pad = 0.5
+  const pad = 0.75
   const genX = qx - vw * pad
   const genY = qy - vh * pad
   const genW = vw * (1 + 2 * pad)

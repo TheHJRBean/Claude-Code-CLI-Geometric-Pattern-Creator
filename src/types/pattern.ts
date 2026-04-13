@@ -30,6 +30,8 @@ export interface FigureConfig {
   /** Rosette petal shape: 0 = straight tip-to-tip, 1 = full knee at edge midpoint */
   rosetteQ?: number
   rosetteS?: number
+  /** Whether edge-based (star-arm) lines are enabled (default true) */
+  edgeLinesEnabled?: boolean
   /** Whether vertex-based lines are enabled */
   vertexLinesEnabled?: boolean
   /** When true, vertex lines use their own angle/lineLength instead of the edge-midpoint values */

@@ -48,8 +48,16 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       return updateFigure(state, action.payload.tileTypeId, { rosetteQ: action.payload.q })
     case 'SET_LACING':
       return { ...state, lacing: { ...state.lacing, ...action.payload } }
-    case 'SET_VERTEX_LINES_ENABLED':
-      return updateFigure(state, action.payload.tileTypeId, { vertexLinesEnabled: action.payload.enabled })
+    case 'SET_EDGE_LINES_ENABLED': {
+      const patch: Partial<FigureConfig> = { edgeLinesEnabled: action.payload.enabled }
+      if (!action.payload.enabled) patch.vertexLinesEnabled = true
+      return updateFigure(state, action.payload.tileTypeId, patch)
+    }
+    case 'SET_VERTEX_LINES_ENABLED': {
+      const patch: Partial<FigureConfig> = { vertexLinesEnabled: action.payload.enabled }
+      if (!action.payload.enabled) patch.edgeLinesEnabled = true
+      return updateFigure(state, action.payload.tileTypeId, patch)
+    }
     case 'SET_VERTEX_LINES_DECOUPLED': {
       const existing = getFigure(state, action.payload.tileTypeId)
       const decoupled = action.payload.decoupled

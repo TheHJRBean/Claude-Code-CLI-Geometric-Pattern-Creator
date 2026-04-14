@@ -1,7 +1,7 @@
 import type { Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
 import type { StrandData } from './buildStrands'
-import { sub, normalize, perp, scale, add, dist, lerp, type Vec2 } from '../utils/math'
+import { sub, normalize, perp, scale, add, dist, lerp, dot, type Vec2 } from '../utils/math'
 
 export interface CurvedStrand {
   points: Vec2[]
@@ -139,11 +139,22 @@ export function computeCurves(
         continue
       }
 
-      // Use original segment direction (edgeMidpoint → interior) for consistent
-      // normal orientation — strand traversal may reverse the edge direction,
-      // which would flip the perpendicular and cause inconsistent curve bulging.
+      // Compute a curve normal that is consistent across all instances of the
+      // same polygon type, regardless of absolute orientation.
+      //
+      // Raw perp(originalDir) depends on the segment's absolute angle, which
+      // varies with polygon rotation.  We normalise it so it always points in
+      // the CW-tangent direction around the polygon centre.  This way two
+      // polygons of the same type at different rotations produce identical
+      // relative curve bulging.
       const originalDir = normalize(sub(seg.to, seg.from))
-      const normal = perp(originalDir)
+      const rawNormal = perp(originalDir)
+      // CW tangent at the segment origin = perp(outward radial from center)
+      const outward = sub(seg.edgeMidpoint, seg.polygonCenter)
+      const cwTangent = perp(outward)
+      const normal: Vec2 = dot(rawNormal, cwTangent) >= 0
+        ? rawNormal
+        : { x: -rawNormal.x, y: -rawNormal.y }
 
       // When alternating, flip based on edge position within the polygon
       const flip = curve.alternating && (altParity.get(segmentIndices[i]) ?? false)

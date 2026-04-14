@@ -150,20 +150,23 @@ export function computeCurves(
       const originalDir = normalize(sub(seg.to, seg.from))
       const rawNormal = perp(originalDir)
 
-      let normal: Vec2
-      if (seg.kind === 'vertex-line') {
-        // Vertex-line segments use vertex position as edgeMidpoint — the two
-        // halves of each pair would get different CW-tangent references,
-        // causing divergence. Use raw perpendicular to keep both halves symmetric.
-        normal = rawNormal
-      } else {
-        // CW tangent at the segment origin = perp(outward radial from center)
-        const outward = sub(seg.edgeMidpoint, seg.polygonCenter)
-        const cwTangent = perp(outward)
-        normal = dot(rawNormal, cwTangent) >= 0
-          ? rawNormal
-          : { x: -rawNormal.x, y: -rawNormal.y }
-      }
+      // Compute a reference direction that is intrinsic to the segment's
+      // geometry and consistent across all polygon rotations.
+      //
+      // Star-arms: outward radial from polygon center to edge midpoint.
+      //   Each polygon emits its own star-arms so polygonCenter is stable.
+      //
+      // Vertex-lines: direction from edge midpoint to ray origin vertex.
+      //   Vertex-lines are deduped (one polygon per shared edge emits),
+      //   so polygonCenter varies with iteration order.  Using the vertex
+      //   ↔ edge-midpoint vector makes the reference polygon-independent.
+      const outward = seg.kind === 'vertex-line'
+        ? sub(seg.from, seg.edgeMidpoint)
+        : sub(seg.edgeMidpoint, seg.polygonCenter)
+      const cwTangent = perp(outward)
+      const normal: Vec2 = dot(rawNormal, cwTangent) >= 0
+        ? rawNormal
+        : { x: -rawNormal.x, y: -rawNormal.y }
 
       // When alternating, flip based on edge position within the polygon
       const flip = curve.alternating && (altParity.get(segmentIndices[i]) ?? false)

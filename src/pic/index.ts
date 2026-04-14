@@ -141,6 +141,7 @@ function emitVertexArms(
   polygonId: string,
   tileTypeId: string,
   polygonCenter: Vec2,
+  edgeMid: Vec2,
   segments: Segment[],
 ): void {
   const { ray1, ray2, result } = pair
@@ -149,7 +150,7 @@ function emitVertexArms(
     segments.push({
       from: ray1.origin,
       to: result.point,
-      edgeMidpoint: ray1.origin,
+      edgeMidpoint: edgeMid,
       polygonCenter,
       polygonId,
       tileTypeId,
@@ -158,7 +159,7 @@ function emitVertexArms(
     segments.push({
       from: ray2.origin,
       to: result.point,
-      edgeMidpoint: ray2.origin,
+      edgeMidpoint: edgeMid,
       polygonCenter,
       polygonId,
       tileTypeId,
@@ -172,7 +173,7 @@ function emitVertexArms(
         x: ray1.origin.x + ray1.dir.x * t,
         y: ray1.origin.y + ray1.dir.y * t,
       },
-      edgeMidpoint: ray1.origin,
+      edgeMidpoint: edgeMid,
       polygonCenter,
       polygonId,
       tileTypeId,
@@ -184,7 +185,7 @@ function emitVertexArms(
         x: ray2.origin.x + ray2.dir.x * t,
         y: ray2.origin.y + ray2.dir.y * t,
       },
-      edgeMidpoint: ray2.origin,
+      edgeMidpoint: edgeMid,
       polygonCenter,
       polygonId,
       tileTypeId,
@@ -348,7 +349,7 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
         // Mark emitted only AFTER a valid pair — otherwise a failed pairing
         // blocks the neighbouring polygon from ever emitting this edge.
         vertexLineEmitted.add(eKey)
-        emitVertexArms(pair, vtxAutoLen, vtxLineLen, circumradius, poly.id, poly.tileTypeId, poly.center, segments)
+        emitVertexArms(pair, vtxAutoLen, vtxLineLen, circumradius, poly.id, poly.tileTypeId, poly.center, eMid, segments)
       }
     }
   }

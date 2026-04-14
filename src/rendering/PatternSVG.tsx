@@ -21,10 +21,13 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
   { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, handlers },
   ref
 ) {
-  const { x, y, zoom } = viewTransform
+  const { x, y, zoom, rotation } = viewTransform
   const vw = containerWidth / zoom
   const vh = containerHeight / zoom
   const viewBox = `${x} ${y} ${vw} ${vh}`
+  // Rotate around the center of the current viewport
+  const cx = x + vw / 2
+  const cy = y + vh / 2
 
   return (
     <svg
@@ -37,8 +40,10 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
       onPointerMove={handlers.onPointerMove}
       onPointerUp={handlers.onPointerUp}
     >
-      <TileLayer polygons={polygons} visible={showTileLayer} />
-      <StrandLayer segments={segments} config={config} />
+      <g transform={rotation ? `rotate(${rotation} ${cx} ${cy})` : undefined}>
+        <TileLayer polygons={polygons} visible={showTileLayer} />
+        <StrandLayer segments={segments} config={config} />
+      </g>
     </svg>
   )
 })

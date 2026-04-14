@@ -4,6 +4,7 @@ export interface ViewTransform {
   x: number
   y: number
   zoom: number
+  rotation: number  // degrees, 0–360
 }
 
 export interface PanZoomHandlers {
@@ -20,7 +21,7 @@ export function usePanZoom(
   handlers: PanZoomHandlers
   setViewTransform: React.Dispatch<React.SetStateAction<ViewTransform>>
 } {
-  const [vt, setVt] = useState<ViewTransform>({ x: 0, y: 0, zoom: initialZoom })
+  const [vt, setVt] = useState<ViewTransform>({ x: 0, y: 0, zoom: initialZoom, rotation: 0 })
   const dragging = useRef(false)
   const lastPos = useRef({ x: 0, y: 0 })
 
@@ -35,11 +36,16 @@ export function usePanZoom(
     const dx = e.clientX - lastPos.current.x
     const dy = e.clientY - lastPos.current.y
     lastPos.current = { x: e.clientX, y: e.clientY }
-    setVt(prev => ({
-      ...prev,
-      x: prev.x - dx / prev.zoom,
-      y: prev.y - dy / prev.zoom,
-    }))
+    setVt(prev => {
+      // Rotate screen-space delta into viewport space so pan direction
+      // stays consistent when the canvas is rotated.
+      const rad = -prev.rotation * (Math.PI / 180)
+      const cos = Math.cos(rad)
+      const sin = Math.sin(rad)
+      const rdx = (dx * cos - dy * sin) / prev.zoom
+      const rdy = (dx * sin + dy * cos) / prev.zoom
+      return { ...prev, x: prev.x - rdx, y: prev.y - rdy }
+    })
   }, [])
 
   const onPointerUp = useCallback(() => {
@@ -64,6 +70,7 @@ export function usePanZoom(
         const px = prev.x + sx / prev.zoom
         const py = prev.y + sy / prev.zoom
         return {
+          ...prev,
           zoom: newZoom,
           x: px - sx / newZoom,
           y: py - sy / newZoom,

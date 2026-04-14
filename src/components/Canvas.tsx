@@ -4,6 +4,7 @@ import type { Segment } from '../types/geometry'
 import { usePattern } from '../hooks/usePattern'
 import { usePanZoom } from '../hooks/usePanZoom'
 import { PatternSVG } from '../rendering/PatternSVG'
+import { RotationDial } from './RotationDial'
 
 interface Props {
   config: PatternConfig
@@ -34,7 +35,11 @@ export function Canvas({ config, showTileLayer, svgRef, segmentsRef }: Props) {
   const { polygons, segments } = usePattern(config, deferredVT, size.width, size.height)
 
   const resetCamera = useCallback(() => {
-    setViewTransform({ x: 0, y: 0, zoom: INITIAL_ZOOM })
+    setViewTransform({ x: 0, y: 0, zoom: INITIAL_ZOOM, rotation: 0 })
+  }, [setViewTransform])
+
+  const onRotation = useCallback((degrees: number) => {
+    setViewTransform(prev => ({ ...prev, rotation: degrees }))
   }, [setViewTransform])
 
   // Keyboard shortcut: Home key to reset camera
@@ -85,6 +90,7 @@ export function Canvas({ config, showTileLayer, svgRef, segmentsRef }: Props) {
       >
         Reset View
       </button>
+      <RotationDial rotation={viewTransform.rotation} onChange={onRotation} />
     </div>
   )
 }

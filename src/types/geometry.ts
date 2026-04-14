@@ -16,6 +16,8 @@ export interface Segment {
   to: Vec2
   /** edge midpoint this segment starts from */
   edgeMidpoint: Vec2
+  /** center of the polygon that owns this segment — used for consistent curve normal orientation */
+  polygonCenter: Vec2
   polygonId: string
   /** tile type ID for per-polygon-type config lookup */
   tileTypeId: string

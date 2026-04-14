@@ -52,6 +52,7 @@ export function trimRays(poly: Polygon, rays: ContactRay[], lengthScale?: number
         from: r1.origin,
         to,
         edgeMidpoint: r1.origin,
+        polygonCenter: poly.center,
         polygonId: poly.id,
         tileTypeId: poly.tileTypeId,
         kind: 'star-arm',

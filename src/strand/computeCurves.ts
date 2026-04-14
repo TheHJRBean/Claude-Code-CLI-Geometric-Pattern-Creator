@@ -149,12 +149,21 @@ export function computeCurves(
       // relative curve bulging.
       const originalDir = normalize(sub(seg.to, seg.from))
       const rawNormal = perp(originalDir)
-      // CW tangent at the segment origin = perp(outward radial from center)
-      const outward = sub(seg.edgeMidpoint, seg.polygonCenter)
-      const cwTangent = perp(outward)
-      const normal: Vec2 = dot(rawNormal, cwTangent) >= 0
-        ? rawNormal
-        : { x: -rawNormal.x, y: -rawNormal.y }
+
+      let normal: Vec2
+      if (seg.kind === 'vertex-line') {
+        // Vertex-line segments use vertex position as edgeMidpoint — the two
+        // halves of each pair would get different CW-tangent references,
+        // causing divergence. Use raw perpendicular to keep both halves symmetric.
+        normal = rawNormal
+      } else {
+        // CW tangent at the segment origin = perp(outward radial from center)
+        const outward = sub(seg.edgeMidpoint, seg.polygonCenter)
+        const cwTangent = perp(outward)
+        normal = dot(rawNormal, cwTangent) >= 0
+          ? rawNormal
+          : { x: -rawNormal.x, y: -rawNormal.y }
+      }
 
       // When alternating, flip based on edge position within the polygon
       const flip = curve.alternating && (altParity.get(segmentIndices[i]) ?? false)

@@ -341,11 +341,13 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
         const eKey = `${Math.round(eMid.x * edgeKeyF)},${Math.round(eMid.y * edgeKeyF)}`
         if (!internalEdges.has(eKey)) continue
         if (vertexLineEmitted.has(eKey)) continue
-        vertexLineEmitted.add(eKey)
 
         const nextV = (k + 1) % n
         const pair = pairVertexAtEdge(vertexRays, k, nextV, poly.vertices)
         if (!pair) continue
+        // Mark emitted only AFTER a valid pair — otherwise a failed pairing
+        // blocks the neighbouring polygon from ever emitting this edge.
+        vertexLineEmitted.add(eKey)
         emitVertexArms(pair, vtxAutoLen, vtxLineLen, circumradius, poly.id, poly.tileTypeId, poly.center, segments)
       }
     }

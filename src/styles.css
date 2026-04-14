@@ -38,6 +38,11 @@
   --btn-primary-border: #c9943a;
 
   --snap-gradient: linear-gradient(180deg, rgba(201,148,58,0.53), rgba(201,148,58,0.2));
+
+  --dial-face: #0e0e1a;
+  --dial-ring: rgba(201,148,58,0.35);
+  --dial-tick: rgba(201,148,58,0.25);
+  --dial-label: rgba(201,148,58,0.55);
 }
 
 /* ── Light Theme ─────────────────────────────────────────── */
@@ -76,6 +81,11 @@
   --btn-primary-border: #96722a;
 
   --snap-gradient: linear-gradient(180deg, rgba(150,114,42,0.45), rgba(150,114,42,0.15));
+
+  --dial-face: #faf7f0;
+  --dial-ring: rgba(150,114,42,0.35);
+  --dial-tick: rgba(150,114,42,0.25);
+  --dial-label: rgba(150,114,42,0.6);
 }
 
 /* ── App Layout ──────────────────────────────────────────── */
@@ -391,6 +401,26 @@
   flex: 1;
   overflow: hidden;
   min-width: 0;
+}
+
+/* ── Rotation Dial ──────────────────────────────────────── */
+.rotation-dial {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  z-index: 10;
+  cursor: grab;
+  touch-action: none;
+  opacity: 0.75;
+  transition: opacity 0.2s;
+}
+
+.rotation-dial:active {
+  cursor: grabbing;
+}
+
+.rotation-dial--hover {
+  opacity: 1;
 }
 
 /* ══════════════════════════════════════════════════════════

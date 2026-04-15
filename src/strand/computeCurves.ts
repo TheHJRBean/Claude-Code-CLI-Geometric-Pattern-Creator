@@ -139,32 +139,21 @@ export function computeCurves(
         continue
       }
 
-      // Compute a curve normal that is consistent across all instances of the
-      // same polygon type, regardless of absolute orientation.
+      // Compute a curve normal consistent across all segments of a polygon.
       //
-      // Raw perp(originalDir) depends on the segment's absolute angle, which
-      // varies with polygon rotation.  We normalise it so it always points in
-      // the CW-tangent direction around the polygon centre.  This way two
-      // polygons of the same type at different rotations produce identical
-      // relative curve bulging.
-      const originalDir = normalize(sub(seg.to, seg.from))
-      const rawNormal = perp(originalDir)
+      // Use the strand traversal direction (from → to in the strand, which
+      // may be reversed relative to seg.from → seg.to) so that the normal
+      // is perpendicular to the actual rendering direction.
+      //
+      // Orient the normal to always point outward from the polygon center.
+      // This ensures all segments of the same polygon curve in the same
+      // radial direction (outward for positive offset, inward for negative).
+      const traversalDir = normalize(sub(to, from))
+      const rawNormal = perp(traversalDir)
 
-      // Compute a reference direction that is intrinsic to the segment's
-      // geometry and consistent across all polygon rotations.
-      //
-      // Star-arms: outward radial from polygon center to edge midpoint.
-      //   Each polygon emits its own star-arms so polygonCenter is stable.
-      //
-      // Vertex-lines: direction from edge midpoint to ray origin vertex.
-      //   Vertex-lines are deduped (one polygon per shared edge emits),
-      //   so polygonCenter varies with iteration order.  Using the vertex
-      //   ↔ edge-midpoint vector makes the reference polygon-independent.
-      const outward = seg.kind === 'vertex-line'
-        ? sub(seg.from, seg.edgeMidpoint)
-        : sub(seg.edgeMidpoint, seg.polygonCenter)
-      const cwTangent = perp(outward)
-      const normal: Vec2 = dot(rawNormal, cwTangent) >= 0
+      const segMid: Vec2 = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 }
+      const outward = sub(segMid, seg.polygonCenter)
+      const normal: Vec2 = dot(rawNormal, outward) >= 0
         ? rawNormal
         : { x: -rawNormal.x, y: -rawNormal.y }
 

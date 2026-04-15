@@ -50,8 +50,14 @@ function buildAlternatingParity(segments: Segment[], strandData: StrandData[]): 
 
   const angleSorter = (a: number, b: number) => {
     const sa = segments[a], sb = segments[b]
-    return Math.atan2(sa.to.y - sa.from.y, sa.to.x - sa.from.x)
-         - Math.atan2(sb.to.y - sb.from.y, sb.to.x - sb.from.x)
+    // Sort by the angular position of the segment midpoint around the polygon
+    // center, NOT by segment direction.  Using segment direction causes
+    // ambiguous ordering in regular polygons where multiple segments share
+    // the same direction angle (e.g. hexagons), breaking the 2-coloring cycle.
+    const midA = { x: (sa.from.x + sa.to.x) / 2, y: (sa.from.y + sa.to.y) / 2 }
+    const midB = { x: (sb.from.x + sb.to.x) / 2, y: (sb.from.y + sb.to.y) / 2 }
+    return Math.atan2(midA.y - sa.polygonCenter.y, midA.x - sa.polygonCenter.x)
+         - Math.atan2(midB.y - sb.polygonCenter.y, midB.x - sb.polygonCenter.x)
   }
 
   for (const segIndices of starByPolygon.values()) {

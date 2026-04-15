@@ -163,8 +163,15 @@ export function computeCurves(
       const altSign = (curve.alternating && (altParity.get(segmentIndices[i]) ?? false)) ? -1 : 1
       const sign = dirSign * altSign
 
+      // Detect if the strand traverses this segment backwards (from ≈ seg.to
+      // instead of seg.from).  When reversed, mirror the position so that
+      // position=0 always corresponds to the original seg.from end.
+      const dfx = from.x - seg.from.x, dfy = from.y - seg.from.y
+      const reversed = dfx * dfx + dfy * dfy > 1e-6
+
       const controlPoints: Vec2[] = curve.points.map(cp => {
-        const basePoint = lerp(from, to, cp.position)
+        const t = reversed ? 1 - cp.position : cp.position
+        const basePoint = lerp(from, to, t)
         return add(basePoint, scale(baseNormal, sign * cp.offset * edgeLen))
       })
 

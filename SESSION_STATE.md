@@ -1,30 +1,27 @@
 ## Goal
-Fix alternating direction curves — the alternating mode produces visually inconsistent curve directions.
+Fix alternating direction curves — the alternating mode produces visually inconsistent curve directions within tiles.
 
 ## Plan
-- [done] Read all relevant code (computeCurves, buildStrands, curvedPathD, PIC pipeline, StrandLayer, types)
-- [done] Review 4 prior approaches and their failures documented in memory
-- [done] Analyze root cause of alternating parity inconsistency
-- [done] Design and implement fix: per-polygon edge-based deterministic parity
-- [done] Verify logic with unit tests (octagon, hexagon, triangle, mixed types)
-- [done] Type-check passes
-- [todo] Visual test in browser across multiple tilings
+- [done] Read all relevant code and review prior approaches
+- [done] Replace graph 2-coloring with per-polygon edge parity (5978494)
+- [done] Identify CW tangent as wrong reference for alternation normal
+- [done] Switch to radial outward reference for alternating mode
+- [done] Verify with numerical analysis: uniform ±0.707 outwardness for all arms
+- [done] Clean up debug code, type-check
+- [todo] Visual verification in browser, commit
 
 ## Done
-- Replaced graph-based 2-coloring in `buildAlternatingParity` with per-polygon edge-grouping
-- Removed strand adjacency constraints that caused cross-polygon conflicts
-- Verified with synthetic data: same-edge segments get same parity, adjacent edges alternate
-- Cleaned up debug overlay code
+- Two-part fix:
+  1. **Parity**: Per-polygon edge grouping replaces graph 2-coloring
+  2. **Normal reference**: Outward radial replaces CW tangent for alternating mode
 
 ## Next
-- Visually verify in browser at http://localhost:5173/ with multiple tilings (4.8.8, 6.6.6, etc.)
-- Commit and push once verified
+- Test visually in browser at http://localhost:5173/
 
 ## Decisions
-- **Root cause**: Graph-based 2-coloring had conflicting constraints between polygon cycle edges and strand adjacency edges, creating odd cycles and inconsistent parities
-- **Fix approach**: Per-polygon edge-based grouping. Segments grouped by edgeMidpoint within each polygon, edges sorted by angle from center, parity = edgeIndex % 2. No strand constraints.
-- **Trade-off**: Cross-polygon parity is independent (may cause S-curves at polygon boundaries). Within-polygon alternation is guaranteed correct for all even-sided polygons.
-- **Odd-sided polygons**: One pair of adjacent edges will share parity (inherent to odd cycles, same as old approach)
+- **CW tangent for same-direction**: Correct — all arms curve CW/CCW uniformly
+- **CW tangent for alternating**: WRONG — flipping a CW-aligned normal by 180° has non-uniform visual effects because arms at different positions have normals at different absolute angles
+- **Radial outward for alternating**: Correct — flipping an outward-aligned normal uniformly toggles between "bulge outward" and "bulge inward" (verified: dot product = ±0.707 for all octagon arms)
 
 ## Blockers
-- None — awaiting visual verification
+- None

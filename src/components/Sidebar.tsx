@@ -460,35 +460,39 @@ function FigureControls({
             })}
           </div>
 
-          {/* Direction selector: L / R */}
-          <FieldLabel label="Direction" />
-          <div style={{ display: 'flex', gap: 0, marginBottom: 8 }}>
-            {(['left', 'right'] as const).map(dir => {
-              const isActive = curveDirection === dir
-              return (
-                <button
-                  key={dir}
-                  onClick={() => dispatch({ type: 'SET_CURVE_DIRECTION', payload: { tileTypeId, direction: dir } })}
-                  style={{
-                    flex: 1,
-                    padding: '5px 0',
-                    fontFamily: "'Cinzel', Georgia, serif",
-                    fontSize: 9,
-                    fontWeight: 600,
-                    letterSpacing: '0.08em',
-                    textTransform: 'uppercase' as const,
-                    cursor: 'pointer',
-                    border: `1px solid ${isActive ? 'var(--accent)' : 'var(--border)'}`,
-                    background: isActive ? 'var(--accent-bg)' : 'transparent',
-                    color: isActive ? 'var(--accent)' : 'var(--text-muted)',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  {dir === 'left' ? 'L' : 'R'}
-                </button>
-              )
-            })}
-          </div>
+          {/* Direction selector: L / R — only relevant when alternating */}
+          {curveAlternating && (
+            <>
+              <FieldLabel label="Direction" />
+              <div style={{ display: 'flex', gap: 0, marginBottom: 8 }}>
+                {(['left', 'right'] as const).map(dir => {
+                  const isActive = curveDirection === dir
+                  return (
+                    <button
+                      key={dir}
+                      onClick={() => dispatch({ type: 'SET_CURVE_DIRECTION', payload: { tileTypeId, direction: dir } })}
+                      style={{
+                        flex: 1,
+                        padding: '5px 0',
+                        fontFamily: "'Cinzel', Georgia, serif",
+                        fontSize: 9,
+                        fontWeight: 600,
+                        letterSpacing: '0.08em',
+                        textTransform: 'uppercase' as const,
+                        cursor: 'pointer',
+                        border: `1px solid ${isActive ? 'var(--accent)' : 'var(--border)'}`,
+                        background: isActive ? 'var(--accent-bg)' : 'transparent',
+                        color: isActive ? 'var(--accent)' : 'var(--text-muted)',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      {dir === 'left' ? 'L' : 'R'}
+                    </button>
+                  )
+                })}
+              </div>
+            </>
+          )}
 
           <FieldLabel label="Control points" value={String(curvePoints.length)} />
           <div style={{ display: 'flex', gap: 0, marginBottom: 8 }}>

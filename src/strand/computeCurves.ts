@@ -1,7 +1,7 @@
 import type { Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
 import type { StrandData } from './buildStrands'
-import { sub, normalize, perp, scale, add, dist, lerp, dot, type Vec2 } from '../utils/math'
+import { sub, normalize, perp, scale, add, dist, lerp, type Vec2 } from '../utils/math'
 
 export interface CurvedStrand {
   points: Vec2[]
@@ -139,31 +139,19 @@ export function computeCurves(
         continue
       }
 
-      // Compute a curve normal consistent across all segments of a polygon.
-      //
-      // Use the strand traversal direction (from → to in the strand, which
-      // may be reversed relative to seg.from → seg.to) so that the normal
-      // is perpendicular to the actual rendering direction.
-      //
-      // Orient the normal to always point outward from the polygon center.
-      // This ensures all segments of the same polygon curve in the same
-      // radial direction (outward for positive offset, inward for negative).
+      // Normal is always perp(traversalDir) — consistently to the left of
+      // the strand's travel direction.  The 'direction' config flips L↔R,
+      // and 'alternating' flips every other segment via graph 2-coloring.
       const traversalDir = normalize(sub(to, from))
-      const rawNormal = perp(traversalDir)
+      const baseNormal = perp(traversalDir)
 
-      const segMid: Vec2 = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 }
-      const outward = sub(segMid, seg.polygonCenter)
-      const normal: Vec2 = dot(rawNormal, outward) >= 0
-        ? rawNormal
-        : { x: -rawNormal.x, y: -rawNormal.y }
-
-      // When alternating, flip based on edge position within the polygon
-      const flip = curve.alternating && (altParity.get(segmentIndices[i]) ?? false)
-      const sign = flip ? -1 : 1
+      const dirSign = curve.direction === 'right' ? -1 : 1
+      const altSign = (curve.alternating && (altParity.get(segmentIndices[i]) ?? false)) ? -1 : 1
+      const sign = dirSign * altSign
 
       const controlPoints: Vec2[] = curve.points.map(cp => {
         const basePoint = lerp(from, to, cp.position)
-        return add(basePoint, scale(normal, sign * cp.offset * edgeLen))
+        return add(basePoint, scale(baseNormal, sign * cp.offset * edgeLen))
       })
 
       curves.push(controlPoints)

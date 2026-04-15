@@ -14,8 +14,10 @@ export interface CurveConfig {
   enabled: boolean
   /** 1–3 control points defining the curve shape */
   points: CurvePoint[]
-  /** When true, star-arm segments alternate curve direction within each polygon */
+  /** When true, adjacent segments alternate curve direction */
   alternating?: boolean
+  /** Which side of the travel direction curves bulge toward */
+  direction?: 'left' | 'right'
 }
 
 export interface FigureConfig {

@@ -1,7 +1,7 @@
 import type { Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
 import type { StrandData } from './buildStrands'
-import { sub, normalize, perp, scale, add, dist, lerp, type Vec2 } from '../utils/math'
+import { sub, normalize, perp, scale, add, dist, lerp, dot, type Vec2 } from '../utils/math'
 
 export interface CurvedStrand {
   points: Vec2[]
@@ -139,11 +139,25 @@ export function computeCurves(
         continue
       }
 
-      // Normal is always perp(traversalDir) — consistently to the left of
-      // the strand's travel direction.  The 'direction' config flips L↔R,
-      // and 'alternating' flips every other segment via graph 2-coloring.
+      // Orient the curve normal using a purely geometric reference that is
+      // independent of strand traversal direction.
+      //
+      // 1. rawNormal = perp(traversalDir) — perpendicular to the rendered path
+      // 2. Compute the CW tangent at the segment's radial position relative to
+      //    the polygon center.  This is deterministic for a given segment
+      //    regardless of which direction the strand traverses it.
+      // 3. Align rawNormal with the CW tangent → all segments of a polygon
+      //    curve in the same rotational sense ("same direction").
+      // 4. "Alternating" mode flips every other segment via 2-coloring.
       const traversalDir = normalize(sub(to, from))
-      const baseNormal = perp(traversalDir)
+      const rawNormal = perp(traversalDir)
+
+      const segMid: Vec2 = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 }
+      const radial = sub(segMid, seg.polygonCenter)
+      const cwTangent: Vec2 = { x: radial.y, y: -radial.x }
+      const baseNormal: Vec2 = dot(rawNormal, cwTangent) >= 0
+        ? rawNormal
+        : { x: -rawNormal.x, y: -rawNormal.y }
 
       const dirSign = curve.direction === 'right' ? -1 : 1
       const altSign = (curve.alternating && (altParity.get(segmentIndices[i]) ?? false)) ? -1 : 1

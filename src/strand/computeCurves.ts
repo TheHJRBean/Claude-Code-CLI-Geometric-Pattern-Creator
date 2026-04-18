@@ -10,62 +10,35 @@ export interface CurvedStrand {
 }
 
 /**
- * Build alternation parity using deterministic per-polygon edge grouping.
+ * Build alternation parity using ray side (plus vs minus).
  *
- * Within each polygon, segments are grouped by their originating edge
- * (identified by edgeMidpoint).  Edge groups are sorted by angle from the
- * polygon center, and alternating parity is assigned per edge group:
+ * In Kaplan's PIC construction, every arm is a ray that leaves its origin
+ * (edge midpoint for star-arms, vertex for vertex-lines) at ±α from the
+ * inward normal/bisector.  Plus rays sit on the CCW side of the inward
+ * radial; minus rays sit on the CW side.  That side is recoverable from
+ * the sign of cross(inwardRadial, rayDir).
  *
- *   edge 0 → false,  edge 1 → true,  edge 2 → false, …
+ * Assigning parity by side makes every arm-pair alternate:
+ *   - Edge pair (two arms leaving the same edge midpoint): one plus, one
+ *     minus → opposite parity.
+ *   - Vertex pair (two arms meeting at a star tip): one plus from edge k
+ *     and one minus from edge k−1 → opposite parity.
  *
- * All segments from the same edge get the same parity, so paired arms
- * curve in the same direction.  Adjacent edges alternate, creating the
- * pinwheel / whirling effect within each star.
- *
- * This replaces the earlier graph-based 2-coloring which suffered from
- * conflicting constraints between polygon cycles and strand adjacency,
- * leading to inconsistent parities in complex tilings.
+ * The per-edge grouping this replaces only alternated vertex pairs; arms
+ * from the same edge shared a parity, so edge pairs curved together.
  */
 function buildAlternatingParity(segments: Segment[]): Map<number, boolean> {
   const parity = new Map<number, boolean>()
 
-  // Group curvable segment indices by polygon
-  const byPolygon = new Map<string, number[]>()
   for (let i = 0; i < segments.length; i++) {
-    if (segments[i].kind === 'petal') continue
-    const pid = segments[i].polygonId
-    if (!byPolygon.has(pid)) byPolygon.set(pid, [])
-    byPolygon.get(pid)!.push(i)
-  }
+    const seg = segments[i]
+    if (seg.kind === 'petal') continue
 
-  for (const segIndices of byPolygon.values()) {
-    if (segIndices.length === 0) continue
-    const center = segments[segIndices[0]].polygonCenter
+    const inwardRadial = sub(seg.polygonCenter, seg.from)
+    const rayDir = sub(seg.to, seg.from)
+    const cross = inwardRadial.x * rayDir.y - inwardRadial.y * rayDir.x
 
-    // Group segments by their edge midpoint (rounded for float tolerance)
-    const edgeGroupMap = new Map<string, number[]>()
-    for (const idx of segIndices) {
-      const em = segments[idx].edgeMidpoint
-      const key = `${em.x.toFixed(4)},${em.y.toFixed(4)}`
-      if (!edgeGroupMap.has(key)) edgeGroupMap.set(key, [])
-      edgeGroupMap.get(key)!.push(idx)
-    }
-
-    // Sort edge groups by angle from polygon center
-    const sortedEdges = [...edgeGroupMap.values()].sort((aIdxs, bIdxs) => {
-      const emA = segments[aIdxs[0]].edgeMidpoint
-      const emB = segments[bIdxs[0]].edgeMidpoint
-      return Math.atan2(emA.y - center.y, emA.x - center.x)
-           - Math.atan2(emB.y - center.y, emB.x - center.x)
-    })
-
-    // Assign alternating parity per edge group
-    for (let e = 0; e < sortedEdges.length; e++) {
-      const p = e % 2 === 0
-      for (const idx of sortedEdges[e]) {
-        parity.set(idx, p)
-      }
-    }
+    parity.set(i, cross > 0)
   }
 
   return parity

@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import type { Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
 import { buildStrands } from '../strand/buildStrands'
-import { computeCurves, type CurvedStrand } from '../strand/computeCurves'
+import { computeCurves, smoothCurves, type CurvedStrand } from '../strand/computeCurves'
 import { curvedPathD } from '../strand/curvedPathD'
 
 interface Props {
@@ -184,10 +184,10 @@ export function StrandLayer({ segments, config }: Props) {
   const { lacing } = config
 
   const strandData = useMemo(() => buildStrands(segments), [segments])
-  const curvedStrands = useMemo(
-    () => computeCurves(strandData, segments, config),
-    [strandData, segments, config],
-  )
+  const curvedStrands = useMemo(() => {
+    const raw = computeCurves(strandData, segments, config)
+    return config.smoothTransitions ? raw.map(smoothCurves) : raw
+  }, [strandData, segments, config])
   const pointArrays = useMemo(() => curvedStrands.map(cs => cs.points), [curvedStrands])
 
   const { continuousPaths, strandSubPaths } = useMemo(() => {

@@ -62,4 +62,6 @@ export interface PatternConfig {
   figures: Record<string, FigureConfig>
   edgeAngles?: Record<string, number>
   lacing: LacingConfig
+  /** When true, adjacent Bézier curves' control points are adjusted to share a tangent at interior join points (G1 continuity) */
+  smoothTransitions?: boolean
 }

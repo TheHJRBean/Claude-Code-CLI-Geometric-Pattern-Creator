@@ -757,6 +757,19 @@ export function Sidebar({
           <div style={{ marginBottom: 4 }} />
         </div>
 
+        {/* Curves — global options that apply across all figures */}
+        <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
+          <LotusDivider />
+          <SectionTitle>Curves</SectionTitle>
+
+          <Toggle
+            checked={config.smoothTransitions ?? false}
+            onChange={v => dispatch({ type: 'SET_SMOOTH_TRANSITIONS', payload: v })}
+            label="Smooth transitions"
+          />
+          <div style={{ marginBottom: 4 }} />
+        </div>
+
         {/* Line thickness — always visible since strands render regardless of lacing */}
         <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
           <LotusDivider />

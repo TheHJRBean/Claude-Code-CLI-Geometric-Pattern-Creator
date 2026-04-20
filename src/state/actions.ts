@@ -21,4 +21,5 @@ export type Action =
   | { type: 'SET_CURVE_POINT'; payload: { tileTypeId: string; index: number; point: Partial<{ position: number; offset: number }> } }
   | { type: 'SET_CURVE_ALTERNATING'; payload: { tileTypeId: string; alternating: boolean } }
   | { type: 'SET_CURVE_DIRECTION'; payload: { tileTypeId: string; direction: 'left' | 'right' } }
+  | { type: 'SET_SMOOTH_TRANSITIONS'; payload: boolean }
   | { type: 'LOAD_CONFIG'; payload: PatternConfig }

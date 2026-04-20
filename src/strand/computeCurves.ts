@@ -1,7 +1,7 @@
 import type { Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
 import type { StrandData } from './buildStrands'
-import { sub, normalize, perp, scale, add, dist, lerp, dot, type Vec2 } from '../utils/math'
+import { sub, normalize, perp, scale, add, dist, lerp, dot, len, type Vec2 } from '../utils/math'
 
 export interface CurvedStrand {
   points: Vec2[]
@@ -127,4 +127,84 @@ export function computeCurves(
 
     return { points, curves }
   })
+}
+
+/**
+ * Adjust control points of adjacent Bézier curves so they share a tangent
+ * direction at each interior join point (G1 continuity). Each curve's CP
+ * magnitudes are preserved; only their angular positions around the join
+ * are rotated onto a shared bisector.
+ *
+ * Quadratic curves (1 CP) are upgraded to cubics on the fly so both
+ * tangents can be controlled independently.
+ *
+ * Closed loops (first point == last point) get their wrap-around join
+ * smoothed as well.
+ */
+export function smoothCurves(strand: CurvedStrand): CurvedStrand {
+  const { points } = strand
+  if (points.length < 3) return strand
+
+  // Deep-copy curves so the input is not mutated
+  const curves: (Vec2[] | null)[] = strand.curves.map(cps =>
+    cps ? cps.map(p => ({ ...p })) : null,
+  )
+
+  const upgradeQ = (edgeIdx: number) => {
+    const cps = curves[edgeIdx]
+    if (!cps || cps.length !== 1) return
+    const p0 = points[edgeIdx]
+    const p1 = points[edgeIdx + 1]
+    const cp = cps[0]
+    // Q(t) ≡ C(t) with CP1 = P0 + 2/3(CP-P0), CP2 = P1 + 2/3(CP-P1)
+    curves[edgeIdx] = [
+      { x: p0.x + (2 / 3) * (cp.x - p0.x), y: p0.y + (2 / 3) * (cp.y - p0.y) },
+      { x: p1.x + (2 / 3) * (cp.x - p1.x), y: p1.y + (2 / 3) * (cp.y - p1.y) },
+    ]
+  }
+
+  const closed =
+    Math.abs(points[0].x - points[points.length - 1].x) < 1e-6 &&
+    Math.abs(points[0].y - points[points.length - 1].y) < 1e-6
+
+  const smoothJoin = (inEdge: number, outEdge: number, joinPt: Vec2, prevPt: Vec2, nextPt: Vec2) => {
+    upgradeQ(inEdge)
+    upgradeQ(outEdge)
+    const inCps = curves[inEdge]
+    const outCps = curves[outEdge]
+
+    // Incoming tangent (toward joinPt); prefer CP-derived direction
+    const inEndCpIdx = inCps && inCps.length >= 2 ? inCps.length - 1 : -1
+    const outStartCpIdx = outCps && outCps.length >= 2 ? 0 : -1
+
+    const inSrc = inEndCpIdx >= 0 ? inCps![inEndCpIdx] : prevPt
+    const outSrc = outStartCpIdx >= 0 ? outCps![outStartCpIdx] : nextPt
+
+    const inDir = normalize(sub(joinPt, inSrc))
+    const outDir = normalize(sub(outSrc, joinPt))
+
+    const sum = add(inDir, outDir)
+    if (len(sum) < 0.2) return  // near-cusp: leave the join alone
+    const avgDir = normalize(sum)
+
+    if (inEndCpIdx >= 0) {
+      const mag = dist(joinPt, inCps![inEndCpIdx])
+      inCps![inEndCpIdx] = { x: joinPt.x - avgDir.x * mag, y: joinPt.y - avgDir.y * mag }
+    }
+    if (outStartCpIdx >= 0) {
+      const mag = dist(joinPt, outCps![outStartCpIdx])
+      outCps![outStartCpIdx] = { x: joinPt.x + avgDir.x * mag, y: joinPt.y + avgDir.y * mag }
+    }
+  }
+
+  for (let i = 1; i < points.length - 1; i++) {
+    smoothJoin(i - 1, i, points[i], points[i - 1], points[i + 1])
+  }
+  if (closed && points.length >= 4) {
+    // Wrap-around: last edge meets first edge at points[0] == points[last]
+    const lastEdge = curves.length - 1
+    smoothJoin(lastEdge, 0, points[0], points[points.length - 2], points[1])
+  }
+
+  return { points, curves }
 }

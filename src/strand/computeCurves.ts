@@ -75,15 +75,32 @@ export function computeCurves(
       // baseNormal is the segment's perpendicular oriented to the CW tangent
       // at its radial position.  CW tangent is plus/minus-independent, so
       // flipping sign (via altSign) produces a true rotational-sense flip.
+      //
+      // 3-gons at θ=60° are a special case: the 3 surviving arms form the
+      // medial triangle, each perpendicular to its own radial. dot(rawNormal,
+      // cwTangent) is exactly 0 there, so the CW-tangent selector would
+      // keep rawNormal as-is — and rawNormal's orientation depends on which
+      // endpoint won dedup, giving inconsistent convex/concave across arms.
+      // For triangles we instead align baseNormal with the inward radial so
+      // a positive offset uniformly bulges toward the centroid (concave).
       const traversalDir = normalize(sub(to, from))
       const rawNormal = perp(traversalDir)
 
       const segMid: Vec2 = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 }
       const radial = sub(segMid, seg.polygonCenter)
-      const cwTangent: Vec2 = { x: radial.y, y: -radial.x }
-      const baseNormal: Vec2 = dot(rawNormal, cwTangent) >= 0
-        ? rawNormal
-        : { x: -rawNormal.x, y: -rawNormal.y }
+
+      let baseNormal: Vec2
+      if (seg.polygonSides === 3) {
+        const inwardRadial = { x: -radial.x, y: -radial.y }
+        baseNormal = dot(rawNormal, inwardRadial) >= 0
+          ? rawNormal
+          : { x: -rawNormal.x, y: -rawNormal.y }
+      } else {
+        const cwTangent: Vec2 = { x: radial.y, y: -radial.x }
+        baseNormal = dot(rawNormal, cwTangent) >= 0
+          ? rawNormal
+          : { x: -rawNormal.x, y: -rawNormal.y }
+      }
 
       const dirSign = curve.direction === 'right' ? -1 : 1
       const altSign = (curve.alternating && (altParity.get(segmentIndices[i]) ?? false)) ? -1 : 1

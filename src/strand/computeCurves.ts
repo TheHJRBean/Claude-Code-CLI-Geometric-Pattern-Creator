@@ -85,42 +85,29 @@ export function computeCurves(
         continue
       }
 
-      // Orient the curve normal using a geometric reference that is
-      // independent of strand traversal direction.
+      // Orient the curve normal using the CW tangent reference for BOTH modes.
       //
       // rawNormal = perp(traversalDir) — perpendicular to the rendered path.
-      // Two possible orientations exist; a reference vector picks the right one.
+      // CW tangent at the segment's radial position is a reference that is
+      // independent of the ray's plus/minus side, so flipping sign produces a
+      // true rotational-sense flip regardless of which ray the segment comes
+      // from.
       //
-      // Same-direction mode: align rawNormal with the CW tangent at the
-      //   segment's radial position → all arms curve in the same rotational
-      //   sense (clockwise or counterclockwise around the polygon).
-      //
-      // Alternating mode: align rawNormal with the outward radial direction
-      //   (from polygon center through segment midpoint).  Parity then flips
-      //   between "bulge outward" and "bulge inward" — a uniform visual
-      //   meaning for every arm regardless of its absolute direction.
-      //   (CW tangent doesn't work for alternation because flipping a
-      //   CW-aligned normal by 180° produces different visual effects for
-      //   arms at different angular positions.)
+      // Previously alternating used outward-radial as the reference, but that
+      // reference itself encodes plus/minus (plus arms align with outward
+      // radial, minus arms anti-align).  Combined with a plus/minus-derived
+      // altSign, the two encodings cancelled and alternating degenerated into
+      // same-direction with an inverted sign.
       const traversalDir = normalize(sub(to, from))
       const rawNormal = perp(traversalDir)
 
       const segMid: Vec2 = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 }
       const radial = sub(segMid, seg.polygonCenter)
 
-      let baseNormal: Vec2
-      if (curve.alternating) {
-        // Alternating: align with outward radial for uniform in/out alternation
-        baseNormal = dot(rawNormal, radial) >= 0
-          ? rawNormal
-          : { x: -rawNormal.x, y: -rawNormal.y }
-      } else {
-        // Same direction: align with CW tangent for consistent rotation
-        const cwTangent: Vec2 = { x: radial.y, y: -radial.x }
-        baseNormal = dot(rawNormal, cwTangent) >= 0
-          ? rawNormal
-          : { x: -rawNormal.x, y: -rawNormal.y }
-      }
+      const cwTangent: Vec2 = { x: radial.y, y: -radial.x }
+      const baseNormal: Vec2 = dot(rawNormal, cwTangent) >= 0
+        ? rawNormal
+        : { x: -rawNormal.x, y: -rawNormal.y }
 
       const dirSign = curve.direction === 'right' ? -1 : 1
       const altSign = (curve.alternating && (altParity.get(segmentIndices[i]) ?? false)) ? -1 : 1

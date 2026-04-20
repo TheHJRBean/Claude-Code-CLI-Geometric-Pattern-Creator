@@ -16,6 +16,8 @@ interface Props {
   onExportUnwovenSVG: () => void
   onSaveJSON: () => void
   onLoadJSON: () => void
+  cpVisible: Record<string, boolean>
+  onToggleCpVisible: (tileTypeId: string) => void
   onCurvePointActivity: (tileTypeId: string, index: number) => void
   open: boolean
   onClose: () => void
@@ -209,6 +211,7 @@ function FigureControls({
   tileTypeId, sides, displayLabel, figType, angle, lineLength, autoLen, snapEnabled, rosetteQ,
   edgeEnabled, vertexEnabled, vertexDecoupled, vertexAngle, vertexLineLength, vertexAutoLen,
   curveEnabled, curvePoints, curveAlternating, curveDirection,
+  cpShown, onToggleCpShown,
   tilingType, allFigures, dispatch, onCurvePointActivity,
 }: {
   tileTypeId: string
@@ -230,6 +233,8 @@ function FigureControls({
   curvePoints: { position: number; offset: number }[]
   curveAlternating: boolean
   curveDirection: 'left' | 'right'
+  cpShown: boolean
+  onToggleCpShown: () => void
   tilingType: string
   allFigures: Record<string, { contactAngle: number }>
   dispatch: React.Dispatch<Action>
@@ -432,6 +437,13 @@ function FigureControls({
 
       {curveEnabled && (
         <div style={{ marginTop: 8 }}>
+          <div style={{ marginBottom: 8 }}>
+            <Toggle
+              checked={cpShown}
+              onChange={onToggleCpShown}
+              label="Show control points"
+            />
+          </div>
           {/* Same / Alternating mode selector.
               3-gons: alternation is an odd-cycle on 3 arms meeting at the centroid,
               which can't be 2-coloured; the existing offset-sign toggle already covers
@@ -583,7 +595,7 @@ function FigureControls({
 export function Sidebar({
   config, dispatch, showTileLayer, onToggleTileLayer,
   onExportSVG, onExportPNG, onExportUnwovenSVG, onSaveJSON, onLoadJSON,
-  onCurvePointActivity,
+  cpVisible, onToggleCpVisible, onCurvePointActivity,
   open, onClose,
 }: Props) {
   const { theme, toggleTheme } = useTheme()
@@ -759,6 +771,8 @@ export function Sidebar({
                 curvePoints={curvePoints}
                 curveAlternating={curveAlternating}
                 curveDirection={curveDirection}
+                cpShown={cpVisible[tt.id] ?? false}
+                onToggleCpShown={() => onToggleCpVisible(tt.id)}
                 tilingType={config.tiling.type}
                 allFigures={config.figures}
                 dispatch={dispatch}

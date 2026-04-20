@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
+import { useCallback, useReducer, useRef, useState } from 'react'
 import { Canvas } from './components/Canvas'
 import { Sidebar } from './components/Sidebar'
 import { SandstoneEdge } from './components/SandstoneEdge'
@@ -6,27 +6,22 @@ import { reducer, DEFAULT_CONFIG } from './state/reducer'
 import { exportSVG, exportPNG, exportUnwovenSVG } from './export/exportSVG'
 import { saveJSON, loadJSON } from './export/exportJSON'
 import type { Segment } from './types/geometry'
-import type { ActiveCurvePoint } from './rendering/ControlPointLayer'
-
-const CURVE_POINT_HIGHLIGHT_MS = 1500
 
 export default function App() {
   const [config, dispatch] = useReducer(reducer, DEFAULT_CONFIG)
   const [showTileLayer, setShowTileLayer] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [activeCurvePoint, setActiveCurvePoint] = useState<ActiveCurvePoint | null>(null)
-  const cpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [cpVisible, setCpVisible] = useState<Record<string, boolean>>({})
+  const [cpActive, setCpActive] = useState<Record<string, number>>({})
   const svgRef = useRef<SVGSVGElement>(null)
   const segmentsRef = useRef<Segment[]>([])
 
-  const pokeCurvePoint = useCallback((tileTypeId: string, index: number) => {
-    setActiveCurvePoint({ tileTypeId, index })
-    if (cpTimerRef.current) clearTimeout(cpTimerRef.current)
-    cpTimerRef.current = setTimeout(() => setActiveCurvePoint(null), CURVE_POINT_HIGHLIGHT_MS)
+  const toggleCpVisible = useCallback((tileTypeId: string) => {
+    setCpVisible(prev => ({ ...prev, [tileTypeId]: !prev[tileTypeId] }))
   }, [])
 
-  useEffect(() => () => {
-    if (cpTimerRef.current) clearTimeout(cpTimerRef.current)
+  const setCpActiveIndex = useCallback((tileTypeId: string, index: number) => {
+    setCpActive(prev => (prev[tileTypeId] === index ? prev : { ...prev, [tileTypeId]: index }))
   }, [])
 
   const handleExportSVG = () => { if (svgRef.current) exportSVG(svgRef.current) }
@@ -82,7 +77,9 @@ export default function App() {
         onExportUnwovenSVG={handleExportUnwovenSVG}
         onSaveJSON={handleSaveJSON}
         onLoadJSON={handleLoadJSON}
-        onCurvePointActivity={pokeCurvePoint}
+        cpVisible={cpVisible}
+        onToggleCpVisible={toggleCpVisible}
+        onCurvePointActivity={setCpActiveIndex}
       />
       <div className="sandstone-edge-wrapper" aria-hidden="true">
         <SandstoneEdge />
@@ -92,7 +89,8 @@ export default function App() {
         showTileLayer={showTileLayer}
         svgRef={svgRef}
         segmentsRef={segmentsRef}
-        activeCurvePoint={activeCurvePoint}
+        cpVisible={cpVisible}
+        cpActive={cpActive}
       />
     </div>
   )

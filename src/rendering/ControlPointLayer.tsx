@@ -3,15 +3,11 @@ import type { Segment } from '../types/geometry'
 import type { PatternConfig, CurveConfig } from '../types/pattern'
 import { sub, normalize, perp, scale, add, dist, lerp, dot, type Vec2 } from '../utils/math'
 
-export interface ActiveCurvePoint {
-  tileTypeId: string
-  index: number
-}
-
 interface Props {
   segments: Segment[]
   config: PatternConfig
-  active: ActiveCurvePoint | null
+  visible: Record<string, boolean>
+  active: Record<string, number>
   zoom: number
 }
 
@@ -60,27 +56,26 @@ function computeSegmentCPs(seg: Segment, curve: CurveConfig): Vec2[] {
   })
 }
 
-export function ControlPointLayer({ segments, config, active, zoom }: Props) {
+export function ControlPointLayer({ segments, config, visible, active, zoom }: Props) {
   const markers = useMemo<Marker[]>(() => {
-    if (!active) return []
-    const fig = config.figures[active.tileTypeId]
-    const curve = fig?.curve
-    if (!curve?.enabled || !curve.points.length) return []
-
     const out: Marker[] = []
     for (const seg of segments) {
-      if (seg.tileTypeId !== active.tileTypeId) continue
+      if (!visible[seg.tileTypeId]) continue
       if (seg.kind === 'petal') continue
+      const fig = config.figures[seg.tileTypeId]
+      const curve = fig?.curve
+      if (!curve?.enabled || !curve.points.length) continue
       const cps = computeSegmentCPs(seg, curve)
+      const activeIdx = active[seg.tileTypeId] ?? 0
       for (let i = 0; i < cps.length; i++) {
         const base = lerp(seg.from, seg.to, curve.points[i].position)
-        out.push({ cp: cps[i], base, index: i, isActive: i === active.index })
+        out.push({ cp: cps[i], base, index: i, isActive: i === activeIdx })
       }
     }
     return out
-  }, [segments, config, active])
+  }, [segments, config, visible, active])
 
-  if (!active || markers.length === 0) return null
+  if (markers.length === 0) return null
 
   const px = 1 / Math.max(zoom, 1e-6)
   const rActive = 5 * px

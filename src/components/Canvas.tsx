@@ -5,19 +5,19 @@ import { usePattern } from '../hooks/usePattern'
 import { usePanZoom } from '../hooks/usePanZoom'
 import { PatternSVG } from '../rendering/PatternSVG'
 import { RotationDial } from './RotationDial'
-import type { ActiveCurvePoint } from '../rendering/ControlPointLayer'
 
 interface Props {
   config: PatternConfig
   showTileLayer: boolean
   svgRef: React.RefObject<SVGSVGElement>
   segmentsRef: React.MutableRefObject<Segment[]>
-  activeCurvePoint: ActiveCurvePoint | null
+  cpVisible: Record<string, boolean>
+  cpActive: Record<string, number>
 }
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, svgRef, segmentsRef, activeCurvePoint }: Props) {
+export function Canvas({ config, showTileLayer, svgRef, segmentsRef, cpVisible, cpActive }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -71,7 +71,8 @@ export function Canvas({ config, showTileLayer, svgRef, segmentsRef, activeCurve
         containerHeight={size.height}
         showTileLayer={showTileLayer}
         handlers={handlers}
-        activeCurvePoint={activeCurvePoint}
+        cpVisible={cpVisible}
+        cpActive={cpActive}
       />
       <button
         onClick={resetCamera}

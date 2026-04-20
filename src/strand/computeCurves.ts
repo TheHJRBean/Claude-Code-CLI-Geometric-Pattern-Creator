@@ -22,6 +22,11 @@ function buildAlternatingParity(segments: Segment[]): Map<number, boolean> {
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i]
     if (seg.kind === 'petal' || !seg.side) continue
+    // 3-gons: 3 arms meet at the centroid — an odd cycle that can't be
+    // 2-coloured. Force symmetric (non-alternating) curves regardless of
+    // stored config. The UI hides the alternating toggle for sides===3
+    // but legacy state may still carry alternating:true.
+    if (seg.polygonSides === 3) continue
     parity.set(i, seg.side === 'plus')
   }
   return parity

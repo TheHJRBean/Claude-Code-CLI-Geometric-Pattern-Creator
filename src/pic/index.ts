@@ -226,6 +226,33 @@ function buildInternalEdgeSet(polygons: Polygon[]): Set<string> {
   return internal
 }
 
+/**
+ * Dedup collinear/overlapping segments within a single polygon.
+ * At certain contact angles (e.g. 60° on equilateral triangles) two adjacent
+ * edges' contact rays become collinear — pair A fails, pair B succeeds, and
+ * each "arm" is emitted twice (once from each end). Collapse endpoint-identical
+ * pairs so each unique line renders once.
+ */
+function dedupPolygonSegments(segments: Segment[], startIdx: number): void {
+  const f = 1e3
+  const seen = new Set<string>()
+  const keep: Segment[] = []
+  for (let i = startIdx; i < segments.length; i++) {
+    const s = segments[i]
+    const ax = Math.round(s.from.x * f), ay = Math.round(s.from.y * f)
+    const bx = Math.round(s.to.x * f), by = Math.round(s.to.y * f)
+    const key = ax < bx || (ax === bx && ay <= by)
+      ? `${ax},${ay}|${bx},${by}`
+      : `${bx},${by}|${ax},${ay}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    keep.push(s)
+  }
+  if (keep.length !== segments.length - startIdx) {
+    segments.splice(startIdx, segments.length - startIdx, ...keep)
+  }
+}
+
 export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
   const segments: Segment[] = []
   const internalEdges = buildInternalEdgeSet(polygons)
@@ -234,6 +261,7 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
   for (const poly of polygons) {
     const fig = config.figures[poly.tileTypeId]
     if (!fig) continue
+    const polyStartIdx = segments.length
 
     const edgeEnabled = fig.edgeLinesEnabled !== false
     const rays = computeContactRays(poly, fig.contactAngle)
@@ -348,6 +376,8 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
         emitVertexArms(pair, vtxAutoLen, vtxLineLen, circumradius, poly.id, poly.tileTypeId, poly.center, eMid, segments)
       }
     }
+
+    dedupPolygonSegments(segments, polyStartIdx)
   }
 
   return segments

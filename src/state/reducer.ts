@@ -119,6 +119,8 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         curve: { ...curve, direction: action.payload.direction },
       })
     }
+    case 'SET_SMOOTH_TRANSITIONS':
+      return { ...state, smoothTransitions: action.payload }
     case 'LOAD_CONFIG':
       return action.payload
     default:

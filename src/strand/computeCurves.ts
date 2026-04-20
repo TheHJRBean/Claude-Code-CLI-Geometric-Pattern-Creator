@@ -116,6 +116,11 @@ export function computeCurves(
         const basePoint = lerp(from, to, t)
         return add(basePoint, scale(baseNormal, sign * cp.offset * edgeLen))
       })
+      // SVG cubic/quartic associates CP[0] with the start endpoint.
+      // When traversing backwards, CP[0] (intended near seg.from) is now
+      // spatially far from the start (seg.to) — reverse the array so each
+      // CP stays associated with its intended endpoint.
+      if (reversed) controlPoints.reverse()
 
       curves.push(controlPoints)
     }

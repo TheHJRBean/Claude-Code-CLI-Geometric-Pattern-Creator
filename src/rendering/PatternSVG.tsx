@@ -5,6 +5,7 @@ import type { ViewTransform } from '../hooks/usePanZoom'
 import type { PanZoomHandlers } from '../hooks/usePanZoom'
 import { TileLayer } from './TileLayer'
 import { StrandLayer } from './StrandLayer'
+import { ControlPointLayer, type ActiveCurvePoint } from './ControlPointLayer'
 
 interface Props {
   polygons: Polygon[]
@@ -15,10 +16,11 @@ interface Props {
   containerHeight: number
   showTileLayer: boolean
   handlers: PanZoomHandlers
+  activeCurvePoint: ActiveCurvePoint | null
 }
 
 export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
-  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, handlers },
+  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, handlers, activeCurvePoint },
   ref
 ) {
   const { x, y, zoom, rotation } = viewTransform
@@ -43,6 +45,12 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
       <g transform={rotation ? `rotate(${rotation} ${cx} ${cy})` : undefined}>
         <TileLayer polygons={polygons} visible={showTileLayer} />
         <StrandLayer segments={segments} config={config} />
+        <ControlPointLayer
+          segments={segments}
+          config={config}
+          active={activeCurvePoint}
+          zoom={zoom}
+        />
       </g>
     </svg>
   )

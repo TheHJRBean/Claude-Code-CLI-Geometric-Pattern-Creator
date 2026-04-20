@@ -16,6 +16,7 @@ interface Props {
   onExportUnwovenSVG: () => void
   onSaveJSON: () => void
   onLoadJSON: () => void
+  onCurvePointActivity: (tileTypeId: string, index: number) => void
   open: boolean
   onClose: () => void
 }
@@ -208,7 +209,7 @@ function FigureControls({
   tileTypeId, sides, displayLabel, figType, angle, lineLength, autoLen, snapEnabled, rosetteQ,
   edgeEnabled, vertexEnabled, vertexDecoupled, vertexAngle, vertexLineLength, vertexAutoLen,
   curveEnabled, curvePoints, curveAlternating, curveDirection,
-  tilingType, allFigures, dispatch,
+  tilingType, allFigures, dispatch, onCurvePointActivity,
 }: {
   tileTypeId: string
   sides: number
@@ -232,6 +233,7 @@ function FigureControls({
   tilingType: string
   allFigures: Record<string, { contactAngle: number }>
   dispatch: React.Dispatch<Action>
+  onCurvePointActivity: (tileTypeId: string, index: number) => void
 }) {
   const anglesKey = Object.entries(allFigures)
     .map(([s, f]) => `${s}:${f.contactAngle}`)
@@ -544,10 +546,14 @@ function FigureControls({
                 className="pattern-slider"
                 min={5} max={95} step={1}
                 value={Math.round(cp.position * 100)}
-                onChange={e => dispatch({
-                  type: 'SET_CURVE_POINT',
-                  payload: { tileTypeId, index: i, point: { position: Number(e.target.value) / 100 } },
-                })}
+                onPointerDown={() => onCurvePointActivity(tileTypeId, i)}
+                onChange={e => {
+                  onCurvePointActivity(tileTypeId, i)
+                  dispatch({
+                    type: 'SET_CURVE_POINT',
+                    payload: { tileTypeId, index: i, point: { position: Number(e.target.value) / 100 } },
+                  })
+                }}
               />
               <FieldLabel label="Offset" value={(cp.offset * 100).toFixed(0)} unit="%" />
               <input
@@ -555,10 +561,14 @@ function FigureControls({
                 className="pattern-slider"
                 min={-100} max={100} step={1}
                 value={Math.round(cp.offset * 100)}
-                onChange={e => dispatch({
-                  type: 'SET_CURVE_POINT',
-                  payload: { tileTypeId, index: i, point: { offset: Number(e.target.value) / 100 } },
-                })}
+                onPointerDown={() => onCurvePointActivity(tileTypeId, i)}
+                onChange={e => {
+                  onCurvePointActivity(tileTypeId, i)
+                  dispatch({
+                    type: 'SET_CURVE_POINT',
+                    payload: { tileTypeId, index: i, point: { offset: Number(e.target.value) / 100 } },
+                  })
+                }}
               />
             </div>
           ))}
@@ -573,6 +583,7 @@ function FigureControls({
 export function Sidebar({
   config, dispatch, showTileLayer, onToggleTileLayer,
   onExportSVG, onExportPNG, onExportUnwovenSVG, onSaveJSON, onLoadJSON,
+  onCurvePointActivity,
   open, onClose,
 }: Props) {
   const { theme, toggleTheme } = useTheme()
@@ -751,6 +762,7 @@ export function Sidebar({
                 tilingType={config.tiling.type}
                 allFigures={config.figures}
                 dispatch={dispatch}
+                onCurvePointActivity={onCurvePointActivity}
               />
             )
           })}

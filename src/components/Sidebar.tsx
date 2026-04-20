@@ -430,38 +430,45 @@ function FigureControls({
 
       {curveEnabled && (
         <div style={{ marginTop: 8 }}>
-          {/* Same / Alternating mode selector */}
-          <FieldLabel label="Curve mode" />
-          <div style={{ display: 'flex', gap: 0, marginBottom: 8 }}>
-            {(['same', 'alternating'] as const).map(mode => {
-              const isActive = mode === 'alternating' ? curveAlternating : !curveAlternating
-              return (
-                <button
-                  key={mode}
-                  onClick={() => dispatch({ type: 'SET_CURVE_ALTERNATING', payload: { tileTypeId, alternating: mode === 'alternating' } })}
-                  style={{
-                    flex: 1,
-                    padding: '5px 0',
-                    fontFamily: "'Cinzel', Georgia, serif",
-                    fontSize: 9,
-                    fontWeight: 600,
-                    letterSpacing: '0.08em',
-                    textTransform: 'uppercase' as const,
-                    cursor: 'pointer',
-                    border: `1px solid ${isActive ? 'var(--accent)' : 'var(--border)'}`,
-                    background: isActive ? 'var(--accent-bg)' : 'transparent',
-                    color: isActive ? 'var(--accent)' : 'var(--text-muted)',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  {mode}
-                </button>
-              )
-            })}
-          </div>
+          {/* Same / Alternating mode selector.
+              3-gons: alternation is an odd-cycle on 3 arms meeting at the centroid,
+              which can't be 2-coloured; the existing offset-sign toggle already covers
+              all-convex / all-concave, so the mode selector is hidden on triangles. */}
+          {sides !== 3 && (
+            <>
+              <FieldLabel label="Curve mode" />
+              <div style={{ display: 'flex', gap: 0, marginBottom: 8 }}>
+                {(['same', 'alternating'] as const).map(mode => {
+                  const isActive = mode === 'alternating' ? curveAlternating : !curveAlternating
+                  return (
+                    <button
+                      key={mode}
+                      onClick={() => dispatch({ type: 'SET_CURVE_ALTERNATING', payload: { tileTypeId, alternating: mode === 'alternating' } })}
+                      style={{
+                        flex: 1,
+                        padding: '5px 0',
+                        fontFamily: "'Cinzel', Georgia, serif",
+                        fontSize: 9,
+                        fontWeight: 600,
+                        letterSpacing: '0.08em',
+                        textTransform: 'uppercase' as const,
+                        cursor: 'pointer',
+                        border: `1px solid ${isActive ? 'var(--accent)' : 'var(--border)'}`,
+                        background: isActive ? 'var(--accent-bg)' : 'transparent',
+                        color: isActive ? 'var(--accent)' : 'var(--text-muted)',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      {mode}
+                    </button>
+                  )
+                })}
+              </div>
+            </>
+          )}
 
           {/* Direction selector: L / R — only relevant when alternating */}
-          {curveAlternating && (
+          {sides !== 3 && curveAlternating && (
             <>
               <FieldLabel label="Direction" />
               <div style={{ display: 'flex', gap: 0, marginBottom: 8 }}>

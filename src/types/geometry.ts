@@ -21,6 +21,8 @@ export interface Segment {
   /** center of the polygon that owns this segment — used for consistent curve normal orientation */
   polygonCenter: Vec2
   polygonId: string
+  /** side count of the polygon that owns this segment — used to disable alternating curves on 3-gons (odd-cycle) */
+  polygonSides: number
   /** tile type ID for per-polygon-type config lookup */
   tileTypeId: string
   /** what kind of segment this is — for selective curve application */

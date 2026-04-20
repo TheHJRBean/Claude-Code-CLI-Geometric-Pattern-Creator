@@ -61,6 +61,7 @@ function emitStarArms(
       polygonId,
       tileTypeId,
       kind: 'star-arm',
+      side: ray1.side,
     })
     segments.push({
       from: ray2.origin,
@@ -70,6 +71,7 @@ function emitStarArms(
       polygonId,
       tileTypeId,
       kind: 'star-arm',
+      side: ray2.side,
     })
   } else {
     const t = lineLength * inradius
@@ -84,6 +86,7 @@ function emitStarArms(
       polygonId,
       tileTypeId,
       kind: 'star-arm',
+      side: ray1.side,
     })
     segments.push({
       from: ray2.origin,
@@ -96,6 +99,7 @@ function emitStarArms(
       polygonId,
       tileTypeId,
       kind: 'star-arm',
+      side: ray2.side,
     })
   }
 }
@@ -158,6 +162,7 @@ function emitVertexArms(
       polygonId,
       tileTypeId,
       kind: 'vertex-line',
+      side: ray1.side,
     })
     segments.push({
       from: ray2.origin,
@@ -167,6 +172,7 @@ function emitVertexArms(
       polygonId,
       tileTypeId,
       kind: 'vertex-line',
+      side: ray2.side,
     })
   } else {
     const t = lineLength * circumradius
@@ -181,6 +187,7 @@ function emitVertexArms(
       polygonId,
       tileTypeId,
       kind: 'vertex-line',
+      side: ray1.side,
     })
     segments.push({
       from: ray2.origin,
@@ -193,6 +200,7 @@ function emitVertexArms(
       polygonId,
       tileTypeId,
       kind: 'vertex-line',
+      side: ray2.side,
     })
   }
 }

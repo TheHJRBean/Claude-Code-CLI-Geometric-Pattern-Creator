@@ -11,24 +11,19 @@ export interface CurvedStrand {
 
 /**
  * Parity = ray side (plus vs minus) of the ±α rotation from the inward
- * normal/bisector.  Recoverable as the sign of cross(inwardRadial, rayDir).
- * Every arm-pair (edge pair at a midpoint, vertex pair at a star tip)
- * alternates because paired arms come from opposite sides.
+ * normal/bisector. Read directly from the `side` tag the PIC emitter
+ * stamps on each segment. A prior cross(inwardRadial, rayDir) heuristic
+ * degenerated to ~0 when seg.to sat on the polygon center (e.g. equilateral
+ * triangles at θ=60°), producing unstable parity that flipped on every
+ * pipeline rerun — the intrinsic side tag avoids that.
  */
 function buildAlternatingParity(segments: Segment[]): Map<number, boolean> {
   const parity = new Map<number, boolean>()
-
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i]
-    if (seg.kind === 'petal') continue
-
-    const inwardRadial = sub(seg.polygonCenter, seg.from)
-    const rayDir = sub(seg.to, seg.from)
-    const cross = inwardRadial.x * rayDir.y - inwardRadial.y * rayDir.x
-
-    parity.set(i, cross > 0)
+    if (seg.kind === 'petal' || !seg.side) continue
+    parity.set(i, seg.side === 'plus')
   }
-
   return parity
 }
 

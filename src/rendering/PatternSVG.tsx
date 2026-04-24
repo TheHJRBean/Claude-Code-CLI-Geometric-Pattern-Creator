@@ -15,13 +15,14 @@ interface Props {
   containerWidth: number
   containerHeight: number
   showTileLayer: boolean
+  showLines: boolean
   handlers: PanZoomHandlers
   cpVisible: Record<string, boolean>
   cpActive: Record<string, number>
 }
 
 export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
-  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, handlers, cpVisible, cpActive },
+  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive },
   ref
 ) {
   const { x, y, zoom, rotation } = viewTransform
@@ -45,7 +46,7 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
     >
       <g transform={rotation ? `rotate(${rotation} ${cx} ${cy})` : undefined}>
         <TileLayer polygons={polygons} visible={showTileLayer} />
-        <StrandLayer segments={segments} config={config} />
+        {showLines && <StrandLayer segments={segments} config={config} />}
         <ControlPointLayer
           segments={segments}
           config={config}

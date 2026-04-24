@@ -10,6 +10,7 @@ import type { Segment } from './types/geometry'
 export default function App() {
   const [config, dispatch] = useReducer(reducer, DEFAULT_CONFIG)
   const [showTileLayer, setShowTileLayer] = useState(false)
+  const [showLines, setShowLines] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [desktopCollapsed, setDesktopCollapsed] = useState<boolean>(() => {
     try { return localStorage.getItem('sidebar-desktop-collapsed') === 'true' } catch { return false }
@@ -98,6 +99,8 @@ export default function App() {
         dispatch={dispatch}
         showTileLayer={showTileLayer}
         onToggleTileLayer={() => setShowTileLayer(s => !s)}
+        showLines={showLines}
+        onToggleLines={() => setShowLines(s => !s)}
         onExportSVG={handleExportSVG}
         onExportPNG={handleExportPNG}
         onExportUnwovenSVG={handleExportUnwovenSVG}
@@ -113,6 +116,7 @@ export default function App() {
       <Canvas
         config={config}
         showTileLayer={showTileLayer}
+        showLines={showLines}
         svgRef={svgRef}
         segmentsRef={segmentsRef}
         cpVisible={cpVisible}

@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { PatternConfig } from '../types/pattern'
 import type { Action } from '../state/actions'
 import { TILINGS, SYMMETRY_GROUPS } from '../tilings/index'
@@ -21,6 +21,8 @@ interface Props {
   onCurvePointActivity: (tileTypeId: string, index: number) => void
   open: boolean
   onClose: () => void
+  desktopCollapsed: boolean
+  onToggleDesktopCollapsed: () => void
 }
 
 /* ── Decorative SVG components ─────────────────────────────── */
@@ -60,14 +62,36 @@ function LotusDivider() {
   )
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
+function SectionChevron({ open }: { open: boolean }) {
   return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: 7,
-      marginBottom: 14,
-    }}>
+    <svg
+      width="9"
+      height="9"
+      viewBox="0 0 10 10"
+      className="section-chevron"
+      style={{
+        transform: open ? 'rotate(0deg)' : 'rotate(-90deg)',
+        transition: 'transform 0.2s ease, opacity 0.15s',
+        flexShrink: 0,
+        color: 'var(--accent)',
+        opacity: 0.5,
+      }}
+      aria-hidden="true"
+    >
+      <polyline points="2.5 4 5 6.5 7.5 4" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function SectionTitle({ children, open, onToggle }: {
+  children: React.ReactNode
+  open?: boolean
+  onToggle?: () => void
+}) {
+  const interactive = typeof onToggle === 'function'
+  const isOpen = open ?? true
+  const inner = (
+    <>
       <OctaStar size={10} opacity={0.7} />
       <span style={{
         fontFamily: "'Cinzel', Georgia, serif",
@@ -80,7 +104,43 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
         {children}
       </span>
       <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, var(--divider), transparent)' }} />
-    </div>
+      {interactive && <SectionChevron open={isOpen} />}
+    </>
+  )
+  if (!interactive) {
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 7,
+        marginBottom: 14,
+      }}>
+        {inner}
+      </div>
+    )
+  }
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={isOpen}
+      className="section-title-button"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 7,
+        marginBottom: isOpen ? 14 : 2,
+        width: '100%',
+        background: 'transparent',
+        border: 'none',
+        padding: '6px 0',
+        cursor: 'pointer',
+        textAlign: 'left',
+        transition: 'margin-bottom 0.2s ease',
+      }}
+    >
+      {inner}
+    </button>
   )
 }
 
@@ -597,18 +657,33 @@ export function Sidebar({
   onExportSVG, onExportPNG, onExportUnwovenSVG, onSaveJSON, onLoadJSON,
   cpVisible, onToggleCpVisible, onCurvePointActivity,
   open, onClose,
+  desktopCollapsed, onToggleDesktopCollapsed,
 }: Props) {
   const { theme, toggleTheme } = useTheme()
   const def = TILINGS[config.tiling.type]
-  // Derive tile types: use explicit tileTypes if defined, else one per unique side count
   const tileTypes: TileTypeInfo[] = def
     ? (def.tileTypes ?? [...new Set(def.vertexConfig)].sort((a, b) => a - b).map(s => ({
         id: String(s), sides: s, label: `${s}-gon`,
       })))
     : []
 
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('sidebar-collapsed-sections')
+      return saved ? JSON.parse(saved) : {}
+    } catch { return {} }
+  })
+  const toggleSection = (key: string) => {
+    setCollapsedSections(prev => {
+      const next = { ...prev, [key]: !prev[key] }
+      try { localStorage.setItem('sidebar-collapsed-sections', JSON.stringify(next)) } catch { /* ignore */ }
+      return next
+    })
+  }
+  const isOpen = (key: string) => !collapsedSections[key]
+
   return (
-    <div className={`sidebar ${open ? 'sidebar--open' : ''}`}>
+    <div className={`sidebar ${open ? 'sidebar--open' : ''} ${desktopCollapsed ? 'sidebar--desktop-collapsed' : ''}`}>
       {/* ── Header ──────────────────────────────────────── */}
       <div className="sidebar-header">
         {/* Mobile close button */}
@@ -623,6 +698,19 @@ export function Sidebar({
           </svg>
         </button>
 
+        {/* Desktop collapse button */}
+        <button
+          className="sidebar-collapse-desktop"
+          onClick={onToggleDesktopCollapsed}
+          aria-label="Collapse sidebar"
+          title="Collapse sidebar"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <polyline points="11 17 6 12 11 7" />
+            <polyline points="18 17 13 12 18 7" />
+          </svg>
+        </button>
+
         {/* Theme toggle */}
         <button
           className="theme-toggle"
@@ -632,11 +720,6 @@ export function Sidebar({
         >
           {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
         </button>
-
-        {/* Corner ornaments */}
-        <div style={{ position: 'absolute', top: 10, left: 12, opacity: 0.25 }}>
-          <OctaStar size={9} />
-        </div>
 
         {/* Art Deco fan motif */}
         <div style={{ marginBottom: 10, marginTop: 2 }}>
@@ -698,40 +781,42 @@ export function Sidebar({
 
         {/* Tiling */}
         <div style={{ paddingTop: 20, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
-          <SectionTitle>Tiling</SectionTitle>
-
-          <FieldLabel label="Type" />
-          <select
-            value={config.tiling.type}
-            onChange={e => dispatch({ type: 'SET_TILING_TYPE', payload: e.target.value })}
-            className="pattern-select"
-          >
-            {SYMMETRY_GROUPS.map(group => (
-              <optgroup key={group.fold} label={`${group.label} Symmetry`}>
-                {group.tilings.map(name => (
-                  <option key={name} value={name}>{TILINGS[name].label}</option>
+          <SectionTitle open={isOpen('tiling')} onToggle={() => toggleSection('tiling')}>Tiling</SectionTitle>
+          {isOpen('tiling') && (
+            <>
+              <FieldLabel label="Type" />
+              <select
+                value={config.tiling.type}
+                onChange={e => dispatch({ type: 'SET_TILING_TYPE', payload: e.target.value })}
+                className="pattern-select"
+              >
+                {SYMMETRY_GROUPS.map(group => (
+                  <optgroup key={group.fold} label={`${group.label} Symmetry`}>
+                    {group.tilings.map(name => (
+                      <option key={name} value={name}>{TILINGS[name].label}</option>
+                    ))}
+                  </optgroup>
                 ))}
-              </optgroup>
-            ))}
-          </select>
+              </select>
 
-          <FieldLabel label="Scale" value={String(config.tiling.scale)} unit=" px" />
-          <input
-            type="range"
-            className="pattern-slider"
-            min={30} max={300} step={5}
-            value={config.tiling.scale}
-            onChange={e => dispatch({ type: 'SET_SCALE', payload: Number(e.target.value) })}
-          />
-          <div style={{ marginBottom: 4 }} />
+              <FieldLabel label="Scale" value={String(config.tiling.scale)} unit=" px" />
+              <input
+                type="range"
+                className="pattern-slider"
+                min={30} max={300} step={5}
+                value={config.tiling.scale}
+                onChange={e => dispatch({ type: 'SET_SCALE', payload: Number(e.target.value) })}
+              />
+              <div style={{ marginBottom: 4 }} />
+            </>
+          )}
         </div>
 
         {/* Figures */}
         <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
           <LotusDivider />
-          <SectionTitle>Figures</SectionTitle>
-
-          {tileTypes.map(tt => {
+          <SectionTitle open={isOpen('figures')} onToggle={() => toggleSection('figures')}>Figures</SectionTitle>
+          {isOpen('figures') && (<>{tileTypes.map(tt => {
             const fig = config.figures[tt.id]
             const figType = fig?.type ?? 'star'
             const angle = fig?.contactAngle ?? 60
@@ -779,90 +864,102 @@ export function Sidebar({
                 onCurvePointActivity={onCurvePointActivity}
               />
             )
-          })}
-          <div style={{ marginBottom: 4 }} />
+          })}<div style={{ marginBottom: 4 }} /></>)}
         </div>
 
         {/* Curves — global options that apply across all figures */}
         <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
           <LotusDivider />
-          <SectionTitle>Curves</SectionTitle>
-
-          <Toggle
-            checked={config.smoothTransitions ?? false}
-            onChange={v => dispatch({ type: 'SET_SMOOTH_TRANSITIONS', payload: v })}
-            label="Smooth transitions"
-          />
-          <div style={{ marginBottom: 4 }} />
+          <SectionTitle open={isOpen('curves')} onToggle={() => toggleSection('curves')}>Curves</SectionTitle>
+          {isOpen('curves') && (
+            <>
+              <Toggle
+                checked={config.smoothTransitions ?? false}
+                onChange={v => dispatch({ type: 'SET_SMOOTH_TRANSITIONS', payload: v })}
+                label="Smooth transitions"
+              />
+              <div style={{ marginBottom: 4 }} />
+            </>
+          )}
         </div>
 
         {/* Line thickness — always visible since strands render regardless of lacing */}
         <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
           <LotusDivider />
-          <SectionTitle>Line Thickness</SectionTitle>
-
-          <FieldLabel label="Stroke width" value={config.lacing.strandWidth.toFixed(1)} unit=" px" />
-          <input
-            type="range"
-            className="pattern-slider"
-            min={1} max={20} step={0.5}
-            value={config.lacing.strandWidth}
-            onChange={e => dispatch({ type: 'SET_LACING', payload: { strandWidth: Number(e.target.value) } })}
-          />
-          <div style={{ marginBottom: 4 }} />
+          <SectionTitle open={isOpen('lineThickness')} onToggle={() => toggleSection('lineThickness')}>Line Thickness</SectionTitle>
+          {isOpen('lineThickness') && (
+            <>
+              <FieldLabel label="Stroke width" value={config.lacing.strandWidth.toFixed(1)} unit=" px" />
+              <input
+                type="range"
+                className="pattern-slider"
+                min={1} max={20} step={0.5}
+                value={config.lacing.strandWidth}
+                onChange={e => dispatch({ type: 'SET_LACING', payload: { strandWidth: Number(e.target.value) } })}
+              />
+              <div style={{ marginBottom: 4 }} />
+            </>
+          )}
         </div>
 
         {/* Lacing */}
         <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
           <LotusDivider />
-          <SectionTitle>Lacing</SectionTitle>
-
-          <Toggle
-            checked={config.lacing.enabled}
-            onChange={v => dispatch({ type: 'SET_LACING', payload: { enabled: v } })}
-            label="Enable strand weaving"
-          />
-
-          {config.lacing.enabled && (
-            <div style={{ marginTop: 4 }}>
-              <FieldLabel label="Gap width" value={config.lacing.gapWidth.toFixed(1)} unit=" px" />
-              <input
-                type="range"
-                className="pattern-slider"
-                min={1} max={12} step={0.5}
-                value={config.lacing.gapWidth}
-                onChange={e => dispatch({ type: 'SET_LACING', payload: { gapWidth: Number(e.target.value) } })}
+          <SectionTitle open={isOpen('lacing')} onToggle={() => toggleSection('lacing')}>Lacing</SectionTitle>
+          {isOpen('lacing') && (
+            <>
+              <Toggle
+                checked={config.lacing.enabled}
+                onChange={v => dispatch({ type: 'SET_LACING', payload: { enabled: v } })}
+                label="Enable strand weaving"
               />
-            </div>
+
+              {config.lacing.enabled && (
+                <div style={{ marginTop: 4 }}>
+                  <FieldLabel label="Gap width" value={config.lacing.gapWidth.toFixed(1)} unit=" px" />
+                  <input
+                    type="range"
+                    className="pattern-slider"
+                    min={1} max={12} step={0.5}
+                    value={config.lacing.gapWidth}
+                    onChange={e => dispatch({ type: 'SET_LACING', payload: { gapWidth: Number(e.target.value) } })}
+                  />
+                </div>
+              )}
+              <div style={{ marginBottom: 4 }} />
+            </>
           )}
-          <div style={{ marginBottom: 4 }} />
         </div>
 
         {/* Display */}
         <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
           <LotusDivider />
-          <SectionTitle>Display</SectionTitle>
-
-          <Toggle
-            checked={showTileLayer}
-            onChange={() => onToggleTileLayer()}
-            label="Show tile grid"
-          />
-          <div style={{ marginBottom: 4 }} />
+          <SectionTitle open={isOpen('display')} onToggle={() => toggleSection('display')}>Display</SectionTitle>
+          {isOpen('display') && (
+            <>
+              <Toggle
+                checked={showTileLayer}
+                onChange={() => onToggleTileLayer()}
+                label="Show tile grid"
+              />
+              <div style={{ marginBottom: 4 }} />
+            </>
+          )}
         </div>
 
         {/* Export */}
         <div style={{ paddingTop: 4, paddingBottom: 28 }}>
           <LotusDivider />
-          <SectionTitle>Export</SectionTitle>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <ExportBtn onClick={onExportSVG}>SVG</ExportBtn>
-            <ExportBtn onClick={onExportPNG}>PNG</ExportBtn>
-            <ExportBtn onClick={onExportUnwovenSVG}>Unwoven SVG</ExportBtn>
-            <ExportBtn onClick={onSaveJSON} secondary>Save JSON</ExportBtn>
-            <ExportBtn onClick={onLoadJSON} secondary>Load JSON</ExportBtn>
-          </div>
+          <SectionTitle open={isOpen('export')} onToggle={() => toggleSection('export')}>Export</SectionTitle>
+          {isOpen('export') && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <ExportBtn onClick={onExportSVG}>SVG</ExportBtn>
+              <ExportBtn onClick={onExportPNG}>PNG</ExportBtn>
+              <ExportBtn onClick={onExportUnwovenSVG}>Unwoven SVG</ExportBtn>
+              <ExportBtn onClick={onSaveJSON} secondary>Save JSON</ExportBtn>
+              <ExportBtn onClick={onLoadJSON} secondary>Load JSON</ExportBtn>
+            </div>
+          )}
         </div>
 
       </div>

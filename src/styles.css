@@ -109,6 +109,12 @@
   flex-shrink: 0;
   border-right: 1px solid var(--border-subtle);
   z-index: 100;
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Desktop collapsed state: slide out of flow so canvas expands */
+.sidebar--desktop-collapsed {
+  margin-left: -320px;
 }
 
 .sidebar::-webkit-scrollbar { width: 4px; }
@@ -169,6 +175,76 @@
 .theme-toggle:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* ── Desktop collapse button (inside sidebar header) ─────── */
+.sidebar-collapse-desktop {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: 30px;
+  height: 30px;
+  background: transparent;
+  border: 1px solid var(--border-accent);
+  color: var(--accent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: border-color 0.2s, background 0.2s, transform 0.2s;
+}
+
+.sidebar-collapse-desktop:hover {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  transform: translateX(-1px);
+}
+
+.sidebar-collapse-desktop:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── Desktop re-open button (fixed, visible when collapsed) */
+.sidebar-reopen-desktop {
+  display: none;
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 200;
+  width: 34px;
+  height: 34px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-accent);
+  color: var(--accent);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.app-layout--sidebar-collapsed .sidebar-reopen-desktop {
+  display: flex;
+  animation: sidebar-reopen-in 0.35s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.sidebar-reopen-desktop:hover {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  transform: translateX(2px);
+}
+
+.sidebar-reopen-desktop:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@keyframes sidebar-reopen-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
 }
 
 /* ── Mobile sidebar toggle ───────────────────────────────── */
@@ -385,6 +461,11 @@
   z-index: 50;
   flex-shrink: 0;
   pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.app-layout--sidebar-collapsed .sandstone-edge-wrapper {
+  opacity: 0;
 }
 
 .sandstone-edge-wrapper > svg {
@@ -433,6 +514,10 @@
     width: 290px;
     min-width: 290px;
   }
+
+  .sidebar--desktop-collapsed {
+    margin-left: -290px;
+  }
 }
 
 /* Mobile: sidebar becomes a slide-in drawer */
@@ -449,6 +534,18 @@
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: none;
     border-right: 1px solid var(--border-subtle);
+    margin-left: 0;
+  }
+
+  /* Desktop collapse state has no meaning on mobile */
+  .sidebar--desktop-collapsed {
+    margin-left: 0;
+  }
+
+  .sidebar-collapse-desktop,
+  .sidebar-reopen-desktop,
+  .app-layout--sidebar-collapsed .sidebar-reopen-desktop {
+    display: none;
   }
 
   .sidebar.sidebar--open {

@@ -939,16 +939,18 @@ export function Sidebar({
           <SectionTitle open={isOpen('display')} onToggle={() => toggleSection('display')}>Display</SectionTitle>
           {isOpen('display') && (
             <>
-              <Toggle
-                checked={showLines}
-                onChange={() => onToggleLines()}
-                label="Show lines"
-              />
-              <Toggle
-                checked={showTileLayer}
-                onChange={() => onToggleTileLayer()}
-                label="Show tile grid"
-              />
+              <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+                <Toggle
+                  checked={showLines}
+                  onChange={() => onToggleLines()}
+                  label="Show lines"
+                />
+                <Toggle
+                  checked={showTileLayer}
+                  onChange={() => onToggleTileLayer()}
+                  label="Show tile grid"
+                />
+              </div>
               <div style={{ marginBottom: 4 }} />
             </>
           )}

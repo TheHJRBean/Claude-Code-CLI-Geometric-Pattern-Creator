@@ -11,6 +11,8 @@ interface Props {
   dispatch: React.Dispatch<Action>
   showTileLayer: boolean
   onToggleTileLayer: () => void
+  showLines: boolean
+  onToggleLines: () => void
   onExportSVG: () => void
   onExportPNG: () => void
   onExportUnwovenSVG: () => void
@@ -653,7 +655,7 @@ function FigureControls({
 /* ── Main Sidebar ────────────────────────────────────────── */
 
 export function Sidebar({
-  config, dispatch, showTileLayer, onToggleTileLayer,
+  config, dispatch, showTileLayer, onToggleTileLayer, showLines, onToggleLines,
   onExportSVG, onExportPNG, onExportUnwovenSVG, onSaveJSON, onLoadJSON,
   cpVisible, onToggleCpVisible, onCurvePointActivity,
   open, onClose,
@@ -937,6 +939,11 @@ export function Sidebar({
           <SectionTitle open={isOpen('display')} onToggle={() => toggleSection('display')}>Display</SectionTitle>
           {isOpen('display') && (
             <>
+              <Toggle
+                checked={showLines}
+                onChange={() => onToggleLines()}
+                label="Show lines"
+              />
               <Toggle
                 checked={showTileLayer}
                 onChange={() => onToggleTileLayer()}

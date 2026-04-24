@@ -9,6 +9,7 @@ import { RotationDial } from './RotationDial'
 interface Props {
   config: PatternConfig
   showTileLayer: boolean
+  showLines: boolean
   svgRef: React.RefObject<SVGSVGElement>
   segmentsRef: React.MutableRefObject<Segment[]>
   cpVisible: Record<string, boolean>
@@ -17,7 +18,7 @@ interface Props {
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, svgRef, segmentsRef, cpVisible, cpActive }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -70,6 +71,7 @@ export function Canvas({ config, showTileLayer, svgRef, segmentsRef, cpVisible, 
         containerWidth={size.width}
         containerHeight={size.height}
         showTileLayer={showTileLayer}
+        showLines={showLines}
         handlers={handlers}
         cpVisible={cpVisible}
         cpActive={cpActive}

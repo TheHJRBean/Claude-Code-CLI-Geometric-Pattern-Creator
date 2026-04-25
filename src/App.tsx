@@ -2,12 +2,26 @@ import { useCallback, useReducer, useRef, useState } from 'react'
 import { Canvas } from './components/Canvas'
 import { Sidebar } from './components/Sidebar'
 import { SandstoneEdge } from './components/SandstoneEdge'
+import { TilingLabMode } from './components/TilingLabMode'
 import { reducer, DEFAULT_CONFIG } from './state/reducer'
 import { exportSVG, exportPNG, exportUnwovenSVG } from './export/exportSVG'
 import { saveJSON, loadJSON } from './export/exportJSON'
 import type { Segment } from './types/geometry'
 
+type AppMode = 'main' | 'lab'
+
 export default function App() {
+  const [mode, setMode] = useState<AppMode>(() => {
+    try { return localStorage.getItem('app-mode') === 'lab' ? 'lab' : 'main' } catch { return 'main' }
+  })
+  const toggleMode = useCallback(() => {
+    setMode(prev => {
+      const next: AppMode = prev === 'main' ? 'lab' : 'main'
+      try { localStorage.setItem('app-mode', next) } catch { /* ignore */ }
+      return next
+    })
+  }, [])
+
   const [config, dispatch] = useReducer(reducer, DEFAULT_CONFIG)
   const [showTileLayer, setShowTileLayer] = useState(false)
   const [showLines, setShowLines] = useState(true)
@@ -35,6 +49,10 @@ export default function App() {
   const setCpActiveIndex = useCallback((tileTypeId: string, index: number) => {
     setCpActive(prev => (prev[tileTypeId] === index ? prev : { ...prev, [tileTypeId]: index }))
   }, [])
+
+  if (mode === 'lab') {
+    return <TilingLabMode mode={mode} onToggleMode={toggleMode} />
+  }
 
   const handleExportSVG = () => { if (svgRef.current) exportSVG(svgRef.current) }
   const handleExportPNG = () => { if (svgRef.current) exportPNG(svgRef.current) }
@@ -91,6 +109,8 @@ export default function App() {
       />
 
       <Sidebar
+        mode={mode}
+        onToggleMode={toggleMode}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         desktopCollapsed={desktopCollapsed}

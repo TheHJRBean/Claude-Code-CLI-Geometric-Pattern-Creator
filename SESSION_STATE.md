@@ -1,27 +1,39 @@
+# SESSION_STATE.md
+
 ## Goal
-Fix alternating direction curves — the alternating mode produces visually inconsistent curve directions within tiles.
+Improve tiling options and add UI customisability. Full plan lives in **`TILING_REVAMP_PLAN.md`** — keep this file as the rolling status anchor only.
 
 ## Plan
-- [done] Read all relevant code and review prior approaches
-- [done] Replace graph 2-coloring with per-polygon edge parity (5978494)
-- [done] Identify CW tangent as wrong reference for alternation normal
-- [done] Switch to radial outward reference for alternating mode
-- [done] Verify with numerical analysis: uniform ±0.707 outwardness for all arms
-- [done] Clean up debug code, type-check
-- [todo] Visual verification in browser, commit
+See `TILING_REVAMP_PLAN.md` for the full step-by-step plan. Per-step progress
+trackers (e.g. `STEP1_PROGRESS.md`) hold finer-grained sub-task state and
+recovery notes. Status snapshot:
+
+- [done] Phase 0 — grill-me interview (Q1–Q6 resolved; all locked decisions captured)
+- [done] Phase 0 — write `TILING_REVAMP_PLAN.md`
+- [in-progress] Step 1 — Tiling Lab scaffold (build green; pending user visual sign-off — see `STEP1_PROGRESS.md`)
+- [todo] Steps 2–11 — see plan
+- [todo] Steps 12–16 (opt)
 
 ## Done
-- Two-part fix:
-  1. **Parity**: Per-polygon edge grouping replaces graph 2-coloring
-  2. **Normal reference**: Outward radial replaces CW tangent for alternating mode
+- Read `RESEARCH-TILING-CONFIGURATIONS.md`, `src/tilings/index.ts`, `src/types/pattern.ts`, scanned `src/components/Sidebar.tsx`
+- Grill-me interview: 6 architectural decisions locked
+- 5 alternative options saved as `/idea` memory entries (mandala cheap path, two mandala layer rules, free arrangement, forgiving overlap)
+- Wrote `TILING_REVAMP_PLAN.md` — concrete simplest→most-complex action plan with visible-feature acceptance per step
+- **Step 1 implementation:** added `mode: 'main' | 'lab'` to `App.tsx`, created `src/components/TilingLabMode.tsx`, added Lab-toggle button to Main sidebar. Build + type-check green. Independent `PatternConfig` per mode so toggling preserves Main state. See `STEP1_PROGRESS.md`.
 
 ## Next
-- Test visually in browser at http://localhost:5173/
+- Visual sign-off in browser: click the **Lab** button (top-left of Main sidebar), confirm blank lab view, return via **← Main**.
+- Then move on to **Step 2 — Port existing tilings into Lab** from `TILING_REVAMP_PLAN.md`.
 
 ## Decisions
-- **CW tangent for same-direction**: Correct — all arms curve CW/CCW uniformly
-- **CW tangent for alternating**: WRONG — flipping a CW-aligned normal by 180° has non-uniform visual effects because arms at different positions have normals at different absolute angles
-- **Radial outward for alternating**: Correct — flipping an outward-aligned normal uniformly toggles between "bulge outward" and "bulge inward" (verified: dot product = ±0.707 for all octagon arms)
+All architectural decisions captured in the "Locked architectural decisions" section of `TILING_REVAMP_PLAN.md`. Recap (one-liner each):
+1. All six original ambitions in scope, presets first, editor last.
+2. Mandala = layered composition.
+3. Mandala layer rule = strict divisor chain.
+4. Mix-and-combine = region-stitching, simplest-case-only in v1.
+5. Boundary = (b) strand match primary, (a) hard frame as fallback toggle.
+6. Pair handling = hybrid filter: legal pairs by default, "show all" unlocks with auto-fallback.
+7. Lives in a new "Tiling Lab" mode with stripped-down chrome.
 
 ## Blockers
-- None
+None.

@@ -7,6 +7,8 @@ import { computeSnapPoints, snapToNearest } from '../pic/snapPoints'
 import { useTheme } from '../theme/ThemeContext'
 
 interface Props {
+  mode: 'main' | 'lab'
+  onToggleMode: () => void
   config: PatternConfig
   dispatch: React.Dispatch<Action>
   showTileLayer: boolean
@@ -655,6 +657,7 @@ function FigureControls({
 /* ── Main Sidebar ────────────────────────────────────────── */
 
 export function Sidebar({
+  mode, onToggleMode,
   config, dispatch, showTileLayer, onToggleTileLayer, showLines, onToggleLines,
   onExportSVG, onExportPNG, onExportUnwovenSVG, onSaveJSON, onLoadJSON,
   cpVisible, onToggleCpVisible, onCurvePointActivity,
@@ -721,6 +724,31 @@ export function Sidebar({
           title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
         >
           {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+        </button>
+
+        {/* Mode toggle (Main ↔ Lab) */}
+        <button
+          onClick={onToggleMode}
+          aria-label={mode === 'main' ? 'Open Tiling Lab' : 'Return to Main mode'}
+          title={mode === 'main' ? 'Open Tiling Lab' : 'Return to Main mode'}
+          style={{
+            position: 'absolute',
+            top: 12,
+            left: 12,
+            background: mode === 'lab' ? 'var(--accent-bg)' : 'transparent',
+            color: 'var(--accent)',
+            border: `1px solid ${mode === 'lab' ? 'var(--accent)' : 'var(--border-accent)'}`,
+            padding: '4px 9px',
+            fontFamily: "'Cinzel', Georgia, serif",
+            fontSize: 9,
+            fontWeight: 600,
+            letterSpacing: '0.14em',
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+            zIndex: 5,
+          }}
+        >
+          {mode === 'main' ? 'Lab' : '← Main'}
         </button>
 
         {/* Art Deco fan motif */}

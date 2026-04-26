@@ -330,6 +330,80 @@ contact angle / edge-vertex behaviour, and export — all from Lab.
 
 ---
 
+### Step 11.5 — Promote a custom Lab tessellation into Main mode [M]
+**Visible result:** in the Tessellation Lab's sidebar, a "**Send to Main**"
+button (and matching "Save to library" affordance) appears once the user
+has a non-empty tessellation selected. Clicking it stores the current
+tessellation under a user-supplied name in a "My tessellations" library.
+On returning to Main mode, the tessellation dropdown gains a new
+**"Custom"** group at the top listing those saved entries; selecting one
+loads it into the Main `PatternConfig` exactly like a built-in
+tessellation, with all of Main's strand controls (lacing, curves, edge /
+vertex strands, exports) immediately available.
+
+This is the bridge that makes the Lab's tessellation work pay off in
+Main: anything the user composes in the Lab — a layered mandala, a
+region-stitched composition, a custom 16-fold rosette — becomes a
+first-class citizen in Main without copy-pasting JSON.
+
+- **Persistence layer.** New module `state/customTessellations.ts`:
+  ```ts
+  export interface SavedTessellation {
+    id: string                // uuid
+    name: string              // user-supplied
+    createdAt: number         // Date.now()
+    config: PatternConfig     // full snapshot incl. tiling + figures
+    sourceCategory:
+      | 'archimedean' | 'rosette-patch' | 'mandala' | 'composition'
+  }
+  ```
+  Stored in localStorage under `custom-tessellations-v1`. Schema-versioned
+  so future migrations are safe.
+- **Lab → Main flow.**
+  1. Lab "Save to library" button: prompts for a name (pre-filled with
+     the source tessellation's label + suffix), writes to localStorage.
+  2. Optional "Send to Main" shortcut: saves AND switches to Main mode
+     with the new tessellation pre-selected.
+- **Main mode integration.**
+  - `tilings/index.ts` exports a runtime-merged registry: built-in
+    `TILINGS` + saved entries from localStorage.
+  - `SYMMETRY_GROUPS` gets a synthetic group `{ fold: 0, label: 'Custom',
+    tilings: [savedIds] }` rendered first when non-empty.
+  - Selecting a custom entry dispatches `LOAD_CONFIG` (existing reducer
+    case) with the saved `config`, so Main's reducer / Sidebar / Canvas
+    work unchanged.
+- **Library management UI** (small, in both Main and Lab tessellation
+  pickers):
+  - Rename, delete, duplicate.
+  - Show source category + creation date as secondary text.
+- **Edge cases.**
+  - A saved composition or mandala references engine modules that must
+    exist at load time. If a saved entry references a category not yet
+    implemented (e.g. `'composition'` saved from a future build, opened
+    in an older one), show a tooltip and disable selection rather than
+    crash.
+  - Saving from Main mode is a v2 concern — for v1, library writes only
+    happen from Lab.
+- **Export/import compatibility.** Reuse the existing JSON
+  export/import (`saveJSON` / `loadJSON`) so a saved tessellation can be
+  shared as a file too. The library is just a localStorage cache; the
+  JSON is canonical.
+
+**Acceptance:**
+1. From Lab, build any non-trivial tessellation (e.g. a 16+8+4 mandala
+   from Step 5 or a 16-in-4.8.8 composition from Step 7), click "Save to
+   library", give it a name.
+2. Switch to Main mode. The tessellation dropdown shows a new "Custom"
+   group at the top with that entry.
+3. Selecting it renders the saved tessellation in Main with full strand
+   controls available — and Main mode's existing patterns are preserved
+   (no clobbering).
+4. Reload the browser; saved entries persist.
+5. Delete the entry from the library UI; it disappears from both Lab and
+   Main dropdowns.
+
+---
+
 ## Optional / Future steps (parked)
 
 These appear after Step 11. Reorder by demand at that point.
@@ -376,3 +450,8 @@ curves, etc.
   preserved where the work was tessellation-first; the old Step 4
   (Bonner-family selector) and Step 5 (two-point figure) collapsed into
   Step 11 — strand-only work, deferred until tessellation engine is solid.
+- **2026-04-26** — Added **Step 11.5: Promote a custom Lab tessellation
+  into Main mode**. Bridges the Lab's tessellation work into Main's
+  strand workspace ("tiling lab" in user terminology = Main mode) via a
+  localStorage-backed library + synthetic "Custom" group in the Main
+  tessellation dropdown.

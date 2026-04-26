@@ -380,13 +380,13 @@ function FigureControls({
         <Toggle
           checked={autoLen}
           onChange={v => dispatch({ type: 'SET_AUTO_LINE_LENGTH', payload: { tileTypeId, auto: v } })}
-          label="Auto line length"
+          label="Auto strand length"
         />
       </div>
       {!autoLen && (
         <>
           <FieldLabel
-            label="Line length"
+            label="Strand length"
             value={(lineLength * 100).toFixed(0)}
             unit={snappedTo !== undefined ? '% (snapped)' : '%'}
           />
@@ -434,17 +434,17 @@ function FigureControls({
         </>
       )}
 
-      {/* Edge / Vertex Lines */}
+      {/* Edge / Vertex strands */}
       <div style={{ marginTop: 12, display: 'flex', gap: 16 }}>
         <Toggle
           checked={edgeEnabled}
           onChange={v => dispatch({ type: 'SET_EDGE_LINES_ENABLED', payload: { tileTypeId, enabled: v } })}
-          label="Edge lines"
+          label="Edge strands"
         />
         <Toggle
           checked={vertexEnabled}
           onChange={v => dispatch({ type: 'SET_VERTEX_LINES_ENABLED', payload: { tileTypeId, enabled: v } })}
-          label="Vertex lines"
+          label="Vertex strands"
         />
       </div>
 
@@ -470,12 +470,12 @@ function FigureControls({
                 <Toggle
                   checked={vertexAutoLen}
                   onChange={v => dispatch({ type: 'SET_VERTEX_AUTO_LINE_LENGTH', payload: { tileTypeId, auto: v } })}
-                  label="Auto vertex length"
+                  label="Auto vertex strand length"
                 />
               </div>
               {!vertexAutoLen && (
                 <>
-                  <FieldLabel label="Vertex length" value={(vertexLineLength * 100).toFixed(0)} unit="%" />
+                  <FieldLabel label="Vertex strand length" value={(vertexLineLength * 100).toFixed(0)} unit="%" />
                   <input
                     type="range"
                     className="pattern-slider"
@@ -495,7 +495,7 @@ function FigureControls({
         <Toggle
           checked={curveEnabled}
           onChange={v => dispatch({ type: 'SET_CURVE_ENABLED', payload: { tileTypeId, enabled: v } })}
-          label="Curve lines"
+          label="Curve strands"
         />
       </div>
 
@@ -729,8 +729,8 @@ export function Sidebar({
         {/* Mode toggle (Main ↔ Lab) — sits to the right of the collapse button (which is at left:12, w:30) */}
         <button
           onClick={onToggleMode}
-          aria-label={mode === 'main' ? 'Open Tiling Lab' : 'Return to Main mode'}
-          title={mode === 'main' ? 'Open Tiling Lab' : 'Return to Main mode'}
+          aria-label={mode === 'main' ? 'Open Tessellation Lab' : 'Return to Main mode'}
+          title={mode === 'main' ? 'Open Tessellation Lab' : 'Return to Main mode'}
           style={{
             position: 'absolute',
             top: 14,
@@ -810,9 +810,9 @@ export function Sidebar({
       {/* ── Sections ────────────────────────────────────── */}
       <div className="sidebar-sections">
 
-        {/* Tiling */}
+        {/* Tessellation */}
         <div style={{ paddingTop: 20, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
-          <SectionTitle open={isOpen('tiling')} onToggle={() => toggleSection('tiling')}>Tiling</SectionTitle>
+          <SectionTitle open={isOpen('tiling')} onToggle={() => toggleSection('tiling')}>Tessellation</SectionTitle>
           {isOpen('tiling') && (
             <>
               <FieldLabel label="Type" />
@@ -917,10 +917,10 @@ export function Sidebar({
         {/* Line thickness — always visible since strands render regardless of lacing */}
         <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
           <LotusDivider />
-          <SectionTitle open={isOpen('lineThickness')} onToggle={() => toggleSection('lineThickness')}>Line Thickness</SectionTitle>
+          <SectionTitle open={isOpen('lineThickness')} onToggle={() => toggleSection('lineThickness')}>Strand Thickness</SectionTitle>
           {isOpen('lineThickness') && (
             <>
-              <FieldLabel label="Stroke width" value={config.lacing.strandWidth.toFixed(1)} unit=" px" />
+              <FieldLabel label="Strand width" value={config.lacing.strandWidth.toFixed(1)} unit=" px" />
               <input
                 type="range"
                 className="pattern-slider"
@@ -972,12 +972,12 @@ export function Sidebar({
                 <Toggle
                   checked={showLines}
                   onChange={() => onToggleLines()}
-                  label="Show lines"
+                  label="Show strands"
                 />
                 <Toggle
                   checked={showTileLayer}
                   onChange={() => onToggleTileLayer()}
-                  label="Show tile grid"
+                  label="Show tessellation"
                 />
               </div>
               <div style={{ marginBottom: 4 }} />

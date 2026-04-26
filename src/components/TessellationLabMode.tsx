@@ -8,11 +8,9 @@ import { SandstoneEdge } from './SandstoneEdge'
 import { useTheme } from '../theme/ThemeContext'
 
 /**
- * Tiling Lab — stripped-down mode for prototyping new tiling work.
- * Step 2: dropdown lists all existing tilings (grouped by fold-symmetry).
- * Selecting one applies that tiling's defaultConfig and renders it via the
- * standard PIC pipeline. Overlays (lacing, curve handles, tile grid) are off
- * — Lab shows only the raw `Segment[]` output.
+ * Tessellation Lab — stripped-down mode for prototyping new tessellations.
+ * Lab focus is the polygon tessellation itself; strands (PIC contact lines)
+ * are an optional overlay, off by default.
  */
 
 const LAB_DEFAULT_CONFIG: PatternConfig = {
@@ -56,18 +54,20 @@ function MoonIcon() {
   )
 }
 
-export function TilingLabMode({ mode, onToggleMode }: Props) {
+export function TessellationLabMode({ mode, onToggleMode }: Props) {
   const { theme, toggleTheme } = useTheme()
   const [config, dispatch] = useReducer(reducer, LAB_DEFAULT_CONFIG)
   const svgRef = useRef<SVGSVGElement>(null)
   const segmentsRef = useRef<Segment[]>([])
-  // Lab v1 keeps overlays off — no tile-layer toggle, no curve control points.
+  // Lab focuses on the tessellation itself. Strands are an optional overlay,
+  // off by default.
+  const [showStrands, setShowStrands] = useState(false)
   const [cpVisible] = useState<Record<string, boolean>>({})
   const [cpActive] = useState<Record<string, number>>({})
 
   const def = config.tiling.type ? TILINGS[config.tiling.type] : undefined
 
-  const resetTilingDefaults = () => {
+  const resetTessellationDefaults = () => {
     if (config.tiling.type) {
       dispatch({ type: 'SET_TILING_TYPE', payload: config.tiling.type })
     }
@@ -101,7 +101,7 @@ export function TilingLabMode({ mode, onToggleMode }: Props) {
             marginTop: 4,
             marginBottom: 5,
           }}>
-            Tiling Lab
+            Tessellation Lab
           </h1>
 
           <p style={{
@@ -119,14 +119,14 @@ export function TilingLabMode({ mode, onToggleMode }: Props) {
         {/* ── Sections ────────────────────────────────────── */}
         <div className="sidebar-sections">
           <div style={{ paddingTop: 20 }}>
-            <SectionTitle>Tiling</SectionTitle>
+            <SectionTitle>Tessellation</SectionTitle>
             <FieldLabel label="Type" />
             <select
               className="pattern-select"
               value={config.tiling.type}
               onChange={e => dispatch({ type: 'SET_TILING_TYPE', payload: e.target.value })}
             >
-              <option value="">— select a tiling —</option>
+              <option value="">— select a tessellation —</option>
               {SYMMETRY_GROUPS.map(group => (
                 <optgroup key={group.fold} label={`${group.label} Symmetry`}>
                   {group.tilings.map(name => (
@@ -150,7 +150,7 @@ export function TilingLabMode({ mode, onToggleMode }: Props) {
                 />
 
                 <button
-                  onClick={resetTilingDefaults}
+                  onClick={resetTessellationDefaults}
                   style={{
                     marginTop: 14,
                     width: '100%',
@@ -201,6 +201,29 @@ export function TilingLabMode({ mode, onToggleMode }: Props) {
               </>
             )}
           </div>
+
+          {/* Display — strand overlay toggle */}
+          <div style={{ paddingTop: 22 }}>
+            <SectionTitle>Display</SectionTitle>
+            <label style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              cursor: 'pointer',
+              fontFamily: "'EB Garamond', Georgia, serif",
+              fontSize: 13.5,
+              color: showStrands ? 'var(--text)' : 'var(--text-muted)',
+              transition: 'color 0.15s',
+            }}>
+              <input
+                type="checkbox"
+                className="pattern-checkbox"
+                checked={showStrands}
+                onChange={e => setShowStrands(e.target.checked)}
+              />
+              Show strands
+            </label>
+          </div>
         </div>
       </div>
 
@@ -209,8 +232,8 @@ export function TilingLabMode({ mode, onToggleMode }: Props) {
       </div>
       <Canvas
         config={config}
-        showTileLayer={false}
-        showLines={true}
+        showTileLayer={true}
+        showLines={showStrands}
         svgRef={svgRef}
         segmentsRef={segmentsRef}
         cpVisible={cpVisible}
@@ -227,8 +250,8 @@ function ModeToggleButton({ mode, onToggleMode }: { mode: 'main' | 'lab'; onTogg
   return (
     <button
       onClick={onToggleMode}
-      aria-label={inMain ? 'Open Tiling Lab' : 'Return to Main mode'}
-      title={inMain ? 'Open Tiling Lab' : 'Return to Main mode'}
+      aria-label={inMain ? 'Open Tessellation Lab' : 'Return to Main mode'}
+      title={inMain ? 'Open Tessellation Lab' : 'Return to Main mode'}
       style={{
         position: 'absolute',
         top: 14,

@@ -2,7 +2,7 @@ import { useCallback, useReducer, useRef, useState } from 'react'
 import { Canvas } from './components/Canvas'
 import { Sidebar } from './components/Sidebar'
 import { SandstoneEdge } from './components/SandstoneEdge'
-import { TilingLabMode } from './components/TilingLabMode'
+import { TessellationLabMode } from './components/TessellationLabMode'
 import { reducer, DEFAULT_CONFIG } from './state/reducer'
 import { exportSVG, exportPNG, exportUnwovenSVG } from './export/exportSVG'
 import { saveJSON, loadJSON } from './export/exportJSON'
@@ -51,7 +51,7 @@ export default function App() {
   }, [])
 
   if (mode === 'lab') {
-    return <TilingLabMode mode={mode} onToggleMode={toggleMode} />
+    return <TessellationLabMode mode={mode} onToggleMode={toggleMode} />
   }
 
   const handleExportSVG = () => { if (svgRef.current) exportSVG(svgRef.current) }

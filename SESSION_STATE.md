@@ -12,19 +12,26 @@ UI strings now use these. Internal code still refers to "tiling" / "lineLength"
 in some identifiers; those are deferred refactors and not user-visible.
 
 ## Plan
-See `TESSELLATION_REVAMP_PLAN.md` for the full step-by-step plan. Per-step
+See `TESSELLATION_REVAMP_PLAN.md` (v3) for the full step-by-step plan. Per-step
 progress trackers (e.g. `STEP2_PROGRESS.md`) hold finer-grained sub-task state.
 Status snapshot:
 
-- [done] Phase 0 — grill-me interview, locked architectural decisions
-- [done] Phase 0 — first draft of plan (under wrong terminology)
+- [done] Phase 0 — grill-me interview, architectural decisions, terminology lock, Option-B restructure
 - [done] Step 1 — Tessellation Lab scaffold
-- [done] Step 2 — Port existing tessellations into Lab (dropdown, scale, reset, info, "Show strands" toggle)
-- [done] Re-scope — terminology corrected, plan rewritten end-to-end as `TESSELLATION_REVAMP_PLAN.md`, UI strings updated, Lab now defaults to tessellation-first rendering
-- [todo] Step 3 — Hexadecagonal-rosette tessellation (16-fold)
+- [done] Step 2 — Port existing tessellations into Lab
+- [todo] Step 3 — Hexadecagonal-rosette tessellation (16-fold)  ← NEXT
 - [todo] Step 4 — Tessellation preset catalogue
-- [todo] Steps 5–11 — see plan
-- [todo] Steps 12–16 (opt)
+- [todo] Step 5 — Layered mandala engine v1 (polygons only) · MQ-1 fires here
+- [todo] Step 6 — Mandala preset catalogue
+- [todo] Step 7 — Region-stitching v1, hard-frame · CG-1 + FS-1 fire here
+- [todo] Step 8 — Composition preset catalogue (hard-frame)
+- [todo] Step 9 — Lab polish
+- [todo] Step 10 — Lift `FigureControls` into shared component
+- [todo] Step 11 — Strand controls in Lab (archimedean / rosette-patch) · LX-1 + ID-1 fire here
+- [todo] Step 12 — Mandala strand renderer · MS-1 fires here
+- [todo] Step 13 — Composition strand renderer + match-up · CS-1 gates this step
+- [todo] Step 14 — Lab-local library (save / rename / delete / duplicate)
+- [todo] Steps 15–18 (opt)
 
 ## Done
 - Grill-me interview: architectural decisions locked
@@ -55,12 +62,14 @@ All architectural decisions captured in the "Locked architectural decisions"
 section of `TESSELLATION_REVAMP_PLAN.md`. Recap (one-liner each):
 1. All six original ambitions in scope, presets first, editor last.
 2. Mandala = layered tessellation composition.
-3. Mandala layer rule = strict divisor chain.
+3. Mandala layer rule = strict divisor chain (conservative; revisit only if MQ-1 forces it).
 4. Mix-and-combine = region-stitching, simplest-case-only in v1.
 5. Boundary = (b) strand match primary, (a) hard frame as fallback toggle.
 6. Pair handling = hybrid filter: legal pairs by default, "show all" unlocks with auto-fallback.
-7. Lab is a separate mode with stripped-down chrome.
-8. Tessellation-first rendering in Lab; strands are an optional overlay.
+7. Engine work first, editor last (Step 17).
+8. Lab is a separate mode; chrome grows step-by-step as engines stabilise.
+9. Tessellation-first rendering in Lab; strands are an optional overlay.
+10. Lab-resident custom tessellations (Option B). No Main-mode bridge.
 
 ## Blockers
 None.

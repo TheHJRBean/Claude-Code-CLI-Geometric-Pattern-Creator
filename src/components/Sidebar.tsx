@@ -726,19 +726,20 @@ export function Sidebar({
           {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
         </button>
 
-        {/* Mode toggle (Main ↔ Lab) */}
+        {/* Mode toggle (Main ↔ Lab) — sits to the right of the collapse button (which is at left:12, w:30) */}
         <button
           onClick={onToggleMode}
           aria-label={mode === 'main' ? 'Open Tiling Lab' : 'Return to Main mode'}
           title={mode === 'main' ? 'Open Tiling Lab' : 'Return to Main mode'}
           style={{
             position: 'absolute',
-            top: 12,
-            left: 12,
+            top: 14,
+            left: 50,
+            height: 26,
             background: mode === 'lab' ? 'var(--accent-bg)' : 'transparent',
             color: 'var(--accent)',
             border: `1px solid ${mode === 'lab' ? 'var(--accent)' : 'var(--border-accent)'}`,
-            padding: '4px 9px',
+            padding: '0 10px',
             fontFamily: "'Cinzel', Georgia, serif",
             fontSize: 9,
             fontWeight: 600,

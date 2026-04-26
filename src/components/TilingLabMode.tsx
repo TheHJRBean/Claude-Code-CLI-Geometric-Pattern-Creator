@@ -2,15 +2,17 @@ import { useReducer, useRef, useState } from 'react'
 import type { Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
 import { reducer } from '../state/reducer'
+import { TILINGS, SYMMETRY_GROUPS } from '../tilings/index'
 import { Canvas } from './Canvas'
 import { SandstoneEdge } from './SandstoneEdge'
 import { useTheme } from '../theme/ThemeContext'
 
 /**
  * Tiling Lab — stripped-down mode for prototyping new tiling work.
- * v1 (Step 1): mode toggles in/out, blank canvas, single empty Tiling dropdown.
- * The Lab keeps its own independent PatternConfig instance so toggling between
- * modes never disturbs the Main pattern.
+ * Step 2: dropdown lists all existing tilings (grouped by fold-symmetry).
+ * Selecting one applies that tiling's defaultConfig and renders it via the
+ * standard PIC pipeline. Overlays (lacing, curve handles, tile grid) are off
+ * — Lab shows only the raw `Segment[]` output.
  */
 
 const LAB_DEFAULT_CONFIG: PatternConfig = {
@@ -56,12 +58,20 @@ function MoonIcon() {
 
 export function TilingLabMode({ mode, onToggleMode }: Props) {
   const { theme, toggleTheme } = useTheme()
-  const [config] = useReducer(reducer, LAB_DEFAULT_CONFIG)
+  const [config, dispatch] = useReducer(reducer, LAB_DEFAULT_CONFIG)
   const svgRef = useRef<SVGSVGElement>(null)
   const segmentsRef = useRef<Segment[]>([])
   // Lab v1 keeps overlays off — no tile-layer toggle, no curve control points.
   const [cpVisible] = useState<Record<string, boolean>>({})
   const [cpActive] = useState<Record<string, number>>({})
+
+  const def = config.tiling.type ? TILINGS[config.tiling.type] : undefined
+
+  const resetTilingDefaults = () => {
+    if (config.tiling.type) {
+      dispatch({ type: 'SET_TILING_TYPE', payload: config.tiling.type })
+    }
+  }
 
   return (
     <div className="app-layout">
@@ -113,12 +123,83 @@ export function TilingLabMode({ mode, onToggleMode }: Props) {
             <FieldLabel label="Type" />
             <select
               className="pattern-select"
-              value=""
-              onChange={() => { /* wired up in Step 2 */ }}
-              disabled
+              value={config.tiling.type}
+              onChange={e => dispatch({ type: 'SET_TILING_TYPE', payload: e.target.value })}
             >
               <option value="">— select a tiling —</option>
+              {SYMMETRY_GROUPS.map(group => (
+                <optgroup key={group.fold} label={`${group.label} Symmetry`}>
+                  {group.tilings.map(name => (
+                    <option key={name} value={name}>{TILINGS[name].label}</option>
+                  ))}
+                </optgroup>
+              ))}
             </select>
+
+            {def && (
+              <>
+                <FieldLabel label="Scale" value={String(config.tiling.scale)} unit=" px" />
+                <input
+                  type="range"
+                  className="pattern-slider"
+                  min={30}
+                  max={300}
+                  step={5}
+                  value={config.tiling.scale}
+                  onChange={e => dispatch({ type: 'SET_SCALE', payload: Number(e.target.value) })}
+                />
+
+                <button
+                  onClick={resetTilingDefaults}
+                  style={{
+                    marginTop: 14,
+                    width: '100%',
+                    padding: '7px 10px',
+                    background: 'transparent',
+                    color: 'var(--accent)',
+                    border: '1px solid var(--border-accent)',
+                    fontFamily: "'Cinzel', Georgia, serif",
+                    fontSize: 9,
+                    fontWeight: 600,
+                    letterSpacing: '0.14em',
+                    textTransform: 'uppercase',
+                    cursor: 'pointer',
+                    transition: 'border-color 0.15s, background 0.15s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)' }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-accent)' }}
+                >
+                  Reset to default angle
+                </button>
+
+                <div style={{
+                  marginTop: 18,
+                  padding: '10px 12px',
+                  border: '1px solid var(--border-subtle)',
+                  background: 'var(--bg-surface, transparent)',
+                  fontFamily: "'EB Garamond', Georgia, serif",
+                  fontSize: 12.5,
+                  color: 'var(--text-muted)',
+                  letterSpacing: '0.02em',
+                  lineHeight: 1.55,
+                }}>
+                  <div style={{
+                    fontFamily: "'Cinzel', Georgia, serif",
+                    fontSize: 9,
+                    fontWeight: 600,
+                    color: 'var(--accent)',
+                    letterSpacing: '0.18em',
+                    textTransform: 'uppercase',
+                    marginBottom: 6,
+                  }}>
+                    Info
+                  </div>
+                  <div><strong>Vertex&nbsp;config:</strong> {def.vertexConfig.join('.')}</div>
+                  <div><strong>Fold:</strong> {def.foldSymmetry}</div>
+                  <div><strong>Category:</strong> {def.category}</div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -150,12 +231,13 @@ function ModeToggleButton({ mode, onToggleMode }: { mode: 'main' | 'lab'; onTogg
       title={inMain ? 'Open Tiling Lab' : 'Return to Main mode'}
       style={{
         position: 'absolute',
-        top: 12,
+        top: 14,
         left: 12,
+        height: 26,
         background: inMain ? 'transparent' : 'var(--accent-bg)',
         color: 'var(--accent)',
         border: `1px solid ${inMain ? 'var(--border-accent)' : 'var(--accent)'}`,
-        padding: '4px 9px',
+        padding: '0 10px',
         fontFamily: "'Cinzel', Georgia, serif",
         fontSize: 9,
         fontWeight: 600,
@@ -193,7 +275,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   )
 }
 
-function FieldLabel({ label }: { label: string }) {
+function FieldLabel({ label, value, unit }: { label: string; value?: string; unit?: string }) {
   return (
     <div style={{
       display: 'flex',
@@ -210,6 +292,16 @@ function FieldLabel({ label }: { label: string }) {
       }}>
         {label}
       </span>
+      {value !== undefined && (
+        <span style={{
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 11,
+          color: 'var(--accent)',
+          letterSpacing: '0.04em',
+        }}>
+          {value}{unit}
+        </span>
+      )}
     </div>
   )
 }

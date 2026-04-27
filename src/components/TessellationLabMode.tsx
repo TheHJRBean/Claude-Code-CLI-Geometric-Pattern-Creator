@@ -4,6 +4,7 @@ import type { PatternConfig } from '../types/pattern'
 import { reducer } from '../state/reducer'
 import { TILINGS, SYMMETRY_GROUPS } from '../tilings/index'
 import { LAB_PRESETS, LAB_PRESETS_BY_ID } from '../state/labPresets'
+import { ALLOWED_OUTER_FOLDS, DEFAULT_MANDALA_CONFIG, allowedInnerFolds } from '../tilings/mandala'
 import { Canvas } from './Canvas'
 import { SandstoneEdge } from './SandstoneEdge'
 import { useTheme } from '../theme/ThemeContext'
@@ -222,13 +223,156 @@ export function TessellationLabMode({ mode, onToggleMode }: Props) {
                   }}>
                     Info
                   </div>
-                  <div><strong>Vertex&nbsp;config:</strong> {def.vertexConfig.join('.')}</div>
-                  <div><strong>Fold:</strong> {def.foldSymmetry}</div>
-                  <div><strong>Category:</strong> {def.category}</div>
+                  {def.category === 'mandala' ? (
+                    <>
+                      <div><strong>Outer fold:</strong> {(config.mandala ?? DEFAULT_MANDALA_CONFIG).outerFold}</div>
+                      <div><strong>Inner layers:</strong> {(config.mandala ?? DEFAULT_MANDALA_CONFIG).layers.length}</div>
+                      <div><strong>Category:</strong> {def.category}</div>
+                    </>
+                  ) : (
+                    <>
+                      <div><strong>Vertex&nbsp;config:</strong> {def.vertexConfig.join('.')}</div>
+                      <div><strong>Fold:</strong> {def.foldSymmetry}</div>
+                      <div><strong>Category:</strong> {def.category}</div>
+                    </>
+                  )}
                 </div>
               </>
             )}
           </div>
+
+          {/* Layers — only visible when a layered mandala is selected */}
+          {def?.category === 'mandala' && (() => {
+            const m = config.mandala ?? DEFAULT_MANDALA_CONFIG
+            return (
+              <div style={{ paddingTop: 22 }}>
+                <SectionTitle>Layers</SectionTitle>
+
+                <FieldLabel label="Outer fold" />
+                <select
+                  className="pattern-select"
+                  value={m.outerFold}
+                  onChange={e => dispatch({ type: 'SET_MANDALA_OUTER_FOLD', payload: Number(e.target.value) })}
+                >
+                  {ALLOWED_OUTER_FOLDS.map(f => (
+                    <option key={f} value={f}>{f}-fold</option>
+                  ))}
+                </select>
+
+                {m.layers.map((layer, i) => {
+                  const opts = allowedInnerFolds(m.outerFold)
+                  return (
+                    <div key={i} style={{
+                      marginTop: 14,
+                      padding: '10px 12px',
+                      border: '1px solid var(--border-subtle)',
+                    }}>
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: 6,
+                      }}>
+                        <span style={{
+                          fontFamily: "'Cinzel', Georgia, serif",
+                          fontSize: 9,
+                          fontWeight: 600,
+                          color: 'var(--accent)',
+                          letterSpacing: '0.18em',
+                          textTransform: 'uppercase',
+                        }}>
+                          Layer {i + 1}
+                        </span>
+                        <button
+                          onClick={() => dispatch({ type: 'REMOVE_MANDALA_LAYER', payload: { index: i } })}
+                          aria-label={`Remove layer ${i + 1}`}
+                          style={{
+                            background: 'transparent',
+                            color: 'var(--text-muted)',
+                            border: 'none',
+                            fontSize: 14,
+                            cursor: 'pointer',
+                            padding: '0 4px',
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                      <FieldLabel label="Fold" />
+                      <select
+                        className="pattern-select"
+                        value={layer.fold}
+                        onChange={e => dispatch({
+                          type: 'SET_MANDALA_LAYER_FOLD',
+                          payload: { index: i, fold: Number(e.target.value) },
+                        })}
+                      >
+                        {opts.map(f => (
+                          <option key={f} value={f}>{f}-fold</option>
+                        ))}
+                      </select>
+                      <FieldLabel label="Scale" value={layer.scale.toFixed(2)} />
+                      <input
+                        type="range"
+                        className="pattern-slider"
+                        min={0.05}
+                        max={1}
+                        step={0.01}
+                        value={layer.scale}
+                        onChange={e => dispatch({
+                          type: 'SET_MANDALA_LAYER_SCALE',
+                          payload: { index: i, scale: Number(e.target.value) },
+                        })}
+                      />
+                    </div>
+                  )
+                })}
+
+                <button
+                  disabled={allowedInnerFolds(m.outerFold).length === 0 || m.layers.length >= 4}
+                  onClick={() => {
+                    const opts = allowedInnerFolds(m.outerFold)
+                    if (opts.length === 0) return
+                    // Default new layer: largest divisor not already used
+                    const used = new Set(m.layers.map(l => l.fold))
+                    const fold = [...opts].reverse().find(f => !used.has(f)) ?? opts[opts.length - 1]
+                    dispatch({
+                      type: 'ADD_MANDALA_LAYER',
+                      payload: { fold, scale: 0.5 },
+                    })
+                  }}
+                  style={{
+                    marginTop: 14,
+                    width: '100%',
+                    padding: '7px 10px',
+                    background: 'transparent',
+                    color: 'var(--accent)',
+                    border: '1px solid var(--border-accent)',
+                    fontFamily: "'Cinzel', Georgia, serif",
+                    fontSize: 9,
+                    fontWeight: 600,
+                    letterSpacing: '0.14em',
+                    textTransform: 'uppercase',
+                    cursor: 'pointer',
+                  }}
+                >
+                  + Add layer
+                </button>
+
+                <p style={{
+                  marginTop: 12,
+                  fontFamily: "'EB Garamond', Georgia, serif",
+                  fontStyle: 'italic',
+                  fontSize: 11.5,
+                  color: 'var(--text-muted)',
+                  lineHeight: 1.4,
+                }}>
+                  Inner folds restricted to divisors of the outer fold (strict-divisor rule).
+                  Strand rendering for mandalas arrives in Step 12.
+                </p>
+              </div>
+            )
+          })()}
 
           {/* Display — strand overlay toggle */}
           <div style={{ paddingTop: 22 }}>

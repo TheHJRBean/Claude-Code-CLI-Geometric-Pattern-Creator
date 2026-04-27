@@ -1,7 +1,8 @@
-import type { CurvePoint, FigureConfig, PatternConfig } from '../types/pattern'
+import type { CurvePoint, FigureConfig, PatternConfig, MandalaConfig } from '../types/pattern'
 import type { Action } from './actions'
 import { TILINGS } from '../tilings/index'
 import { DEFAULT_CONFIG } from './defaults'
+import { DEFAULT_MANDALA_CONFIG, isLayerFoldValid } from '../tilings/mandala'
 
 const FALLBACK_FIGURE: FigureConfig = { type: 'star', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
 
@@ -26,11 +27,15 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     case 'SET_TILING_TYPE': {
       const def = TILINGS[action.payload]
       if (!def) return state
-      return {
+      const next: PatternConfig = {
         ...state,
         tiling: { ...state.tiling, type: action.payload },
         figures: { ...state.figures, ...(def.defaultConfig.figures ?? {}) },
       }
+      if (def.category === 'mandala' && !next.mandala) {
+        next.mandala = DEFAULT_MANDALA_CONFIG
+      }
+      return next
     }
     case 'SET_SCALE':
       return { ...state, tiling: { ...state.tiling, scale: action.payload } }
@@ -121,6 +126,40 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     }
     case 'SET_SMOOTH_TRANSITIONS':
       return { ...state, smoothTransitions: action.payload }
+    case 'SET_MANDALA_CONFIG':
+      return { ...state, mandala: action.payload }
+    case 'SET_MANDALA_OUTER_FOLD': {
+      const next = action.payload
+      const current: MandalaConfig = state.mandala ?? DEFAULT_MANDALA_CONFIG
+      // Drop layers that no longer satisfy strict-divisor under the new outer
+      const layers = current.layers.filter(l => isLayerFoldValid(next, l.fold))
+      return { ...state, mandala: { outerFold: next, layers } }
+    }
+    case 'ADD_MANDALA_LAYER': {
+      const current: MandalaConfig = state.mandala ?? DEFAULT_MANDALA_CONFIG
+      // Reject silently if the proposed layer breaks strict-divisor
+      if (!isLayerFoldValid(current.outerFold, action.payload.fold)) return state
+      return { ...state, mandala: { ...current, layers: [...current.layers, action.payload] } }
+    }
+    case 'REMOVE_MANDALA_LAYER': {
+      const current: MandalaConfig = state.mandala ?? DEFAULT_MANDALA_CONFIG
+      const layers = current.layers.filter((_, i) => i !== action.payload.index)
+      return { ...state, mandala: { ...current, layers } }
+    }
+    case 'SET_MANDALA_LAYER_FOLD': {
+      const current: MandalaConfig = state.mandala ?? DEFAULT_MANDALA_CONFIG
+      if (!isLayerFoldValid(current.outerFold, action.payload.fold)) return state
+      const layers = current.layers.map((l, i) =>
+        i === action.payload.index ? { ...l, fold: action.payload.fold } : l)
+      return { ...state, mandala: { ...current, layers } }
+    }
+    case 'SET_MANDALA_LAYER_SCALE': {
+      const current: MandalaConfig = state.mandala ?? DEFAULT_MANDALA_CONFIG
+      const scale = Math.max(0.05, Math.min(1, action.payload.scale))
+      const layers = current.layers.map((l, i) =>
+        i === action.payload.index ? { ...l, scale } : l)
+      return { ...state, mandala: { ...current, layers } }
+    }
     case 'LOAD_CONFIG':
       return action.payload
     default:

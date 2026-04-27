@@ -278,6 +278,21 @@ export const TILINGS: Record<string, TilingDefinition> = {
       },
     },
   },
+
+  // ── Layered (mandala) ───────────────────────────────
+  // The actual layer stack is stored in PatternConfig.mandala; this entry
+  // is a marker so the dropdown / category-dispatch wiring works.
+  'layered-mandala': {
+    name: 'layered-mandala',
+    label: 'Layered Mandala',
+    vertexConfig: [],
+    seedSides: 0,
+    foldSymmetry: 0,
+    category: 'mandala',
+    defaultConfig: {
+      figures: {},
+    },
+  },
 }
 
 export const TILING_NAMES = Object.keys(TILINGS)
@@ -294,4 +309,5 @@ export const SYMMETRY_GROUPS: SymmetryGroup[] = [
   { fold: 11, label: '11-fold', tilings: ['hendecagonal-rosette'] },
   { fold: 12, label: '12-fold', tilings: ['3.12.12', '4.6.12'] },
   { fold: 16, label: '16-fold', tilings: ['hexadecagonal-rosette'] },
+  { fold: 0,  label: 'Layered', tilings: ['layered-mandala'] },
 ]

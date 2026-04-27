@@ -228,6 +228,26 @@ export const TILINGS: Record<string, TilingDefinition> = {
     },
   },
 
+  // ── 16-fold (rosette patch) ─────────────────────────
+  'hexadecagonal-rosette': {
+    name: 'hexadecagonal-rosette',
+    label: 'Hexadecagonal Rosette',
+    vertexConfig: [16, 4],
+    seedSides: 16,
+    foldSymmetry: 16,
+    category: 'rosette-patch',
+    tileTypes: [
+      { id: '16', sides: 16, label: '16-gon (centre)' },
+      { id: '4', sides: 4, label: '4-gon (rhombus / square filler)' },
+    ],
+    defaultConfig: {
+      figures: {
+        '16': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 78.75 },
+        '4': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 67.5 },
+      },
+    },
+  },
+
   // ── 12-fold ─────────────────────────────────────────
   '3.12.12': {
     name: '3.12.12',
@@ -273,4 +293,5 @@ export const SYMMETRY_GROUPS: SymmetryGroup[] = [
   { fold: 10, label: '10-fold', tilings: ['decagonal-rosette'] },
   { fold: 11, label: '11-fold', tilings: ['hendecagonal-rosette'] },
   { fold: 12, label: '12-fold', tilings: ['3.12.12', '4.6.12'] },
+  { fold: 16, label: '16-fold', tilings: ['hexadecagonal-rosette'] },
 ]

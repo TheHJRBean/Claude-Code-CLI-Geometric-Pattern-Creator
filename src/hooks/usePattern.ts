@@ -5,6 +5,7 @@ import type { ViewTransform } from './usePanZoom'
 import { TILINGS } from '../tilings/index'
 import { generateTiling } from '../tilings/archimedean'
 import { generateRosettePatch } from '../tilings/rosettePatch'
+import { generateMandala, DEFAULT_MANDALA_CONFIG } from '../tilings/mandala'
 import { runPIC } from '../pic/index'
 
 export interface PatternData {
@@ -42,9 +43,14 @@ export function usePattern(
 
     const viewport = { x: genX, y: genY, width: genW, height: genH }
 
-    const polygons = def.category === 'rosette-patch'
-      ? generateRosettePatch(def, viewport, config.tiling.scale)
-      : generateTiling(def, viewport, config.tiling.scale)
+    let polygons
+    if (def.category === 'mandala') {
+      polygons = generateMandala(config.mandala ?? DEFAULT_MANDALA_CONFIG, config.tiling.scale)
+    } else if (def.category === 'rosette-patch') {
+      polygons = generateRosettePatch(def, viewport, config.tiling.scale)
+    } else {
+      polygons = generateTiling(def, viewport, config.tiling.scale)
+    }
     const segments = runPIC(polygons, config)
 
     return { polygons, segments }

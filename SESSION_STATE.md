@@ -21,7 +21,8 @@ Status snapshot:
 - [done] Step 2 — Port existing tessellations into Lab
 - [done] Step 3 — Hexadecagonal-rosette tessellation (16-fold)
 - [done] Step 4 — Tessellation preset catalogue
-- [todo] Step 5 — Layered mandala engine v1 (polygons only) · MQ-1 fires here  ← NEXT
+- [done] Step 5 — Layered mandala engine v1 (polygons only) · MQ-1 deferred to Step 6
+- [todo] Step 6 — Mandala preset catalogue  ← NEXT
 - [todo] Step 5 — Layered mandala engine v1 (polygons only) · MQ-1 fires here
 - [todo] Step 6 — Mandala preset catalogue
 - [todo] Step 7 — Region-stitching v1, hard-frame · CG-1 + FS-1 fire here
@@ -59,13 +60,29 @@ Status snapshot:
   tessellation-named presets (Square, 4.8.8, Hexagonal, 3.6.3.6, 4.6.12,
   3.12.12, Decagonal Rosette, Hexadecagonal Rosette). Lab sidebar gains
   a "Presets" section above "Tessellation" with a dropdown + "Load preset"
-  button that dispatches `LOAD_CONFIG`.
+  button that dispatches `LOAD_CONFIG`. UX iteration: dropped the separate
+  Load button; presets now apply on dropdown change.
+- **Step 5 implementation:** new `tilings/mandala.ts` module with strict-
+  divisor validation (`isLayerFoldValid`, `allowedInnerFolds`) and
+  `generateMandala` (concentric regular polygons sharing one primary axis).
+  `TilingCategory` extended to include `'mandala'`. `PatternConfig` gains
+  optional `mandala?: MandalaConfig` (`{ outerFold, layers: [{ fold, scale }] }`).
+  TILINGS gains a `'layered-mandala'` marker entry; SYMMETRY_GROUPS gains
+  a fold-0 "Layered" group. Reducer gains `SET_MANDALA_*` actions; selecting
+  the layered mandala seeds `DEFAULT_MANDALA_CONFIG`. Lab sidebar gains a
+  "Layers" panel with outer-fold picker + per-layer fold (filtered by strict
+  divisor) + scale slider + remove + "Add layer" (capped at 4). Strand
+  rendering for mandala deferred to Step 12.
 
 ## Next
-- Visual sign-off in browser: open Lab → Presets → pick a preset → Load
-  preset. Confirm the canvas renders the corresponding tessellation.
-- Then move on to **Step 5 — Layered mandala tessellation engine v1**
-  from `TESSELLATION_REVAMP_PLAN.md` (open question MQ-1 fires here).
+- Visual sign-off in browser: open Lab → Tessellation → "Layered Symmetry" →
+  "Layered Mandala". Confirm the default 16+8+4 stack of nested polygons
+  renders correctly. Try changing outer fold / adding/removing layers /
+  adjusting scale; layers should auto-prune to satisfy strict-divisor.
+- Then move on to **Step 6 — Mandala preset catalogue**
+  from `TESSELLATION_REVAMP_PLAN.md`. Open question MQ-1 (strict vs
+  common divisor) is scheduled to fire there if any target preset can't
+  be expressed under strict divisor.
 
 ## Decisions
 All architectural decisions captured in the "Locked architectural decisions"

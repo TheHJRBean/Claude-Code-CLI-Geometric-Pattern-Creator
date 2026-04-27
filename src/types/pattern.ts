@@ -3,6 +3,20 @@ export interface TilingConfig {
   scale: number
 }
 
+/** A single ring of a layered mandala tessellation. */
+export interface MandalaLayer {
+  /** Sides of the regular polygon (must divide outerFold under strict-divisor rule) */
+  fold: number
+  /** Scale relative to the outer ring (0..1] */
+  scale: number
+}
+
+export interface MandalaConfig {
+  /** Sides of the outer ring (4, 6, 8, 10, 12, or 16 in v1) */
+  outerFold: number
+  layers: MandalaLayer[]
+}
+
 export interface CurvePoint {
   /** Where along the segment the bend peaks (0 = start, 0.5 = center, 1 = end) */
   position: number
@@ -64,4 +78,6 @@ export interface PatternConfig {
   lacing: LacingConfig
   /** When true, adjacent Bézier curves' control points are adjusted to share a tangent at interior join points (G1 continuity) */
   smoothTransitions?: boolean
+  /** Configuration for the layered-mandala tessellation. Only consulted when `tiling.type === 'layered-mandala'`. */
+  mandala?: MandalaConfig
 }

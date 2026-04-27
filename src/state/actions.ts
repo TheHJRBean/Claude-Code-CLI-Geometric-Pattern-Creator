@@ -1,4 +1,4 @@
-import type { PatternConfig, FigureConfig, LacingConfig } from '../types/pattern'
+import type { PatternConfig, FigureConfig, LacingConfig, MandalaConfig, MandalaLayer } from '../types/pattern'
 
 export type Action =
   | { type: 'SET_TILING_TYPE'; payload: string }
@@ -22,4 +22,10 @@ export type Action =
   | { type: 'SET_CURVE_ALTERNATING'; payload: { tileTypeId: string; alternating: boolean } }
   | { type: 'SET_CURVE_DIRECTION'; payload: { tileTypeId: string; direction: 'left' | 'right' } }
   | { type: 'SET_SMOOTH_TRANSITIONS'; payload: boolean }
+  | { type: 'SET_MANDALA_CONFIG'; payload: MandalaConfig }
+  | { type: 'SET_MANDALA_OUTER_FOLD'; payload: number }
+  | { type: 'ADD_MANDALA_LAYER'; payload: MandalaLayer }
+  | { type: 'REMOVE_MANDALA_LAYER'; payload: { index: number } }
+  | { type: 'SET_MANDALA_LAYER_FOLD'; payload: { index: number; fold: number } }
+  | { type: 'SET_MANDALA_LAYER_SCALE'; payload: { index: number; scale: number } }
   | { type: 'LOAD_CONFIG'; payload: PatternConfig }

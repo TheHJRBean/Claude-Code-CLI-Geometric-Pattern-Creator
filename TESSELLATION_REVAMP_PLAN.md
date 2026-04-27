@@ -186,7 +186,7 @@ snapshot (tessellation type + scale + per-tile contact angles).
 **Acceptance:** user can produce 6+ distinct tessellations by selecting
 presets only.
 
-#### Step 5 — Layered mandala tessellation engine v1 [M] · ⏳
+#### Step 5 — Layered mandala tessellation engine v1 [M] · 🟡
 **Visible:** new entry "Layered Mandala" in the Lab "Tessellation"
 dropdown. Layers panel: pick outer fold-order (4/6/8/10/12/16) and add
 1–4 inner layers. Inner-layer fold dropdowns filtered by the strict

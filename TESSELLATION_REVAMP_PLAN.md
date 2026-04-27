@@ -145,7 +145,7 @@ Info panel.
 > but reloads the whole default config. Rename to **"Reset to defaults"**
 > when next touched. Tracked as a small follow-up; not blocking.
 
-#### Step 3 — Hexadecagonal-rosette tessellation (16-fold) [S] · 🟡
+#### Step 3 — Hexadecagonal-rosette tessellation (16-fold) [S] · ✅
 **Visible:** new tessellation "Hexadecagonal Rosette" appears under
 "16-fold" in the Lab dropdown. Renders the polygon arrangement
 underlying the central rosette of historical 16-fold examples.
@@ -169,7 +169,7 @@ pattern matches that example's central rosette.
 > until a strand renderer (Phase B) actually needs it. Awaiting visual
 > sign-off in the browser.
 
-#### Step 4 — Tessellation preset catalogue [S–M] · ⏳
+#### Step 4 — Tessellation preset catalogue [S–M] · 🟡
 **Visible:** "Presets" dropdown at the top of the Lab sidebar lists
 named tessellations. Selecting one loads a complete `PatternConfig`
 snapshot (tessellation type + scale + per-tile contact angles).

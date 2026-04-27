@@ -22,9 +22,7 @@ Status snapshot:
 - [done] Step 3 — Hexadecagonal-rosette tessellation (16-fold)
 - [done] Step 4 — Tessellation preset catalogue
 - [done] Step 5 — Layered mandala engine v1 (polygons only) · MQ-1 deferred to Step 6
-- [todo] Step 6 — Mandala preset catalogue  ← NEXT
-- [todo] Step 5 — Layered mandala engine v1 (polygons only) · MQ-1 fires here
-- [todo] Step 6 — Mandala preset catalogue
+- [todo] Step 6 — Mandala preset catalogue  ← NEXT  · MQ-1 may fire here
 - [todo] Step 7 — Region-stitching v1, hard-frame · CG-1 + FS-1 fire here
 - [todo] Step 8 — Composition preset catalogue (hard-frame)
 - [todo] Step 9 — Lab polish
@@ -73,13 +71,27 @@ Status snapshot:
   "Layers" panel with outer-fold picker + per-layer fold (filtered by strict
   divisor) + scale slider + remove + "Add layer" (capped at 4). Strand
   rendering for mandala deferred to Step 12.
+- **Post-Step-5 fixes (commit 46dd7c5):**
+  - Lab state (`PatternConfig`, `showStrands`, `activePresetId`) lifted
+    from `TessellationLabMode` up to `App.tsx` so it survives mode
+    toggles. New `state/labDefaults.ts` holds `LAB_DEFAULT_CONFIG`.
+  - Title overlap with mode + theme buttons fixed by bumping the h1
+    `marginTop` from 4 → 48 px.
+  - Camera centred on world origin: `usePanZoom` accepts `initialX/Y`;
+    `Canvas` seeds them to `-size/2`. `resetCamera` mirrors it.
+    Mandala (which anchors at `(0,0)`) now appears at canvas centre;
+    archimedean / rosette-patch tessellations are unaffected because
+    they fill the viewport regardless.
+  - Mandala default scale bumped from 100 → 250 px on first entry
+    (mandala uses `scale` as outer-ring radius, not edge length). Lab
+    scale slider max raised to 600 for mandala (vs. 300 elsewhere) and
+    the label switches to "Outer radius" for mandala.
 
 ## Next
-- Visual sign-off in browser: open Lab → Tessellation → "Layered Symmetry" →
-  "Layered Mandala". Confirm the default 16+8+4 stack of nested polygons
-  renders correctly. Try changing outer fold / adding/removing layers /
-  adjusting scale; layers should auto-prune to satisfy strict-divisor.
-- Then move on to **Step 6 — Mandala preset catalogue**
+- Visual sign-off complete: Steps 1–5 verified by user. Layered Mandala
+  renders centred at canvas centre after the post-Step-5 fixes; Lab
+  state survives mode toggles.
+- Awaiting green light for **Step 6 — Mandala preset catalogue**
   from `TESSELLATION_REVAMP_PLAN.md`. Open question MQ-1 (strict vs
   common divisor) is scheduled to fire there if any target preset can't
   be expressed under strict divisor.

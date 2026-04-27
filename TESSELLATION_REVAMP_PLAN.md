@@ -169,7 +169,7 @@ pattern matches that example's central rosette.
 > until a strand renderer (Phase B) actually needs it. Awaiting visual
 > sign-off in the browser.
 
-#### Step 4 — Tessellation preset catalogue [S–M] · 🟡
+#### Step 4 — Tessellation preset catalogue [S–M] · ✅
 **Visible:** "Presets" dropdown at the top of the Lab sidebar lists
 named tessellations. Selecting one loads a complete `PatternConfig`
 snapshot (tessellation type + scale + per-tile contact angles).
@@ -186,7 +186,7 @@ snapshot (tessellation type + scale + per-tile contact angles).
 **Acceptance:** user can produce 6+ distinct tessellations by selecting
 presets only.
 
-#### Step 5 — Layered mandala tessellation engine v1 [M] · 🟡
+#### Step 5 — Layered mandala tessellation engine v1 [M] · ✅
 **Visible:** new entry "Layered Mandala" in the Lab "Tessellation"
 dropdown. Layers panel: pick outer fold-order (4/6/8/10/12/16) and add
 1–4 inner layers. Inner-layer fold dropdowns filtered by the strict
@@ -210,6 +210,21 @@ it, surface MQ-1 to the user before loosening.
 
 **Acceptance:** can build a 16+8+4 mandala by clicking three dropdowns;
 the polygon rings visibly nest and align before strands are turned on.
+
+> **Post-Step-5 polish (2026-04-27, commit `46dd7c5`):** three bugs
+> surfaced on first use:
+> - **Lab state was lost on mode toggle** because the Lab held its own
+>   `useReducer` and unmounted on flip — fixed by lifting `PatternConfig`,
+>   `showStrands`, and `activePresetId` up to `App.tsx`. New
+>   `state/labDefaults.ts` exports `LAB_DEFAULT_CONFIG`.
+> - **Header title overlapped the absolutely-positioned mode + theme
+>   toggle buttons** — fixed by bumping the h1 `marginTop` to 48 px.
+> - **Mandala rendered tiny and not centred** because it places polygons
+>   at world `(0, 0)` while the camera defaulted to viewBox `(0, 0)–(w, h)`.
+>   `usePanZoom` now accepts `initialX/Y`; `Canvas` seeds them to `-size/2`
+>   so world origin sits at canvas centre. The reducer also bumps `scale`
+>   from 100 → 250 px on first entry to mandala mode (mandala uses scale
+>   as outer-ring radius), and the Lab slider max is 600 for mandala.
 
 #### Step 6 — Mandala preset catalogue [S] · ⏳
 **Visible:** Step 4 Presets dropdown gains a "Mandalas" sub-section with
@@ -432,3 +447,8 @@ These appear after Step 14. Reorder by demand at that point.
   - Conservative defaults applied (strict divisor kept, two-slider
     composition scale, minimal frame UI, allow-list gated on
     verification, library Lab-only).
+- **2026-04-27** — Steps 3, 4, and 5 shipped (`a43b787`, `3b209e2`,
+  `304100a`). Post-Step-5 polish (`46dd7c5`) lifted Lab state to App,
+  fixed title overlap, and centred the canvas on world origin to fix
+  the mandala layout. Steps 1–5 visually signed off by user; Step 6
+  awaiting green light.

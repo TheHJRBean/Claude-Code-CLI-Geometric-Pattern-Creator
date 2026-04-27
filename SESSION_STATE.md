@@ -19,8 +19,8 @@ Status snapshot:
 - [done] Phase 0 — grill-me interview, architectural decisions, terminology lock, Option-B restructure
 - [done] Step 1 — Tessellation Lab scaffold
 - [done] Step 2 — Port existing tessellations into Lab
-- [todo] Step 3 — Hexadecagonal-rosette tessellation (16-fold)  ← NEXT
-- [todo] Step 4 — Tessellation preset catalogue
+- [done] Step 3 — Hexadecagonal-rosette tessellation (16-fold)
+- [todo] Step 4 — Tessellation preset catalogue  ← NEXT
 - [todo] Step 5 — Layered mandala engine v1 (polygons only) · MQ-1 fires here
 - [todo] Step 6 — Mandala preset catalogue
 - [todo] Step 7 — Region-stitching v1, hard-frame · CG-1 + FS-1 fire here
@@ -49,12 +49,17 @@ Status snapshot:
   lines→strands). Lab defaults to tessellation-on, strands-off. Plan file
   renamed `TILING_REVAMP_PLAN.md` → `TESSELLATION_REVAMP_PLAN.md` and
   rewritten end-to-end.
+- **Step 3 implementation:** `hexadecagonal-rosette` added to
+  `src/tilings/index.ts` (vertex config `[16, 4]`, fold-16, default
+  contact angle 78.75° on the 16-gon, 67.5° on the 4-gon ring).
+  `SYMMETRY_GROUPS` gains a fold-16 entry. Research notes appended in
+  `RESEARCH-TILING-CONFIGURATIONS.md` working log.
 
 ## Next
-- Visual sign-off in browser: open Lab, pick a tessellation, confirm
-  polygons render with strands off; toggle "Show strands" to confirm
-  PIC overlay still works.
-- Then move on to **Step 3 — Hexadecagonal-rosette tessellation (16-fold)**
+- Visual sign-off in browser: open Lab → 16-fold → Hexadecagonal Rosette,
+  confirm a 16-gon centre with 4-gons in the surrounding ring, then toggle
+  "Show strands" to confirm the PIC overlay produces a 16-fold rosette.
+- Then move on to **Step 4 — Tessellation preset catalogue**
   from `TESSELLATION_REVAMP_PLAN.md`.
 
 ## Decisions

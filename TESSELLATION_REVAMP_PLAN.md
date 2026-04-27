@@ -145,7 +145,7 @@ Info panel.
 > but reloads the whole default config. Rename to **"Reset to defaults"**
 > when next touched. Tracked as a small follow-up; not blocking.
 
-#### Step 3 — Hexadecagonal-rosette tessellation (16-fold) [S] · ⏳
+#### Step 3 — Hexadecagonal-rosette tessellation (16-fold) [S] · 🟡
 **Visible:** new tessellation "Hexadecagonal Rosette" appears under
 "16-fold" in the Lab dropdown. Renders the polygon arrangement
 underlying the central rosette of historical 16-fold examples.
@@ -160,6 +160,14 @@ underlying the central rosette of historical 16-fold examples.
 **Acceptance:** strands off, polygon arrangement matches the underlying
 tile arrangement of a known 16-fold example. Strands on, the visible PIC
 pattern matches that example's central rosette.
+
+> **Note (2026-04-27):** Implemented with a single `4` tile-type id
+> covering both the rhombus ring and any square fillers, because the
+> BFS in `archimedean.ts` keys polygons by `String(sides)` and does not
+> distinguish ring rhombi from corner squares. Splitting them visually
+> would require custom `tileTypeId` assignment in the BFS — deferred
+> until a strand renderer (Phase B) actually needs it. Awaiting visual
+> sign-off in the browser.
 
 #### Step 4 — Tessellation preset catalogue [S–M] · ⏳
 **Visible:** "Presets" dropdown at the top of the Lab sidebar lists

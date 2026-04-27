@@ -34,6 +34,10 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       }
       if (def.category === 'mandala' && !next.mandala) {
         next.mandala = DEFAULT_MANDALA_CONFIG
+        // Mandala uses scale as outer-ring radius. The default 100 px
+        // looks tiny against a full canvas; bump to a comfortable default
+        // the first time the user enters mandala mode.
+        next.tiling = { ...next.tiling, scale: 250 }
       }
       return next
     }

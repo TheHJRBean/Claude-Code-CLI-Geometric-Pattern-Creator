@@ -3,6 +3,7 @@ import type { Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
 import { reducer } from '../state/reducer'
 import { TILINGS, SYMMETRY_GROUPS } from '../tilings/index'
+import { LAB_PRESETS, LAB_PRESETS_BY_ID } from '../state/labPresets'
 import { Canvas } from './Canvas'
 import { SandstoneEdge } from './SandstoneEdge'
 import { useTheme } from '../theme/ThemeContext'
@@ -64,6 +65,7 @@ export function TessellationLabMode({ mode, onToggleMode }: Props) {
   const [showStrands, setShowStrands] = useState(false)
   const [cpVisible] = useState<Record<string, boolean>>({})
   const [cpActive] = useState<Record<string, number>>({})
+  const [pendingPresetId, setPendingPresetId] = useState<string>('')
 
   const def = config.tiling.type ? TILINGS[config.tiling.type] : undefined
 
@@ -71,6 +73,12 @@ export function TessellationLabMode({ mode, onToggleMode }: Props) {
     if (config.tiling.type) {
       dispatch({ type: 'SET_TILING_TYPE', payload: config.tiling.type })
     }
+  }
+
+  const loadPreset = (id: string) => {
+    const preset = LAB_PRESETS_BY_ID[id]
+    if (!preset) return
+    dispatch({ type: 'LOAD_CONFIG', payload: preset.config })
   }
 
   return (
@@ -119,6 +127,43 @@ export function TessellationLabMode({ mode, onToggleMode }: Props) {
         {/* ── Sections ────────────────────────────────────── */}
         <div className="sidebar-sections">
           <div style={{ paddingTop: 20 }}>
+            <SectionTitle>Presets</SectionTitle>
+            <FieldLabel label="Preset" />
+            <select
+              className="pattern-select"
+              value={pendingPresetId}
+              onChange={e => setPendingPresetId(e.target.value)}
+            >
+              <option value="">— select a preset —</option>
+              {LAB_PRESETS.map(p => (
+                <option key={p.id} value={p.id}>{p.label}</option>
+              ))}
+            </select>
+
+            <button
+              disabled={!pendingPresetId}
+              onClick={() => loadPreset(pendingPresetId)}
+              style={{
+                marginTop: 12,
+                width: '100%',
+                padding: '7px 10px',
+                background: pendingPresetId ? 'var(--accent-bg)' : 'transparent',
+                color: pendingPresetId ? 'var(--accent)' : 'var(--text-muted)',
+                border: `1px solid ${pendingPresetId ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                fontFamily: "'Cinzel', Georgia, serif",
+                fontSize: 9,
+                fontWeight: 600,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                cursor: pendingPresetId ? 'pointer' : 'not-allowed',
+                transition: 'border-color 0.15s, background 0.15s',
+              }}
+            >
+              Load preset
+            </button>
+          </div>
+
+          <div style={{ paddingTop: 22 }}>
             <SectionTitle>Tessellation</SectionTitle>
             <FieldLabel label="Type" />
             <select

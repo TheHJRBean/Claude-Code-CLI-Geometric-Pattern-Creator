@@ -20,7 +20,8 @@ Status snapshot:
 - [done] Step 1 — Tessellation Lab scaffold
 - [done] Step 2 — Port existing tessellations into Lab
 - [done] Step 3 — Hexadecagonal-rosette tessellation (16-fold)
-- [todo] Step 4 — Tessellation preset catalogue  ← NEXT
+- [done] Step 4 — Tessellation preset catalogue
+- [todo] Step 5 — Layered mandala engine v1 (polygons only) · MQ-1 fires here  ← NEXT
 - [todo] Step 5 — Layered mandala engine v1 (polygons only) · MQ-1 fires here
 - [todo] Step 6 — Mandala preset catalogue
 - [todo] Step 7 — Region-stitching v1, hard-frame · CG-1 + FS-1 fire here
@@ -54,13 +55,17 @@ Status snapshot:
   contact angle 78.75° on the 16-gon, 67.5° on the 4-gon ring).
   `SYMMETRY_GROUPS` gains a fold-16 entry. Research notes appended in
   `RESEARCH-TILING-CONFIGURATIONS.md` working log.
+- **Step 4 implementation:** new `state/labPresets.ts` catalogue with 8
+  tessellation-named presets (Square, 4.8.8, Hexagonal, 3.6.3.6, 4.6.12,
+  3.12.12, Decagonal Rosette, Hexadecagonal Rosette). Lab sidebar gains
+  a "Presets" section above "Tessellation" with a dropdown + "Load preset"
+  button that dispatches `LOAD_CONFIG`.
 
 ## Next
-- Visual sign-off in browser: open Lab → 16-fold → Hexadecagonal Rosette,
-  confirm a 16-gon centre with 4-gons in the surrounding ring, then toggle
-  "Show strands" to confirm the PIC overlay produces a 16-fold rosette.
-- Then move on to **Step 4 — Tessellation preset catalogue**
-  from `TESSELLATION_REVAMP_PLAN.md`.
+- Visual sign-off in browser: open Lab → Presets → pick a preset → Load
+  preset. Confirm the canvas renders the corresponding tessellation.
+- Then move on to **Step 5 — Layered mandala tessellation engine v1**
+  from `TESSELLATION_REVAMP_PLAN.md` (open question MQ-1 fires here).
 
 ## Decisions
 All architectural decisions captured in the "Locked architectural decisions"

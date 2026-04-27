@@ -4,6 +4,7 @@ import { Sidebar } from './components/Sidebar'
 import { SandstoneEdge } from './components/SandstoneEdge'
 import { TessellationLabMode } from './components/TessellationLabMode'
 import { reducer, DEFAULT_CONFIG } from './state/reducer'
+import { LAB_DEFAULT_CONFIG } from './state/labDefaults'
 import { exportSVG, exportPNG, exportUnwovenSVG } from './export/exportSVG'
 import { saveJSON, loadJSON } from './export/exportJSON'
 import type { Segment } from './types/geometry'
@@ -23,6 +24,10 @@ export default function App() {
   }, [])
 
   const [config, dispatch] = useReducer(reducer, DEFAULT_CONFIG)
+  // Lab state lives at App level so it persists across mode toggles.
+  const [labConfig, labDispatch] = useReducer(reducer, LAB_DEFAULT_CONFIG)
+  const [labShowStrands, setLabShowStrands] = useState(false)
+  const [labPresetId, setLabPresetId] = useState('')
   const [showTileLayer, setShowTileLayer] = useState(false)
   const [showLines, setShowLines] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -51,7 +56,18 @@ export default function App() {
   }, [])
 
   if (mode === 'lab') {
-    return <TessellationLabMode mode={mode} onToggleMode={toggleMode} />
+    return (
+      <TessellationLabMode
+        mode={mode}
+        onToggleMode={toggleMode}
+        config={labConfig}
+        dispatch={labDispatch}
+        showStrands={labShowStrands}
+        onToggleShowStrands={setLabShowStrands}
+        activePresetId={labPresetId}
+        onSetActivePresetId={setLabPresetId}
+      />
+    )
   }
 
   const handleExportSVG = () => { if (svgRef.current) exportSVG(svgRef.current) }

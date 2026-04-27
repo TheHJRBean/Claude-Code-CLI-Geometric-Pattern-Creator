@@ -1,7 +1,7 @@
-import { useReducer, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import type { Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
-import { reducer } from '../state/reducer'
+import type { Action } from '../state/actions'
 import { TILINGS, SYMMETRY_GROUPS } from '../tilings/index'
 import { LAB_PRESETS, LAB_PRESETS_BY_ID } from '../state/labPresets'
 import { ALLOWED_OUTER_FOLDS, DEFAULT_MANDALA_CONFIG, allowedInnerFolds } from '../tilings/mandala'
@@ -13,23 +13,19 @@ import { useTheme } from '../theme/ThemeContext'
  * Tessellation Lab — stripped-down mode for prototyping new tessellations.
  * Lab focus is the polygon tessellation itself; strands (PIC contact lines)
  * are an optional overlay, off by default.
+ *
+ * State is owned by App so it survives mode toggles.
  */
-
-const LAB_DEFAULT_CONFIG: PatternConfig = {
-  tiling: { type: '', scale: 100 },
-  figures: {},
-  lacing: {
-    enabled: false,
-    strandWidth: 4,
-    gapWidth: 3,
-    strandColor: '#1a1a2e',
-    gapColor: '#f5f0e8',
-  },
-}
 
 interface Props {
   mode: 'main' | 'lab'
   onToggleMode: () => void
+  config: PatternConfig
+  dispatch: React.Dispatch<Action>
+  showStrands: boolean
+  onToggleShowStrands: (next: boolean) => void
+  activePresetId: string
+  onSetActivePresetId: (id: string) => void
 }
 
 function SunIcon() {
@@ -56,17 +52,21 @@ function MoonIcon() {
   )
 }
 
-export function TessellationLabMode({ mode, onToggleMode }: Props) {
+export function TessellationLabMode({
+  mode,
+  onToggleMode,
+  config,
+  dispatch,
+  showStrands,
+  onToggleShowStrands,
+  activePresetId,
+  onSetActivePresetId,
+}: Props) {
   const { theme, toggleTheme } = useTheme()
-  const [config, dispatch] = useReducer(reducer, LAB_DEFAULT_CONFIG)
   const svgRef = useRef<SVGSVGElement>(null)
   const segmentsRef = useRef<Segment[]>([])
-  // Lab focuses on the tessellation itself. Strands are an optional overlay,
-  // off by default.
-  const [showStrands, setShowStrands] = useState(false)
   const [cpVisible] = useState<Record<string, boolean>>({})
   const [cpActive] = useState<Record<string, number>>({})
-  const [activePresetId, setActivePresetId] = useState<string>('')
 
   const def = config.tiling.type ? TILINGS[config.tiling.type] : undefined
 
@@ -77,7 +77,7 @@ export function TessellationLabMode({ mode, onToggleMode }: Props) {
   }
 
   const handlePresetChange = (id: string) => {
-    setActivePresetId(id)
+    onSetActivePresetId(id)
     if (!id) return
     const preset = LAB_PRESETS_BY_ID[id]
     if (!preset) return
@@ -109,7 +109,7 @@ export function TessellationLabMode({ mode, onToggleMode }: Props) {
             color: 'var(--text)',
             letterSpacing: '0.22em',
             textTransform: 'uppercase',
-            marginTop: 4,
+            marginTop: 48,
             marginBottom: 5,
           }}>
             Tessellation Lab
@@ -151,7 +151,7 @@ export function TessellationLabMode({ mode, onToggleMode }: Props) {
               className="pattern-select"
               value={config.tiling.type}
               onChange={e => {
-                setActivePresetId('')
+                onSetActivePresetId('')
                 dispatch({ type: 'SET_TILING_TYPE', payload: e.target.value })
               }}
             >
@@ -167,12 +167,16 @@ export function TessellationLabMode({ mode, onToggleMode }: Props) {
 
             {def && (
               <>
-                <FieldLabel label="Scale" value={String(config.tiling.scale)} unit=" px" />
+                <FieldLabel
+                  label={def.category === 'mandala' ? 'Outer radius' : 'Scale'}
+                  value={String(config.tiling.scale)}
+                  unit=" px"
+                />
                 <input
                   type="range"
                   className="pattern-slider"
                   min={30}
-                  max={300}
+                  max={def.category === 'mandala' ? 600 : 300}
                   step={5}
                   value={config.tiling.scale}
                   onChange={e => dispatch({ type: 'SET_SCALE', payload: Number(e.target.value) })}
@@ -391,7 +395,7 @@ export function TessellationLabMode({ mode, onToggleMode }: Props) {
                 type="checkbox"
                 className="pattern-checkbox"
                 checked={showStrands}
-                onChange={e => setShowStrands(e.target.checked)}
+                onChange={e => onToggleShowStrands(e.target.checked)}
               />
               Show strands
             </label>

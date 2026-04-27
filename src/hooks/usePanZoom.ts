@@ -16,12 +16,14 @@ export interface PanZoomHandlers {
 export function usePanZoom(
   initialZoom = 1,
   svgRef: React.RefObject<SVGSVGElement | null>,
+  initialX = 0,
+  initialY = 0,
 ): {
   viewTransform: ViewTransform
   handlers: PanZoomHandlers
   setViewTransform: React.Dispatch<React.SetStateAction<ViewTransform>>
 } {
-  const [vt, setVt] = useState<ViewTransform>({ x: 0, y: 0, zoom: initialZoom, rotation: 0 })
+  const [vt, setVt] = useState<ViewTransform>({ x: initialX, y: initialY, zoom: initialZoom, rotation: 0 })
   const dragging = useRef(false)
   const lastPos = useRef({ x: 0, y: 0 })
 

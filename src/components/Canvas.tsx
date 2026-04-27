@@ -32,14 +32,27 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     return () => observer.disconnect()
   }, [])
 
-  const { viewTransform, handlers, setViewTransform } = usePanZoom(INITIAL_ZOOM, svgRef)
+  // Centre world origin at the canvas centre so tessellations that anchor
+  // at (0, 0) — mandalas in particular — appear in the middle of the view.
+  // Archimedean / rosette-patch tessellations fill the viewport regardless,
+  // so the shift is invisible there.
+  const initialX = -size.width / 2
+  const initialY = -size.height / 2
+  const { viewTransform, handlers, setViewTransform } = usePanZoom(
+    INITIAL_ZOOM, svgRef, initialX, initialY,
+  )
   // Defer the heavy tiling computation so pointer events stay responsive
   const deferredVT = useDeferredValue(viewTransform)
   const { polygons, segments } = usePattern(config, deferredVT, size.width, size.height)
 
   const resetCamera = useCallback(() => {
-    setViewTransform({ x: 0, y: 0, zoom: INITIAL_ZOOM, rotation: 0 })
-  }, [setViewTransform])
+    setViewTransform({
+      x: -size.width / 2,
+      y: -size.height / 2,
+      zoom: INITIAL_ZOOM,
+      rotation: 0,
+    })
+  }, [setViewTransform, size.width, size.height])
 
   const onRotation = useCallback((degrees: number) => {
     setViewTransform(prev => ({ ...prev, rotation: degrees }))

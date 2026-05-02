@@ -27,7 +27,7 @@ Status snapshot:
 - [done] Step 8 — Composition preset catalogue (hard-frame): four entries (16-in-4.8.8, 12-in-Hexagonal, 16-in-Square, 10-in-Hexagonal). Visuals are functional but not yet pleasing — sign-off accepted, refinement deferred.
 - [done] Step 9 — Lab polish: localStorage persistence of full Lab state, tessellation outline weight slider, fill-on-hover toggle.
 - [done] Step 10 — `FigureControls` lifted to `components/strands/FigureControls.tsx`. Sidebar imports from new location; no behavioural change in Main.
-- [todo] Step 11 — Strand controls in Lab (archimedean / rosette-patch) · LX-1 + ID-1 fire here
+- [done] Step 11 — Lab Strands panel (basic per-tile-type controls: figure type + contact angle + auto/length). LX-1 = (a) trimmed Lab variant ("basic implementation"); ID-1 = identical render where overlap exists. "Show advanced" toggle present in UI but non-functional (placeholder pointing user to Main).
 - [todo] Step 12 — Mandala strand renderer · MS-1 fires here
 - [todo] Step 13 — Composition strand renderer + match-up · CS-1 gates this step
 - [todo] Step 14 — Lab-local library (save / rename / delete / duplicate)
@@ -130,17 +130,21 @@ Status snapshot:
   readout (`step N/M · θ° · vertex|edge-aligned`).
 
 ## Next
-- Visual sign-off complete: Steps 1–9 verified by user. Step 7/8
+- Visual sign-off complete: Steps 1–10 verified by user. Step 7/8
   composition visuals work but aren't yet pleasing — refinement
   deferred (likely covered by Step 13 strand-match and/or the parked
   CG-1/FS-1 expansion ideas).
-- Step 10 code-complete: `FigureControls` lifted out of `Sidebar.tsx`
-  into `components/strands/FigureControls.tsx`. Sidebar now imports
-  from the new location. No behavioural change in Main expected —
-  spot-check Main mode quickly to confirm.
-- Next up: **Step 11 — Strand controls in Lab for archimedean /
-  rosette-patch**. LX-1 + ID-1 fire here. Conservative defaults:
-  same controls as Main; identical render.
+- Step 11 code-complete: Lab Strands panel renders trimmed per-tile
+  controls (figure type, contact angle, auto/length toggle, manual
+  length slider) for archimedean / rosette-patch tessellations when
+  strands are on. "Show advanced" toggle is present in UI but does
+  nothing (placeholder pointing the user to Main mode for vertex
+  strands / curves / snap / decoupled vertex angle). Mandala /
+  composition show the existing "Specialised renderer pending"
+  placeholder.
+- Next up: **Step 12 — Specialised mandala strand renderer**.
+  MS-1 fires here. Conservative default: per-layer contact angle
+  only, not per-layer × per-tile-type.
 
 ## Decisions
 All architectural decisions captured in the "Locked architectural decisions"

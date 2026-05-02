@@ -30,7 +30,7 @@ Status snapshot:
 - [done] Step 11 — Lab Strands panel (basic per-tile-type controls: figure type + contact angle + auto/length). LX-1 = (a) trimmed Lab variant ("basic implementation"); ID-1 = identical render where overlap exists. "Show advanced" toggle present in UI but non-functional (placeholder pointing user to Main).
 - [done] Step 12 — Specialised mandala strand renderer (`tilings/mandalaStrand.ts`). Per-layer + outer-ring contact angle controls in the Layers panel (visible only when strands are on). MS-1 = (a) per-layer only.
 - [done] Step 13 — Architecture-only ship per CS-1 path (a). Boundary toggle (Match strands / Hard frame) + "Show all backgrounds" filter wired through `CompositionConfig`. New modules `tilings/compositionVerifiedPairs.ts` (allow-list, currently empty) + `tilings/compositionStrand.ts` (dispatch skeleton — falls back to frame mode for every unverified pair, which is currently all of them). No analytical strand-match shipped — none of the four current presets are verified, so no false claims. The renderer architecture is ready for the first verified pair to slot in.
-- [todo] Step 14 — Lab-local library (save / rename / delete / duplicate)
+- [done] Step 14 — Lab-local library. New `state/customTessellations.ts` (schema-versioned localStorage at `lab-tessellations-v1`, list/save/rename/delete/duplicate, quota + corruption handling). Library buttons (Save / Rename / Duplicate / Delete) added under the Preset dropdown; saved entries appear in a "My tessellations" optgroup. Cross-tab sync via `storage` event. Library is Lab-only — Main mode is unaffected.
 - [todo] Steps 15–18 (opt)
 
 ## Done
@@ -152,10 +152,20 @@ Status snapshot:
   No analytical match-up has been worked out yet — the architecture
   is ready for the first verified pair to slot in via
   `VERIFIED_COMPOSITION_PAIRS`.
-- Next up: **Step 14 — Lab-local library** (save / rename / delete
-  / duplicate, schema-versioned localStorage). OR: come back to
-  Step 13 and attempt analytical proof of one pair if visual
-  refinement of compositions becomes the priority.
+- **Step 14 code-complete — Lab-local library shipped.**
+  `state/customTessellations.ts` persists to localStorage under
+  `lab-tessellations-v1` (schema-versioned, quota+corruption safe).
+  Lab Preset section now sports Save / Rename / Duplicate / Delete
+  buttons; saved entries surface under "My tessellations" in the
+  Preset dropdown. Save prompts for a name (defaults to current
+  preset name + " (modified)" when iterating on a saved entry).
+  Cross-tab `storage` events refresh the library list.
+- Next up: optional Steps 15–18 (k-uniform generator, quasi-periodic
+  tilings, user-editable polygon placement, Girih substitution). All
+  parked unless prioritised. Or: revisit Step 13 to verify a
+  composition pair geometrically (the architecture is in place, just
+  needs a pair added to `VERIFIED_COMPOSITION_PAIRS` and a stitching
+  branch in `runCompositionPIC`).
 
 ## Decisions
 All architectural decisions captured in the "Locked architectural decisions"

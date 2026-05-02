@@ -5,7 +5,7 @@ import type { Action } from '../state/actions'
 import { TILINGS, SYMMETRY_GROUPS } from '../tilings/index'
 import type { TileTypeInfo } from '../types/tiling'
 import { LAB_PRESETS, LAB_PRESETS_BY_ID } from '../state/labPresets'
-import { ALLOWED_OUTER_FOLDS, DEFAULT_MANDALA_CONFIG, allowedInnerFolds } from '../tilings/mandala'
+import { ALLOWED_OUTER_FOLDS, DEFAULT_MANDALA_CONFIG, allowedInnerFolds, defaultContactAngleForFold } from '../tilings/mandala'
 import { DEFAULT_COMPOSITION_CONFIG, compositionPickerNames } from '../tilings/composition'
 import { Canvas } from './Canvas'
 import { SandstoneEdge } from './SandstoneEdge'
@@ -305,6 +305,27 @@ export function TessellationLabMode({
                   ))}
                 </select>
 
+                {showStrands && (() => {
+                  const angle = m.outerContactAngle ?? defaultContactAngleForFold(m.outerFold)
+                  return (
+                    <>
+                      <FieldLabel label="Outer contact angle" value={angle.toFixed(1)} unit="°" />
+                      <input
+                        type="range"
+                        className="pattern-slider"
+                        min={10}
+                        max={85}
+                        step={0.5}
+                        value={angle}
+                        onChange={e => dispatch({
+                          type: 'SET_MANDALA_OUTER_CONTACT_ANGLE',
+                          payload: Number(e.target.value),
+                        })}
+                      />
+                    </>
+                  )
+                })()}
+
                 {m.layers.map((layer, i) => {
                   const opts = allowedInnerFolds(m.outerFold)
                   return (
@@ -410,6 +431,26 @@ export function TessellationLabMode({
                           </>
                         )
                       })()}
+                      {showStrands && (() => {
+                        const angle = layer.contactAngle ?? defaultContactAngleForFold(layer.fold)
+                        return (
+                          <>
+                            <FieldLabel label="Contact angle" value={angle.toFixed(1)} unit="°" />
+                            <input
+                              type="range"
+                              className="pattern-slider"
+                              min={10}
+                              max={85}
+                              step={0.5}
+                              value={angle}
+                              onChange={e => dispatch({
+                                type: 'SET_MANDALA_LAYER_CONTACT_ANGLE',
+                                payload: { index: i, angle: Number(e.target.value) },
+                              })}
+                            />
+                          </>
+                        )
+                      })()}
                     </div>
                   )
                 })}
@@ -454,7 +495,6 @@ export function TessellationLabMode({
                   lineHeight: 1.4,
                 }}>
                   Inner folds restricted to divisors of the outer fold (strict-divisor rule).
-                  Strand rendering for mandalas arrives in Step 12.
                 </p>
               </div>
             )
@@ -743,8 +783,9 @@ export function TessellationLabMode({
                   color: 'var(--text-muted)',
                   lineHeight: 1.4,
                 }}>
-                  Specialised strand renderer pending —
-                  {def.category === 'mandala' ? ' see Step 12.' : ' see Step 13.'}
+                  {def.category === 'mandala'
+                    ? 'Per-layer contact angles live in the Layers panel above.'
+                    : 'Strand-match across the seam pending — see Step 13.'}
                 </p>
               )}
             </div>

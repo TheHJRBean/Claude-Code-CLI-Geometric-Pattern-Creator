@@ -15,12 +15,16 @@ export interface MandalaLayer {
    * the outer's vertex axis; odd steps align edge-midpoints with that axis.
    */
   rotationStep?: number
+  /** PIC contact angle for this layer's strand rendering, in degrees. Defaults to a fold-appropriate value. */
+  contactAngle?: number
 }
 
 export interface MandalaConfig {
   /** Sides of the outer ring (4, 6, 8, 10, 12, or 16 in v1) */
   outerFold: number
   layers: MandalaLayer[]
+  /** PIC contact angle for the outer ring's strand rendering, in degrees. Defaults to a fold-appropriate value. */
+  outerContactAngle?: number
 }
 
 export interface CompositionConfig {

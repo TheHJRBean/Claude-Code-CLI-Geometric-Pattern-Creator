@@ -28,7 +28,7 @@ Status snapshot:
 - [done] Step 9 — Lab polish: localStorage persistence of full Lab state, tessellation outline weight slider, fill-on-hover toggle.
 - [done] Step 10 — `FigureControls` lifted to `components/strands/FigureControls.tsx`. Sidebar imports from new location; no behavioural change in Main.
 - [done] Step 11 — Lab Strands panel (basic per-tile-type controls: figure type + contact angle + auto/length). LX-1 = (a) trimmed Lab variant ("basic implementation"); ID-1 = identical render where overlap exists. "Show advanced" toggle present in UI but non-functional (placeholder pointing user to Main).
-- [todo] Step 12 — Mandala strand renderer · MS-1 fires here
+- [done] Step 12 — Specialised mandala strand renderer (`tilings/mandalaStrand.ts`). Per-layer + outer-ring contact angle controls in the Layers panel (visible only when strands are on). MS-1 = (a) per-layer only.
 - [todo] Step 13 — Composition strand renderer + match-up · CS-1 gates this step
 - [todo] Step 14 — Lab-local library (save / rename / delete / duplicate)
 - [todo] Steps 15–18 (opt)
@@ -130,21 +130,22 @@ Status snapshot:
   readout (`step N/M · θ° · vertex|edge-aligned`).
 
 ## Next
-- Visual sign-off complete: Steps 1–10 verified by user. Step 7/8
+- Visual sign-off complete: Steps 1–11 verified by user. Step 7/8
   composition visuals work but aren't yet pleasing — refinement
   deferred (likely covered by Step 13 strand-match and/or the parked
   CG-1/FS-1 expansion ideas).
-- Step 11 code-complete: Lab Strands panel renders trimmed per-tile
-  controls (figure type, contact angle, auto/length toggle, manual
-  length slider) for archimedean / rosette-patch tessellations when
-  strands are on. "Show advanced" toggle is present in UI but does
-  nothing (placeholder pointing the user to Main mode for vertex
-  strands / curves / snap / decoupled vertex angle). Mandala /
-  composition show the existing "Specialised renderer pending"
-  placeholder.
-- Next up: **Step 12 — Specialised mandala strand renderer**.
-  MS-1 fires here. Conservative default: per-layer contact angle
-  only, not per-layer × per-tile-type.
+- Step 12 code-complete: turning strands on while a Layered Mandala
+  is selected now produces concentric rosettes via the per-layer PIC
+  pipeline in `tilings/mandalaStrand.ts`. The Layers panel grows an
+  "Outer contact angle" slider plus a "Contact angle" slider per
+  inner layer (visible only when strands are on). MS-1 = (a)
+  per-layer contact angle only — not per-layer × per-tile-type.
+  Defaults pulled from `defaultContactAngleForFold()`.
+- Next up: **Step 13 — Composition strand renderer + match-up
+  boundary mode**. CS-1 GATES this step — surface the verification
+  status of each candidate centre/background pair to the user before
+  starting any work. Match-up entries must be analytically verified;
+  speculative pairs ship as hard-frame fallbacks.
 
 ## Decisions
 All architectural decisions captured in the "Locked architectural decisions"

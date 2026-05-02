@@ -6,6 +6,7 @@ import { TILINGS } from '../tilings/index'
 import { generateTiling } from '../tilings/archimedean'
 import { generateRosettePatch } from '../tilings/rosettePatch'
 import { generateMandala, DEFAULT_MANDALA_CONFIG } from '../tilings/mandala'
+import { runMandalaPIC } from '../tilings/mandalaStrand'
 import { generateComposition, DEFAULT_COMPOSITION_CONFIG } from '../tilings/composition'
 import { runPIC } from '../pic/index'
 
@@ -80,7 +81,12 @@ export function usePattern(
 
     let polygons
     if (def.category === 'mandala') {
-      polygons = generateMandala(config.mandala ?? DEFAULT_MANDALA_CONFIG, config.tiling.scale)
+      const mandala = config.mandala ?? DEFAULT_MANDALA_CONFIG
+      polygons = generateMandala(mandala, config.tiling.scale)
+      // Mandala uses the per-layer specialised renderer so each ring gets
+      // its own contact angle independent of the global figures map.
+      const segments = runMandalaPIC(polygons, mandala, config)
+      return { polygons, segments }
     } else if (def.category === 'rosette-patch') {
       polygons = generateRosettePatch(def, viewport, config.tiling.scale)
     } else {

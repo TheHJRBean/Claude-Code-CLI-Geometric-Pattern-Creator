@@ -329,7 +329,7 @@ the strand component. If divergence appears, treat as a bug.
 **Acceptance:** in Lab with strands on, picking `4.8.8` and tuning the
 contact angle behaves indistinguishably from Main.
 
-#### Step 12 — Specialised mandala strand renderer [M] · ⏳
+#### Step 12 — Specialised mandala strand renderer [M] · ✅
 **Visible:** turning strands on while a Layered Mandala is selected
 produces the expected concentric rosettes. Per-layer contact-angle
 control inside the Layers panel.
@@ -475,6 +475,21 @@ These appear after Step 14. Reorder by demand at that point.
   work but aren't yet pleasing — sign-off accepted, refinement
   deferred (likely covered by Step 13 strand-match and/or the parked
   CG-1/FS-1 expansion ideas).
+- **2026-05-02** — Step 12 shipped. New `tilings/mandalaStrand.ts`
+  exports `runMandalaPIC(polygons, mandala, baseConfig)` which wraps
+  `runPIC` with a per-polygon synthetic figures map so each layer
+  uses its own contact angle independent of the global figures map.
+  `MandalaLayer` gains optional `contactAngle?: number`;
+  `MandalaConfig` gains optional `outerContactAngle?: number`.
+  Reducer gains `SET_MANDALA_LAYER_CONTACT_ANGLE` and
+  `SET_MANDALA_OUTER_CONTACT_ANGLE`. `defaultContactAngleForFold()`
+  helper supplies sensible defaults per fold (60°/67.5°/72°/75°/
+  78.75° for 6/8/10/12/16 etc.). `usePattern` routes mandala
+  segments through the new renderer. Layers panel grows an outer
+  contact angle slider and a per-layer contact angle slider, both
+  visible only when strands are on. MS-1 resolved as (a) per-layer
+  only — not per-tile-type per-layer (each layer is a single
+  polygon, so per-tile is degenerate at this step).
 - **2026-05-02** — Step 11 shipped. Lab gains a "Strands" section
   (only when strands are on) with a trimmed per-tile-type panel:
   figure type (star/rosette), contact angle, auto strand length

@@ -42,6 +42,22 @@ export interface CompositionConfig {
   frameEnabled: boolean
   /** Colour of the seam frame (CSS colour). */
   frameColor: string
+  /**
+   * Boundary handling mode (Step 13):
+   *   'match' — try to stitch strands across the seam (only if pair is in
+   *             the verified allow-list; otherwise renderer falls back to 'frame')
+   *   'frame' — hard-clip both layers at the region boundary, show frame
+   *
+   * NOTE: with the verified-pairs allow-list currently empty, every preset
+   * effectively renders as 'frame' regardless of this setting.
+   */
+  boundary: 'match' | 'frame'
+  /**
+   * When false (default), the Background dropdown is filtered to entries
+   * verified to strand-match with the current centre. When true, the full
+   * picker list is exposed; unverified pairs silently fall back to hard frame.
+   */
+  showAllBackgrounds: boolean
 }
 
 export interface CurvePoint {

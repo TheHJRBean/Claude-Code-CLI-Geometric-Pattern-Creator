@@ -39,4 +39,6 @@ export type Action =
   | { type: 'SET_COMPOSITION_REGION_RADIUS'; payload: number }
   | { type: 'SET_COMPOSITION_FRAME_ENABLED'; payload: boolean }
   | { type: 'SET_COMPOSITION_FRAME_COLOR'; payload: string }
+  | { type: 'SET_COMPOSITION_BOUNDARY'; payload: 'match' | 'frame' }
+  | { type: 'SET_COMPOSITION_SHOW_ALL_BACKGROUNDS'; payload: boolean }
   | { type: 'LOAD_CONFIG'; payload: PatternConfig }

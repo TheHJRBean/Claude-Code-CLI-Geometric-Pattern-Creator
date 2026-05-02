@@ -8,6 +8,7 @@ import { generateRosettePatch } from '../tilings/rosettePatch'
 import { generateMandala, DEFAULT_MANDALA_CONFIG } from '../tilings/mandala'
 import { runMandalaPIC } from '../tilings/mandalaStrand'
 import { generateComposition, DEFAULT_COMPOSITION_CONFIG } from '../tilings/composition'
+import { runCompositionPIC } from '../tilings/compositionStrand'
 import { runPIC } from '../pic/index'
 
 export interface CompositionRender {
@@ -18,6 +19,8 @@ export interface CompositionRender {
   regionPolygon: Polygon
   frameEnabled: boolean
   frameColor: string
+  /** Boundary mode actually used for strand rendering (see compositionStrand.ts). */
+  effectiveBoundary: 'match' | 'frame'
 }
 
 export interface PatternData {
@@ -60,8 +63,8 @@ export function usePattern(
     if (def.category === 'composition') {
       const cfg = config.composition ?? DEFAULT_COMPOSITION_CONFIG
       const { centrePolygons, backgroundPolygons, regionPolygon } = generateComposition(cfg, viewport)
-      const centreSegments = runPIC(centrePolygons, config)
-      const backgroundSegments = runPIC(backgroundPolygons, config)
+      const { centreSegments, backgroundSegments, effectiveBoundary } =
+        runCompositionPIC(cfg, centrePolygons, backgroundPolygons, config)
       // Combined polygons/segments are used for non-clipped rendering paths
       // (e.g. export); the clipped per-region rendering reads `composition`.
       return {
@@ -75,6 +78,7 @@ export function usePattern(
           regionPolygon,
           frameEnabled: cfg.frameEnabled,
           frameColor: cfg.frameColor,
+          effectiveBoundary,
         },
       }
     }

@@ -346,7 +346,7 @@ only. Surface MS-1 if a layer needs differentiated tile-type angles.
 **Acceptance:** Step 6's `Sultan Hassan (16+8+4)` preset, with strands
 on, produces three nested concentric rosettes that look right.
 
-#### Step 13 — Composition strand renderer + match-up boundary mode [L] · ⏳
+#### Step 13 — Composition strand renderer + match-up boundary mode [L] · 🟡 (architecture only)
 **Visible:** the Composition panel gains a "Boundary" toggle:
 *Match strands across boundary* (default for verified pairs) /
 *Hard frame*. When "Match" is selected and strands are on, strands
@@ -367,6 +367,17 @@ step with the verification status of each candidate pair.
 `hexadecagonal-rosette` centre + `4.8.8` background, *if verified*)
 renders with strands crossing the seam smoothly. Unverified pairs
 default to hard frame.
+
+**Status — architecture-only ship (CS-1 path (a)):** none of the
+four current presets are analytically verified, so the
+`VERIFIED_COMPOSITION_PAIRS` allow-list ships empty. The Boundary
+toggle, "Show all backgrounds" checkbox, and dispatch skeleton
+(`tilings/compositionStrand.ts`, `tilings/compositionVerifiedPairs.ts`)
+are wired and ready; with no verified pairs they currently no-op
+(all presets render as hard frame). To finish Step 13 fully, work
+out the geometry for at least one pair, add its key to the
+allow-list, and implement the seam-stitching path inside
+`runCompositionPIC`. No false strand-match claims are shipped.
 
 ---
 

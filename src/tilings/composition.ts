@@ -4,6 +4,7 @@ import { TILINGS } from './index'
 import { generateTiling } from './archimedean'
 import { generateRosettePatch } from './rosettePatch'
 import { createPolygon, resetIds } from './shared'
+import { effectiveCompositionBoundary, isTrivialMatchPair } from './compositionVerifiedPairs'
 
 /**
  * Names of tilings the composition picker is allowed to use as either centre
@@ -38,6 +39,14 @@ export interface CompositionData {
   backgroundPolygons: Polygon[]
   /** Region polygon — used for clipPath geometry and frame rendering. */
   regionPolygon: Polygon
+  /**
+   * Step 13: when the pair is verified for trivial match (centre === background),
+   * a single tessellation is generated across the full viewport and shared
+   * by both regions. The strand renderer runs PIC once on this set so
+   * strands flow continuously across the seam. Absent in frame mode and
+   * for unverified pairs.
+   */
+  unifiedPolygons?: Polygon[]
 }
 
 /**
@@ -76,6 +85,23 @@ export function generateComposition(
     phi,
     `region-${regionFold}`,
   )
+
+  // Step 13 trivial-match path: when the user picks 'match' boundary AND
+  // the pair is centre === background AND verified, we generate a single
+  // tessellation across the full viewport and use it for both regions. The
+  // tile layer still clips per-region (so per-side fills can differ if the
+  // tile-type colours change someday); the strand renderer reads
+  // `unifiedPolygons` and runs PIC once across the whole set so strands
+  // flow continuously across the seam without per-edge stitching.
+  if (effectiveCompositionBoundary(cfg) === 'match' && isTrivialMatchPair(cfg.centre, cfg.background)) {
+    const unifiedPolygons = generateForCategory(backgroundDef, viewport, cfg.backgroundScale)
+    return {
+      centrePolygons: unifiedPolygons,
+      backgroundPolygons: unifiedPolygons,
+      regionPolygon,
+      unifiedPolygons,
+    }
+  }
 
   // Centre tessellation — generate within a viewport that just covers the
   // region's bounding box. Slight padding so polygons that straddle the

@@ -165,6 +165,20 @@ export const LAB_PRESETS: LabPreset[] = [
     boundary: 'frame',
     showAllBackgrounds: false,
   }),
+  // Step 13 demo: trivial-match pair (hexagonal both sides). Strands flow
+  // continuously across the seam because PIC runs once on a unified set.
+  // Frame disabled by default so the match behaviour is immediately visible.
+  compositionPreset('hex-in-hex-match', 'Hex-in-Hex (match)', {
+    centre: 'hexagonal',
+    background: 'hexagonal',
+    centreScale: 100,
+    backgroundScale: 100,
+    regionRadius: 260,
+    frameEnabled: false,
+    frameColor: 'var(--accent)',
+    boundary: 'match',
+    showAllBackgrounds: false,
+  }),
 ]
 
 export const LAB_PRESETS_BY_ID: Record<string, LabPreset> = Object.fromEntries(

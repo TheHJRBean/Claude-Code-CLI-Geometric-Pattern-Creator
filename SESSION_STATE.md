@@ -30,6 +30,7 @@ Status snapshot:
 - [done] Step 11 — Lab Strands panel (basic per-tile-type controls: figure type + contact angle + auto/length). LX-1 = (a) trimmed Lab variant ("basic implementation"); ID-1 = identical render where overlap exists. "Show advanced" toggle present in UI but non-functional (placeholder pointing user to Main).
 - [done] Step 12 — Specialised mandala strand renderer (`tilings/mandalaStrand.ts`). Per-layer + outer-ring contact angle controls in the Layers panel (visible only when strands are on). MS-1 = (a) per-layer only.
 - [done] Step 13 — Architecture-only ship per CS-1 path (a). Boundary toggle (Match strands / Hard frame) + "Show all backgrounds" filter wired through `CompositionConfig`. New modules `tilings/compositionVerifiedPairs.ts` (allow-list, currently empty) + `tilings/compositionStrand.ts` (dispatch skeleton — falls back to frame mode for every unverified pair, which is currently all of them). No analytical strand-match shipped — none of the four current presets are verified, so no false claims. The renderer architecture is ready for the first verified pair to slot in.
+- [done] Step 13 follow-up — first verified pairs shipped (trivial-match path). `VERIFIED_COMPOSITION_PAIRS` populated with five `centre === background` entries (`square`, `hexagonal`, `triangular`, `4.8.8`, `3.6.3.6`). `composition.ts` generates a unified polygon set across the full viewport for trivial-match pairs and stores it in `unifiedPolygons`. `compositionStrand.ts` runs PIC once over that set and returns segments via new `unifiedSegments` field. `PatternSVG.tsx` renders `unifiedSegments` in a single un-clipped pass so strands flow continuously across the seam; per-region clipping still applies to the tile layer. `effectiveCompositionBoundary()` helper centralises the boundary decision so polygon generation + strand rendering agree. New demo preset `Hex-in-Hex (match)` ships with `boundary: 'match'`, `frameEnabled: false`. Non-trivial verified pairs (different centre + background) are still TODO and need per-pair stitching geometry; the dispatch in `runCompositionPIC` already has the insertion point.
 - [done] Step 14 — Lab-local library. New `state/customTessellations.ts` (schema-versioned localStorage at `lab-tessellations-v1`, list/save/rename/delete/duplicate, quota + corruption handling). Library buttons (Save / Rename / Duplicate / Delete) added under the Preset dropdown; saved entries appear in a "My tessellations" optgroup. Cross-tab sync via `storage` event. Library is Lab-only — Main mode is unaffected.
 - [todo] Steps 15–18 (opt)
 
@@ -160,12 +161,23 @@ Status snapshot:
   Preset dropdown. Save prompts for a name (defaults to current
   preset name + " (modified)" when iterating on a saved entry).
   Cross-tab `storage` events refresh the library list.
+- **Step 13 follow-up code-complete — first verified pairs (trivial
+  match).** `VERIFIED_COMPOSITION_PAIRS` populated with five
+  `centre === background` entries. `composition.ts` generates a
+  unified polygon set when match-mode is active and the pair is
+  trivial; `compositionStrand.ts` runs PIC once on that set and
+  returns it via new `unifiedSegments` field. `PatternSVG.tsx`
+  draws `unifiedSegments` in one un-clipped pass so strands span
+  the seam continuously. New demo preset `Hex-in-Hex (match)`
+  exercises the path. The dispatch in `runCompositionPIC` keeps a
+  named branch for future non-trivial verified pairs (no such
+  pairs yet — adding one requires per-pair seam-stitching code).
 - Next up: optional Steps 15–18 (k-uniform generator, quasi-periodic
   tilings, user-editable polygon placement, Girih substitution). All
-  parked unless prioritised. Or: revisit Step 13 to verify a
-  composition pair geometrically (the architecture is in place, just
-  needs a pair added to `VERIFIED_COMPOSITION_PAIRS` and a stitching
-  branch in `runCompositionPIC`).
+  parked unless prioritised. Or: extend Step 13 with a non-trivial
+  verified pair (different centre + background) — requires working
+  out per-edge stitching geometry on paper first, then dispatching
+  on the pair key inside `runCompositionPIC`.
 
 ## Decisions
 All architectural decisions captured in the "Locked architectural decisions"

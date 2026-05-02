@@ -70,14 +70,27 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
       <g transform={rotation ? `rotate(${rotation} ${cx} ${cy})` : undefined}>
         {composition ? (
           <>
+            {/* Tiles are always per-region clipped so the centre/background
+                styling can diverge in future. For trivial-match pairs the
+                two polygon sets share a reference (composition.ts), so
+                they line up perfectly across the seam. */}
             <g clipPath="url(#composition-background)">
               <TileLayer polygons={composition.backgroundPolygons} visible={showTileLayer} outlineWidth={outlineWidth} fillOnHover={fillOnHover} />
-              {showLines && <StrandLayer segments={composition.backgroundSegments} config={config} />}
+              {showLines && !composition.unifiedSegments && (
+                <StrandLayer segments={composition.backgroundSegments} config={config} />
+              )}
             </g>
             <g clipPath="url(#composition-region)">
               <TileLayer polygons={composition.centrePolygons} visible={showTileLayer} outlineWidth={outlineWidth} fillOnHover={fillOnHover} />
-              {showLines && <StrandLayer segments={composition.centreSegments} config={config} />}
+              {showLines && !composition.unifiedSegments && (
+                <StrandLayer segments={composition.centreSegments} config={config} />
+              )}
             </g>
+            {/* Step 13 match path: strands span both regions in a single
+                un-clipped pass so they cross the seam continuously. */}
+            {showLines && composition.unifiedSegments && (
+              <StrandLayer segments={composition.unifiedSegments} config={config} />
+            )}
             {composition.frameEnabled && (
               <polygon
                 points={polygonPoints(composition.regionPolygon)}

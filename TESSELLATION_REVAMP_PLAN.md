@@ -226,7 +226,7 @@ the polygon rings visibly nest and align before strands are turned on.
 >   from 100 → 250 px on first entry to mandala mode (mandala uses scale
 >   as outer-ring radius), and the Lab slider max is 600 for mandala.
 
-#### Step 6 — Mandala preset catalogue [S] · ⏳
+#### Step 6 — Mandala preset catalogue [S] · ✅
 **Visible:** Step 4 Presets dropdown gains a "Mandalas" sub-section with
 3–5 prebuilt layered tessellations. *Strict-divisor only at this step;
 if MQ-1 fires, the preset list shrinks rather than the rule loosens.*
@@ -452,3 +452,12 @@ These appear after Step 14. Reorder by demand at that point.
   fixed title overlap, and centred the canvas on world origin to fix
   the mandala layout. Steps 1–5 visually signed off by user; Step 6
   awaiting green light.
+- **2026-05-02** — Step 6 shipped. Four mandala presets added
+  (`Octagonal 8+4`, `Hexagonal 12+6+3`, `Sultan Hassan 16+8+4`,
+  `Decagonal 10+5`). Preset dropdown grouped via `<optgroup>` into
+  "Tessellations" and "Mandalas". MQ-1 evaluation: strict divisor
+  was sufficient for the three multi-layer targets; Octagonal's
+  nominal `2` ring is below the polygon engine's n≥3 floor (not a
+  divisor issue), so the preset shrank to `8+4` per plan guidance.
+  MQ-1 remains deferred — no target preset has yet forced
+  common-divisor.

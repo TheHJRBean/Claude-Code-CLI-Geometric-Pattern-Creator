@@ -22,7 +22,7 @@ Status snapshot:
 - [done] Step 3 — Hexadecagonal-rosette tessellation (16-fold)
 - [done] Step 4 — Tessellation preset catalogue
 - [done] Step 5 — Layered mandala engine v1 (polygons only) · MQ-1 deferred to Step 6
-- [todo] Step 6 — Mandala preset catalogue  ← NEXT  · MQ-1 may fire here
+- [done] Step 6 — Mandala preset catalogue · MQ-1 did not fire (strict-divisor sufficed); Octagonal shipped as 8+4 (dropped the 2-fold ring per plan guidance "preset list shrinks rather than rule loosens")
 - [todo] Step 7 — Region-stitching v1, hard-frame · CG-1 + FS-1 fire here
 - [todo] Step 8 — Composition preset catalogue (hard-frame)
 - [todo] Step 9 — Lab polish
@@ -86,15 +86,27 @@ Status snapshot:
     (mandala uses `scale` as outer-ring radius, not edge length). Lab
     scale slider max raised to 600 for mandala (vs. 300 elsewhere) and
     the label switches to "Outer radius" for mandala.
+- **Step 6 implementation:** `state/labPresets.ts` gains a
+  `mandalaPreset()` helper and four entries — `Octagonal (8+4)`,
+  `Hexagonal (12+6+3)`, `Sultan Hassan (16+8+4)`, `Decagonal (10+5)`.
+  Lab "Preset" dropdown now uses `<optgroup>` to split entries into
+  "Tessellations" and "Mandalas" sub-sections. MQ-1 evaluation: all
+  three multi-layer targets satisfy strict divisor (12⊃{6,3}, 16⊃{8,4},
+  10⊃5); Octagonal's nominal third ring `2` is below the polygon engine
+  floor (n ≥ 3), not a divisor issue, so the preset list shrank to
+  `8+4` per plan guidance. MQ-1 stays unresolved-but-deferred — no
+  target preset has yet forced common-divisor.
 
 ## Next
-- Visual sign-off complete: Steps 1–5 verified by user. Layered Mandala
-  renders centred at canvas centre after the post-Step-5 fixes; Lab
-  state survives mode toggles.
-- Awaiting green light for **Step 6 — Mandala preset catalogue**
-  from `TESSELLATION_REVAMP_PLAN.md`. Open question MQ-1 (strict vs
-  common divisor) is scheduled to fire there if any target preset can't
-  be expressed under strict divisor.
+- Visual sign-off complete: Steps 1–5 verified by user. Step 6
+  code-complete; awaiting visual sign-off on the four mandala presets
+  (Octagonal 8+4, Hexagonal 12+6+3, Sultan Hassan 16+8+4, Decagonal 10+5).
+- Strands turned on for mandala presets will *look broken* — the
+  per-tile-type strand renderer doesn't know about layers. Step 12
+  (specialised mandala strand renderer) fixes this; expected at this
+  step per the plan.
+- Next up: **Step 7 — Region-stitching v1, hard-frame only**. Open
+  questions CG-1 and FS-1 fire there.
 
 ## Decisions
 All architectural decisions captured in the "Locked architectural decisions"

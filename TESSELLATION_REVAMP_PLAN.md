@@ -383,7 +383,7 @@ allow-list, and implement the seam-stitching path inside
 
 ### Phase C — Persistence
 
-#### Step 14 — Lab-local library [M] · ⏳
+#### Step 14 — Lab-local library [M] · 🟡
 **Visible:** Lab sidebar gains "Save", "Rename", "Delete", "Duplicate"
 controls. A "My tessellations" section in the tessellation dropdown
 lists saved entries. **Library is Lab-only — no surfacing in Main.**

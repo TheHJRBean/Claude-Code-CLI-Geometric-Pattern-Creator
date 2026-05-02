@@ -1,10 +1,19 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
 import type { Action } from '../state/actions'
 import { TILINGS, SYMMETRY_GROUPS } from '../tilings/index'
 import type { TileTypeInfo } from '../types/tiling'
 import { LAB_PRESETS, LAB_PRESETS_BY_ID } from '../state/labPresets'
+import {
+  type SavedTessellation,
+  listSavedTessellations,
+  saveTessellation,
+  renameTessellation,
+  deleteTessellation,
+  duplicateTessellation,
+  getTessellation,
+} from '../state/customTessellations'
 import { ALLOWED_OUTER_FOLDS, DEFAULT_MANDALA_CONFIG, allowedInnerFolds, defaultContactAngleForFold } from '../tilings/mandala'
 import { DEFAULT_COMPOSITION_CONFIG, compositionPickerNames } from '../tilings/composition'
 import { isPairVerified, verifiedBackgroundsFor } from '../tilings/compositionVerifiedPairs'
@@ -80,6 +89,31 @@ export function TessellationLabMode({
   const [cpActive] = useState<Record<string, number>>({})
   const [showAdvanced, setShowAdvanced] = useState(false)
 
+  // ── Library (Step 14) ─────────────────────────────────
+  const [library, setLibrary] = useState<SavedTessellation[]>(() => listSavedTessellations())
+  const [libraryError, setLibraryError] = useState<string | null>(null)
+  const refreshLibrary = () => setLibrary(listSavedTessellations())
+  const flashError = (msg: string | null) => {
+    setLibraryError(msg)
+    if (msg) window.setTimeout(() => setLibraryError(null), 4000)
+  }
+  // Saved entries appear in the Preset dropdown under a "saved::" prefix so
+  // we can tell them apart from the built-in LAB_PRESETS.
+  const SAVED_PREFIX = 'saved::'
+  const activeSavedId = activePresetId.startsWith(SAVED_PREFIX)
+    ? activePresetId.slice(SAVED_PREFIX.length)
+    : ''
+  const activeSaved = activeSavedId ? library.find(e => e.id === activeSavedId) ?? null : null
+
+  // Keep library in sync if another tab edits it.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'lab-tessellations-v1') refreshLibrary()
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
+
   const def = config.tiling.type ? TILINGS[config.tiling.type] : undefined
   const tileTypes: TileTypeInfo[] = def
     ? def.tileTypes ?? Array.from(new Set(def.vertexConfig)).map(n => ({ id: String(n), sides: n, label: `${n}-gon` }))
@@ -95,9 +129,65 @@ export function TessellationLabMode({
   const handlePresetChange = (id: string) => {
     onSetActivePresetId(id)
     if (!id) return
+    if (id.startsWith(SAVED_PREFIX)) {
+      const entry = getTessellation(id.slice(SAVED_PREFIX.length))
+      if (entry) dispatch({ type: 'LOAD_CONFIG', payload: entry.config })
+      return
+    }
     const preset = LAB_PRESETS_BY_ID[id]
     if (!preset) return
     dispatch({ type: 'LOAD_CONFIG', payload: preset.config })
+  }
+
+  // ── Library handlers ──────────────────────────────────
+  const handleSave = () => {
+    const suggested = activeSaved
+      ? `${activeSaved.name} (modified)`
+      : def
+        ? def.label
+        : 'Untitled'
+    const name = window.prompt('Name this tessellation', suggested)
+    if (name === null) return
+    const result = saveTessellation(name, config)
+    if (result.error) {
+      flashError(result.error.message)
+      return
+    }
+    refreshLibrary()
+    if (result.entry) onSetActivePresetId(`${SAVED_PREFIX}${result.entry.id}`)
+  }
+
+  const handleRename = () => {
+    if (!activeSaved) return
+    const next = window.prompt('Rename tessellation', activeSaved.name)
+    if (next === null) return
+    const err = renameTessellation(activeSaved.id, next)
+    if (err) flashError(err.message)
+    else refreshLibrary()
+  }
+
+  const handleDelete = () => {
+    if (!activeSaved) return
+    const ok = window.confirm(`Delete "${activeSaved.name}"? This cannot be undone.`)
+    if (!ok) return
+    const err = deleteTessellation(activeSaved.id)
+    if (err) {
+      flashError(err.message)
+      return
+    }
+    refreshLibrary()
+    onSetActivePresetId('')
+  }
+
+  const handleDuplicate = () => {
+    if (!activeSaved) return
+    const result = duplicateTessellation(activeSaved.id)
+    if (result.error) {
+      flashError(result.error.message)
+      return
+    }
+    refreshLibrary()
+    if (result.entry) onSetActivePresetId(`${SAVED_PREFIX}${result.entry.id}`)
   }
 
   return (
@@ -169,7 +259,79 @@ export function TessellationLabMode({
                   <option key={p.id} value={p.id}>{p.label}</option>
                 ))}
               </optgroup>
+              {library.length > 0 && (
+                <optgroup label="My tessellations">
+                  {library.map(e => (
+                    <option key={e.id} value={`${SAVED_PREFIX}${e.id}`}>{e.name}</option>
+                  ))}
+                </optgroup>
+              )}
             </select>
+
+            {/* Library controls */}
+            <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
+              {([
+                { label: 'Save', onClick: handleSave, disabled: !config.tiling.type },
+                { label: 'Rename', onClick: handleRename, disabled: !activeSaved },
+                { label: 'Duplicate', onClick: handleDuplicate, disabled: !activeSaved },
+                { label: 'Delete', onClick: handleDelete, disabled: !activeSaved, danger: true },
+              ] as const).map(b => (
+                <button
+                  key={b.label}
+                  onClick={b.onClick}
+                  disabled={b.disabled}
+                  style={{
+                    flex: '1 1 0',
+                    minWidth: 0,
+                    padding: '5px 0',
+                    fontFamily: "'Cinzel', Georgia, serif",
+                    fontSize: 9,
+                    fontWeight: 600,
+                    letterSpacing: '0.10em',
+                    textTransform: 'uppercase',
+                    cursor: b.disabled ? 'not-allowed' : 'pointer',
+                    border: `1px solid ${
+                      'danger' in b && b.danger ? 'var(--border-subtle)' : 'var(--border-subtle)'
+                    }`,
+                    background: 'transparent',
+                    color: b.disabled
+                      ? 'var(--text-muted)'
+                      : 'danger' in b && b.danger
+                        ? '#a85050'
+                        : 'var(--text-muted)',
+                    opacity: b.disabled ? 0.5 : 1,
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {b.label}
+                </button>
+              ))}
+            </div>
+            {libraryError && (
+              <p style={{
+                marginTop: 6,
+                marginBottom: 0,
+                fontFamily: "'EB Garamond', Georgia, serif",
+                fontSize: 12,
+                color: '#a85050',
+                lineHeight: 1.4,
+              }}>
+                {libraryError}
+              </p>
+            )}
+            {!libraryError && activeSaved && (
+              <p style={{
+                marginTop: 6,
+                marginBottom: 0,
+                fontFamily: "'EB Garamond', Georgia, serif",
+                fontStyle: 'italic',
+                fontSize: 11.5,
+                color: 'var(--text-muted)',
+                lineHeight: 1.4,
+              }}>
+                Saved {new Date(activeSaved.createdAt).toLocaleString()}
+              </p>
+            )}
           </div>
 
           <div style={{ paddingTop: 22 }}>

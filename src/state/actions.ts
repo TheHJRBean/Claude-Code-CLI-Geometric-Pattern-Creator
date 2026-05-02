@@ -28,4 +28,5 @@ export type Action =
   | { type: 'REMOVE_MANDALA_LAYER'; payload: { index: number } }
   | { type: 'SET_MANDALA_LAYER_FOLD'; payload: { index: number; fold: number } }
   | { type: 'SET_MANDALA_LAYER_SCALE'; payload: { index: number; scale: number } }
+  | { type: 'SET_MANDALA_LAYER_ROTATION_STEP'; payload: { index: number; step: number } }
   | { type: 'LOAD_CONFIG'; payload: PatternConfig }

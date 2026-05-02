@@ -9,6 +9,12 @@ export interface MandalaLayer {
   fold: number
   /** Scale relative to the outer ring (0..1] */
   scale: number
+  /**
+   * Stepwise rotation in units of half the inter-vertex angle (π / fold).
+   * 0 = aligned with outer's primary axis. Even steps align vertices with
+   * the outer's vertex axis; odd steps align edge-midpoints with that axis.
+   */
+  rotationStep?: number
 }
 
 export interface MandalaConfig {

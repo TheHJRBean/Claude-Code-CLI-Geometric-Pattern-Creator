@@ -67,7 +67,9 @@ export function generateMandala(config: MandalaConfig, baseScale: number): Polyg
   for (const layer of config.layers) {
     if (!isLayerFoldValid(config.outerFold, layer.fold)) continue
     const r = baseScale * Math.max(0.05, Math.min(1, layer.scale))
-    polygons.push(createPolygon(layer.fold, center, r, phi))
+    const step = layer.rotationStep ?? 0
+    const layerPhi = phi + (step * Math.PI) / layer.fold
+    polygons.push(createPolygon(layer.fold, center, r, layerPhi))
   }
 
   return polygons

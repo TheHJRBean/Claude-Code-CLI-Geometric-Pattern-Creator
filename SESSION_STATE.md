@@ -96,6 +96,15 @@ Status snapshot:
   floor (n ≥ 3), not a divisor issue, so the preset list shrank to
   `8+4` per plan guidance. MQ-1 stays unresolved-but-deferred — no
   target preset has yet forced common-divisor.
+- **Step 5/6 follow-up — per-layer rotation step:**
+  `MandalaLayer` gains optional `rotationStep: number` (units of
+  `π / fold`, i.e. half the inter-vertex angle). Even steps land on
+  the outer's vertex axis, odd steps land on the edge-midpoint axis,
+  so vertices always snap to either the outer's vertices or its edge
+  centres. `generateMandala` adds `step * π / fold` to per-layer
+  `phi`. Reducer gains `SET_MANDALA_LAYER_ROTATION_STEP` (modulo
+  `2 * fold`). Layers panel gains a ◀ / Reset / ▶ control with a
+  readout (`step N/M · θ° · vertex|edge-aligned`).
 
 ## Next
 - Visual sign-off complete: Steps 1–5 verified by user. Step 6

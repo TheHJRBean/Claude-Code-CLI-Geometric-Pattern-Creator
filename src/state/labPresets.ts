@@ -1,4 +1,4 @@
-import type { MandalaConfig, PatternConfig } from '../types/pattern'
+import type { CompositionConfig, MandalaConfig, PatternConfig } from '../types/pattern'
 import { TILINGS } from '../tilings/index'
 
 export interface LabPreset {
@@ -60,6 +60,32 @@ function mandalaPreset(
   }
 }
 
+function compositionPreset(
+  id: string,
+  label: string,
+  composition: CompositionConfig,
+): LabPreset {
+  const def = TILINGS['composition']
+  if (!def) {
+    throw new Error('labPresets: composition tiling missing')
+  }
+  const centreFigures = TILINGS[composition.centre]?.defaultConfig.figures ?? {}
+  const backgroundFigures = TILINGS[composition.background]?.defaultConfig.figures ?? {}
+  return {
+    id: `composition.${id}`,
+    label,
+    category: 'composition',
+    config: {
+      tiling: { type: 'composition', scale: 100 },
+      // Centre's defaults take priority on tile-type collisions — the
+      // centre is the focal point of a composition.
+      figures: { ...backgroundFigures, ...centreFigures },
+      lacing: { ...baseLacing },
+      composition,
+    },
+  }
+}
+
 /**
  * v1 catalogue — tessellation-named only. No strand-pattern names like
  * "Khatem Sulemani" until those become composable in later steps.
@@ -94,6 +120,42 @@ export const LAB_PRESETS: LabPreset[] = [
   mandalaPreset('decagonal-10-5', 'Decagonal (10+5)', 250, {
     outerFold: 10,
     layers: [{ fold: 5, scale: 0.55 }],
+  }),
+  compositionPreset('16-in-4.8.8', '16-gon in 4.8.8', {
+    centre: 'hexadecagonal-rosette',
+    background: '4.8.8',
+    centreScale: 90,
+    backgroundScale: 100,
+    regionRadius: 280,
+    frameEnabled: true,
+    frameColor: 'var(--accent)',
+  }),
+  compositionPreset('12-in-hexagonal', '12-gon in Hexagonal', {
+    centre: '4.6.12',
+    background: 'hexagonal',
+    centreScale: 80,
+    backgroundScale: 110,
+    regionRadius: 260,
+    frameEnabled: true,
+    frameColor: 'var(--accent)',
+  }),
+  compositionPreset('16-in-square', '16-gon in Square', {
+    centre: 'hexadecagonal-rosette',
+    background: 'square',
+    centreScale: 90,
+    backgroundScale: 90,
+    regionRadius: 260,
+    frameEnabled: true,
+    frameColor: 'var(--accent)',
+  }),
+  compositionPreset('10-in-hexagonal', '10-gon in Hexagonal', {
+    centre: 'decagonal-rosette',
+    background: 'hexagonal',
+    centreScale: 80,
+    backgroundScale: 110,
+    regionRadius: 240,
+    frameEnabled: true,
+    frameColor: 'var(--accent)',
   }),
 ]
 

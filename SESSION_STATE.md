@@ -24,7 +24,7 @@ Status snapshot:
 - [done] Step 5 — Layered mandala engine v1 (polygons only) · MQ-1 deferred to Step 6
 - [done] Step 6 — Mandala preset catalogue · MQ-1 did not fire (strict-divisor sufficed); Octagonal shipped as 8+4 (dropped the 2-fold ring per plan guidance "preset list shrinks rather than rule loosens")
 - [done] Step 7 — Region-stitching v1, hard-frame · CG-1=(a) two scale sliders, FS-1=(a) on/off + colour. Expansion alternatives parked as `/idea` memories.
-- [todo] Step 8 — Composition preset catalogue (hard-frame)
+- [done] Step 8 — Composition preset catalogue (hard-frame): four entries (16-in-4.8.8, 12-in-Hexagonal, 16-in-Square, 10-in-Hexagonal). Visuals are functional but not yet pleasing — sign-off accepted, refinement deferred.
 - [todo] Step 9 — Lab polish
 - [todo] Step 10 — Lift `FigureControls` into shared component
 - [todo] Step 11 — Strand controls in Lab (archimedean / rosette-patch) · LX-1 + ID-1 fire here
@@ -130,17 +130,13 @@ Status snapshot:
   readout (`step N/M · θ° · vertex|edge-aligned`).
 
 ## Next
-- Visual sign-off complete: Steps 1–6 verified by user.
-- Step 7 code-complete; awaiting visual sign-off on the new
-  Composition tessellation (default centre = Hexadecagonal Rosette,
-  background = 4.8.8, region radius 280 px, frame on, colour =
-  `var(--accent)`).
-- Strands turned on for composition will show both halves' strands
-  hard-clipped at the seam — that's expected for v1. Strand-match
-  across the boundary arrives in Step 13.
-- Next up: **Step 8 — Composition preset catalogue (hard-frame)**:
-  3–4 Composition entries in `LAB_PRESETS` (`16-in-4.8.8`,
-  `12-in-Hexagonal`, `16-in-Square`, `10-in-Hexagonal`).
+- Visual sign-off complete: Steps 1–8 verified by user. Step 7/8
+  composition visuals work as intended but aren't yet pleasing —
+  refinement deferred (likely covered by Step 13 strand-match and/or
+  the parked CG-1/FS-1 expansion ideas).
+- Next up: **Step 9 — Lab polish**: persist last-used Lab tessellation
+  + scale to localStorage; tessellation outline weight slider in
+  Display section; optional fill-on-hover for tile types.
 
 ## Decisions
 All architectural decisions captured in the "Locked architectural decisions"

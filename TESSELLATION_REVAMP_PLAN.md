@@ -275,7 +275,7 @@ background, see clean polygon match within each region and a visible
 frame at the seam. Strand-match isn't shipped yet (Step 13); strands
 turned on at this step show both halves' strands clipped at the frame.
 
-#### Step 8 — Composition preset catalogue (hard-frame) [S] · ⏳
+#### Step 8 — Composition preset catalogue (hard-frame) [S] · ✅
 **Visible:** Presets dropdown gains a "Compositions" sub-section. All
 hard-frame at this step.
 
@@ -469,3 +469,9 @@ These appear after Step 14. Reorder by demand at that point.
   entries. Strands turned on at this step show both halves' strands
   hard-clipped at the seam — strand-match across boundary arrives in
   Step 13.
+- **2026-05-02** — Step 8 shipped. Four composition presets added
+  (`16-in-4.8.8`, `12-in-Hexagonal`, `16-in-Square`, `10-in-Hexagonal`).
+  Lab Preset dropdown gains a third optgroup "Compositions". Visuals
+  work but aren't yet pleasing — sign-off accepted, refinement
+  deferred (likely covered by Step 13 strand-match and/or the parked
+  CG-1/FS-1 expansion ideas).

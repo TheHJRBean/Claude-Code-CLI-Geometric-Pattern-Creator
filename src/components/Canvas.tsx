@@ -14,11 +14,13 @@ interface Props {
   segmentsRef: React.MutableRefObject<Segment[]>
   cpVisible: Record<string, boolean>
   cpActive: Record<string, number>
+  outlineWidth?: number
+  fillOnHover?: boolean
 }
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, fillOnHover }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -89,6 +91,8 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         handlers={handlers}
         cpVisible={cpVisible}
         cpActive={cpActive}
+        outlineWidth={outlineWidth}
+        fillOnHover={fillOnHover}
       />
       <button
         onClick={resetCamera}

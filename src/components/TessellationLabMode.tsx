@@ -25,6 +25,10 @@ interface Props {
   dispatch: React.Dispatch<Action>
   showStrands: boolean
   onToggleShowStrands: (next: boolean) => void
+  outlineWidth: number
+  onSetOutlineWidth: (next: number) => void
+  fillOnHover: boolean
+  onToggleFillOnHover: (next: boolean) => void
   activePresetId: string
   onSetActivePresetId: (id: string) => void
 }
@@ -60,6 +64,10 @@ export function TessellationLabMode({
   dispatch,
   showStrands,
   onToggleShowStrands,
+  outlineWidth,
+  onSetOutlineWidth,
+  fillOnHover,
+  onToggleFillOnHover,
   activePresetId,
   onSetActivePresetId,
 }: Props) {
@@ -562,7 +570,7 @@ export function TessellationLabMode({
             )
           })()}
 
-          {/* Display — strand overlay toggle */}
+          {/* Display — strand overlay + outline weight + hover fill */}
           <div style={{ paddingTop: 22 }}>
             <SectionTitle>Display</SectionTitle>
             <label style={{
@@ -583,6 +591,41 @@ export function TessellationLabMode({
               />
               Show strands
             </label>
+
+            <FieldLabel
+              label="Outline weight"
+              value={outlineWidth.toFixed(1)}
+              unit=" px"
+            />
+            <input
+              type="range"
+              className="pattern-slider"
+              min={0.2}
+              max={4}
+              step={0.1}
+              value={outlineWidth}
+              onChange={e => onSetOutlineWidth(Number(e.target.value))}
+            />
+
+            <label style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              marginTop: 14,
+              cursor: 'pointer',
+              fontFamily: "'EB Garamond', Georgia, serif",
+              fontSize: 13.5,
+              color: fillOnHover ? 'var(--text)' : 'var(--text-muted)',
+              transition: 'color 0.15s',
+            }}>
+              <input
+                type="checkbox"
+                className="pattern-checkbox"
+                checked={fillOnHover}
+                onChange={e => onToggleFillOnHover(e.target.checked)}
+              />
+              Fill tile on hover
+            </label>
           </div>
         </div>
       </div>
@@ -598,6 +641,8 @@ export function TessellationLabMode({
         segmentsRef={segmentsRef}
         cpVisible={cpVisible}
         cpActive={cpActive}
+        outlineWidth={outlineWidth}
+        fillOnHover={fillOnHover}
       />
     </div>
   )

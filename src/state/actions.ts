@@ -1,4 +1,4 @@
-import type { PatternConfig, FigureConfig, LacingConfig, MandalaConfig, MandalaLayer } from '../types/pattern'
+import type { PatternConfig, FigureConfig, LacingConfig, MandalaConfig, MandalaLayer, CompositionConfig } from '../types/pattern'
 
 export type Action =
   | { type: 'SET_TILING_TYPE'; payload: string }
@@ -29,4 +29,12 @@ export type Action =
   | { type: 'SET_MANDALA_LAYER_FOLD'; payload: { index: number; fold: number } }
   | { type: 'SET_MANDALA_LAYER_SCALE'; payload: { index: number; scale: number } }
   | { type: 'SET_MANDALA_LAYER_ROTATION_STEP'; payload: { index: number; step: number } }
+  | { type: 'SET_COMPOSITION_CONFIG'; payload: CompositionConfig }
+  | { type: 'SET_COMPOSITION_CENTRE'; payload: string }
+  | { type: 'SET_COMPOSITION_BACKGROUND'; payload: string }
+  | { type: 'SET_COMPOSITION_CENTRE_SCALE'; payload: number }
+  | { type: 'SET_COMPOSITION_BACKGROUND_SCALE'; payload: number }
+  | { type: 'SET_COMPOSITION_REGION_RADIUS'; payload: number }
+  | { type: 'SET_COMPOSITION_FRAME_ENABLED'; payload: boolean }
+  | { type: 'SET_COMPOSITION_FRAME_COLOR'; payload: string }
   | { type: 'LOAD_CONFIG'; payload: PatternConfig }

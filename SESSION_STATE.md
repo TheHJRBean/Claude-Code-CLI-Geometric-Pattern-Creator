@@ -23,7 +23,7 @@ Status snapshot:
 - [done] Step 4 — Tessellation preset catalogue
 - [done] Step 5 — Layered mandala engine v1 (polygons only) · MQ-1 deferred to Step 6
 - [done] Step 6 — Mandala preset catalogue · MQ-1 did not fire (strict-divisor sufficed); Octagonal shipped as 8+4 (dropped the 2-fold ring per plan guidance "preset list shrinks rather than rule loosens")
-- [todo] Step 7 — Region-stitching v1, hard-frame · CG-1 + FS-1 fire here
+- [done] Step 7 — Region-stitching v1, hard-frame · CG-1=(a) two scale sliders, FS-1=(a) on/off + colour. Expansion alternatives parked as `/idea` memories.
 - [todo] Step 8 — Composition preset catalogue (hard-frame)
 - [todo] Step 9 — Lab polish
 - [todo] Step 10 — Lift `FigureControls` into shared component
@@ -96,6 +96,29 @@ Status snapshot:
   floor (n ≥ 3), not a divisor issue, so the preset list shrank to
   `8+4` per plan guidance. MQ-1 stays unresolved-but-deferred — no
   target preset has yet forced common-divisor.
+- **Step 7 implementation:** new `tilings/composition.ts` module exports
+  `generateComposition()`, `compositionPickerNames()`, and
+  `DEFAULT_COMPOSITION_CONFIG`. New `composition` entry in `TilingCategory`
+  + a `'composition'` marker entry in `TILINGS` (similar to the
+  layered-mandala marker) + a "Composed" group in `SYMMETRY_GROUPS`.
+  `PatternConfig` gains optional `composition?: CompositionConfig`
+  (`{ centre, background, centreScale, backgroundScale, regionRadius,
+  frameEnabled, frameColor }`). `usePattern` returns an extra
+  `composition: CompositionRender` field with per-region polygons +
+  segments + region polygon. `PatternSVG` defines two `<clipPath>`s
+  (region + viewport-minus-region via even-odd path) and renders the
+  centre/background tile + strand layers under their respective clips,
+  then draws the frame `<polygon>` on top. Reducer seeds default config
+  on category entry and gains `SET_COMPOSITION_*` actions for centre,
+  background, centreScale, backgroundScale, regionRadius, frameEnabled,
+  frameColor. Lab sidebar gains a "Composition" panel with both
+  pickers, three sliders, frame toggle, and colour picker. Global Scale
+  slider hidden in composition mode (composition has its own per-side
+  scales). CG-1 = (a) two sliders, FS-1 = (a) on/off + single colour
+  swatch — both per plan-default. Auto-fit, fixed-ratio, weight slider,
+  dash style, inset offset, and contrast-only variants parked as
+  `project_composition_scale_expansion_idea.md` and
+  `project_composition_frame_expansion_idea.md`.
 - **Step 5/6 follow-up — per-layer rotation step:**
   `MandalaLayer` gains optional `rotationStep: number` (units of
   `π / fold`, i.e. half the inter-vertex angle). Even steps land on
@@ -107,15 +130,17 @@ Status snapshot:
   readout (`step N/M · θ° · vertex|edge-aligned`).
 
 ## Next
-- Visual sign-off complete: Steps 1–5 verified by user. Step 6
-  code-complete; awaiting visual sign-off on the four mandala presets
-  (Octagonal 8+4, Hexagonal 12+6+3, Sultan Hassan 16+8+4, Decagonal 10+5).
-- Strands turned on for mandala presets will *look broken* — the
-  per-tile-type strand renderer doesn't know about layers. Step 12
-  (specialised mandala strand renderer) fixes this; expected at this
-  step per the plan.
-- Next up: **Step 7 — Region-stitching v1, hard-frame only**. Open
-  questions CG-1 and FS-1 fire there.
+- Visual sign-off complete: Steps 1–6 verified by user.
+- Step 7 code-complete; awaiting visual sign-off on the new
+  Composition tessellation (default centre = Hexadecagonal Rosette,
+  background = 4.8.8, region radius 280 px, frame on, colour =
+  `var(--accent)`).
+- Strands turned on for composition will show both halves' strands
+  hard-clipped at the seam — that's expected for v1. Strand-match
+  across the boundary arrives in Step 13.
+- Next up: **Step 8 — Composition preset catalogue (hard-frame)**:
+  3–4 Composition entries in `LAB_PRESETS` (`16-in-4.8.8`,
+  `12-in-Hexagonal`, `16-in-Square`, `10-in-Hexagonal`).
 
 ## Decisions
 All architectural decisions captured in the "Locked architectural decisions"

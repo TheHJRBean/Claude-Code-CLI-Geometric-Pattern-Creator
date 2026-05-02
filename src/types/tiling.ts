@@ -1,6 +1,6 @@
 import type { PatternConfig } from './pattern'
 
-export type TilingCategory = 'archimedean' | 'rosette-patch' | 'mandala'
+export type TilingCategory = 'archimedean' | 'rosette-patch' | 'mandala' | 'composition'
 
 export interface TileTypeInfo {
   /** Config key (e.g. "6", "6.1", "6.2") */

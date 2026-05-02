@@ -241,7 +241,7 @@ mandala-aware strand renderer (Step 12) isn't shipped yet — strands fall
 back to per-tile-type rendering and *should look broken*. That's OK at
 this step; Step 12 fixes it.
 
-#### Step 7 — Region-stitching v1, hard-frame only [M] · ⏳
+#### Step 7 — Region-stitching v1, hard-frame only [M] · ✅
 **Visible:** new tessellation category "Composition" in the dropdown.
 Centre picker (any single tessellation) + Background picker (any single
 tessellation). Canvas renders the central tessellation clipped to a
@@ -461,3 +461,11 @@ These appear after Step 14. Reorder by demand at that point.
   divisor issue), so the preset shrank to `8+4` per plan guidance.
   MQ-1 remains deferred — no target preset has yet forced
   common-divisor.
+- **2026-05-02** — Step 7 shipped. New composition category +
+  `tilings/composition.ts` engine + `<clipPath>`-based per-region
+  rendering in `PatternSVG`. CG-1 resolved as (a) two scale sliders;
+  FS-1 resolved as (a) on/off + colour. Auto-fit / fixed-ratio and
+  weight / dash / inset / contrast variants parked as `/idea` memory
+  entries. Strands turned on at this step show both halves' strands
+  hard-clipped at the seam — strand-match across boundary arrives in
+  Step 13.

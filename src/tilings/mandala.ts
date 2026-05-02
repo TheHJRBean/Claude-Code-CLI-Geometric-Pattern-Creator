@@ -39,6 +39,24 @@ export function isLayerFoldValid(outerFold: number, fold: number): boolean {
 }
 
 /**
+ * Sensible default PIC contact angle (degrees) for a regular polygon of
+ * `fold` sides. These values produce the canonical Islamic-pattern stars
+ * for each fold (square → 67.5° classic 8-pointed, hexagon → 60°, etc.).
+ */
+export function defaultContactAngleForFold(fold: number): number {
+  if (fold <= 3) return 60
+  if (fold === 4) return 67.5
+  if (fold === 5) return 72
+  if (fold === 6) return 60
+  if (fold === 8) return 67.5
+  if (fold === 10) return 72
+  if (fold === 12) return 75
+  if (fold === 16) return 78.75
+  // Linear-ish fallback for unusual folds: 90° - 360°/(2n)
+  return Math.max(30, 90 - 180 / fold)
+}
+
+/**
  * Generate the polygon set for a layered mandala. Each layer is a single
  * regular polygon centred at the origin, all sharing the same primary axis
  * (so vertices/axes line up under the strict-divisor rule).

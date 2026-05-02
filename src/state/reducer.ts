@@ -188,6 +188,18 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       })
       return { ...state, mandala: { ...current, layers } }
     }
+    case 'SET_MANDALA_LAYER_CONTACT_ANGLE': {
+      const current: MandalaConfig = state.mandala ?? DEFAULT_MANDALA_CONFIG
+      const angle = Math.max(10, Math.min(85, action.payload.angle))
+      const layers = current.layers.map((l, i) =>
+        i === action.payload.index ? { ...l, contactAngle: angle } : l)
+      return { ...state, mandala: { ...current, layers } }
+    }
+    case 'SET_MANDALA_OUTER_CONTACT_ANGLE': {
+      const current: MandalaConfig = state.mandala ?? DEFAULT_MANDALA_CONFIG
+      const angle = Math.max(10, Math.min(85, action.payload))
+      return { ...state, mandala: { ...current, outerContactAngle: angle } }
+    }
     case 'SET_COMPOSITION_CONFIG':
       return { ...state, composition: action.payload }
     case 'SET_COMPOSITION_CENTRE': {

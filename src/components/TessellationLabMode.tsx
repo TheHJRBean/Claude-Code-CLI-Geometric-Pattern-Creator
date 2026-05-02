@@ -140,12 +140,17 @@ export function TessellationLabMode({
             >
               <option value="">— select a preset —</option>
               <optgroup label="Tessellations">
-                {LAB_PRESETS.filter(p => p.category !== 'mandala').map(p => (
+                {LAB_PRESETS.filter(p => p.category !== 'mandala' && p.category !== 'composition').map(p => (
                   <option key={p.id} value={p.id}>{p.label}</option>
                 ))}
               </optgroup>
               <optgroup label="Mandalas">
                 {LAB_PRESETS.filter(p => p.category === 'mandala').map(p => (
+                  <option key={p.id} value={p.id}>{p.label}</option>
+                ))}
+              </optgroup>
+              <optgroup label="Compositions">
+                {LAB_PRESETS.filter(p => p.category === 'composition').map(p => (
                   <option key={p.id} value={p.id}>{p.label}</option>
                 ))}
               </optgroup>

@@ -346,7 +346,7 @@ only. Surface MS-1 if a layer needs differentiated tile-type angles.
 **Acceptance:** Step 6's `Sultan Hassan (16+8+4)` preset, with strands
 on, produces three nested concentric rosettes that look right.
 
-#### Step 13 — Composition strand renderer + match-up boundary mode [L] · 🟡 (architecture only)
+#### Step 13 — Composition strand renderer + match-up boundary mode [L] · ✅ (trivial pairs verified)
 **Visible:** the Composition panel gains a "Boundary" toggle:
 *Match strands across boundary* (default for verified pairs) /
 *Hard frame*. When "Match" is selected and strands are on, strands
@@ -368,16 +368,29 @@ step with the verification status of each candidate pair.
 renders with strands crossing the seam smoothly. Unverified pairs
 default to hard frame.
 
-**Status — architecture-only ship (CS-1 path (a)):** none of the
-four current presets are analytically verified, so the
-`VERIFIED_COMPOSITION_PAIRS` allow-list ships empty. The Boundary
-toggle, "Show all backgrounds" checkbox, and dispatch skeleton
-(`tilings/compositionStrand.ts`, `tilings/compositionVerifiedPairs.ts`)
-are wired and ready; with no verified pairs they currently no-op
-(all presets render as hard frame). To finish Step 13 fully, work
-out the geometry for at least one pair, add its key to the
-allow-list, and implement the seam-stitching path inside
-`runCompositionPIC`. No false strand-match claims are shipped.
+**Status — first verified pairs shipped (trivial-match path).** The
+v1 allow-list contains five `centre === background` pairs (`square`,
+`hexagonal`, `triangular`, `4.8.8`, `3.6.3.6`). For these, the seam
+is structurally invisible to PIC: both sides come from the same
+tessellation, so every contact-ray pair on the seam mirrors trivially.
+`composition.ts` generates a single unified tessellation across the
+full viewport and stores it on the new `unifiedPolygons` field;
+`compositionStrand.ts` runs `runPIC` once over that set and returns
+the result via the new `unifiedSegments` field; `PatternSVG.tsx`
+draws those segments in one un-clipped pass so strands span the seam
+continuously. The new demo preset `Hex-in-Hex (match)` ships with
+`boundary: 'match'`, `frameEnabled: false` so the behaviour is
+visible immediately. The dispatch in `runCompositionPIC` keeps a
+named branch for future **non-trivial** verified pairs (different
+centre + background tessellations) — that branch is currently
+unreachable because no such pair has had its seam geometry worked
+out. Adding one requires:
+  1. Picking a pair where both tessellations have edges that can
+     coincide along the seam at compatible contact angles.
+  2. Computing the alignment constraints (edge length, orientation,
+     `regionRadius` snap).
+  3. Implementing per-edge stitching inside `runCompositionPIC`'s
+     non-trivial branch.
 
 ---
 
@@ -521,6 +534,21 @@ These appear after Step 14. Reorder by demand at that point.
   Sidebar imports the lifted component; old definition deleted along
   with now-unused `useMemo` / `computeSnapPoints` / `snapToNearest`
   imports. Pre-req for Step 11.
+- **2026-05-02** — Step 13 follow-up shipped. `VERIFIED_COMPOSITION_PAIRS`
+  populated with five trivial-match pairs (`square`, `hexagonal`,
+  `triangular`, `4.8.8`, `3.6.3.6`, all `centre === background`). New helpers
+  `effectiveCompositionBoundary()` and `isTrivialMatchPair()` centralise the
+  dispatch decision so polygon generation and strand rendering agree.
+  `composition.ts` returns a unified polygon set across the full viewport
+  for trivial-match pairs (new `unifiedPolygons` field on `CompositionData`);
+  `compositionStrand.ts` runs `runPIC` once on that set and returns it via
+  `unifiedSegments`; `PatternSVG.tsx` draws `unifiedSegments` once with no
+  per-region clip so strands span the seam. Tile layer still clips
+  per-region. New preset `Hex-in-Hex (match)` (boundary='match',
+  frameEnabled=false) demos the path. CS-1 partially resolved — the path
+  is exercised end-to-end, but only for the trivial case. Genuinely
+  different centre+background pairs remain unverified pending per-pair
+  seam geometry work.
 - **2026-05-02** — Step 9 shipped. `state/labDefaults.ts` now exports
   `loadLabState`/`saveLabState` against `lab-state-v1` localStorage
   key (envelope: `{ config, showStrands, outlineWidth, fillOnHover }`).

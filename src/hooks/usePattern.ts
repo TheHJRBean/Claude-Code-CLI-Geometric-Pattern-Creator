@@ -16,6 +16,11 @@ export interface CompositionRender {
   centreSegments: Segment[]
   backgroundPolygons: Polygon[]
   backgroundSegments: Segment[]
+  /**
+   * Step 13 trivial-match: when present, renderer draws these once across
+   * the whole viewport (no per-region clip) so strands span the seam.
+   */
+  unifiedSegments?: Segment[]
   regionPolygon: Polygon
   frameEnabled: boolean
   frameColor: string
@@ -62,19 +67,25 @@ export function usePattern(
 
     if (def.category === 'composition') {
       const cfg = config.composition ?? DEFAULT_COMPOSITION_CONFIG
-      const { centrePolygons, backgroundPolygons, regionPolygon } = generateComposition(cfg, viewport)
-      const { centreSegments, backgroundSegments, effectiveBoundary } =
+      const { centrePolygons, backgroundPolygons, regionPolygon, unifiedPolygons } =
+        generateComposition(cfg, viewport)
+      const { centreSegments, backgroundSegments, unifiedSegments, effectiveBoundary } =
         runCompositionPIC(cfg, centrePolygons, backgroundPolygons, config)
       // Combined polygons/segments are used for non-clipped rendering paths
       // (e.g. export); the clipped per-region rendering reads `composition`.
+      // For trivial-match pairs `centrePolygons === backgroundPolygons`
+      // (shared reference), so dedup before flattening.
+      const flatPolygons = unifiedPolygons ?? [...backgroundPolygons, ...centrePolygons]
+      const flatSegments = unifiedSegments ?? [...backgroundSegments, ...centreSegments]
       return {
-        polygons: [...backgroundPolygons, ...centrePolygons],
-        segments: [...backgroundSegments, ...centreSegments],
+        polygons: flatPolygons,
+        segments: flatSegments,
         composition: {
           centrePolygons,
           centreSegments,
           backgroundPolygons,
           backgroundSegments,
+          unifiedSegments,
           regionPolygon,
           frameEnabled: cfg.frameEnabled,
           frameColor: cfg.frameColor,

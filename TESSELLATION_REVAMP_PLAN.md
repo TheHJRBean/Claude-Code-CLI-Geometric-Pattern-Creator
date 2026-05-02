@@ -293,7 +293,7 @@ hard-frame at this step.
 - Tessellation outline weight slider in Display section
 - Optional fill-on-hover for tile types
 
-#### Step 10 — Lift `FigureControls` into a shared component [S–M] · ⏳
+#### Step 10 — Lift `FigureControls` into a shared component [S–M] · ✅
 **Visible:** no behavioural change in Main. Internal refactor only.
 
 - Extract `FigureControls` from `Sidebar.tsx` into
@@ -475,6 +475,13 @@ These appear after Step 14. Reorder by demand at that point.
   work but aren't yet pleasing — sign-off accepted, refinement
   deferred (likely covered by Step 13 strand-match and/or the parked
   CG-1/FS-1 expansion ideas).
+- **2026-05-02** — Step 10 shipped. `FigureControls` extracted from
+  `Sidebar.tsx` into `components/strands/FigureControls.tsx` with its
+  own private copies of `FieldLabel`/`Toggle` helpers (so Sidebar's
+  local versions stay untouched and Main render stays byte-identical).
+  Sidebar imports the lifted component; old definition deleted along
+  with now-unused `useMemo` / `computeSnapPoints` / `snapToNearest`
+  imports. Pre-req for Step 11.
 - **2026-05-02** — Step 9 shipped. `state/labDefaults.ts` now exports
   `loadLabState`/`saveLabState` against `lab-state-v1` localStorage
   key (envelope: `{ config, showStrands, outlineWidth, fillOnHover }`).

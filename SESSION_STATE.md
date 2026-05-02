@@ -25,7 +25,7 @@ Status snapshot:
 - [done] Step 6 — Mandala preset catalogue · MQ-1 did not fire (strict-divisor sufficed); Octagonal shipped as 8+4 (dropped the 2-fold ring per plan guidance "preset list shrinks rather than rule loosens")
 - [done] Step 7 — Region-stitching v1, hard-frame · CG-1=(a) two scale sliders, FS-1=(a) on/off + colour. Expansion alternatives parked as `/idea` memories.
 - [done] Step 8 — Composition preset catalogue (hard-frame): four entries (16-in-4.8.8, 12-in-Hexagonal, 16-in-Square, 10-in-Hexagonal). Visuals are functional but not yet pleasing — sign-off accepted, refinement deferred.
-- [todo] Step 9 — Lab polish
+- [done] Step 9 — Lab polish: localStorage persistence of full Lab state, tessellation outline weight slider, fill-on-hover toggle.
 - [todo] Step 10 — Lift `FigureControls` into shared component
 - [todo] Step 11 — Strand controls in Lab (archimedean / rosette-patch) · LX-1 + ID-1 fire here
 - [todo] Step 12 — Mandala strand renderer · MS-1 fires here
@@ -134,9 +134,14 @@ Status snapshot:
   composition visuals work as intended but aren't yet pleasing —
   refinement deferred (likely covered by Step 13 strand-match and/or
   the parked CG-1/FS-1 expansion ideas).
-- Next up: **Step 9 — Lab polish**: persist last-used Lab tessellation
-  + scale to localStorage; tessellation outline weight slider in
-  Display section; optional fill-on-hover for tile types.
+- Step 9 code-complete; awaiting visual sign-off on the new Lab
+  Display controls (Outline weight slider 0.2–4 px, Fill tile on
+  hover toggle) and on cross-reload persistence (reload the browser;
+  the Lab should reopen with the same tessellation, scale, strand
+  toggle, outline weight, and hover toggle as before).
+- Next up: **Step 10 — Lift `FigureControls` into shared component**.
+  Pre-req for Step 11 strand controls in Lab. No behavioural change
+  in Main.
 
 ## Decisions
 All architectural decisions captured in the "Locked architectural decisions"

@@ -288,7 +288,7 @@ hard-frame at this step.
 
 ### Phase B — Strand rendering in Lab
 
-#### Step 9 — Lab polish [S] · ⏳
+#### Step 9 — Lab polish [S] · ✅
 - Persist last-used Lab tessellation + scale to localStorage
 - Tessellation outline weight slider in Display section
 - Optional fill-on-hover for tile types
@@ -475,3 +475,13 @@ These appear after Step 14. Reorder by demand at that point.
   work but aren't yet pleasing — sign-off accepted, refinement
   deferred (likely covered by Step 13 strand-match and/or the parked
   CG-1/FS-1 expansion ideas).
+- **2026-05-02** — Step 9 shipped. `state/labDefaults.ts` now exports
+  `loadLabState`/`saveLabState` against `lab-state-v1` localStorage
+  key (envelope: `{ config, showStrands, outlineWidth, fillOnHover }`).
+  App seeds Lab state from `loadLabState()` on boot and persists on
+  every change via `useEffect`. `TileLayer` now accepts
+  `outlineWidth` (default 0.8) and `fillOnHover` (default false);
+  hover state is local. Lab Display section gains an Outline weight
+  slider (0.2–4 px) and a "Fill tile on hover" toggle. Phase A
+  (engine work) complete — Phase B (strand rendering) starts at
+  Step 10.

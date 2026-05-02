@@ -1,10 +1,10 @@
-import { useCallback, useReducer, useRef, useState } from 'react'
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { Canvas } from './components/Canvas'
 import { Sidebar } from './components/Sidebar'
 import { SandstoneEdge } from './components/SandstoneEdge'
 import { TessellationLabMode } from './components/TessellationLabMode'
 import { reducer, DEFAULT_CONFIG } from './state/reducer'
-import { LAB_DEFAULT_CONFIG } from './state/labDefaults'
+import { LAB_DEFAULT_CONFIG, loadLabState, saveLabState } from './state/labDefaults'
 import { exportSVG, exportPNG, exportUnwovenSVG } from './export/exportSVG'
 import { saveJSON, loadJSON } from './export/exportJSON'
 import type { Segment } from './types/geometry'
@@ -24,10 +24,23 @@ export default function App() {
   }, [])
 
   const [config, dispatch] = useReducer(reducer, DEFAULT_CONFIG)
-  // Lab state lives at App level so it persists across mode toggles.
-  const [labConfig, labDispatch] = useReducer(reducer, LAB_DEFAULT_CONFIG)
-  const [labShowStrands, setLabShowStrands] = useState(false)
+  // Lab state lives at App level so it persists across mode toggles, and
+  // is restored from localStorage so it persists across page reloads.
+  const initialLab = useRef(loadLabState()).current
+  const [labConfig, labDispatch] = useReducer(reducer, initialLab.config ?? LAB_DEFAULT_CONFIG)
+  const [labShowStrands, setLabShowStrands] = useState(initialLab.showStrands)
+  const [labOutlineWidth, setLabOutlineWidth] = useState(initialLab.outlineWidth)
+  const [labFillOnHover, setLabFillOnHover] = useState(initialLab.fillOnHover)
   const [labPresetId, setLabPresetId] = useState('')
+
+  useEffect(() => {
+    saveLabState({
+      config: labConfig,
+      showStrands: labShowStrands,
+      outlineWidth: labOutlineWidth,
+      fillOnHover: labFillOnHover,
+    })
+  }, [labConfig, labShowStrands, labOutlineWidth, labFillOnHover])
   const [showTileLayer, setShowTileLayer] = useState(false)
   const [showLines, setShowLines] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -64,6 +77,10 @@ export default function App() {
         dispatch={labDispatch}
         showStrands={labShowStrands}
         onToggleShowStrands={setLabShowStrands}
+        outlineWidth={labOutlineWidth}
+        onSetOutlineWidth={setLabOutlineWidth}
+        fillOnHover={labFillOnHover}
+        onToggleFillOnHover={setLabFillOnHover}
         activePresetId={labPresetId}
         onSetActivePresetId={setLabPresetId}
       />

@@ -21,6 +21,8 @@ interface Props {
   handlers: PanZoomHandlers
   cpVisible: Record<string, boolean>
   cpActive: Record<string, number>
+  outlineWidth?: number
+  fillOnHover?: boolean
 }
 
 function polygonPoints(poly: Polygon): string {
@@ -28,7 +30,7 @@ function polygonPoints(poly: Polygon): string {
 }
 
 export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
-  { polygons, segments, composition, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive },
+  { polygons, segments, composition, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, fillOnHover },
   ref
 ) {
   const { x, y, zoom, rotation } = viewTransform
@@ -69,11 +71,11 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
         {composition ? (
           <>
             <g clipPath="url(#composition-background)">
-              <TileLayer polygons={composition.backgroundPolygons} visible={showTileLayer} />
+              <TileLayer polygons={composition.backgroundPolygons} visible={showTileLayer} outlineWidth={outlineWidth} fillOnHover={fillOnHover} />
               {showLines && <StrandLayer segments={composition.backgroundSegments} config={config} />}
             </g>
             <g clipPath="url(#composition-region)">
-              <TileLayer polygons={composition.centrePolygons} visible={showTileLayer} />
+              <TileLayer polygons={composition.centrePolygons} visible={showTileLayer} outlineWidth={outlineWidth} fillOnHover={fillOnHover} />
               {showLines && <StrandLayer segments={composition.centreSegments} config={config} />}
             </g>
             {composition.frameEnabled && (
@@ -88,7 +90,7 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
           </>
         ) : (
           <>
-            <TileLayer polygons={polygons} visible={showTileLayer} />
+            <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} fillOnHover={fillOnHover} />
             {showLines && <StrandLayer segments={segments} config={config} />}
           </>
         )}

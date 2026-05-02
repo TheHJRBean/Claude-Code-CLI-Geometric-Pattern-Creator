@@ -3,6 +3,7 @@ import type { Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
 import type { Action } from '../state/actions'
 import { TILINGS, SYMMETRY_GROUPS } from '../tilings/index'
+import type { TileTypeInfo } from '../types/tiling'
 import { LAB_PRESETS, LAB_PRESETS_BY_ID } from '../state/labPresets'
 import { ALLOWED_OUTER_FOLDS, DEFAULT_MANDALA_CONFIG, allowedInnerFolds } from '../tilings/mandala'
 import { DEFAULT_COMPOSITION_CONFIG, compositionPickerNames } from '../tilings/composition'
@@ -76,8 +77,13 @@ export function TessellationLabMode({
   const segmentsRef = useRef<Segment[]>([])
   const [cpVisible] = useState<Record<string, boolean>>({})
   const [cpActive] = useState<Record<string, number>>({})
+  const [showAdvanced, setShowAdvanced] = useState(false)
 
   const def = config.tiling.type ? TILINGS[config.tiling.type] : undefined
+  const tileTypes: TileTypeInfo[] = def
+    ? def.tileTypes ?? Array.from(new Set(def.vertexConfig)).map(n => ({ id: String(n), sides: n, label: `${n}-gon` }))
+    : []
+  const strandsBasicEligible = !!def && (def.category === 'archimedean' || def.category === 'rosette-patch')
 
   const resetTessellationDefaults = () => {
     if (config.tiling.type) {
@@ -569,6 +575,180 @@ export function TessellationLabMode({
               </div>
             )
           })()}
+
+          {/* Strands — basic per-tile-type controls.
+              Only visible when strands are on AND the active tessellation
+              uses the standard PIC pipeline (archimedean / rosette-patch).
+              Mandala / composition show a placeholder pointing at Step 12 / 13. */}
+          {showStrands && def && (
+            <div style={{ paddingTop: 22 }}>
+              <SectionTitle>Strands</SectionTitle>
+              {strandsBasicEligible ? (
+                <>
+                  {tileTypes.map(tt => {
+                    const fig = config.figures[tt.id]
+                    if (!fig) return null
+                    return (
+                      <div key={tt.id} style={{
+                        marginBottom: 14,
+                        padding: '10px 12px',
+                        border: '1px solid var(--border-subtle)',
+                      }}>
+                        <span style={{
+                          fontFamily: "'Cinzel', Georgia, serif",
+                          fontSize: 9,
+                          fontWeight: 600,
+                          color: 'var(--accent)',
+                          letterSpacing: '0.18em',
+                          textTransform: 'uppercase',
+                        }}>
+                          {tt.label}
+                        </span>
+
+                        <FieldLabel label="Figure" />
+                        <div style={{ display: 'flex', gap: 0, marginBottom: 4 }}>
+                          {(['star', 'rosette'] as const).map(ft => {
+                            const active = fig.type === ft
+                            return (
+                              <button
+                                key={ft}
+                                onClick={() => dispatch({ type: 'SET_FIGURE_TYPE', payload: { tileTypeId: tt.id, figureType: ft } })}
+                                style={{
+                                  flex: 1,
+                                  padding: '5px 0',
+                                  fontFamily: "'Cinzel', Georgia, serif",
+                                  fontSize: 9,
+                                  fontWeight: 600,
+                                  letterSpacing: '0.10em',
+                                  textTransform: 'uppercase',
+                                  cursor: 'pointer',
+                                  border: `1px solid ${active ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                                  background: active ? 'var(--accent-bg)' : 'transparent',
+                                  color: active ? 'var(--accent)' : 'var(--text-muted)',
+                                  transition: 'all 0.15s',
+                                }}
+                              >
+                                {ft}
+                              </button>
+                            )
+                          })}
+                        </div>
+
+                        <FieldLabel label="Contact angle" value={fig.contactAngle.toFixed(1)} unit="°" />
+                        <input
+                          type="range"
+                          className="pattern-slider"
+                          min={10}
+                          max={85}
+                          step={0.5}
+                          value={fig.contactAngle}
+                          onChange={e => dispatch({
+                            type: 'SET_CONTACT_ANGLE',
+                            payload: { tileTypeId: tt.id, angle: Number(e.target.value) },
+                          })}
+                        />
+
+                        <label style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 12,
+                          marginTop: 10,
+                          cursor: 'pointer',
+                          fontFamily: "'EB Garamond', Georgia, serif",
+                          fontSize: 13.5,
+                          color: fig.autoLineLength ? 'var(--text)' : 'var(--text-muted)',
+                          transition: 'color 0.15s',
+                        }}>
+                          <input
+                            type="checkbox"
+                            className="pattern-checkbox"
+                            checked={fig.autoLineLength}
+                            onChange={e => dispatch({
+                              type: 'SET_AUTO_LINE_LENGTH',
+                              payload: { tileTypeId: tt.id, auto: e.target.checked },
+                            })}
+                          />
+                          Auto strand length
+                        </label>
+
+                        {!fig.autoLineLength && (
+                          <>
+                            <FieldLabel
+                              label="Strand length"
+                              value={(fig.lineLength * 100).toFixed(0)}
+                              unit="%"
+                            />
+                            <input
+                              type="range"
+                              className="pattern-slider"
+                              min={10}
+                              max={500}
+                              step={1}
+                              value={Math.round(fig.lineLength * 100)}
+                              onChange={e => dispatch({
+                                type: 'SET_LINE_LENGTH',
+                                payload: { tileTypeId: tt.id, lineLength: Number(e.target.value) / 100 },
+                              })}
+                            />
+                          </>
+                        )}
+                      </div>
+                    )
+                  })}
+
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    marginTop: 6,
+                    cursor: 'pointer',
+                    fontFamily: "'EB Garamond', Georgia, serif",
+                    fontSize: 13.5,
+                    color: showAdvanced ? 'var(--text)' : 'var(--text-muted)',
+                    transition: 'color 0.15s',
+                  }}>
+                    <input
+                      type="checkbox"
+                      className="pattern-checkbox"
+                      checked={showAdvanced}
+                      onChange={e => setShowAdvanced(e.target.checked)}
+                    />
+                    Show advanced
+                  </label>
+                  {showAdvanced && (
+                    <p style={{
+                      marginTop: 8,
+                      marginBottom: 0,
+                      padding: '8px 10px',
+                      border: '1px dashed var(--border-subtle)',
+                      fontFamily: "'EB Garamond', Georgia, serif",
+                      fontSize: 12,
+                      color: 'var(--text-muted)',
+                      lineHeight: 1.4,
+                    }}>
+                      Advanced controls (vertex strands, curves, snap, decoupled
+                      vertex angle) are available in Main mode. Surfacing them
+                      in Lab is parked — switch to Main if you need them.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p style={{
+                  marginTop: 0,
+                  marginBottom: 0,
+                  padding: '8px 10px',
+                  border: '1px dashed var(--border-subtle)',
+                  fontFamily: "'EB Garamond', Georgia, serif",
+                  fontSize: 12,
+                  color: 'var(--text-muted)',
+                  lineHeight: 1.4,
+                }}>
+                  Specialised strand renderer pending —
+                  {def.category === 'mandala' ? ' see Step 12.' : ' see Step 13.'}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Display — strand overlay + outline weight + hover fill */}
           <div style={{ paddingTop: 22 }}>

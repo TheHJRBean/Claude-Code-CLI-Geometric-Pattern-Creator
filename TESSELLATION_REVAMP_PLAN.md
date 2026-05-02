@@ -306,7 +306,7 @@ hard-frame at this step.
 **Acceptance:** Main's strand controls render and behave identically
 before/after the lift. `npm run build` green.
 
-#### Step 11 — Strand controls in Lab for archimedean / rosette-patch [M] · ⏳
+#### Step 11 — Strand controls in Lab for archimedean / rosette-patch [M] · ✅
 **Visible:** Lab's Display section gains a "Strands" panel using the
 shared `FigureControls`. Active only for `archimedean` and
 `rosette-patch` categories. Mandala / composition show a "Specialised
@@ -475,6 +475,19 @@ These appear after Step 14. Reorder by demand at that point.
   work but aren't yet pleasing — sign-off accepted, refinement
   deferred (likely covered by Step 13 strand-match and/or the parked
   CG-1/FS-1 expansion ideas).
+- **2026-05-02** — Step 11 shipped. Lab gains a "Strands" section
+  (only when strands are on) with a trimmed per-tile-type panel:
+  figure type (star/rosette), contact angle, auto strand length
+  toggle, manual length slider. LX-1 resolved as (a) trimmed Lab
+  variant rather than mirroring Main's full surface — user picked
+  "basic implementation". ID-1 resolved as identical render where
+  surface overlaps. A "Show advanced" toggle is present in the UI
+  but non-functional — it expands a placeholder that points the user
+  to Main mode for vertex strands, curves, snap, and decoupled
+  vertex angle. The shared `FigureControls` component (Step 10) is
+  not used by Lab at this step — Lab's panel is hand-rolled because
+  the trimmed surface needs different layout; the lift remains
+  available for any later "advanced" implementation.
 - **2026-05-02** — Step 10 shipped. `FigureControls` extracted from
   `Sidebar.tsx` into `components/strands/FigureControls.tsx` with its
   own private copies of `FieldLabel`/`Toggle` helpers (so Sidebar's

@@ -137,6 +137,7 @@ export function TessellationLabMode({
     const preset = LAB_PRESETS_BY_ID[id]
     if (!preset) return
     dispatch({ type: 'LOAD_CONFIG', payload: preset.config })
+    if (preset.showStrands !== undefined) onToggleShowStrands(preset.showStrands)
   }
 
   // ── Library handlers ──────────────────────────────────

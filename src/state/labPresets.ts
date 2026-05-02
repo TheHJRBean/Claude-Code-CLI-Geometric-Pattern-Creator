@@ -6,6 +6,12 @@ export interface LabPreset {
   label: string
   category: 'archimedean' | 'rosette-patch' | 'mandala' | 'composition'
   config: PatternConfig
+  /**
+   * Optional Lab UI override applied at preset-load time. Useful when the
+   * preset's whole purpose is to demo strand behaviour and the user would
+   * otherwise see only the polygon layer until they hunt for the toggle.
+   */
+  showStrands?: boolean
 }
 
 const baseLacing: PatternConfig['lacing'] = {
@@ -64,6 +70,7 @@ function compositionPreset(
   id: string,
   label: string,
   composition: CompositionConfig,
+  opts: { showStrands?: boolean } = {},
 ): LabPreset {
   const def = TILINGS['composition']
   if (!def) {
@@ -83,6 +90,7 @@ function compositionPreset(
       lacing: { ...baseLacing },
       composition,
     },
+    ...(opts.showStrands !== undefined ? { showStrands: opts.showStrands } : {}),
   }
 }
 
@@ -165,20 +173,27 @@ export const LAB_PRESETS: LabPreset[] = [
     boundary: 'frame',
     showAllBackgrounds: false,
   }),
-  // Step 13 demo: trivial-match pair (hexagonal both sides). Strands flow
-  // continuously across the seam because PIC runs once on a unified set.
-  // Frame disabled by default so the match behaviour is immediately visible.
-  compositionPreset('hex-in-hex-match', 'Hex-in-Hex (match)', {
-    centre: 'hexagonal',
-    background: 'hexagonal',
-    centreScale: 100,
-    backgroundScale: 100,
-    regionRadius: 260,
-    frameEnabled: false,
-    frameColor: 'var(--accent)',
-    boundary: 'match',
-    showAllBackgrounds: false,
-  }),
+  // Step 13 demo: trivial-match pair (hexagonal both sides). Frame is ON so
+  // the seam ring is visible — the user toggles Boundary between Match and
+  // Hard frame to see the strands either flow continuously through the ring
+  // (match) or be hard-clipped at it (frame). Strands auto-enabled at load
+  // because the whole point of the preset is to show strand behaviour.
+  compositionPreset(
+    'hex-strand-match-demo',
+    'Strand-match demo (hex)',
+    {
+      centre: 'hexagonal',
+      background: 'hexagonal',
+      centreScale: 60,
+      backgroundScale: 60,
+      regionRadius: 220,
+      frameEnabled: true,
+      frameColor: 'var(--accent)',
+      boundary: 'match',
+      showAllBackgrounds: false,
+    },
+    { showStrands: true },
+  ),
 ]
 
 export const LAB_PRESETS_BY_ID: Record<string, LabPreset> = Object.fromEntries(

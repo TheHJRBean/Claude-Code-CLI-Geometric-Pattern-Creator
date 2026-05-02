@@ -26,7 +26,7 @@ Status snapshot:
 - [done] Step 7 — Region-stitching v1, hard-frame · CG-1=(a) two scale sliders, FS-1=(a) on/off + colour. Expansion alternatives parked as `/idea` memories.
 - [done] Step 8 — Composition preset catalogue (hard-frame): four entries (16-in-4.8.8, 12-in-Hexagonal, 16-in-Square, 10-in-Hexagonal). Visuals are functional but not yet pleasing — sign-off accepted, refinement deferred.
 - [done] Step 9 — Lab polish: localStorage persistence of full Lab state, tessellation outline weight slider, fill-on-hover toggle.
-- [todo] Step 10 — Lift `FigureControls` into shared component
+- [done] Step 10 — `FigureControls` lifted to `components/strands/FigureControls.tsx`. Sidebar imports from new location; no behavioural change in Main.
 - [todo] Step 11 — Strand controls in Lab (archimedean / rosette-patch) · LX-1 + ID-1 fire here
 - [todo] Step 12 — Mandala strand renderer · MS-1 fires here
 - [todo] Step 13 — Composition strand renderer + match-up · CS-1 gates this step
@@ -130,18 +130,17 @@ Status snapshot:
   readout (`step N/M · θ° · vertex|edge-aligned`).
 
 ## Next
-- Visual sign-off complete: Steps 1–8 verified by user. Step 7/8
-  composition visuals work as intended but aren't yet pleasing —
-  refinement deferred (likely covered by Step 13 strand-match and/or
-  the parked CG-1/FS-1 expansion ideas).
-- Step 9 code-complete; awaiting visual sign-off on the new Lab
-  Display controls (Outline weight slider 0.2–4 px, Fill tile on
-  hover toggle) and on cross-reload persistence (reload the browser;
-  the Lab should reopen with the same tessellation, scale, strand
-  toggle, outline weight, and hover toggle as before).
-- Next up: **Step 10 — Lift `FigureControls` into shared component**.
-  Pre-req for Step 11 strand controls in Lab. No behavioural change
-  in Main.
+- Visual sign-off complete: Steps 1–9 verified by user. Step 7/8
+  composition visuals work but aren't yet pleasing — refinement
+  deferred (likely covered by Step 13 strand-match and/or the parked
+  CG-1/FS-1 expansion ideas).
+- Step 10 code-complete: `FigureControls` lifted out of `Sidebar.tsx`
+  into `components/strands/FigureControls.tsx`. Sidebar now imports
+  from the new location. No behavioural change in Main expected —
+  spot-check Main mode quickly to confirm.
+- Next up: **Step 11 — Strand controls in Lab for archimedean /
+  rosette-patch**. LX-1 + ID-1 fire here. Conservative defaults:
+  same controls as Main; identical render.
 
 ## Decisions
 All architectural decisions captured in the "Locked architectural decisions"

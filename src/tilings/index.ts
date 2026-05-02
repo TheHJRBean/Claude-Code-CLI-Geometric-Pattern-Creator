@@ -293,6 +293,21 @@ export const TILINGS: Record<string, TilingDefinition> = {
       figures: {},
     },
   },
+
+  // ── Composition (centre + background) ───────────────
+  // The centre/background pair is stored in PatternConfig.composition;
+  // this entry is a marker so dropdown / category-dispatch wiring works.
+  'composition': {
+    name: 'composition',
+    label: 'Composition (centre + background)',
+    vertexConfig: [],
+    seedSides: 0,
+    foldSymmetry: 0,
+    category: 'composition',
+    defaultConfig: {
+      figures: {},
+    },
+  },
 }
 
 export const TILING_NAMES = Object.keys(TILINGS)
@@ -310,4 +325,5 @@ export const SYMMETRY_GROUPS: SymmetryGroup[] = [
   { fold: 12, label: '12-fold', tilings: ['3.12.12', '4.6.12'] },
   { fold: 16, label: '16-fold', tilings: ['hexadecagonal-rosette'] },
   { fold: 0,  label: 'Layered', tilings: ['layered-mandala'] },
+  { fold: 0,  label: 'Composed', tilings: ['composition'] },
 ]

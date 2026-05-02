@@ -3,6 +3,7 @@ import type { Polygon, Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
 import type { ViewTransform } from '../hooks/usePanZoom'
 import type { PanZoomHandlers } from '../hooks/usePanZoom'
+import type { CompositionRender } from '../hooks/usePattern'
 import { TileLayer } from './TileLayer'
 import { StrandLayer } from './StrandLayer'
 import { ControlPointLayer } from './ControlPointLayer'
@@ -10,6 +11,7 @@ import { ControlPointLayer } from './ControlPointLayer'
 interface Props {
   polygons: Polygon[]
   segments: Segment[]
+  composition?: CompositionRender
   config: PatternConfig
   viewTransform: ViewTransform
   containerWidth: number
@@ -21,8 +23,12 @@ interface Props {
   cpActive: Record<string, number>
 }
 
+function polygonPoints(poly: Polygon): string {
+  return poly.vertices.map(v => `${v.x},${v.y}`).join(' ')
+}
+
 export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
-  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive },
+  { polygons, segments, composition, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive },
   ref
 ) {
   const { x, y, zoom, rotation } = viewTransform
@@ -44,9 +50,48 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
       onPointerMove={handlers.onPointerMove}
       onPointerUp={handlers.onPointerUp}
     >
+      {composition && (
+        <defs>
+          <clipPath id="composition-region" clipPathUnits="userSpaceOnUse">
+            <polygon points={polygonPoints(composition.regionPolygon)} />
+          </clipPath>
+          {/* Background mask = full viewport rect with the region polygon
+              punched out via even-odd fill rule. */}
+          <clipPath id="composition-background" clipPathUnits="userSpaceOnUse">
+            <path
+              d={`M ${x} ${y} h ${vw} v ${vh} h ${-vw} Z M ${composition.regionPolygon.vertices.map((v, i) => (i === 0 ? `${v.x} ${v.y}` : `L ${v.x} ${v.y}`)).join(' ')} Z`}
+              clipRule="evenodd"
+            />
+          </clipPath>
+        </defs>
+      )}
       <g transform={rotation ? `rotate(${rotation} ${cx} ${cy})` : undefined}>
-        <TileLayer polygons={polygons} visible={showTileLayer} />
-        {showLines && <StrandLayer segments={segments} config={config} />}
+        {composition ? (
+          <>
+            <g clipPath="url(#composition-background)">
+              <TileLayer polygons={composition.backgroundPolygons} visible={showTileLayer} />
+              {showLines && <StrandLayer segments={composition.backgroundSegments} config={config} />}
+            </g>
+            <g clipPath="url(#composition-region)">
+              <TileLayer polygons={composition.centrePolygons} visible={showTileLayer} />
+              {showLines && <StrandLayer segments={composition.centreSegments} config={config} />}
+            </g>
+            {composition.frameEnabled && (
+              <polygon
+                points={polygonPoints(composition.regionPolygon)}
+                fill="none"
+                stroke={composition.frameColor}
+                strokeWidth={1.5}
+                vectorEffect="non-scaling-stroke"
+              />
+            )}
+          </>
+        ) : (
+          <>
+            <TileLayer polygons={polygons} visible={showTileLayer} />
+            {showLines && <StrandLayer segments={segments} config={config} />}
+          </>
+        )}
         <ControlPointLayer
           segments={segments}
           config={config}

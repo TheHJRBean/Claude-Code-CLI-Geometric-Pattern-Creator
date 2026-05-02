@@ -23,6 +23,23 @@ export interface MandalaConfig {
   layers: MandalaLayer[]
 }
 
+export interface CompositionConfig {
+  /** Tiling name for the central region (must be archimedean / rosette-patch). */
+  centre: string
+  /** Tiling name for the surrounding background (must be archimedean / rosette-patch). */
+  background: string
+  /** Edge length / radius of the centre tessellation, in world units. */
+  centreScale: number
+  /** Edge length / radius of the background tessellation, in world units. */
+  backgroundScale: number
+  /** Circumradius of the central region polygon, in world units. */
+  regionRadius: number
+  /** Whether the seam frame is drawn at the boundary between centre and background. */
+  frameEnabled: boolean
+  /** Colour of the seam frame (CSS colour). */
+  frameColor: string
+}
+
 export interface CurvePoint {
   /** Where along the segment the bend peaks (0 = start, 0.5 = center, 1 = end) */
   position: number
@@ -86,4 +103,6 @@ export interface PatternConfig {
   smoothTransitions?: boolean
   /** Configuration for the layered-mandala tessellation. Only consulted when `tiling.type === 'layered-mandala'`. */
   mandala?: MandalaConfig
+  /** Configuration for the composition (centre + background) tessellation. Only consulted when `tiling.type === 'composition'`. */
+  composition?: CompositionConfig
 }

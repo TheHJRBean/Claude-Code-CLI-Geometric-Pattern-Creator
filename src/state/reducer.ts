@@ -1,8 +1,9 @@
-import type { CurvePoint, FigureConfig, PatternConfig, MandalaConfig } from '../types/pattern'
+import type { CompositionConfig, CurvePoint, FigureConfig, PatternConfig, MandalaConfig } from '../types/pattern'
 import type { Action } from './actions'
 import { TILINGS } from '../tilings/index'
 import { DEFAULT_CONFIG } from './defaults'
 import { DEFAULT_MANDALA_CONFIG, isLayerFoldValid } from '../tilings/mandala'
+import { DEFAULT_COMPOSITION_CONFIG } from '../tilings/composition'
 
 const FALLBACK_FIGURE: FigureConfig = { type: 'star', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
 
@@ -38,6 +39,19 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         // looks tiny against a full canvas; bump to a comfortable default
         // the first time the user enters mandala mode.
         next.tiling = { ...next.tiling, scale: 250 }
+      }
+      if (def.category === 'composition' && !next.composition) {
+        next.composition = DEFAULT_COMPOSITION_CONFIG
+        // Seed figures so both the centre's and background's tile types
+        // have sensible defaults. Centre's defaults take priority on key
+        // collisions (the centre is the focal point of a composition).
+        const centreDef = TILINGS[DEFAULT_COMPOSITION_CONFIG.centre]
+        const backgroundDef = TILINGS[DEFAULT_COMPOSITION_CONFIG.background]
+        next.figures = {
+          ...next.figures,
+          ...(backgroundDef?.defaultConfig.figures ?? {}),
+          ...(centreDef?.defaultConfig.figures ?? {}),
+        }
       }
       return next
     }
@@ -173,6 +187,44 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         return { ...l, rotationStep: step }
       })
       return { ...state, mandala: { ...current, layers } }
+    }
+    case 'SET_COMPOSITION_CONFIG':
+      return { ...state, composition: action.payload }
+    case 'SET_COMPOSITION_CENTRE': {
+      const current: CompositionConfig = state.composition ?? DEFAULT_COMPOSITION_CONFIG
+      const centreDef = TILINGS[action.payload]
+      const figures = centreDef?.defaultConfig.figures
+        ? { ...state.figures, ...centreDef.defaultConfig.figures }
+        : state.figures
+      return { ...state, figures, composition: { ...current, centre: action.payload } }
+    }
+    case 'SET_COMPOSITION_BACKGROUND': {
+      const current: CompositionConfig = state.composition ?? DEFAULT_COMPOSITION_CONFIG
+      const backgroundDef = TILINGS[action.payload]
+      const figures = backgroundDef?.defaultConfig.figures
+        ? { ...state.figures, ...backgroundDef.defaultConfig.figures }
+        : state.figures
+      return { ...state, figures, composition: { ...current, background: action.payload } }
+    }
+    case 'SET_COMPOSITION_CENTRE_SCALE': {
+      const current: CompositionConfig = state.composition ?? DEFAULT_COMPOSITION_CONFIG
+      return { ...state, composition: { ...current, centreScale: Math.max(10, action.payload) } }
+    }
+    case 'SET_COMPOSITION_BACKGROUND_SCALE': {
+      const current: CompositionConfig = state.composition ?? DEFAULT_COMPOSITION_CONFIG
+      return { ...state, composition: { ...current, backgroundScale: Math.max(10, action.payload) } }
+    }
+    case 'SET_COMPOSITION_REGION_RADIUS': {
+      const current: CompositionConfig = state.composition ?? DEFAULT_COMPOSITION_CONFIG
+      return { ...state, composition: { ...current, regionRadius: Math.max(20, action.payload) } }
+    }
+    case 'SET_COMPOSITION_FRAME_ENABLED': {
+      const current: CompositionConfig = state.composition ?? DEFAULT_COMPOSITION_CONFIG
+      return { ...state, composition: { ...current, frameEnabled: action.payload } }
+    }
+    case 'SET_COMPOSITION_FRAME_COLOR': {
+      const current: CompositionConfig = state.composition ?? DEFAULT_COMPOSITION_CONFIG
+      return { ...state, composition: { ...current, frameColor: action.payload } }
     }
     case 'LOAD_CONFIG':
       return action.payload

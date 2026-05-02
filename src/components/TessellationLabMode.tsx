@@ -5,6 +5,7 @@ import type { Action } from '../state/actions'
 import { TILINGS, SYMMETRY_GROUPS } from '../tilings/index'
 import { LAB_PRESETS, LAB_PRESETS_BY_ID } from '../state/labPresets'
 import { ALLOWED_OUTER_FOLDS, DEFAULT_MANDALA_CONFIG, allowedInnerFolds } from '../tilings/mandala'
+import { DEFAULT_COMPOSITION_CONFIG, compositionPickerNames } from '../tilings/composition'
 import { Canvas } from './Canvas'
 import { SandstoneEdge } from './SandstoneEdge'
 import { useTheme } from '../theme/ThemeContext'
@@ -174,20 +175,24 @@ export function TessellationLabMode({
 
             {def && (
               <>
-                <FieldLabel
-                  label={def.category === 'mandala' ? 'Outer radius' : 'Scale'}
-                  value={String(config.tiling.scale)}
-                  unit=" px"
-                />
-                <input
-                  type="range"
-                  className="pattern-slider"
-                  min={30}
-                  max={def.category === 'mandala' ? 600 : 300}
-                  step={5}
-                  value={config.tiling.scale}
-                  onChange={e => dispatch({ type: 'SET_SCALE', payload: Number(e.target.value) })}
-                />
+                {def.category !== 'composition' && (
+                  <>
+                    <FieldLabel
+                      label={def.category === 'mandala' ? 'Outer radius' : 'Scale'}
+                      value={String(config.tiling.scale)}
+                      unit=" px"
+                    />
+                    <input
+                      type="range"
+                      className="pattern-slider"
+                      min={30}
+                      max={def.category === 'mandala' ? 600 : 300}
+                      step={5}
+                      value={config.tiling.scale}
+                      onChange={e => dispatch({ type: 'SET_SCALE', payload: Number(e.target.value) })}
+                    />
+                  </>
+                )}
 
                 <button
                   onClick={resetTessellationDefaults}
@@ -240,7 +245,18 @@ export function TessellationLabMode({
                       <div><strong>Inner layers:</strong> {(config.mandala ?? DEFAULT_MANDALA_CONFIG).layers.length}</div>
                       <div><strong>Category:</strong> {def.category}</div>
                     </>
-                  ) : (
+                  ) : def.category === 'composition' ? (() => {
+                    const c = config.composition ?? DEFAULT_COMPOSITION_CONFIG
+                    const centreLabel = TILINGS[c.centre]?.label ?? c.centre
+                    const backgroundLabel = TILINGS[c.background]?.label ?? c.background
+                    return (
+                      <>
+                        <div><strong>Centre:</strong> {centreLabel}</div>
+                        <div><strong>Background:</strong> {backgroundLabel}</div>
+                        <div><strong>Category:</strong> composition</div>
+                      </>
+                    )
+                  })() : (
                     <>
                       <div><strong>Vertex&nbsp;config:</strong> {def.vertexConfig.join('.')}</div>
                       <div><strong>Fold:</strong> {def.foldSymmetry}</div>
@@ -420,6 +436,122 @@ export function TessellationLabMode({
                 }}>
                   Inner folds restricted to divisors of the outer fold (strict-divisor rule).
                   Strand rendering for mandalas arrives in Step 12.
+                </p>
+              </div>
+            )
+          })()}
+
+          {/* Composition — only visible when a composition is selected */}
+          {def?.category === 'composition' && (() => {
+            const c = config.composition ?? DEFAULT_COMPOSITION_CONFIG
+            const pickerNames = compositionPickerNames()
+            return (
+              <div style={{ paddingTop: 22 }}>
+                <SectionTitle>Composition</SectionTitle>
+
+                <FieldLabel label="Centre" />
+                <select
+                  className="pattern-select"
+                  value={c.centre}
+                  onChange={e => dispatch({ type: 'SET_COMPOSITION_CENTRE', payload: e.target.value })}
+                >
+                  {pickerNames.map(name => (
+                    <option key={name} value={name}>{TILINGS[name].label}</option>
+                  ))}
+                </select>
+
+                <FieldLabel label="Background" />
+                <select
+                  className="pattern-select"
+                  value={c.background}
+                  onChange={e => dispatch({ type: 'SET_COMPOSITION_BACKGROUND', payload: e.target.value })}
+                >
+                  {pickerNames.map(name => (
+                    <option key={name} value={name}>{TILINGS[name].label}</option>
+                  ))}
+                </select>
+
+                <FieldLabel label="Centre scale" value={String(c.centreScale)} unit=" px" />
+                <input
+                  type="range"
+                  className="pattern-slider"
+                  min={20}
+                  max={300}
+                  step={5}
+                  value={c.centreScale}
+                  onChange={e => dispatch({ type: 'SET_COMPOSITION_CENTRE_SCALE', payload: Number(e.target.value) })}
+                />
+
+                <FieldLabel label="Background scale" value={String(c.backgroundScale)} unit=" px" />
+                <input
+                  type="range"
+                  className="pattern-slider"
+                  min={20}
+                  max={300}
+                  step={5}
+                  value={c.backgroundScale}
+                  onChange={e => dispatch({ type: 'SET_COMPOSITION_BACKGROUND_SCALE', payload: Number(e.target.value) })}
+                />
+
+                <FieldLabel label="Region radius" value={String(c.regionRadius)} unit=" px" />
+                <input
+                  type="range"
+                  className="pattern-slider"
+                  min={50}
+                  max={800}
+                  step={5}
+                  value={c.regionRadius}
+                  onChange={e => dispatch({ type: 'SET_COMPOSITION_REGION_RADIUS', payload: Number(e.target.value) })}
+                />
+
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  cursor: 'pointer',
+                  marginTop: 14,
+                  fontFamily: "'EB Garamond', Georgia, serif",
+                  fontSize: 13.5,
+                  color: c.frameEnabled ? 'var(--text)' : 'var(--text-muted)',
+                  transition: 'color 0.15s',
+                }}>
+                  <input
+                    type="checkbox"
+                    className="pattern-checkbox"
+                    checked={c.frameEnabled}
+                    onChange={e => dispatch({ type: 'SET_COMPOSITION_FRAME_ENABLED', payload: e.target.checked })}
+                  />
+                  Show frame
+                </label>
+
+                {c.frameEnabled && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+                    <FieldLabel label="Frame colour" />
+                    <input
+                      type="color"
+                      value={c.frameColor.startsWith('#') ? c.frameColor : '#c89b3c'}
+                      onChange={e => dispatch({ type: 'SET_COMPOSITION_FRAME_COLOR', payload: e.target.value })}
+                      style={{
+                        width: 32,
+                        height: 24,
+                        padding: 0,
+                        border: '1px solid var(--border-subtle)',
+                        background: 'transparent',
+                        cursor: 'pointer',
+                      }}
+                    />
+                  </div>
+                )}
+
+                <p style={{
+                  marginTop: 12,
+                  marginBottom: 0,
+                  fontFamily: "'EB Garamond', Georgia, serif",
+                  fontSize: 12,
+                  color: 'var(--text-muted)',
+                  lineHeight: 1.4,
+                }}>
+                  v1 ships hard-frame only. Strand-match across the boundary arrives in Step 13.
                 </p>
               </div>
             )

@@ -6,11 +6,24 @@ import { TILINGS } from '../tilings/index'
 import { generateTiling } from '../tilings/archimedean'
 import { generateRosettePatch } from '../tilings/rosettePatch'
 import { generateMandala, DEFAULT_MANDALA_CONFIG } from '../tilings/mandala'
+import { generateComposition, DEFAULT_COMPOSITION_CONFIG } from '../tilings/composition'
 import { runPIC } from '../pic/index'
+
+export interface CompositionRender {
+  centrePolygons: Polygon[]
+  centreSegments: Segment[]
+  backgroundPolygons: Polygon[]
+  backgroundSegments: Segment[]
+  regionPolygon: Polygon
+  frameEnabled: boolean
+  frameColor: string
+}
 
 export interface PatternData {
   polygons: Polygon[]
   segments: Segment[]
+  /** Set when the active tessellation is a composition; consumed by PatternSVG for clipPath rendering. */
+  composition?: CompositionRender
 }
 
 export function usePattern(
@@ -42,6 +55,28 @@ export function usePattern(
     if (!def) return { polygons: [], segments: [] }
 
     const viewport = { x: genX, y: genY, width: genW, height: genH }
+
+    if (def.category === 'composition') {
+      const cfg = config.composition ?? DEFAULT_COMPOSITION_CONFIG
+      const { centrePolygons, backgroundPolygons, regionPolygon } = generateComposition(cfg, viewport)
+      const centreSegments = runPIC(centrePolygons, config)
+      const backgroundSegments = runPIC(backgroundPolygons, config)
+      // Combined polygons/segments are used for non-clipped rendering paths
+      // (e.g. export); the clipped per-region rendering reads `composition`.
+      return {
+        polygons: [...backgroundPolygons, ...centrePolygons],
+        segments: [...backgroundSegments, ...centreSegments],
+        composition: {
+          centrePolygons,
+          centreSegments,
+          backgroundPolygons,
+          backgroundSegments,
+          regionPolygon,
+          frameEnabled: cfg.frameEnabled,
+          frameColor: cfg.frameColor,
+        },
+      }
+    }
 
     let polygons
     if (def.category === 'mandala') {

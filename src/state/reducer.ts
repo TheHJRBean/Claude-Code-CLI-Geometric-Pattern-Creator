@@ -238,6 +238,14 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       const current: CompositionConfig = state.composition ?? DEFAULT_COMPOSITION_CONFIG
       return { ...state, composition: { ...current, frameColor: action.payload } }
     }
+    case 'SET_COMPOSITION_BOUNDARY': {
+      const current: CompositionConfig = state.composition ?? DEFAULT_COMPOSITION_CONFIG
+      return { ...state, composition: { ...current, boundary: action.payload } }
+    }
+    case 'SET_COMPOSITION_SHOW_ALL_BACKGROUNDS': {
+      const current: CompositionConfig = state.composition ?? DEFAULT_COMPOSITION_CONFIG
+      return { ...state, composition: { ...current, showAllBackgrounds: action.payload } }
+    }
     case 'LOAD_CONFIG':
       return action.payload
     default:

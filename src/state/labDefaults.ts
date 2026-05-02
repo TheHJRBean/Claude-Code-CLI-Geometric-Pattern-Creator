@@ -42,8 +42,20 @@ export function loadLabState(): LabPersistedState {
     if (!parsed || typeof parsed !== 'object' || !parsed.config?.tiling) {
       return LAB_DEFAULT_PERSISTED
     }
+    // Backfill fields added after v1 (Step 13: composition.boundary,
+    // composition.showAllBackgrounds). Drop entire fields rather than
+    // crash if the persisted shape predates them.
+    const config = { ...parsed.config }
+    if (config.composition) {
+      const c = config.composition as Partial<typeof config.composition>
+      config.composition = {
+        ...config.composition,
+        boundary: c.boundary ?? 'frame',
+        showAllBackgrounds: c.showAllBackgrounds ?? false,
+      }
+    }
     return {
-      config: parsed.config,
+      config,
       showStrands: typeof parsed.showStrands === 'boolean' ? parsed.showStrands : LAB_DEFAULT_PERSISTED.showStrands,
       outlineWidth: typeof parsed.outlineWidth === 'number' ? parsed.outlineWidth : LAB_DEFAULT_PERSISTED.outlineWidth,
       fillOnHover: typeof parsed.fillOnHover === 'boolean' ? parsed.fillOnHover : LAB_DEFAULT_PERSISTED.fillOnHover,

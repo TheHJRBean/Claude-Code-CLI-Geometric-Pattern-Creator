@@ -129,6 +129,8 @@ export const LAB_PRESETS: LabPreset[] = [
     regionRadius: 280,
     frameEnabled: true,
     frameColor: 'var(--accent)',
+    boundary: 'frame',
+    showAllBackgrounds: false,
   }),
   compositionPreset('12-in-hexagonal', '12-gon in Hexagonal', {
     centre: '4.6.12',
@@ -138,6 +140,8 @@ export const LAB_PRESETS: LabPreset[] = [
     regionRadius: 260,
     frameEnabled: true,
     frameColor: 'var(--accent)',
+    boundary: 'frame',
+    showAllBackgrounds: false,
   }),
   compositionPreset('16-in-square', '16-gon in Square', {
     centre: 'hexadecagonal-rosette',
@@ -147,6 +151,8 @@ export const LAB_PRESETS: LabPreset[] = [
     regionRadius: 260,
     frameEnabled: true,
     frameColor: 'var(--accent)',
+    boundary: 'frame',
+    showAllBackgrounds: false,
   }),
   compositionPreset('10-in-hexagonal', '10-gon in Hexagonal', {
     centre: 'decagonal-rosette',
@@ -156,6 +162,8 @@ export const LAB_PRESETS: LabPreset[] = [
     regionRadius: 240,
     frameEnabled: true,
     frameColor: 'var(--accent)',
+    boundary: 'frame',
+    showAllBackgrounds: false,
   }),
 ]
 

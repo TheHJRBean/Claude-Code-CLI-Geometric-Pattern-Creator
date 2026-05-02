@@ -7,6 +7,7 @@ import type { TileTypeInfo } from '../types/tiling'
 import { LAB_PRESETS, LAB_PRESETS_BY_ID } from '../state/labPresets'
 import { ALLOWED_OUTER_FOLDS, DEFAULT_MANDALA_CONFIG, allowedInnerFolds, defaultContactAngleForFold } from '../tilings/mandala'
 import { DEFAULT_COMPOSITION_CONFIG, compositionPickerNames } from '../tilings/composition'
+import { isPairVerified, verifiedBackgroundsFor } from '../tilings/compositionVerifiedPairs'
 import { Canvas } from './Canvas'
 import { SandstoneEdge } from './SandstoneEdge'
 import { useTheme } from '../theme/ThemeContext'
@@ -504,6 +505,16 @@ export function TessellationLabMode({
           {def?.category === 'composition' && (() => {
             const c = config.composition ?? DEFAULT_COMPOSITION_CONFIG
             const pickerNames = compositionPickerNames()
+            const verifiedBgs = verifiedBackgroundsFor(c.centre)
+            const hasVerifiedBg = verifiedBgs.length > 0
+            const pairVerified = isPairVerified(c.centre, c.background)
+            // Background dropdown contents: filtered to verified centres unless
+            // "Show all backgrounds" is on. With the v1 allow-list empty, no
+            // centre has a verified partner, so the filtered list is always
+            // empty — when that happens we fall back to the full list and rely
+            // on the inline notice to explain.
+            const filterApplies = !c.showAllBackgrounds && hasVerifiedBg
+            const backgroundOptions = filterApplies ? verifiedBgs : pickerNames
             return (
               <div style={{ paddingTop: 22 }}>
                 <SectionTitle>Composition</SectionTitle>
@@ -525,10 +536,43 @@ export function TessellationLabMode({
                   value={c.background}
                   onChange={e => dispatch({ type: 'SET_COMPOSITION_BACKGROUND', payload: e.target.value })}
                 >
-                  {pickerNames.map(name => (
+                  {backgroundOptions.map(name => (
                     <option key={name} value={name}>{TILINGS[name].label}</option>
                   ))}
                 </select>
+
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  marginTop: 8,
+                  cursor: 'pointer',
+                  fontFamily: "'EB Garamond', Georgia, serif",
+                  fontSize: 12.5,
+                  color: 'var(--text-muted)',
+                }}>
+                  <input
+                    type="checkbox"
+                    className="pattern-checkbox"
+                    checked={c.showAllBackgrounds}
+                    onChange={e => dispatch({ type: 'SET_COMPOSITION_SHOW_ALL_BACKGROUNDS', payload: e.target.checked })}
+                  />
+                  Show all backgrounds
+                </label>
+                {!hasVerifiedBg && (
+                  <p style={{
+                    marginTop: 6,
+                    marginBottom: 0,
+                    fontFamily: "'EB Garamond', Georgia, serif",
+                    fontSize: 11.5,
+                    color: 'var(--text-muted)',
+                    lineHeight: 1.4,
+                    fontStyle: 'italic',
+                  }}>
+                    No backgrounds analytically verified to strand-match this
+                    centre yet — every pair currently falls back to hard frame.
+                  </p>
+                )}
 
                 <FieldLabel label="Centre scale" value={String(c.centreScale)} unit=" px" />
                 <input
@@ -562,6 +606,59 @@ export function TessellationLabMode({
                   value={c.regionRadius}
                   onChange={e => dispatch({ type: 'SET_COMPOSITION_REGION_RADIUS', payload: Number(e.target.value) })}
                 />
+
+                <FieldLabel label="Boundary" />
+                <div style={{ display: 'flex', gap: 0, marginBottom: 4 }}>
+                  {([
+                    { key: 'match' as const, label: 'Match strands' },
+                    { key: 'frame' as const, label: 'Hard frame' },
+                  ]).map(opt => {
+                    const active = c.boundary === opt.key
+                    const matchDisabled = opt.key === 'match' && !pairVerified
+                    return (
+                      <button
+                        key={opt.key}
+                        disabled={matchDisabled}
+                        title={matchDisabled
+                          ? 'This pair is not in the verified strand-match allow-list — falls back to hard frame.'
+                          : undefined}
+                        onClick={() => dispatch({ type: 'SET_COMPOSITION_BOUNDARY', payload: opt.key })}
+                        style={{
+                          flex: 1,
+                          padding: '5px 0',
+                          fontFamily: "'Cinzel', Georgia, serif",
+                          fontSize: 9,
+                          fontWeight: 600,
+                          letterSpacing: '0.10em',
+                          textTransform: 'uppercase',
+                          cursor: matchDisabled ? 'not-allowed' : 'pointer',
+                          border: `1px solid ${active ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                          background: active ? 'var(--accent-bg)' : 'transparent',
+                          color: matchDisabled
+                            ? 'var(--text-muted)'
+                            : active ? 'var(--accent)' : 'var(--text-muted)',
+                          opacity: matchDisabled ? 0.5 : 1,
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    )
+                  })}
+                </div>
+                {c.boundary === 'match' && !pairVerified && (
+                  <p style={{
+                    marginTop: 4,
+                    marginBottom: 0,
+                    fontFamily: "'EB Garamond', Georgia, serif",
+                    fontSize: 11.5,
+                    color: 'var(--text-muted)',
+                    lineHeight: 1.4,
+                    fontStyle: 'italic',
+                  }}>
+                    Pair not verified — rendering as hard frame.
+                  </p>
+                )}
 
                 <label style={{
                   display: 'flex',
@@ -610,7 +707,9 @@ export function TessellationLabMode({
                   color: 'var(--text-muted)',
                   lineHeight: 1.4,
                 }}>
-                  v1 ships hard-frame only. Strand-match across the boundary arrives in Step 13.
+                  Strand-match requires analytically-verified centre/background
+                  pairs (CS-1). The allow-list is empty in v1, so every preset
+                  currently renders as hard frame regardless of this toggle.
                 </p>
               </div>
             )
@@ -785,7 +884,7 @@ export function TessellationLabMode({
                 }}>
                   {def.category === 'mandala'
                     ? 'Per-layer contact angles live in the Layers panel above.'
-                    : 'Strand-match across the seam pending — see Step 13.'}
+                    : 'Per-side strand controls live in Main mode for now. Boundary and pair selection are in the Composition panel above.'}
                 </p>
               )}
             </div>

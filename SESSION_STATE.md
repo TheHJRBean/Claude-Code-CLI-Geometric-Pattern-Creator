@@ -29,7 +29,7 @@ Status snapshot:
 - [done] Step 10 — `FigureControls` lifted to `components/strands/FigureControls.tsx`. Sidebar imports from new location; no behavioural change in Main.
 - [done] Step 11 — Lab Strands panel (basic per-tile-type controls: figure type + contact angle + auto/length). LX-1 = (a) trimmed Lab variant ("basic implementation"); ID-1 = identical render where overlap exists. "Show advanced" toggle present in UI but non-functional (placeholder pointing user to Main).
 - [done] Step 12 — Specialised mandala strand renderer (`tilings/mandalaStrand.ts`). Per-layer + outer-ring contact angle controls in the Layers panel (visible only when strands are on). MS-1 = (a) per-layer only.
-- [todo] Step 13 — Composition strand renderer + match-up · CS-1 gates this step
+- [done] Step 13 — Architecture-only ship per CS-1 path (a). Boundary toggle (Match strands / Hard frame) + "Show all backgrounds" filter wired through `CompositionConfig`. New modules `tilings/compositionVerifiedPairs.ts` (allow-list, currently empty) + `tilings/compositionStrand.ts` (dispatch skeleton — falls back to frame mode for every unverified pair, which is currently all of them). No analytical strand-match shipped — none of the four current presets are verified, so no false claims. The renderer architecture is ready for the first verified pair to slot in.
 - [todo] Step 14 — Lab-local library (save / rename / delete / duplicate)
 - [todo] Steps 15–18 (opt)
 
@@ -134,18 +134,28 @@ Status snapshot:
   composition visuals work but aren't yet pleasing — refinement
   deferred (likely covered by Step 13 strand-match and/or the parked
   CG-1/FS-1 expansion ideas).
-- Step 12 code-complete: turning strands on while a Layered Mandala
-  is selected now produces concentric rosettes via the per-layer PIC
-  pipeline in `tilings/mandalaStrand.ts`. The Layers panel grows an
-  "Outer contact angle" slider plus a "Contact angle" slider per
-  inner layer (visible only when strands are on). MS-1 = (a)
-  per-layer contact angle only — not per-layer × per-tile-type.
-  Defaults pulled from `defaultContactAngleForFold()`.
-- Next up: **Step 13 — Composition strand renderer + match-up
-  boundary mode**. CS-1 GATES this step — surface the verification
-  status of each candidate centre/background pair to the user before
-  starting any work. Match-up entries must be analytically verified;
-  speculative pairs ship as hard-frame fallbacks.
+- Step 12 code-complete (per-layer mandala strands).
+- **Step 13 code-complete — architecture-only ship (CS-1 path a).**
+  `CompositionConfig` gains `boundary: 'match' | 'frame'` (default
+  `'frame'`) and `showAllBackgrounds: boolean`. New modules
+  `tilings/compositionVerifiedPairs.ts` (empty allow-list) and
+  `tilings/compositionStrand.ts` (dispatch skeleton — currently
+  always falls back to frame mode because the allow-list is empty).
+  Composition panel grows a Boundary segmented control (Match
+  strands / Hard frame, with Match disabled+tooltipped when the
+  current pair isn't verified) plus a "Show all backgrounds"
+  checkbox. Background dropdown filters to verified partners when
+  unticked; with the allow-list empty, the toggle is a no-op for all
+  current presets. `usePattern` wires the new dispatcher and exposes
+  `effectiveBoundary` on the composition render output.
+  `loadLabState` backfills the new fields for old persisted state.
+  No analytical match-up has been worked out yet — the architecture
+  is ready for the first verified pair to slot in via
+  `VERIFIED_COMPOSITION_PAIRS`.
+- Next up: **Step 14 — Lab-local library** (save / rename / delete
+  / duplicate, schema-versioned localStorage). OR: come back to
+  Step 13 and attempt analytical proof of one pair if visual
+  refinement of compositions becomes the priority.
 
 ## Decisions
 All architectural decisions captured in the "Locked architectural decisions"

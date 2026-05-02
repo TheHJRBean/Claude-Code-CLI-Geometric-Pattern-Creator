@@ -24,6 +24,9 @@ export const DEFAULT_COMPOSITION_CONFIG: CompositionConfig = {
   regionRadius: 280,
   frameEnabled: true,
   frameColor: 'var(--accent)',
+  // Default to 'frame' until verified pairs exist. CS-1.
+  boundary: 'frame',
+  showAllBackgrounds: false,
 }
 
 export interface Viewport { x: number; y: number; width: number; height: number }

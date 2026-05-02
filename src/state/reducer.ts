@@ -164,6 +164,16 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         i === action.payload.index ? { ...l, scale } : l)
       return { ...state, mandala: { ...current, layers } }
     }
+    case 'SET_MANDALA_LAYER_ROTATION_STEP': {
+      const current: MandalaConfig = state.mandala ?? DEFAULT_MANDALA_CONFIG
+      const layers = current.layers.map((l, i) => {
+        if (i !== action.payload.index) return l
+        const mod = 2 * l.fold
+        const step = ((action.payload.step % mod) + mod) % mod
+        return { ...l, rotationStep: step }
+      })
+      return { ...state, mandala: { ...current, layers } }
+    }
     case 'LOAD_CONFIG':
       return action.payload
     default:

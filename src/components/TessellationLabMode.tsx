@@ -335,6 +335,82 @@ export function TessellationLabMode({
                           payload: { index: i, scale: Number(e.target.value) },
                         })}
                       />
+                      {(() => {
+                        const step = layer.rotationStep ?? 0
+                        const maxStep = 2 * layer.fold
+                        const halfAngleDeg = 180 / layer.fold
+                        const angleDeg = ((step * halfAngleDeg) % 360).toFixed(1)
+                        const parityLabel = step % 2 === 0 ? 'vertex-aligned' : 'edge-aligned'
+                        return (
+                          <>
+                            <FieldLabel
+                              label="Rotation"
+                              value={`step ${step}/${maxStep - 1} · ${angleDeg}° · ${parityLabel}`}
+                            />
+                            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                              <button
+                                onClick={() => dispatch({
+                                  type: 'SET_MANDALA_LAYER_ROTATION_STEP',
+                                  payload: { index: i, step: step - 1 },
+                                })}
+                                aria-label={`Rotate layer ${i + 1} backward one step`}
+                                style={{
+                                  flex: '0 0 auto',
+                                  padding: '4px 10px',
+                                  background: 'transparent',
+                                  color: 'var(--text-primary)',
+                                  border: '1px solid var(--border-subtle)',
+                                  cursor: 'pointer',
+                                  fontFamily: "'Cinzel', Georgia, serif",
+                                  fontSize: 11,
+                                }}
+                              >
+                                ◀
+                              </button>
+                              <button
+                                onClick={() => dispatch({
+                                  type: 'SET_MANDALA_LAYER_ROTATION_STEP',
+                                  payload: { index: i, step: 0 },
+                                })}
+                                disabled={step === 0}
+                                style={{
+                                  flex: '1 1 auto',
+                                  padding: '4px 8px',
+                                  background: 'transparent',
+                                  color: step === 0 ? 'var(--text-muted)' : 'var(--text-primary)',
+                                  border: '1px solid var(--border-subtle)',
+                                  cursor: step === 0 ? 'default' : 'pointer',
+                                  fontFamily: "'Cinzel', Georgia, serif",
+                                  fontSize: 10,
+                                  letterSpacing: '0.1em',
+                                  textTransform: 'uppercase',
+                                }}
+                              >
+                                Reset
+                              </button>
+                              <button
+                                onClick={() => dispatch({
+                                  type: 'SET_MANDALA_LAYER_ROTATION_STEP',
+                                  payload: { index: i, step: step + 1 },
+                                })}
+                                aria-label={`Rotate layer ${i + 1} forward one step`}
+                                style={{
+                                  flex: '0 0 auto',
+                                  padding: '4px 10px',
+                                  background: 'transparent',
+                                  color: 'var(--text-primary)',
+                                  border: '1px solid var(--border-subtle)',
+                                  cursor: 'pointer',
+                                  fontFamily: "'Cinzel', Georgia, serif",
+                                  fontSize: 11,
+                                }}
+                              >
+                                ▶
+                              </button>
+                            </div>
+                          </>
+                        )
+                      })()}
                     </div>
                   )
                 })}

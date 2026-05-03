@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
 import type { Action } from '../state/actions'
-import { TILINGS, SYMMETRY_GROUPS } from '../tilings/index'
+import { TILINGS } from '../tilings/index'
 import type { TileTypeInfo } from '../types/tiling'
 import {
   type SavedTessellation,
@@ -107,12 +107,6 @@ export function TessellationLabMode({
   const tileTypes: TileTypeInfo[] = def
     ? def.tileTypes ?? Array.from(new Set(def.vertexConfig)).map(n => ({ id: String(n), sides: n, label: `${n}-gon` }))
     : []
-
-  const resetTessellationDefaults = () => {
-    if (config.tiling.type) {
-      dispatch({ type: 'SET_TILING_TYPE', payload: config.tiling.type })
-    }
-  }
 
   const handleLoadSaved = (id: string) => {
     setActiveSavedId(id)
@@ -282,97 +276,6 @@ export function TessellationLabMode({
                 </button>
               ))}
             </div>
-          </div>
-
-          <div style={{ paddingTop: 22 }}>
-            <SectionTitle>Tessellation</SectionTitle>
-            <FieldLabel label="Type" />
-            <select
-              className="pattern-select"
-              value={config.tiling.type}
-              onChange={e => {
-                setActiveSavedId('')
-                dispatch({ type: 'SET_TILING_TYPE', payload: e.target.value })
-              }}
-            >
-              <option value="">— select a tessellation —</option>
-              {SYMMETRY_GROUPS.map(group => (
-                <optgroup key={group.fold} label={`${group.label} Symmetry`}>
-                  {group.tilings.map(name => (
-                    <option key={name} value={name}>{TILINGS[name].label}</option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-
-            {def && (
-              <>
-                <FieldLabel
-                  label="Scale"
-                  value={String(config.tiling.scale)}
-                  unit=" px"
-                />
-                <input
-                  type="range"
-                  className="pattern-slider"
-                  min={30}
-                  max={300}
-                  step={5}
-                  value={config.tiling.scale}
-                  onChange={e => dispatch({ type: 'SET_SCALE', payload: Number(e.target.value) })}
-                />
-
-                <button
-                  onClick={resetTessellationDefaults}
-                  style={{
-                    marginTop: 14,
-                    width: '100%',
-                    padding: '7px 10px',
-                    background: 'transparent',
-                    color: 'var(--accent)',
-                    border: '1px solid var(--border-accent)',
-                    fontFamily: "'Cinzel', Georgia, serif",
-                    fontSize: 9,
-                    fontWeight: 600,
-                    letterSpacing: '0.14em',
-                    textTransform: 'uppercase',
-                    cursor: 'pointer',
-                    transition: 'border-color 0.15s, background 0.15s',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)' }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-accent)' }}
-                >
-                  Reset to defaults
-                </button>
-
-                <div style={{
-                  marginTop: 18,
-                  padding: '10px 12px',
-                  border: '1px solid var(--border-subtle)',
-                  background: 'var(--bg-surface, transparent)',
-                  fontFamily: "'EB Garamond', Georgia, serif",
-                  fontSize: 12.5,
-                  color: 'var(--text-muted)',
-                  letterSpacing: '0.02em',
-                  lineHeight: 1.55,
-                }}>
-                  <div style={{
-                    fontFamily: "'Cinzel', Georgia, serif",
-                    fontSize: 9,
-                    fontWeight: 600,
-                    color: 'var(--accent)',
-                    letterSpacing: '0.18em',
-                    textTransform: 'uppercase',
-                    marginBottom: 6,
-                  }}>
-                    Info
-                  </div>
-                  <div><strong>Vertex&nbsp;config:</strong> {def.vertexConfig.join('.')}</div>
-                  <div><strong>Fold:</strong> {def.foldSymmetry}</div>
-                  <div><strong>Category:</strong> {def.category}</div>
-                </div>
-              </>
-            )}
           </div>
 
           {/* Library — Save / Rename / Duplicate / Delete + saved entries dropdown */}

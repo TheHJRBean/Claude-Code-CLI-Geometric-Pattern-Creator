@@ -5,6 +5,7 @@ import type { ViewTransform } from './usePanZoom'
 import { TILINGS } from '../tilings/index'
 import { generateTiling } from '../tilings/archimedean'
 import { generateRosettePatch } from '../tilings/rosettePatch'
+import { editorTilesToPolygons } from '../editor/buildEditorPolygons'
 import { runPIC } from '../pic/index'
 
 export interface PatternData {
@@ -37,6 +38,14 @@ export function usePattern(
   const genH = vh * (1 + 2 * pad)
 
   return useMemo(() => {
+    // Step 17 editor: when the patch is active, render its tiles directly.
+    // The patch is finite, so viewport quantisation doesn't apply.
+    if (config.tiling.type === 'editor' && config.editor) {
+      const polygons = editorTilesToPolygons(config.editor)
+      const segments = runPIC(polygons, config)
+      return { polygons, segments }
+    }
+
     const def = TILINGS[config.tiling.type]
     if (!def) return { polygons: [], segments: [] }
 

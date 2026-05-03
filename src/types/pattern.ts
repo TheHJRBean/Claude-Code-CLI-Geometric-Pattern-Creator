@@ -1,3 +1,5 @@
+import type { EditorConfig } from './editor'
+
 export interface TilingConfig {
   type: string
   scale: number
@@ -64,4 +66,12 @@ export interface PatternConfig {
   lacing: LacingConfig
   /** When true, adjacent Bézier curves' control points are adjusted to share a tangent at interior join points (G1 continuity) */
   smoothTransitions?: boolean
+  /**
+   * Step 17 — user-editable tessellation editor patch (Q13 Option C).
+   *
+   * Active only when `tiling.type === 'editor'`. When present, the render
+   * pipeline ignores `tiling.scale` and renders the patch directly. Always
+   * carries an inner `version` independent of the outer storage envelope.
+   */
+  editor?: EditorConfig
 }

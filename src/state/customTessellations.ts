@@ -10,7 +10,7 @@ import { TILINGS } from '../tilings/index'
  * Library is Lab-only — Main mode does not surface saved entries.
  */
 
-export type SavedSourceCategory = 'archimedean' | 'rosette-patch'
+export type SavedSourceCategory = 'archimedean' | 'rosette-patch' | 'editor'
 
 export interface SavedTessellation {
   id: string
@@ -40,6 +40,7 @@ function uuid(): string {
 }
 
 function categoryFor(config: PatternConfig): SavedSourceCategory {
+  if (config.tiling.type === 'editor') return 'editor'
   const def = TILINGS[config.tiling.type]
   return def?.category === 'rosette-patch' ? 'rosette-patch' : 'archimedean'
 }

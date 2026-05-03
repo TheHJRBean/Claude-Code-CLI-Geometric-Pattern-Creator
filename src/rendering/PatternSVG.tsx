@@ -3,7 +3,6 @@ import type { Polygon, Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
 import type { ViewTransform } from '../hooks/usePanZoom'
 import type { PanZoomHandlers } from '../hooks/usePanZoom'
-import type { CompositionRender } from '../hooks/usePattern'
 import { TileLayer } from './TileLayer'
 import { StrandLayer } from './StrandLayer'
 import { ControlPointLayer } from './ControlPointLayer'
@@ -11,7 +10,6 @@ import { ControlPointLayer } from './ControlPointLayer'
 interface Props {
   polygons: Polygon[]
   segments: Segment[]
-  composition?: CompositionRender
   config: PatternConfig
   viewTransform: ViewTransform
   containerWidth: number
@@ -25,19 +23,14 @@ interface Props {
   fillOnHover?: boolean
 }
 
-function polygonPoints(poly: Polygon): string {
-  return poly.vertices.map(v => `${v.x},${v.y}`).join(' ')
-}
-
 export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
-  { polygons, segments, composition, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, fillOnHover },
+  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, fillOnHover },
   ref
 ) {
   const { x, y, zoom, rotation } = viewTransform
   const vw = containerWidth / zoom
   const vh = containerHeight / zoom
   const viewBox = `${x} ${y} ${vw} ${vh}`
-  // Rotate around the center of the current viewport
   const cx = x + vw / 2
   const cy = y + vh / 2
 
@@ -52,61 +45,9 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
       onPointerMove={handlers.onPointerMove}
       onPointerUp={handlers.onPointerUp}
     >
-      {composition && (
-        <defs>
-          <clipPath id="composition-region" clipPathUnits="userSpaceOnUse">
-            <polygon points={polygonPoints(composition.regionPolygon)} />
-          </clipPath>
-          {/* Background mask = full viewport rect with the region polygon
-              punched out via even-odd fill rule. */}
-          <clipPath id="composition-background" clipPathUnits="userSpaceOnUse">
-            <path
-              d={`M ${x} ${y} h ${vw} v ${vh} h ${-vw} Z M ${composition.regionPolygon.vertices.map((v, i) => (i === 0 ? `${v.x} ${v.y}` : `L ${v.x} ${v.y}`)).join(' ')} Z`}
-              clipRule="evenodd"
-            />
-          </clipPath>
-        </defs>
-      )}
       <g transform={rotation ? `rotate(${rotation} ${cx} ${cy})` : undefined}>
-        {composition ? (
-          <>
-            {/* Tiles are always per-region clipped so the centre/background
-                styling can diverge in future. For trivial-match pairs the
-                two polygon sets share a reference (composition.ts), so
-                they line up perfectly across the seam. */}
-            <g clipPath="url(#composition-background)">
-              <TileLayer polygons={composition.backgroundPolygons} visible={showTileLayer} outlineWidth={outlineWidth} fillOnHover={fillOnHover} />
-              {showLines && !composition.unifiedSegments && (
-                <StrandLayer segments={composition.backgroundSegments} config={config} />
-              )}
-            </g>
-            <g clipPath="url(#composition-region)">
-              <TileLayer polygons={composition.centrePolygons} visible={showTileLayer} outlineWidth={outlineWidth} fillOnHover={fillOnHover} />
-              {showLines && !composition.unifiedSegments && (
-                <StrandLayer segments={composition.centreSegments} config={config} />
-              )}
-            </g>
-            {/* Step 13 match path: strands span both regions in a single
-                un-clipped pass so they cross the seam continuously. */}
-            {showLines && composition.unifiedSegments && (
-              <StrandLayer segments={composition.unifiedSegments} config={config} />
-            )}
-            {composition.frameEnabled && (
-              <polygon
-                points={polygonPoints(composition.regionPolygon)}
-                fill="none"
-                stroke={composition.frameColor}
-                strokeWidth={1.5}
-                vectorEffect="non-scaling-stroke"
-              />
-            )}
-          </>
-        ) : (
-          <>
-            <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} fillOnHover={fillOnHover} />
-            {showLines && <StrandLayer segments={segments} config={config} />}
-          </>
-        )}
+        <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} fillOnHover={fillOnHover} />
+        {showLines && <StrandLayer segments={segments} config={config} />}
         <ControlPointLayer
           segments={segments}
           config={config}

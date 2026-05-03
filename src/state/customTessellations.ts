@@ -2,7 +2,7 @@ import type { PatternConfig } from '../types/pattern'
 import { TILINGS } from '../tilings/index'
 
 /**
- * Step 14 — Lab-local library of user-saved tessellations.
+ * Lab-local library of user-saved tessellations.
  *
  * Persists to localStorage under `lab-tessellations-v1`. Schema-versioned
  * so future shape changes can migrate without losing the user's library.
@@ -10,11 +10,7 @@ import { TILINGS } from '../tilings/index'
  * Library is Lab-only — Main mode does not surface saved entries.
  */
 
-export type SavedSourceCategory =
-  | 'archimedean'
-  | 'rosette-patch'
-  | 'mandala'
-  | 'composition'
+export type SavedSourceCategory = 'archimedean' | 'rosette-patch'
 
 export interface SavedTessellation {
   id: string
@@ -37,8 +33,6 @@ export interface LibraryError {
 }
 
 function uuid(): string {
-  // crypto.randomUUID is available in modern browsers; fall back to a
-  // simple timestamp+random combination if it isn't.
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return crypto.randomUUID()
   }
@@ -47,10 +41,12 @@ function uuid(): string {
 
 function categoryFor(config: PatternConfig): SavedSourceCategory {
   const def = TILINGS[config.tiling.type]
-  const cat = def?.category
-  if (cat === 'mandala' || cat === 'composition' || cat === 'rosette-patch') return cat
-  return 'archimedean'
+  return def?.category === 'rosette-patch' ? 'rosette-patch' : 'archimedean'
 }
+
+// Tessellation types removed in the 2026-05-03 cleanup. Saved entries
+// pointing at these get skipped on load with a console warning.
+const RETIRED_TILING_TYPES = new Set(['layered-mandala', 'composition'])
 
 export function listSavedTessellations(): SavedTessellation[] {
   try {
@@ -60,12 +56,15 @@ export function listSavedTessellations(): SavedTessellation[] {
     if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.entries)) {
       return []
     }
-    // Filter out malformed entries rather than crash; warn about each.
     return parsed.entries.filter(e => {
       if (!e || typeof e !== 'object') return false
       if (typeof e.id !== 'string' || typeof e.name !== 'string') return false
       if (!e.config || !e.config.tiling) {
         console.warn('Skipping malformed saved tessellation', e.id)
+        return false
+      }
+      if (RETIRED_TILING_TYPES.has(e.config.tiling.type)) {
+        console.warn(`Skipping saved tessellation "${e.name}" — type "${e.config.tiling.type}" was retired in the 2026-05-03 cleanup.`)
         return false
       }
       return true

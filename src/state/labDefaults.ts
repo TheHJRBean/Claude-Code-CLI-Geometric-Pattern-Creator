@@ -3,8 +3,6 @@ import type { PatternConfig } from '../types/pattern'
 /**
  * Lab starts with no tessellation selected. Strands are off by default
  * (Lab focuses on the polygon tessellation; PIC overlay is opt-in).
- * Mandala config is omitted here; the reducer seeds DEFAULT_MANDALA_CONFIG
- * the first time `layered-mandala` is selected.
  */
 export const LAB_DEFAULT_CONFIG: PatternConfig = {
   tiling: { type: '', scale: 100 },
@@ -42,18 +40,18 @@ export function loadLabState(): LabPersistedState {
     if (!parsed || typeof parsed !== 'object' || !parsed.config?.tiling) {
       return LAB_DEFAULT_PERSISTED
     }
-    // Backfill fields added after v1 (Step 13: composition.boundary,
-    // composition.showAllBackgrounds). Drop entire fields rather than
-    // crash if the persisted shape predates them.
+    // 2026-05-03 cleanup: dropped tiling categories `mandala` and
+    // `composition`. If a persisted config points at one of those types,
+    // reset to a blank tessellation rather than crash downstream.
+    const droppedTypes = new Set(['layered-mandala', 'composition'])
     const config = { ...parsed.config }
-    if (config.composition) {
-      const c = config.composition as Partial<typeof config.composition>
-      config.composition = {
-        ...config.composition,
-        boundary: c.boundary ?? 'frame',
-        showAllBackgrounds: c.showAllBackgrounds ?? false,
-      }
+    if (droppedTypes.has(config.tiling.type)) {
+      config.tiling = { ...config.tiling, type: '' }
     }
+    // Old persisted shapes carried `mandala` / `composition` payloads on
+    // the config — strip them silently.
+    delete (config as Record<string, unknown>).mandala
+    delete (config as Record<string, unknown>).composition
     return {
       config,
       showStrands: typeof parsed.showStrands === 'boolean' ? parsed.showStrands : LAB_DEFAULT_PERSISTED.showStrands,

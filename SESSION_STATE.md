@@ -20,19 +20,19 @@ Status snapshot:
 - [done] Step 1 — Tessellation Lab scaffold
 - [done] Step 2 — Port existing tessellations into Lab
 - [done] Step 3 — Hexadecagonal-rosette tessellation (16-fold)
-- [done] Step 4 — Tessellation preset catalogue
-- [done] Step 5 — Layered mandala engine v1 (polygons only) · MQ-1 deferred to Step 6
-- [done] Step 6 — Mandala preset catalogue · MQ-1 did not fire (strict-divisor sufficed); Octagonal shipped as 8+4 (dropped the 2-fold ring per plan guidance "preset list shrinks rather than rule loosens")
-- [done] Step 7 — Region-stitching v1, hard-frame · CG-1=(a) two scale sliders, FS-1=(a) on/off + colour. Expansion alternatives parked as `/idea` memories.
-- [done] Step 8 — Composition preset catalogue (hard-frame): four entries (16-in-4.8.8, 12-in-Hexagonal, 16-in-Square, 10-in-Hexagonal). Visuals are functional but not yet pleasing — sign-off accepted, refinement deferred.
+- [archived 2026-05-03] Step 4 — Tessellation preset catalogue (presets dropped; replaced by user library)
+- [archived 2026-05-03] Step 5 — Layered mandala engine v1 (mandala feature scrapped)
+- [archived 2026-05-03] Step 6 — Mandala preset catalogue (mandala feature scrapped)
+- [archived 2026-05-03] Step 7 — Region-stitching v1, hard-frame (composition feature scrapped)
+- [archived 2026-05-03] Step 8 — Composition preset catalogue (composition feature scrapped)
 - [done] Step 9 — Lab polish: localStorage persistence of full Lab state, tessellation outline weight slider, fill-on-hover toggle.
 - [done] Step 10 — `FigureControls` lifted to `components/strands/FigureControls.tsx`. Sidebar imports from new location; no behavioural change in Main.
-- [done] Step 11 — Lab Strands panel (basic per-tile-type controls: figure type + contact angle + auto/length). LX-1 = (a) trimmed Lab variant ("basic implementation"); ID-1 = identical render where overlap exists. "Show advanced" toggle present in UI but non-functional (placeholder pointing user to Main).
-- [done] Step 12 — Specialised mandala strand renderer (`tilings/mandalaStrand.ts`). Per-layer + outer-ring contact angle controls in the Layers panel (visible only when strands are on). MS-1 = (a) per-layer only.
-- [done] Step 13 — Architecture-only ship per CS-1 path (a). Boundary toggle (Match strands / Hard frame) + "Show all backgrounds" filter wired through `CompositionConfig`. New modules `tilings/compositionVerifiedPairs.ts` (allow-list, currently empty) + `tilings/compositionStrand.ts` (dispatch skeleton — falls back to frame mode for every unverified pair, which is currently all of them). No analytical strand-match shipped — none of the four current presets are verified, so no false claims. The renderer architecture is ready for the first verified pair to slot in.
-- [done] Step 13 follow-up — first verified pairs shipped (trivial-match path). `VERIFIED_COMPOSITION_PAIRS` populated with five `centre === background` entries (`square`, `hexagonal`, `triangular`, `4.8.8`, `3.6.3.6`). `composition.ts` generates a unified polygon set across the full viewport for trivial-match pairs and stores it in `unifiedPolygons`. `compositionStrand.ts` runs PIC once over that set and returns segments via new `unifiedSegments` field. `PatternSVG.tsx` renders `unifiedSegments` in a single un-clipped pass so strands flow continuously across the seam; per-region clipping still applies to the tile layer. `effectiveCompositionBoundary()` helper centralises the boundary decision so polygon generation + strand rendering agree. New demo preset `Hex-in-Hex (match)` ships with `boundary: 'match'`, `frameEnabled: false`. Non-trivial verified pairs (different centre + background) are still TODO and need per-pair stitching geometry; the dispatch in `runCompositionPIC` already has the insertion point.
-- [done] Step 14 — Lab-local library. New `state/customTessellations.ts` (schema-versioned localStorage at `lab-tessellations-v1`, list/save/rename/delete/duplicate, quota + corruption handling). Library buttons (Save / Rename / Duplicate / Delete) added under the Preset dropdown; saved entries appear in a "My tessellations" optgroup. Cross-tab sync via `storage` event. Library is Lab-only — Main mode is unaffected.
-- [todo] Steps 15–18 (opt)
+- [done] Step 11 — Lab Strands panel (basic per-tile-type controls: figure type + contact angle + auto/length). LX-1 = (a) trimmed Lab variant; ID-1 = identical render where overlap exists.
+- [archived 2026-05-03] Step 12 — Specialised mandala strand renderer (mandala feature scrapped)
+- [archived 2026-05-03] Step 13 + follow-up — Composition strand renderer + match-up boundary mode (composition feature scrapped)
+- [done] Step 14 — Lab-local library. `state/customTessellations.ts` (schema-versioned localStorage at `lab-tessellations-v1`, list/save/rename/delete/duplicate, quota + corruption handling). Library buttons + saved-entries dropdown live under "My Tessellations".
+- [next] Step 17 — User-editable tessellation editor (drag-and-drop polygon placement). Now the primary focus.
+- [todo / parked] Steps 15, 16, 18 (k-uniform generator, quasi-periodic, Girih substitution).
 
 ## Done
 - Grill-me interview: architectural decisions locked
@@ -131,53 +131,38 @@ Status snapshot:
   readout (`step N/M · θ° · vertex|edge-aligned`).
 
 ## Next
-- Visual sign-off complete: Steps 1–11 verified by user. Step 7/8
-  composition visuals work but aren't yet pleasing — refinement
-  deferred (likely covered by Step 13 strand-match and/or the parked
-  CG-1/FS-1 expansion ideas).
-- Step 12 code-complete (per-layer mandala strands).
-- **Step 13 code-complete — architecture-only ship (CS-1 path a).**
-  `CompositionConfig` gains `boundary: 'match' | 'frame'` (default
-  `'frame'`) and `showAllBackgrounds: boolean`. New modules
-  `tilings/compositionVerifiedPairs.ts` (empty allow-list) and
-  `tilings/compositionStrand.ts` (dispatch skeleton — currently
-  always falls back to frame mode because the allow-list is empty).
-  Composition panel grows a Boundary segmented control (Match
-  strands / Hard frame, with Match disabled+tooltipped when the
-  current pair isn't verified) plus a "Show all backgrounds"
-  checkbox. Background dropdown filters to verified partners when
-  unticked; with the allow-list empty, the toggle is a no-op for all
-  current presets. `usePattern` wires the new dispatcher and exposes
-  `effectiveBoundary` on the composition render output.
-  `loadLabState` backfills the new fields for old persisted state.
-  No analytical match-up has been worked out yet — the architecture
-  is ready for the first verified pair to slot in via
-  `VERIFIED_COMPOSITION_PAIRS`.
-- **Step 14 code-complete — Lab-local library shipped.**
-  `state/customTessellations.ts` persists to localStorage under
-  `lab-tessellations-v1` (schema-versioned, quota+corruption safe).
-  Lab Preset section now sports Save / Rename / Duplicate / Delete
-  buttons; saved entries surface under "My tessellations" in the
-  Preset dropdown. Save prompts for a name (defaults to current
-  preset name + " (modified)" when iterating on a saved entry).
-  Cross-tab `storage` events refresh the library list.
-- **Step 13 follow-up code-complete — first verified pairs (trivial
-  match).** `VERIFIED_COMPOSITION_PAIRS` populated with five
-  `centre === background` entries. `composition.ts` generates a
-  unified polygon set when match-mode is active and the pair is
-  trivial; `compositionStrand.ts` runs PIC once on that set and
-  returns it via new `unifiedSegments` field. `PatternSVG.tsx`
-  draws `unifiedSegments` in one un-clipped pass so strands span
-  the seam continuously. New demo preset `Hex-in-Hex (match)`
-  exercises the path. The dispatch in `runCompositionPIC` keeps a
-  named branch for future non-trivial verified pairs (no such
-  pairs yet — adding one requires per-pair seam-stitching code).
-- Next up: optional Steps 15–18 (k-uniform generator, quasi-periodic
-  tilings, user-editable polygon placement, Girih substitution). All
-  parked unless prioritised. Or: extend Step 13 with a non-trivial
-  verified pair (different centre + background) — requires working
-  out per-edge stitching geometry on paper first, then dispatching
-  on the pair key inside `runCompositionPIC`.
+- **2026-05-03 cleanup shipped.** User scrapped the mandala and
+  composition features; the entire preset catalogue went with them.
+  Lab UI shell preserved and repurposed as the workspace for the
+  user-editable tessellation editor (formerly Step 17).
+  Archived to `archive/tessellation-lab/`:
+  `tilings/{mandala,mandalaStrand,composition,compositionStrand,compositionVerifiedPairs}.ts`
+  and `state/labPresets.ts`. README in the archive folder lists the
+  reusable bits (per-polygon synthetic figures map, regular polygon
+  vertex generator, strict-divisor / common-divisor fold validation,
+  even-odd `clipPath` "viewport minus polygon" technique).
+- Removed `MandalaConfig` / `CompositionConfig` from
+  `types/pattern.ts`, `'mandala'` and `'composition'` from
+  `TilingCategory`, all `SET_MANDALA_*` / `SET_COMPOSITION_*`
+  reducer actions, the marker `layered-mandala` and `composition`
+  TILINGS entries plus their SYMMETRY_GROUPS rows, the composition
+  rendering branch in `PatternSVG`, the composition / mandala
+  branches in `usePattern`, and the activePresetId plumbing through
+  `App.tsx`.
+- `loadLabState` migration: persisted configs that point at
+  `layered-mandala` or `composition` reset to a blank tessellation
+  type and have their `mandala` / `composition` payloads stripped.
+- `customTessellations.ts` migration: saved entries pointing at the
+  retired tiling types are skipped on load with a console warning;
+  `SavedSourceCategory` narrowed to `'archimedean' | 'rosette-patch'`.
+- TessellationLabMode rewritten: stripped Presets section, Layers
+  panel, Composition panel. Kept the Tessellation picker, Strands
+  panel, Display section, and the library (Save / Rename /
+  Duplicate / Delete + saved-entries dropdown under "My
+  Tessellations"). Added an "Editor" section placeholder where the
+  drag-and-drop editor will dock.
+- `npm run build` green; ready to plan Step 17.
+- Next up: plan the user-editable tessellation editor.
 
 ## Decisions
 All architectural decisions captured in the "Locked architectural decisions"

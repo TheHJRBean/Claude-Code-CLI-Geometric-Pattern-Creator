@@ -1,581 +1,326 @@
-# Tessellation Revamp — Action Plan (v3)
+# Tessellation Revamp — Action Plan (v4)
 
 **Branch:** `feat/art-deco-egypt-theme-revamp`
 **Owner:** TheHJRBean
-**Started:** 2026-04-25  ·  **Re-scoped:** 2026-04-26 (terminology) ·  **Restructured:** 2026-04-26 (Option B) ·  **Pivoted:** 2026-05-03 (mandala + composition scrapped, focus moves to user-editable editor)
+**Started:** 2026-04-25  ·  **Re-scoped:** 2026-04-26 (terminology) ·  **Restructured:** 2026-04-26 (Option B) ·  **Pivoted:** 2026-05-03 (mandala + composition scrapped) ·  **Renewed:** 2026-05-03 (v4 — Step 17 promoted to first-class plan content from grill-me decisions) ·  **Sub-step 17.0 resolved:** 2026-05-03 (Q9–Q15 grilled — see Resolved deferred questions below)
+
 **Status anchor:** see `SESSION_STATE.md` for current progress.
 
-> **2026-05-03 pivot.** User declared dissatisfaction with the mandala and
-> composition features and scrapped both. Their source files have been
-> archived to `archive/tessellation-lab/` (with a README listing reusable
-> helpers). Steps 4–8, 12, and 13 below are marked **ARCHIVED** rather
-> than deleted so the design rationale survives. The Lab UI shell has
-> been preserved and repurposed as the workspace for the user-editable
-> tessellation editor (Step 17), now the primary focus. A fresh plan for
-> Step 17 will be drafted next.
+> **2026-05-03 v4 renewal.** The previous iteration's mandala / composition
+> work has been archived (see Working log + `archive/tessellation-lab/`).
+> Step 17 (user-editable tessellation editor) is the active focus and
+> has been fully grilled — its design is now first-class plan content,
+> with a derived sub-step breakdown. Conservative-default registers
+> (E-1..E-9, MQ/CG/FS/MS/CS/ID/LX) tied to the archived features have
+> been removed; the remaining open questions for Step 17 are listed
+> as deferred grill items (Q9–Q15).
 
 ---
 
 ## Terminology (locked)
 
-To eliminate the ambiguity that misdirected v1 of this plan:
-
-- **Tessellation** — the underlying polygon tiling. The arrangement of tiles
-  covering the plane or a bounded region. Pure geometry, no decoration.
+- **Tessellation** — the underlying polygon tiling. Pure geometry, no decoration.
 - **Strand** — a line in the decorative pattern produced by Kaplan's
-  Polygons-in-Contact (PIC) algorithm running over a tessellation. Strands
-  are an optional overlay on top of a tessellation.
+  Polygons-in-Contact (PIC) algorithm running over a tessellation.
+  Strands are an optional overlay on top of a tessellation.
+- **Patch** *(Step 17)* — the finite arrangement of polygons the user
+  builds inside a boundary in the editor. Becomes the wallpaper
+  fundamental domain at preview / strand-editor time.
+- **Boundary** *(Step 17)* — the lattice cell of the wallpaper repeat.
+  In v1, restricted to {triangle, square, hexagon}.
+- **Repeat** *(Step 17)* — one stamping of the patch on the lattice in
+  strand-editor mode.
 
 Internal code identifiers may still use older words (`TILINGS`,
 `lineLength`, etc.); those are deferred refactors and not user-visible.
 
 ---
 
-## Approach (locked 2026-04-26)
+## Approach (current)
 
-**Conservative-first.** Reliability over features. The plan ships polygon
-geometry end-to-end before strand rendering enters the Lab. No category
-gets strand support until its tessellation engine is solid and exercised
-by a preset catalogue.
+**Conservative-first.** Reliability over features.
 
-**Lab-resident workflow.** Custom tessellations (mandala, composition,
-future custom) live and are edited *in the Lab*. The Lab grows
-specialised strand renderers per category. **There is no "promote to
-Main" bridge** — the structural mismatch between Main's per-tile-type
-strand model and the new categories' layer/seam-keyed strand needs makes
-that bridge expensive and bug-prone. Archimedean and rosette-patch
-tessellations remain Main's domain (they already work there). The Lab
-absorbs anything novel.
+**Lab-resident workflow.** Custom tessellations live and are edited in
+the Lab. Archimedean and rosette-patch tessellations remain Main's
+domain (they already work there). The Lab absorbs anything novel.
+**There is no "promote to Main" bridge** — the structural mismatch
+between Main's per-tile-type strand model and the Lab's emerging needs
+makes that bridge expensive and bug-prone.
 
-This replaces the v2 plan's old Step 11.5 (Promote to Main) and old
-Step 16 (Port Lab to Main). Both deleted.
+**Editor as the active surface.** Phases A + B + C have shipped (or
+been archived). All remaining work is the user-editable tessellation
+editor (Step 17). The Lab UI shell has an "Editor" section placeholder
+where it docks.
 
 ---
 
-## Locked architectural decisions
+## Architectural decisions (still in force)
 
-These came from the grill-me interview (2026-04-25), the terminology
-clarification (2026-04-26), and the Option-B restructure (2026-04-26).
+These decisions survived the 2026-05-03 pivot and remain authoritative.
+Numbers are not contiguous with the original v3 list — only the
+still-relevant ones are kept.
 
-1. **Scope.** Six original ambitions, in priority order: more presets,
-   layered mandalas, single-rosette display, mix-and-combine,
-   preserve standard infinite tessellations, user-editable tessellations
-   LAST.
-2. **Mandala tessellation = layered composition.** Concentric rings of
-   regular polygons sharing a common centre.
-3. **Mandala layer rule = strict divisor chain.** Inner-layer fold-orders
-   must divide the outer order. UI must enforce this. *Conservative
-   choice — kept strict until proven inadequate by an actual target
-   preset that can't be built under it. See Open Question MQ-1.*
-4. **Mix-and-combine = region-stitching.** Single central tessellation
-   patch surrounded by a single infinite background tessellation. v1
-   surfaces only this simplest case.
-5. **Boundary behaviour.** When strands are off, the seam is just a
-   polygon outline. When strands are on (Step 13), two modes:
-   (b) strand match-up across the seam (default for verified-compatible
-   pairs), (a) hard frame (always works as a fallback).
-6. **Centre+background pair handling.** Default UI surfaces only verified
-   strand-matchable pairs. "Show all backgrounds" toggle unlocks the full
-   list; incompatible pairs auto-fall-back to hard frame.
-7. **Engine work first, editor last.** Steps 3–14 are engine /
-   preset / persistence work. The drag-and-drop tessellation editor is
-   parked at Step 17.
-8. **Tessellation Lab is a separate mode** so it doesn't disturb Main.
-   Lab grows over time: chrome starts minimal (Steps 1–2) and gains a
-   layers panel (Step 5), composition panel (Step 7), strand controls
-   (Step 11), category-specialised strand panels (Steps 12–13), and a
-   library UI (Step 14). The "stripped-down" framing applies to *what
-   ships in v1 of each step*, not to the whole Lab forever.
-9. **Tessellation-first rendering in Lab.** Lab canvas always renders
-   the polygon tessellation. Strand overlay is opt-in via the "Show
-   strands" toggle (off by default). Holds across all categories.
-10. **Lab-resident custom tessellations** (Option B). New tessellation
-    categories (mandala, composition) and any future custom work live
-    exclusively in Lab. Specialised strand renderers per category.
-    No Main-mode bridge.
-
-### Safe defaults applied to remaining open questions
-
-- **Mode switcher.** Button in the existing sidebar header (top-left,
-  next to the desktop collapse button). No URL routing.
-- **State isolation.** Lab uses its own `PatternConfig` instance; Main
-  state is preserved across mode toggles.
-- **Persistence.** Lab reuses the existing JSON `saveJSON` / `loadJSON`
-  format until Step 14 introduces the localStorage library.
-- **Mandala canvas centre.** Always (0, 0). No user-positioned mandala
-  in v1.
-- **Mandala layer rotation.** Each layer auto-rotates so its primary
-  axis aligns with the outer layer's. No manual rotation slider in v1.
-- **Region geometry.** v1 central region is always a regular polygon
-  matching the centre's outer fold (16-fold centre → 16-gon region).
-- **Build/CI.** Each step ends with `npm run build` (type-check +
-  production build) green. Existing `*.test.ts` files keep passing.
+1. **Tessellation Lab is a separate mode** so it doesn't disturb Main.
+   Lab UI: header, Editor section (Step 17), Tessellation picker,
+   "My Tessellations" library, Strands panel, Display section.
+2. **State isolation.** Lab uses its own `PatternConfig` instance lifted
+   to `App.tsx`; Main state is preserved across mode toggles.
+3. **Tessellation-first rendering in Lab.** Lab canvas always renders
+   the polygon tessellation. Strand overlay is opt-in via the
+   "Show strands" toggle (off by default).
+4. **Lab-resident custom tessellations.** Specialised renderers per
+   category live exclusively in Lab. **No Main-mode bridge.**
+5. **Library is Lab-only**, persisted to `lab-tessellations-v1`
+   localStorage. Existing JSON `saveJSON` / `loadJSON` remains the
+   canonical share format.
+6. **`TilingCategory` = `'archimedean' | 'rosette-patch'`** in the
+   live tree post-pivot. Step 17 will introduce a third category
+   (`'editor'` or similar — name TBD at 17.1).
 
 ---
 
-## Open question registry
+## Completed work (compressed)
 
-These are decisions deferred to the step that *actually needs them*. Do
-not pre-resolve. When a step's "Open question" block fires, surface it
-to the user; do not silently pick.
+| Step  | Title                                                  | Status     | Notes |
+|-------|--------------------------------------------------------|------------|-------|
+| 1     | Tessellation Lab scaffold                              | ✅ done    | Lab toggle, independent `PatternConfig`. |
+| 2     | Port existing tessellations into Lab                   | ✅ done    | All 16 tessellations grouped by fold. |
+| 3     | Hexadecagonal-rosette tessellation (16-fold)           | ✅ done    | New 16-fold entry; awaiting visual sign-off in browser. |
+| 4–8   | Preset catalogue, mandala engine + presets, composition + presets | 🗄 archived 2026-05-03 | See `archive/tessellation-lab/`. |
+| 9     | Lab polish (persistence, outline weight, fill on hover) | ✅ done   | `lab-state-v1` localStorage. |
+| 10    | Lift `FigureControls` into a shared component          | ✅ done    | Pre-req for Step 11. |
+| 11    | Strand controls in Lab for archimedean / rosette-patch | ✅ done    | Trimmed Lab variant. |
+| 12–13 | Mandala + composition strand renderers                 | 🗄 archived 2026-05-03 | Trivial-match composition pairs verified before archive. |
+| 14    | Lab-local library (Save / Rename / Delete / Duplicate) | 🟡 code-complete | `state/customTessellations.ts`, `lab-tessellations-v1`. |
 
-| ID    | Question                                                                 | Decide at  |
-|-------|--------------------------------------------------------------------------|------------|
-| MQ-1  | Mandala layer rule — does any target preset require relaxing strict divisor to common-divisor? | Step 5     |
-| CG-1  | Composition relative scale between centre and background — user slider, auto-fit, or fixed-ratio per pair? | Step 7     |
-| FS-1  | Composition frame stroke — colour / weight / on-off — minimum UI? | Step 7     |
-| LX-1  | Lab strand controls (archimedean / rosette-patch) — same surface as Main, or trimmed Lab variant? | Step 11    |
-| MS-1  | Mandala strand renderer — per-layer contact angle only, or per-layer × per-tile-type? | Step 12    |
-| CS-1  | Composition strand-match allow-list — provenance verification gate before any pair ships. | Step 13    |
-| ID-1  | Visual identity / divergence between Main and Lab once both decorate. Decide policy when divergence becomes visible. | Step 11+   |
-
----
-
-## Step-by-step plan
-
-Legend: **[S]** small (≤ 1 day), **[M]** medium (1–3 days), **[L]** large
-(3+ days). Status: ✅ done · 🟡 code-complete pending sign-off · ⏳ todo.
-
-### Phase A — Tessellation engines (polygons only)
-
-#### Step 1 — Tessellation Lab scaffold [S] · ✅
-Lab toggle in sidebar header. Independent `PatternConfig` per mode.
-Switching modes preserves both states.
-
-#### Step 2 — Port existing tessellations into Lab [S] · ✅
-Lab dropdown lists all 16 existing tessellations grouped by fold-symmetry.
-Selecting one renders the polygon tessellation; "Show strands" toggle
-optionally overlays the strand pattern. Scale slider, "Reset to defaults"
-button (note: re-dispatches `SET_TILING_TYPE`, which reloads the full
-`defaultConfig`, not just the contact angle — label corrected to match),
-Info panel.
-
-> **Carry-over fix:** the button currently says "Reset to default angle"
-> but reloads the whole default config. Rename to **"Reset to defaults"**
-> when next touched. Tracked as a small follow-up; not blocking.
-
-#### Step 3 — Hexadecagonal-rosette tessellation (16-fold) [S] · ✅
-**Visible:** new tessellation "Hexadecagonal Rosette" appears under
-"16-fold" in the Lab dropdown. Renders the polygon arrangement
-underlying the central rosette of historical 16-fold examples.
-
-- Add `'hexadecagonal-rosette'` entry to `tilings/index.ts`
-  (vertex config `[16, 4]` — verify against `RESEARCH-TILING-CONFIGURATIONS.md` §2.5)
-- Tile types: 16-gon centre, thin rhombus ring, square fillers
-- Add to `SYMMETRY_GROUPS` as fold-16
-- Default contact angle 78.75° in `defaultConfig`
-- Append findings to `RESEARCH-TILING-CONFIGURATIONS.md` working log
-
-**Acceptance:** strands off, polygon arrangement matches the underlying
-tile arrangement of a known 16-fold example. Strands on, the visible PIC
-pattern matches that example's central rosette.
-
-> **Note (2026-04-27):** Implemented with a single `4` tile-type id
-> covering both the rhombus ring and any square fillers, because the
-> BFS in `archimedean.ts` keys polygons by `String(sides)` and does not
-> distinguish ring rhombi from corner squares. Splitting them visually
-> would require custom `tileTypeId` assignment in the BFS — deferred
-> until a strand renderer (Phase B) actually needs it. Awaiting visual
-> sign-off in the browser.
-
-#### Step 4 — Tessellation preset catalogue [S–M] · 🗄 ARCHIVED 2026-05-03
-**Visible:** "Presets" dropdown at the top of the Lab sidebar lists
-named tessellations. Selecting one loads a complete `PatternConfig`
-snapshot (tessellation type + scale + per-tile contact angles).
-
-- Catalogue file `state/labPresets.ts`
-- v1 entries are **tessellation-named only** — drop strand-pattern names
-  like "Khatem Sulemani" until those become composable in later steps.
-  Initial 6–8: `Square (4,4)`, `Square-Octagon (4.8.8)`,
-  `Hexagonal (6,3)`, `Trihexagonal (3.6.3.6)`, `Truncated Hex (4.6.12)`,
-  `Triakis Trunc Hex (3.12.12)`, `Decagonal Rosette`,
-  `Hexadecagonal Rosette` (added in Step 3).
-- Lab sidebar: dropdown above tessellation selector, "Load preset" button
-
-**Acceptance:** user can produce 6+ distinct tessellations by selecting
-presets only.
-
-#### Step 5 — Layered mandala tessellation engine v1 [M] · 🗄 ARCHIVED 2026-05-03
-**Visible:** new entry "Layered Mandala" in the Lab "Tessellation"
-dropdown. Layers panel: pick outer fold-order (4/6/8/10/12/16) and add
-1–4 inner layers. Inner-layer fold dropdowns filtered by the strict
-divisor rule. Each layer has a scale slider. Canvas renders the stack
-of regular polygon rings, all centred at canvas origin.
-
-- New tessellation category `'mandala'` in `TilingDefinition`
-- New module `tilings/mandala.ts`:
-  `MandalaConfig = { outerFold, layers: [{ fold, scale }] }` →
-  `Polygon[]`. *Note: contact-angle field deliberately omitted at this
-  step — strand rendering for mandala arrives in Step 12.*
-- Strict-divisor validation in the UI (disable invalid options)
-- Auto-rotation: each layer's primary axis aligned with outer
-- Sidebar: new "Layers" panel UI (only when "Layered Mandala" is
-  selected)
-
-**Open question MQ-1 (decide at this step):** does any target preset
-from Step 6 actually require relaxing strict divisor to common-divisor?
-Build the strict-divisor engine first; if a target preset breaks under
-it, surface MQ-1 to the user before loosening.
-
-**Acceptance:** can build a 16+8+4 mandala by clicking three dropdowns;
-the polygon rings visibly nest and align before strands are turned on.
-
-> **Post-Step-5 polish (2026-04-27, commit `46dd7c5`):** three bugs
-> surfaced on first use:
-> - **Lab state was lost on mode toggle** because the Lab held its own
->   `useReducer` and unmounted on flip — fixed by lifting `PatternConfig`,
->   `showStrands`, and `activePresetId` up to `App.tsx`. New
->   `state/labDefaults.ts` exports `LAB_DEFAULT_CONFIG`.
-> - **Header title overlapped the absolutely-positioned mode + theme
->   toggle buttons** — fixed by bumping the h1 `marginTop` to 48 px.
-> - **Mandala rendered tiny and not centred** because it places polygons
->   at world `(0, 0)` while the camera defaulted to viewBox `(0, 0)–(w, h)`.
->   `usePanZoom` now accepts `initialX/Y`; `Canvas` seeds them to `-size/2`
->   so world origin sits at canvas centre. The reducer also bumps `scale`
->   from 100 → 250 px on first entry to mandala mode (mandala uses scale
->   as outer-ring radius), and the Lab slider max is 600 for mandala.
-
-#### Step 6 — Mandala preset catalogue [S] · 🗄 ARCHIVED 2026-05-03
-**Visible:** Step 4 Presets dropdown gains a "Mandalas" sub-section with
-3–5 prebuilt layered tessellations. *Strict-divisor only at this step;
-if MQ-1 fires, the preset list shrinks rather than the rule loosens.*
-
-- `labPresets.ts` mandala entries with full `MandalaConfig`
-- Initial: `Octagonal (8+4+2)`, `Hexagonal (12+6+3)`,
-  `Sultan Hassan (16+8+4)`, `Decagonal (10+5)`
-
-**Acceptance:** at least 3 mandala presets render correctly with strands
-off; with strands on, polygons still render correctly even though the
-mandala-aware strand renderer (Step 12) isn't shipped yet — strands fall
-back to per-tile-type rendering and *should look broken*. That's OK at
-this step; Step 12 fixes it.
-
-#### Step 7 — Region-stitching v1, hard-frame only [M] · 🗄 ARCHIVED 2026-05-03
-**Visible:** new tessellation category "Composition" in the dropdown.
-Centre picker (any single tessellation) + Background picker (any single
-tessellation). Canvas renders the central tessellation clipped to a
-regular polygon region matching the centre's fold; the background
-tessellation fills the viewport minus that region. A frame line is
-drawn at the boundary.
-
-- New tessellation category `'composition'` in `TilingDefinition`
-- New module `tilings/composition.ts`: takes
-  `CompositionConfig = { centre, background, regionRadius, frameStyle }`
-- SVG `clipPath` for the central region (regular polygon)
-- Inverted `clipPath` for the background
-- Frame stroke as a separate SVG `<polygon>` overlay
-- Lab sidebar: "Composition" panel — two pickers + region-radius slider
-  + minimum frame-style controls (FS-1 below)
-
-**Open question CG-1 (decide at this step):** when centre and background
-have different natural scales, who decides the relative scale? Options:
-(a) one scale slider per side, (b) auto-fit (centre's circumradius =
-integer number of background tile-edges), (c) fixed-ratio per pair from
-a hardcoded table. Conservative default: (a) two sliders, no auto-fit.
-Surface CG-1 if user wants smarter behaviour.
-
-**Open question FS-1 (decide at this step):** frame stroke surface area.
-Conservative minimum: a frame on/off toggle and a single colour swatch
-that defaults to `var(--accent)`. No weight slider. If the user wants
-more, surface FS-1.
-
-**Acceptance:** can compose `hexadecagonal-rosette` centre + `4.8.8`
-background, see clean polygon match within each region and a visible
-frame at the seam. Strand-match isn't shipped yet (Step 13); strands
-turned on at this step show both halves' strands clipped at the frame.
-
-#### Step 8 — Composition preset catalogue (hard-frame) [S] · 🗄 ARCHIVED 2026-05-03
-**Visible:** Presets dropdown gains a "Compositions" sub-section. All
-hard-frame at this step.
-
-- 3–4 entries: `16-in-4.8.8`, `12-in-Hexagonal`, `16-in-Square`,
-  `10-in-Hexagonal`
-
-**Acceptance:** at least 3 composition presets render with hard frames.
-
----
-
-### Phase B — Strand rendering in Lab
-
-#### Step 9 — Lab polish [S] · ✅
-- Persist last-used Lab tessellation + scale to localStorage
-- Tessellation outline weight slider in Display section
-- Optional fill-on-hover for tile types
-
-#### Step 10 — Lift `FigureControls` into a shared component [S–M] · ✅
-**Visible:** no behavioural change in Main. Internal refactor only.
-
-- Extract `FigureControls` from `Sidebar.tsx` into
-  `components/strands/FigureControls.tsx`
-- Component takes a generic `dispatch` and a generic `figures` map; no
-  hardcoded coupling to Main's reducer
-- Existing Main usage: identical render, identical wiring
-- Pre-req for Step 11
-
-**Acceptance:** Main's strand controls render and behave identically
-before/after the lift. `npm run build` green.
-
-#### Step 11 — Strand controls in Lab for archimedean / rosette-patch [M] · ✅
-**Visible:** Lab's Display section gains a "Strands" panel using the
-shared `FigureControls`. Active only for `archimedean` and
-`rosette-patch` categories. Mandala / composition show a "Specialised
-strand renderer pending — see Step 12 / Step 13" placeholder.
-
-- Reuse `state/reducer.ts` actions for figure-config edits — Lab's
-  reducer is the same module
-- Strand toggle stays the entry point: turning it off hides the panel
-
-**Open question LX-1 (decide at this step):** same controls as Main, or
-trimmed for Lab? Conservative default: same controls, identical surface
-— no need to re-decide what already works in Main. Surface LX-1 if user
-prefers a trimmed variant.
-
-**Open question ID-1 (decide at this step):** Lab and Main now both
-decorate archimedean tessellations. Visible divergence policy?
-Conservative default: Lab and Main render identically because they share
-the strand component. If divergence appears, treat as a bug.
-
-**Acceptance:** in Lab with strands on, picking `4.8.8` and tuning the
-contact angle behaves indistinguishably from Main.
-
-#### Step 12 — Specialised mandala strand renderer [M] · 🗄 ARCHIVED 2026-05-03
-**Visible:** turning strands on while a Layered Mandala is selected
-produces the expected concentric rosettes. Per-layer contact-angle
-control inside the Layers panel.
-
-- New module `tilings/mandala/strand.ts`
-- Per-layer contact-angle field added to `MandalaConfig.layers[i]`
-- Renderer dispatches PIC pipeline once per layer, using per-layer
-  contact angle (not per-tile-type)
-
-**Open question MS-1 (decide at this step):** per-layer contact angle
-only, or per-layer × per-tile-type? Conservative default: per-layer
-only. Surface MS-1 if a layer needs differentiated tile-type angles.
-
-**Acceptance:** Step 6's `Sultan Hassan (16+8+4)` preset, with strands
-on, produces three nested concentric rosettes that look right.
-
-#### Step 13 — Composition strand renderer + match-up boundary mode [L] · 🗄 ARCHIVED 2026-05-03 (trivial pairs verified before archive)
-**Visible:** the Composition panel gains a "Boundary" toggle:
-*Match strands across boundary* (default for verified pairs) /
-*Hard frame*. When "Match" is selected and strands are on, strands
-crossing the seam connect smoothly.
-
-- New module `tilings/composition/strand.ts`
-- Background dropdown filtered to verified-compatible centres
-- "Show all backgrounds" toggle unlocks the full list; incompatible
-  pairs silently fall back to hard frame with a tooltip
-
-**Open question CS-1 (gate this step — do not start without):**
-the strand-match allow-list MUST be analytically verified pair-by-pair
-before any of it ships. Speculative pairs ship as hard-frame fallbacks,
-not as match-up entries. Surface CS-1 to the user at the start of this
-step with the verification status of each candidate pair.
-
-**Acceptance:** at least one verified pair (e.g.
-`hexadecagonal-rosette` centre + `4.8.8` background, *if verified*)
-renders with strands crossing the seam smoothly. Unverified pairs
-default to hard frame.
-
-**Status — first verified pairs shipped (trivial-match path).** The
-v1 allow-list contains five `centre === background` pairs (`square`,
-`hexagonal`, `triangular`, `4.8.8`, `3.6.3.6`). For these, the seam
-is structurally invisible to PIC: both sides come from the same
-tessellation, so every contact-ray pair on the seam mirrors trivially.
-`composition.ts` generates a single unified tessellation across the
-full viewport and stores it on the new `unifiedPolygons` field;
-`compositionStrand.ts` runs `runPIC` once over that set and returns
-the result via the new `unifiedSegments` field; `PatternSVG.tsx`
-draws those segments in one un-clipped pass so strands span the seam
-continuously. The new demo preset `Hex-in-Hex (match)` ships with
-`boundary: 'match'`, `frameEnabled: false` so the behaviour is
-visible immediately. The dispatch in `runCompositionPIC` keeps a
-named branch for future **non-trivial** verified pairs (different
-centre + background tessellations) — that branch is currently
-unreachable because no such pair has had its seam geometry worked
-out. Adding one requires:
-  1. Picking a pair where both tessellations have edges that can
-     coincide along the seam at compatible contact angles.
-  2. Computing the alignment constraints (edge length, orientation,
-     `regionRadius` snap).
-  3. Implementing per-edge stitching inside `runCompositionPIC`'s
-     non-trivial branch.
-
----
-
-### Phase C — Persistence
-
-#### Step 14 — Lab-local library [M] · 🟡
-**Visible:** Lab sidebar gains "Save", "Rename", "Delete", "Duplicate"
-controls. A "My tessellations" section in the tessellation dropdown
-lists saved entries. **Library is Lab-only — no surfacing in Main.**
-
-- New module `state/customTessellations.ts`:
-  ```ts
-  interface SavedTessellation {
-    id: string                // uuid
-    name: string
-    createdAt: number
-    config: PatternConfig
-    sourceCategory:
-      | 'archimedean' | 'rosette-patch' | 'mandala' | 'composition'
-  }
-  ```
-  Stored in localStorage under `lab-tessellations-v1`. Schema-versioned.
-- Existing JSON `saveJSON` / `loadJSON` remain canonical for sharing as
-  files
-- Quota / corruption: catch quota errors, surface to user, never crash;
-  failed JSON.parse on load → entry skipped + console warning
-
-**Acceptance:** save 3 tessellations across categories, reload browser,
-all three persist. Delete one; it's gone.
-
----
-
-### Optional / Future steps (parked)
-
-- **Step 15 (parked) — k-uniform tessellation generator.** Generalise
-  `tilings/archimedean.ts` BFS to handle multiple vertex orbits.
-- **Step 16 (parked) — Quasi-periodic generators.** Penrose P3, Ammann–
-  Beenker, Stampfli/Socolar. New `category: 'quasiperiodic'`.
-- **Step 18 (parked) — Girih substitution tile set.** Lu & Steinhardt 2007
-  fivefold system. Combines with Step 16 for Darb-i-Imam-style patterns.
+**Reusable bits in `archive/tessellation-lab/`** (lift back as needed):
+- Regular polygon vertex generator (`regularPolygonVertices(n, radius, phi)`).
+- Per-polygon synthetic figures-map pattern (unblocks PIC over non-uniform
+  tile sets — required for Step 17's irregular Complete-fills).
+- Even-odd `clipPath` viewport-minus-polygon technique.
 
 ---
 
 ## ⭐ Step 17 — User-editable tessellation editor (PRIMARY FOCUS)
 
-**Status (2026-05-03):** unstarted, design phase. The Lab UI shell has
-an empty "Editor" section placeholder where this will dock. The library
-(Step 14) is ready to persist user-built tessellations.
+**Status (2026-05-03):** design grilled, sub-step breakdown drafted,
+implementation not started. Lab Editor placeholder section is in place
+in `TessellationLabMode.tsx`; library (Step 14) is ready to persist
+user-built layouts.
 
-**Vision (sketch).** The user lays out polygons on the Lab canvas
-themselves — drop a regular n-gon, snap it to an existing edge,
-duplicate, rotate, mirror — and the result becomes a tessellation that
-PIC can decorate with strands. Saved layouts appear in "My Tessellations".
+### Vision (refined from 2026-05-03 grill)
 
-### Design questions to resolve before implementation
+The user picks a **boundary shape** (the wallpaper lattice cell) and
+an **origin polygon** placed at its centre. They build a **patch**
+outward by highlighting a tile and adding regular polygons to its
+edges. Placements propagate symmetrically under the boundary's rotation
+/ reflection group. A vertex-driven **Complete** operation closes
+concavities. When the user is done designing, a toolbar toggle flips
+into **strand editor mode**, which stamps the patch on the boundary's
+translation lattice across the viewport and exposes strand controls.
 
-A planning session must grill the user on each of these. **Do not
-silently pick.** The conservative defaults shown are starting points
-for discussion, not decisions.
+### Locked design decisions
 
-**E-1. Tile primitive set.**
-What can the user drop on the canvas?
-- (a) Regular n-gons only (n = 3..16), parametrised by side length.
-- (b) Regular n-gons + a small library of standard irregular tiles
-  (rhombi, kites, bowties, Girih shapes).
-- (c) Free-form polygon — user clicks vertices.
-*Conservative default:* (a). (b) and (c) layer on later if needed.
+Captured during the live `/grill-me` session on 2026-05-03. Q-numbers
+reference the in-session question order. **These are authoritative for
+the implementation phase.**
 
-**E-2. Snapping model.**
-How do tiles align to each other?
-- (a) Edge-to-edge snap with shared vertices (only legal on matching
-  edge lengths).
-- (b) Vertex-to-vertex snap with optional edge-overlap tolerance.
-- (c) Free placement, no snapping (user eyeballs it).
-*Conservative default:* (a) edge-to-edge with strict matching. Show a
-visual cue (highlighted edge) when a drag is over a snap target.
+#### Geometric model
 
-**E-3. Tessellation validation.**
-Does the editor enforce that the placement actually tessellates (covers
-without overlap or gap), or accept any layout?
-- (a) Strict — reject placements that overlap or leave gaps.
-- (b) Permissive — accept anything; downstream PIC ignores the gaps.
-- (c) Hybrid — warn but allow, with a "validate" button.
-*Conservative default:* (b) permissive in v1; the BFS-style auto-fill is
-a Step 17.5 idea once basics work.
+| #  | Decision                                                                                                                                        | Source |
+|----|-------------------------------------------------------------------------------------------------------------------------------------------------|--------|
+| 1  | **Repeat = wallpaper-style stamp** of a finite patch on a translation lattice.                                                                  | Q1     |
+| 4  | **Boundary shape ∈ {triangle, square, hexagon}** in v1 (parallelograms TBD).                                                                    | Q4     |
+| 5  | **Boundary = lattice cell, no clipping.** Tiles can poke outside; neighbouring stamps may visually overlap.                                     | Q3     |
+| 6  | **Origin polygon auto-placed at boundary centre.**                                                                                              | Q5a    |
+| 14 | **All user-placed tiles are regular n-gons; new tile's edge length = the originating tile's edge length** (= one global edge length per patch). | Q7     |
 
-**E-4. Periodicity & repeat.**
-Does the user build one fundamental domain that the canvas auto-tiles,
-or place every visible tile manually?
-- (a) Build the fundamental domain; canvas applies translational
-  symmetry to fill the viewport.
-- (b) Place every tile manually within the viewport.
-- (c) Hybrid — user marks a region as "repeat" and the editor stamps it
-  on a lattice they specify.
-*Conservative default:* (a) is more powerful but requires a lattice UI;
-(b) is simplest. Likely (b) for v1, then (a) as a follow-up.
+#### Tileability
 
-**E-5. PIC integration / tile-type identity.**
-PIC keys figures by `tileTypeId`. With user-placed tiles, what's the
-identity rule?
-- (a) Auto-derive from side count (`"3"`, `"4"`, ...) — same as
-  archimedean today.
-- (b) User-named tile types — drag a "Pentagon A" stamp, separate from
-  "Pentagon B".
-- (c) Per-instance — every placed tile has its own contact angle.
-The archived `tilings/mandalaStrand.ts` has the per-polygon synthetic
-figures-map pattern useful for (c).
-*Conservative default:* (a) for v1, (c) parked as follow-up.
+| # | Decision                                                                                                                                            | Source |
+|---|-----------------------------------------------------------------------------------------------------------------------------------------------------|--------|
+| 2 | **Tileability is not enforced.** Non-tiling patches → preview shows a single floating unit + UI tag explaining why. "Fill gaps" tool parked.        | Q2     |
+| 3 | **Stamp spacing = boundary size**, user-controlled.                                                                                                 | Q2     |
 
-**E-6. Tools / interaction model.**
-Modal toolbar (select / draw / rotate) vs. always-on direct manipulation
-vs. keyboard-driven? On mobile?
-*Conservative default:* desktop-first, modal toolbar (select / place /
-rotate / delete). Mobile parked.
+#### Construction model
 
-**E-7. Undo / redo.**
-Editor actions almost certainly need undo. State shape: command history
-on top of `PatternConfig`, or full `PatternConfig` snapshots?
-*Conservative default:* full snapshots (cheap, simple); switch to
-command-pattern only if memory becomes an issue.
+| #   | Decision                                                                                                                                                                                                              | Source        |
+|-----|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------|
+| 7   | **Viable polygon = any regular n-gon** with edge-length matching the chosen edge AND not geometrically overlapping any existing tile. Equivalent to "vertex angle sum ≤ 360° at every shared vertex".                 | Q5b           |
+| 8   | **Placements propagate under the boundary's symmetry orbit.** Click an edge → polygon goes on that edge AND all rotation/reflection equivalents.                                                                      | Q5c           |
+| 14a | **Placement is forbidden on exposed edges whose length ≠ origin's edge length.** Such non-conforming edges (introduced by irregular Complete-fills) only participate via coincidental adjacency or further Complete.  | Q7 follow-up  |
 
-**E-8. Persistence shape.**
-Editor layouts need to round-trip through `saveJSON` / `loadJSON` and
-through `lab-tessellations-v1`. New top-level `PatternConfig.editor?:
-EditorConfig` field, or a separate persistence track keyed by entry id?
-*Conservative default:* `editor?: EditorConfig` on `PatternConfig`,
-mirroring how `mandala?` and `composition?` used to live there.
+#### Complete operation
 
-**E-9. Acceptance for v1.**
-What's the *smallest* shippable version? A starting target:
-- User can drop a square, drop a triangle, snap them edge-to-edge,
-  place a few more, and see PIC strands run over the result.
-- Layout saves and reloads from the library.
-- Edges are highlighted on hover; snap targets are highlighted during drag.
+| #  | Decision                                                                                                                                                                                                                                                                                                                                | Source |
+|----|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------|
+| 9  | **Vertex-pair-driven.** User selects an adjacent pair of outer vertices; Complete fills the gap with a polygon that fits exactly. Propagates to all orbit-equivalent vertex pairs.                                                                                                                                                      | Q6     |
+| 10 | **Prefers a regular polygon that fits the gap exactly; falls back to an irregular polygon** (bowtie, kite, etc.) shaped to the gap geometry if no regular fits. Irregular tiles only ever come from Complete. *Implication:* PIC must handle non-regular polygons — pull the per-polygon synthetic figures-map pattern from the archive. | Q6a    |
+| 11 | **Manual button by default**, with an opt-in *auto-complete-all* on entering the strand editor. Two flavours: (i) **auto-until-convex** — iterate until outline has no concavities; (ii) **auto-match-boundary** — iterate until outline matches boundary polygon, **resizing the boundary** if needed.                                  | Q6b/c  |
+| 12 | **Completed tiles are first-class polygons** — same data model as user-placed tiles; their exposed edges are usable for further building. Complete is essentially a vertex-driven shortcut for placing a tile.                                                                                                                          | Q6d    |
 
-Anything beyond that — repeat, mirror, lattice, named tile types,
-validation, mobile — is parked unless the user asks otherwise.
+#### Workflow
 
-### Suggested step breakdown (post-grill)
+| #  | Decision                                                                                                                                                  | Source |
+|----|-----------------------------------------------------------------------------------------------------------------------------------------------------------|--------|
+| 15 | **Mode flip = single toolbar toggle** (Design / Strand editor) in the editor header.                                                                      | Q8a    |
+| 16 | **Free flip both directions; auto-completed tiles persist on flip-back** as editable. Re-entering strand editor re-runs auto-complete on new concavities. | Q8b    |
+| 17 | **Strand editor mode shows the infinite lattice** filling the viewport (re-uses Main's pan/zoom). Strand controls apply globally across the lattice.      | Q8c    |
 
-Drafted *after* E-1..E-9 are resolved. Provisional shape:
-- **17.1** — `EditorConfig` shape + read-only canvas rendering of a
-  hardcoded layout (no editing yet, just round-trip).
-- **17.2** — Place a single regular polygon at a clicked point.
-- **17.3** — Edge-to-edge snap during drag.
-- **17.4** — Select / rotate / delete a placed tile.
-- **17.5** — Persistence (save / reload via library).
-- **17.6** — PIC integration (strands run over the user's layout).
-- **17.7** — Undo / redo.
+### Parked (saved as `/idea` memory files)
+
+Each entry in `MEMORY.md`'s `## Ideas / Future` section. Implementation
+is explicitly out of scope for v1 — the editor v1 ships with these as
+follow-ups.
+
+- **Editor — custom (non-tiling) boundary shapes** (`project_editor_custom_boundary_idea.md`)
+- **Editor — per-edge polygon placement** (`project_editor_per_edge_placement_idea.md`)
+- **Editor — nested authoring layers** (`project_editor_nested_layers_idea.md`)
+- Tile sharing / boundary bisection across stamps (note in this plan,
+  not yet a separate `/idea` file — capture before implementation).
+- "Fill gaps" tool for non-tiling patches (note in this plan).
+
+### Resolved deferred questions (2026-05-03 grill, sub-step 17.0)
+
+Q9–Q15 grilled in a follow-up `/grill-me` session on 2026-05-03.
+Resolutions are authoritative for the implementation phase.
+
+| #   | Topic                          | Resolution                                                                                                                                                                                                                                                                                                                              |
+|-----|--------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Q14 | v1 acceptance bar              | **Cut C** — plan's working-draft bar (boundary + origin + single-edge placement + orbit propagation + Complete + strand flip + lattice preview + persistence). Sub-steps 17.1–17.6 + 17.8. Reliability prioritized over scope cuts; each sub-step lands behind a green build with a manual visual check.                              |
+| Q13 | Persistence shape              | **Option C** — `editor?: EditorConfig` on `PatternConfig`; `EditorConfig` carries inner `version: 1`. `SavedTessellation.sourceCategory` extends to `'archimedean' \| 'rosette-patch' \| 'editor'`. `lab-tessellations-v1` outer version unchanged. `saveJSON` / `loadJSON` round-trips for free.                                       |
+| Q9  | Boundary-resize behaviour      | **Option B** — slider rescales only the lattice cell; existing tiles untouched. Shrinking past patch extent allowed (consistent with Decision 5's no-clip stance — stamps just overlap more in lattice preview).                                                                                                                       |
+| Q10 | Viable-polygon picker UX       | **A2 + B1** — every exposed edge is always live in Design mode (hover highlights, click selects); floating popover at clicked edge midpoint with icon buttons. Picker n-range: {3, 4, 5, 6, 7, 8, 9, 10, 12}. Filter: viable only. Empty-state message when nothing fits. Non-conforming edges (length ≠ origin's) rendered dashed and inert with tooltip. |
+| Q11 | PIC tile-type identity         | **Option B (full canonical signature)** — regular: `tileTypeId = "<n>"`. Irregular: `"<n>i:<8-char hash>"` derived from `[interior_angles[], edge_length_ratios[]]` quantized to 4 d.p., cyclically rotated and reflected to lex-min, hashed. Display labels: "Triangle" / "Square" / … / "n-gon" for regular; "Irregular A/B/C…" first-seen order for irregular. Per-polygon synthetic figures-map helper from `archive/tessellation-lab/` lifted at 17.5. |
+| Q15 | Strand-state retention         | `config.figures` is **sticky and additive across flips**. New tile types lazily seeded with default `FigureConfig` (`star`, contactAngle 60°, autoLineLength true). Orphaned figures retained on tile removal — re-placing the same shape restores the user's tuning.                                                                  |
+| Q12 | Undo / redo                    | **Snapshot-based** on `EditorConfig`. Depth cap 50. Scope: design-mode mutations only (strand-mode tuning is not on the stack). Preserved across design ↔ strand flips. Cleared on session end / library load (not on Save). Keyboard: `Ctrl/Cmd+Z` and `Ctrl/Cmd+Shift+Z`; header buttons reflect stack state.                          |
+
+### Sub-step breakdown
+
+Drafted from the locked decisions and refined by the 17.0 grill (see
+"Resolved deferred questions"). Each sub-step ends with `npm run build`
+green and a manual visual check. Deferred-Q references are now
+cross-references to the resolutions table.
+
+| Sub-step | Title                                            | Size | Decisions | Resolved Q's |
+|----------|--------------------------------------------------|------|-----------|--------------|
+| **17.0** | Pre-implementation grill for Q9–Q15.             | S    | n/a       | ✅ all       |
+| **17.1** | `EditorConfig` data model + read-only render.    | S–M  | 1, 4, 6, 14 | Q13         |
+| **17.2** | Boundary picker + size slider + origin picker (Design mode shell). | M | 4, 5, 6 | Q9 |
+| **17.3** | Click-to-highlight + viable-polygon picker (single edge, no propagation yet). | M | 7, 14, 14a | Q10 |
+| **17.4** | Orbit-symmetric propagation on placement.        | M    | 8         | —            |
+| **17.5** | Complete operation — manual vertex-pair selection + canonical tile-type hash. | M–L | 9, 10, 12 | Q11 |
+| **17.6** | Strand editor mode + lattice preview + strand controls. | M | 15, 16, 17 | Q15        |
+| **17.7** | Auto-complete-on-flip (until-convex + match-boundary flavours). | M | 11 | — |
+| **17.8** | Persistence integration (`lab-tessellations-v1` + JSON file). | S–M | 5 | Q13 |
+| **17.9** | Undo / redo.                                     | S–M  | —         | Q12          |
+| **17.10**| Non-tiling patch detection + UI tag.             | S    | 2         | —            |
+
+**Sub-step detail.**
+
+- **17.0 — Pre-implementation grill.** ✅ Resolved 2026-05-03. See
+  "Resolved deferred questions" table above.
+
+- **17.1 — Data model + read-only render.** Define `EditorConfig`
+  (boundaryShape, boundarySize, originPolygon, tiles[], completedTiles[])
+  with inner `version: 1`. Define `Tile` (regular n-gon at position +
+  rotation) and `IrregularTile` (vertex list). Add `editor?: EditorConfig`
+  to `PatternConfig` per Q13. Render a hardcoded layout in the Lab's
+  Editor section (no editing yet). Acceptance: a square boundary +
+  square origin + 4 triangles renders end-to-end from a hand-built
+  config.
+
+- **17.2 — Design mode shell.** Boundary shape dropdown, boundary size
+  slider, origin polygon picker. Auto-place origin at centre per
+  Decision 6. Resolve Q9 first — pick a boundary-resize behaviour
+  (likely "do nothing to existing tiles, just rescale lattice cell").
+  Acceptance: user can pick boundary + origin and see them rendered.
+
+- **17.3 — Tile selection + viable-polygon picker (single edge).**
+  Click a tile → highlight its edges. Show viable-polygon picker per
+  Q10. Pick a polygon → place on the clicked edge only (no propagation
+  yet). Apply edge-length match (Decision 14) and overlap check
+  (Decision 7). Apply non-conforming-edge rule (Decision 14a) when an
+  edge length ≠ origin's. Acceptance: click origin's top edge → pick
+  triangle → triangle appears on that edge.
+
+- **17.4 — Orbit propagation.** Compute the boundary's symmetry orbit
+  (rotation + reflection group) once at boundary-set time. When a tile
+  is placed, simultaneously place on all orbit-equivalent edges. Same
+  overlap check applied per placement. Acceptance: pick triangle on
+  square origin's top edge → triangles on all 4 edges.
+
+- **17.5 — Complete operation (manual).** Click two adjacent outer
+  vertices (with explicit "select adjacent pair" UI affordance — TBD).
+  Highlight the pair and orbit equivalents. Compute the gap polygon.
+  Try regular polygon fit; if not, build an irregular polygon (bowtie,
+  kite, etc.) per Decision 10. Add to data model as first-class tiles
+  per Decision 12. Acceptance: square + 4 triangles → select two
+  triangle tips → Complete fills the 4 corner gaps with new triangles.
+
+- **17.6 — Strand editor mode + lattice preview.** Toolbar toggle in
+  editor header (Decision 15). Strand editor renders the patch tiled
+  across viewport on the boundary's lattice (Decision 17). Free flip
+  back (Decision 16). Re-use the existing Lab strand panel (from
+  Step 11). Resolve Q11 and Q15 first. Acceptance: build a patch, flip
+  to strand editor, see it tiled with strands. Flip back, edit, flip
+  again, strands re-render correctly.
+
+- **17.7 — Auto-complete on flip (opt-in).** Checkbox in Design mode:
+  "Auto-complete on entering Strand editor". Two flavour radios:
+  *Until convex* / *Match boundary*. Match-boundary may auto-resize
+  the boundary. Auto-completed tiles persist as first-class on
+  flip-back per Decision 16. Acceptance: opt in, build incomplete
+  patch, flip → patch auto-completes, flip back → completed tiles are
+  editable.
+
+- **17.8 — Persistence.** Wire `EditorConfig` into both
+  `lab-tessellations-v1` localStorage and the existing `saveJSON` /
+  `loadJSON` file format. Schema-versioned. Acceptance: save 3 patches
+  across categories, reload browser, all three persist. Export to
+  JSON, import on another browser, patch round-trips.
+
+- **17.9 — Undo / redo.** Resolve Q12 first. Default plan: snapshot-
+  based undo on `EditorConfig`. Acceptance: place 5 tiles, undo 3,
+  redo 2, state matches.
+
+- **17.10 — Non-tiling patch detection + UI tag.** When the patch
+  outline doesn't match the boundary polygon at strand-editor entry
+  time, detect this and either show a single floating preview + UI tag
+  (Decision 2) or drop into auto-complete (Decision 11) — the user
+  opt-in determines which. Acceptance: build a patch that geometrically
+  can't tile, flip to strand editor, see floating preview + tag.
 
 ### Reusable bits already on hand
 
 From `archive/tessellation-lab/`:
-- Regular polygon vertex generator at the top of `mandala.ts`
-  (`regularPolygonVertices(n, radius, phi)`).
-- Per-polygon synthetic figures-map pattern in `mandalaStrand.ts`
-  (relevant if E-5 lands on per-instance angles).
-- Strict-divisor / common-divisor fold validation (relevant if rotational
-  symmetry constraints are added later).
+- Regular polygon vertex generator (`regularPolygonVertices`).
+- Per-polygon synthetic figures-map pattern — required by Decision 10
+  for irregular Complete-fills. **Pull this back into the live tree at
+  17.5 or 17.6.**
 
 From the live tree:
-- `runPIC` accepts any `Polygon[]` — no work needed there for E-5 (a).
-- `usePattern` already hands polygons straight to `runPIC` for the
-  archimedean and rosette-patch paths; the editor path can drop in next
-  to those.
+- `runPIC` accepts any `Polygon[]` — no engine work needed for regular
+  tiles. Irregular tiles need the synthetic figures-map wrapper above.
+- `usePattern` already routes polygons → `runPIC`; the editor path
+  drops in next to archimedean / rosette-patch.
 - `PatternSVG` renders any polygons + segments — no rendering changes
   needed for v1.
+- `state/customTessellations.ts` (Step 14) — storage primitives with
+  list / save / rename / delete / duplicate over a versioned localStorage
+  key. Will be parameterised for editor entries at 17.8.
 
-### Future ideas (already in memory)
-- `project_mandala_cheap_path_idea.md` — BFS depth=0 single-rosette mode
-- `project_mandala_common_divisor_idea.md` — permissive layer rule (this
-  is the natural answer to MQ-1 if strict divisor proves too tight)
-- `project_mandala_anchor_only_idea.md` — most permissive layer rule
-- `project_free_arrangement_idea.md` — drag-and-drop multi-tessellation
-  canvas
-- `project_forgiving_overlap_idea.md` — third boundary mode
+---
+
+## Future / parked steps
+
+- **Step 15 (parked) — k-uniform tessellation generator.** Generalise
+  `tilings/archimedean.ts` BFS to handle multiple vertex orbits.
+- **Step 16 (parked) — Quasi-periodic generators.** Penrose P3, Ammann–
+  Beenker, Stampfli/Socolar. New `category: 'quasiperiodic'`.
+- **Step 18 (parked) — Girih substitution tile set.** Lu & Steinhardt
+  2007 fivefold system. Combines with Step 16 for Darb-i-Imam-style
+  patterns.
 
 ---
 
@@ -615,101 +360,55 @@ From the live tree:
   was sufficient for the three multi-layer targets; Octagonal's
   nominal `2` ring is below the polygon engine's n≥3 floor (not a
   divisor issue), so the preset shrank to `8+4` per plan guidance.
-  MQ-1 remains deferred — no target preset has yet forced
-  common-divisor.
 - **2026-05-02** — Step 7 shipped. New composition category +
   `tilings/composition.ts` engine + `<clipPath>`-based per-region
   rendering in `PatternSVG`. CG-1 resolved as (a) two scale sliders;
-  FS-1 resolved as (a) on/off + colour. Auto-fit / fixed-ratio and
-  weight / dash / inset / contrast variants parked as `/idea` memory
-  entries. Strands turned on at this step show both halves' strands
-  hard-clipped at the seam — strand-match across boundary arrives in
-  Step 13.
+  FS-1 resolved as (a) on/off + colour.
 - **2026-05-02** — Step 8 shipped. Four composition presets added
   (`16-in-4.8.8`, `12-in-Hexagonal`, `16-in-Square`, `10-in-Hexagonal`).
-  Lab Preset dropdown gains a third optgroup "Compositions". Visuals
-  work but aren't yet pleasing — sign-off accepted, refinement
-  deferred (likely covered by Step 13 strand-match and/or the parked
-  CG-1/FS-1 expansion ideas).
 - **2026-05-02** — Step 12 shipped. New `tilings/mandalaStrand.ts`
-  exports `runMandalaPIC(polygons, mandala, baseConfig)` which wraps
-  `runPIC` with a per-polygon synthetic figures map so each layer
-  uses its own contact angle independent of the global figures map.
-  `MandalaLayer` gains optional `contactAngle?: number`;
-  `MandalaConfig` gains optional `outerContactAngle?: number`.
-  Reducer gains `SET_MANDALA_LAYER_CONTACT_ANGLE` and
-  `SET_MANDALA_OUTER_CONTACT_ANGLE`. `defaultContactAngleForFold()`
-  helper supplies sensible defaults per fold (60°/67.5°/72°/75°/
-  78.75° for 6/8/10/12/16 etc.). `usePattern` routes mandala
-  segments through the new renderer. Layers panel grows an outer
-  contact angle slider and a per-layer contact angle slider, both
-  visible only when strands are on. MS-1 resolved as (a) per-layer
-  only — not per-tile-type per-layer (each layer is a single
-  polygon, so per-tile is degenerate at this step).
-- **2026-05-02** — Step 11 shipped. Lab gains a "Strands" section
-  (only when strands are on) with a trimmed per-tile-type panel:
-  figure type (star/rosette), contact angle, auto strand length
-  toggle, manual length slider. LX-1 resolved as (a) trimmed Lab
-  variant rather than mirroring Main's full surface — user picked
-  "basic implementation". ID-1 resolved as identical render where
-  surface overlaps. A "Show advanced" toggle is present in the UI
-  but non-functional — it expands a placeholder that points the user
-  to Main mode for vertex strands, curves, snap, and decoupled
-  vertex angle. The shared `FigureControls` component (Step 10) is
-  not used by Lab at this step — Lab's panel is hand-rolled because
-  the trimmed surface needs different layout; the lift remains
-  available for any later "advanced" implementation.
+  exports `runMandalaPIC` with a per-polygon synthetic figures map so
+  each layer uses its own contact angle independent of the global
+  figures map. MS-1 resolved as (a) per-layer only.
+- **2026-05-02** — Step 11 shipped. Lab gains a "Strands" section with
+  a trimmed per-tile-type panel. LX-1 resolved as (a) trimmed Lab
+  variant. ID-1 resolved as identical render where surface overlaps.
 - **2026-05-02** — Step 10 shipped. `FigureControls` extracted from
-  `Sidebar.tsx` into `components/strands/FigureControls.tsx` with its
-  own private copies of `FieldLabel`/`Toggle` helpers (so Sidebar's
-  local versions stay untouched and Main render stays byte-identical).
-  Sidebar imports the lifted component; old definition deleted along
-  with now-unused `useMemo` / `computeSnapPoints` / `snapToNearest`
-  imports. Pre-req for Step 11.
+  `Sidebar.tsx` into `components/strands/FigureControls.tsx`.
+- **2026-05-02** — Step 9 shipped. `state/labDefaults.ts` exports
+  `loadLabState`/`saveLabState` against `lab-state-v1` localStorage
+  key. Lab Display section gains an Outline weight slider and a
+  "Fill tile on hover" toggle. Phase A complete.
+- **2026-05-02** — Step 13 follow-up shipped. `VERIFIED_COMPOSITION_PAIRS`
+  populated with five trivial-match pairs. New helpers
+  `effectiveCompositionBoundary()` and `isTrivialMatchPair()` centralise
+  the dispatch decision. CS-1 partially resolved — trivial path
+  exercised end-to-end; non-trivial pairs remain unverified.
 - **2026-05-03** — Pivot. User scrapped the mandala and composition
   features. Steps 4–8, 12, and 13 marked ARCHIVED. Source modules
-  moved to `archive/tessellation-lab/` (mandala.ts, mandalaStrand.ts,
-  composition.ts, compositionStrand.ts, compositionVerifiedPairs.ts,
-  state/labPresets.ts) with a README listing reusable helpers
-  (per-polygon synthetic figures map, regular polygon vertex
-  generator, strict-divisor / common-divisor fold validation,
-  even-odd clipPath viewport-minus-polygon technique). `MandalaConfig`
-  and `CompositionConfig` types removed; `TilingCategory` narrowed to
-  `'archimedean' | 'rosette-patch'`; all `SET_MANDALA_*` /
-  `SET_COMPOSITION_*` reducer actions deleted; marker TILINGS entries
-  and SYMMETRY_GROUPS rows for `'layered-mandala'` / `'composition'`
-  removed; composition rendering branch removed from `PatternSVG`;
-  `usePattern` simplified to archimedean + rosette-patch only.
+  moved to `archive/tessellation-lab/` with a README listing reusable
+  helpers. `MandalaConfig` and `CompositionConfig` types removed;
+  `TilingCategory` narrowed to `'archimedean' | 'rosette-patch'`;
   `loadLabState` and `customTessellations.ts` gained migrations that
-  silently skip retired tiling types. `TessellationLabMode` rewritten:
-  Tessellation picker + Strands panel + Display section + library UI
-  preserved; presets, Layers panel, and Composition panel removed; an
-  "Editor" placeholder section added where Step 17's drag-and-drop UI
-  will dock. `npm run build` green. Step 17 (user-editable
-  tessellations) promoted to primary focus.
-
-- **2026-05-02** — Step 13 follow-up shipped. `VERIFIED_COMPOSITION_PAIRS`
-  populated with five trivial-match pairs (`square`, `hexagonal`,
-  `triangular`, `4.8.8`, `3.6.3.6`, all `centre === background`). New helpers
-  `effectiveCompositionBoundary()` and `isTrivialMatchPair()` centralise the
-  dispatch decision so polygon generation and strand rendering agree.
-  `composition.ts` returns a unified polygon set across the full viewport
-  for trivial-match pairs (new `unifiedPolygons` field on `CompositionData`);
-  `compositionStrand.ts` runs `runPIC` once on that set and returns it via
-  `unifiedSegments`; `PatternSVG.tsx` draws `unifiedSegments` once with no
-  per-region clip so strands span the seam. Tile layer still clips
-  per-region. New preset `Hex-in-Hex (match)` (boundary='match',
-  frameEnabled=false) demos the path. CS-1 partially resolved — the path
-  is exercised end-to-end, but only for the trivial case. Genuinely
-  different centre+background pairs remain unverified pending per-pair
-  seam geometry work.
-- **2026-05-02** — Step 9 shipped. `state/labDefaults.ts` now exports
-  `loadLabState`/`saveLabState` against `lab-state-v1` localStorage
-  key (envelope: `{ config, showStrands, outlineWidth, fillOnHover }`).
-  App seeds Lab state from `loadLabState()` on boot and persists on
-  every change via `useEffect`. `TileLayer` now accepts
-  `outlineWidth` (default 0.8) and `fillOnHover` (default false);
-  hover state is local. Lab Display section gains an Outline weight
-  slider (0.2–4 px) and a "Fill tile on hover" toggle. Phase A
-  (engine work) complete — Phase B (strand rendering) starts at
-  Step 10.
+  silently skip retired tiling types. `TessellationLabMode` rewritten
+  with an "Editor" placeholder section. `npm run build` green. Step 17
+  (user-editable tessellations) promoted to primary focus.
+- **2026-05-03** — Step 17 grilled. Decisions 1–17 locked (Q1–Q8
+  resolved); Q9–Q15 deferred to sub-step 17.0. Three new `/idea` memory
+  files captured (custom boundaries, per-edge placement, nested authoring
+  layers). Seven memory files tied to the archived iteration removed
+  (mandala variants, composition variants, free-arrangement,
+  forgiving-overlap). Plan rewritten as v4: archived-step bodies
+  collapsed into the compressed completed-work table; conservative
+  default registers (E-1..E-9, MQ/CG/FS/MS/CS/ID/LX) retired; Step 17
+  grill decisions and sub-step breakdown promoted to first-class plan
+  content.
+- **2026-05-03** — Sub-step 17.0 resolved. Q9–Q15 grilled in a
+  follow-up `/grill-me` session in the order Q14 → Q13 → Q9 → Q10 →
+  Q11 → Q15 → Q12. Resolutions captured in the "Resolved deferred
+  questions" table above and reflected in the sub-step breakdown.
+  Notable choices: v1 = Cut C (full working-draft bar, reliability over
+  scope cuts); persistence = `editor?: EditorConfig` with inner
+  `version: 1` on `PatternConfig`; tile-type identity = full canonical
+  signature for irregular tiles; figures map sticky/additive across
+  flips; undo = snapshot, depth 50, design-only.

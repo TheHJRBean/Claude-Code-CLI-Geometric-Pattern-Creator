@@ -2,16 +2,22 @@
 
 ## ▶ RESUME HERE
 
-**Current branch:** `feat/art-deco-egypt-theme-revamp` (last commit `edc02cd`).
+**Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
-**Last action:** 2026-05-03 — scrapped the mandala + composition features
-and the entire preset catalogue. Reusable code archived under
-`archive/tessellation-lab/` (see its README). Lab UI shell preserved.
+**Last action:** 2026-05-03 — sub-step **17.0** resolved. Q9–Q15 grilled
+and resolutions written into `TESSELLATION_REVAMP_PLAN.md` ("Resolved
+deferred questions" table). Notable decisions: v1 = Cut C (full
+working-draft bar); persistence = `editor?: EditorConfig` on
+`PatternConfig` with inner `version: 1`; tile-type identity = full
+canonical signature; figures sticky/additive across flips; undo =
+snapshot, depth 50, design-only.
 
-**Next action:** Plan **Step 17 — user-editable tessellation editor**.
-This is now the project's primary focus. Open the planning brief at
-`TESSELLATION_REVAMP_PLAN.md` → "Step 17 planning brief" and grill the
-user on the design questions listed there before writing any code.
+**Next action:** Begin sub-step **17.1 — `EditorConfig` data model +
+read-only render**. Define `EditorConfig` (boundaryShape, boundarySize,
+originPolygon, tiles[], completedTiles[]) with inner `version: 1`. Add
+`editor?: EditorConfig` to `PatternConfig`. Render a hardcoded layout
+(square boundary + square origin + 4 triangles) in the Lab Editor
+placeholder section. End behind a green build + visual check.
 
 **To rebuild context in a fresh session, read:**
 1. This file (status anchor).
@@ -46,7 +52,7 @@ Plan steps live in `TESSELLATION_REVAMP_PLAN.md`. One-liner status:
 - [done] Steps 9–11 — Lab polish, `FigureControls` lift, Lab Strands panel
 - [archived 2026-05-03] Steps 12–13 — mandala strand renderer, composition strand renderer + match-up
 - [done] Step 14 — Lab-local library (`state/customTessellations.ts`)
-- [next] **Step 17** — user-editable tessellation editor (drag-and-drop polygon placement)
+- [in progress] **Step 17** — user-editable tessellation editor. 17.0 done; **17.1 next**.
 - [parked] Steps 15, 16, 18 — k-uniform generator, quasi-periodic, Girih substitution
 
 ## Live architecture (post-cleanup)
@@ -73,4 +79,4 @@ layer rule, hard-frame fallback, verified-pairs allow-list, etc.) are
 moot now those features are archived.
 
 ## Blockers
-None. Ready to plan Step 17.
+None. 17.0 resolved on 2026-05-03; 17.1 implementation is the next active task.

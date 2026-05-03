@@ -16,6 +16,8 @@ import {
 import { Canvas } from './Canvas'
 import { SandstoneEdge } from './SandstoneEdge'
 import { useTheme } from '../theme/ThemeContext'
+import { SAMPLE_EDITOR_CONFIG } from '../editor/sampleConfig'
+import { LAB_DEFAULT_CONFIG } from '../state/labDefaults'
 
 /**
  * Tessellation Lab — workspace for prototyping tessellations and (next phase)
@@ -212,23 +214,74 @@ export function TessellationLabMode({
 
         {/* ── Sections ────────────────────────────────────── */}
         <div className="sidebar-sections">
-          {/* Editor placeholder — this is where the next phase docks. */}
+          {/* Editor — Step 17. 17.1 ships a read-only sample patch render
+              to prove the data model wires through end-to-end. Design-mode
+              UI lands at 17.2+. */}
           <div style={{ paddingTop: 20 }}>
             <SectionTitle>Editor</SectionTitle>
             <p style={{
               marginTop: 0,
-              marginBottom: 0,
-              padding: '10px 12px',
-              border: '1px dashed var(--border-subtle)',
+              marginBottom: 10,
               fontFamily: "'EB Garamond', Georgia, serif",
               fontSize: 12.5,
               color: 'var(--text-muted)',
               lineHeight: 1.5,
             }}>
-              Drag-and-drop tessellation editor coming soon. For now the Lab
-              renders the standard tessellations below; saved layouts will
-              appear in the library once the editor ships.
+              Tessellation editor scaffold. Shows a hardcoded sample patch
+              (square + four triangles) to verify the data model wires
+              through. Design-mode controls land in upcoming sub-steps.
             </p>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {([
+                {
+                  label: 'Show sample patch',
+                  onClick: () => {
+                    setActiveSavedId('')
+                    dispatch({
+                      type: 'LOAD_CONFIG',
+                      payload: {
+                        ...LAB_DEFAULT_CONFIG,
+                        tiling: { type: 'editor', scale: 100 },
+                        editor: SAMPLE_EDITOR_CONFIG,
+                      },
+                    })
+                  },
+                  disabled: config.tiling.type === 'editor',
+                },
+                {
+                  label: 'Clear',
+                  onClick: () => {
+                    setActiveSavedId('')
+                    dispatch({ type: 'LOAD_CONFIG', payload: LAB_DEFAULT_CONFIG })
+                  },
+                  disabled: config.tiling.type !== 'editor',
+                },
+              ] as const).map(b => (
+                <button
+                  key={b.label}
+                  onClick={b.onClick}
+                  disabled={b.disabled}
+                  style={{
+                    flex: '1 1 0',
+                    minWidth: 0,
+                    padding: '5px 0',
+                    fontFamily: "'Cinzel', Georgia, serif",
+                    fontSize: 9,
+                    fontWeight: 600,
+                    letterSpacing: '0.10em',
+                    textTransform: 'uppercase',
+                    cursor: b.disabled ? 'not-allowed' : 'pointer',
+                    border: '1px solid var(--border-subtle)',
+                    background: 'transparent',
+                    color: b.disabled ? 'var(--text-muted)' : 'var(--text-muted)',
+                    opacity: b.disabled ? 0.5 : 1,
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {b.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div style={{ paddingTop: 22 }}>

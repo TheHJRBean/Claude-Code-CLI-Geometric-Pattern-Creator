@@ -1,9 +1,7 @@
-import type { CompositionConfig, CurvePoint, FigureConfig, PatternConfig, MandalaConfig } from '../types/pattern'
+import type { CurvePoint, FigureConfig, PatternConfig } from '../types/pattern'
 import type { Action } from './actions'
 import { TILINGS } from '../tilings/index'
 import { DEFAULT_CONFIG } from './defaults'
-import { DEFAULT_MANDALA_CONFIG, isLayerFoldValid } from '../tilings/mandala'
-import { DEFAULT_COMPOSITION_CONFIG } from '../tilings/composition'
 
 const FALLBACK_FIGURE: FigureConfig = { type: 'star', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
 
@@ -28,32 +26,11 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     case 'SET_TILING_TYPE': {
       const def = TILINGS[action.payload]
       if (!def) return state
-      const next: PatternConfig = {
+      return {
         ...state,
         tiling: { ...state.tiling, type: action.payload },
         figures: { ...state.figures, ...(def.defaultConfig.figures ?? {}) },
       }
-      if (def.category === 'mandala' && !next.mandala) {
-        next.mandala = DEFAULT_MANDALA_CONFIG
-        // Mandala uses scale as outer-ring radius. The default 100 px
-        // looks tiny against a full canvas; bump to a comfortable default
-        // the first time the user enters mandala mode.
-        next.tiling = { ...next.tiling, scale: 250 }
-      }
-      if (def.category === 'composition' && !next.composition) {
-        next.composition = DEFAULT_COMPOSITION_CONFIG
-        // Seed figures so both the centre's and background's tile types
-        // have sensible defaults. Centre's defaults take priority on key
-        // collisions (the centre is the focal point of a composition).
-        const centreDef = TILINGS[DEFAULT_COMPOSITION_CONFIG.centre]
-        const backgroundDef = TILINGS[DEFAULT_COMPOSITION_CONFIG.background]
-        next.figures = {
-          ...next.figures,
-          ...(backgroundDef?.defaultConfig.figures ?? {}),
-          ...(centreDef?.defaultConfig.figures ?? {}),
-        }
-      }
-      return next
     }
     case 'SET_SCALE':
       return { ...state, tiling: { ...state.tiling, scale: action.payload } }
@@ -144,108 +121,6 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     }
     case 'SET_SMOOTH_TRANSITIONS':
       return { ...state, smoothTransitions: action.payload }
-    case 'SET_MANDALA_CONFIG':
-      return { ...state, mandala: action.payload }
-    case 'SET_MANDALA_OUTER_FOLD': {
-      const next = action.payload
-      const current: MandalaConfig = state.mandala ?? DEFAULT_MANDALA_CONFIG
-      // Drop layers that no longer satisfy strict-divisor under the new outer
-      const layers = current.layers.filter(l => isLayerFoldValid(next, l.fold))
-      return { ...state, mandala: { outerFold: next, layers } }
-    }
-    case 'ADD_MANDALA_LAYER': {
-      const current: MandalaConfig = state.mandala ?? DEFAULT_MANDALA_CONFIG
-      // Reject silently if the proposed layer breaks strict-divisor
-      if (!isLayerFoldValid(current.outerFold, action.payload.fold)) return state
-      return { ...state, mandala: { ...current, layers: [...current.layers, action.payload] } }
-    }
-    case 'REMOVE_MANDALA_LAYER': {
-      const current: MandalaConfig = state.mandala ?? DEFAULT_MANDALA_CONFIG
-      const layers = current.layers.filter((_, i) => i !== action.payload.index)
-      return { ...state, mandala: { ...current, layers } }
-    }
-    case 'SET_MANDALA_LAYER_FOLD': {
-      const current: MandalaConfig = state.mandala ?? DEFAULT_MANDALA_CONFIG
-      if (!isLayerFoldValid(current.outerFold, action.payload.fold)) return state
-      const layers = current.layers.map((l, i) =>
-        i === action.payload.index ? { ...l, fold: action.payload.fold } : l)
-      return { ...state, mandala: { ...current, layers } }
-    }
-    case 'SET_MANDALA_LAYER_SCALE': {
-      const current: MandalaConfig = state.mandala ?? DEFAULT_MANDALA_CONFIG
-      const scale = Math.max(0.05, Math.min(1, action.payload.scale))
-      const layers = current.layers.map((l, i) =>
-        i === action.payload.index ? { ...l, scale } : l)
-      return { ...state, mandala: { ...current, layers } }
-    }
-    case 'SET_MANDALA_LAYER_ROTATION_STEP': {
-      const current: MandalaConfig = state.mandala ?? DEFAULT_MANDALA_CONFIG
-      const layers = current.layers.map((l, i) => {
-        if (i !== action.payload.index) return l
-        const mod = 2 * l.fold
-        const step = ((action.payload.step % mod) + mod) % mod
-        return { ...l, rotationStep: step }
-      })
-      return { ...state, mandala: { ...current, layers } }
-    }
-    case 'SET_MANDALA_LAYER_CONTACT_ANGLE': {
-      const current: MandalaConfig = state.mandala ?? DEFAULT_MANDALA_CONFIG
-      const angle = Math.max(10, Math.min(85, action.payload.angle))
-      const layers = current.layers.map((l, i) =>
-        i === action.payload.index ? { ...l, contactAngle: angle } : l)
-      return { ...state, mandala: { ...current, layers } }
-    }
-    case 'SET_MANDALA_OUTER_CONTACT_ANGLE': {
-      const current: MandalaConfig = state.mandala ?? DEFAULT_MANDALA_CONFIG
-      const angle = Math.max(10, Math.min(85, action.payload))
-      return { ...state, mandala: { ...current, outerContactAngle: angle } }
-    }
-    case 'SET_COMPOSITION_CONFIG':
-      return { ...state, composition: action.payload }
-    case 'SET_COMPOSITION_CENTRE': {
-      const current: CompositionConfig = state.composition ?? DEFAULT_COMPOSITION_CONFIG
-      const centreDef = TILINGS[action.payload]
-      const figures = centreDef?.defaultConfig.figures
-        ? { ...state.figures, ...centreDef.defaultConfig.figures }
-        : state.figures
-      return { ...state, figures, composition: { ...current, centre: action.payload } }
-    }
-    case 'SET_COMPOSITION_BACKGROUND': {
-      const current: CompositionConfig = state.composition ?? DEFAULT_COMPOSITION_CONFIG
-      const backgroundDef = TILINGS[action.payload]
-      const figures = backgroundDef?.defaultConfig.figures
-        ? { ...state.figures, ...backgroundDef.defaultConfig.figures }
-        : state.figures
-      return { ...state, figures, composition: { ...current, background: action.payload } }
-    }
-    case 'SET_COMPOSITION_CENTRE_SCALE': {
-      const current: CompositionConfig = state.composition ?? DEFAULT_COMPOSITION_CONFIG
-      return { ...state, composition: { ...current, centreScale: Math.max(10, action.payload) } }
-    }
-    case 'SET_COMPOSITION_BACKGROUND_SCALE': {
-      const current: CompositionConfig = state.composition ?? DEFAULT_COMPOSITION_CONFIG
-      return { ...state, composition: { ...current, backgroundScale: Math.max(10, action.payload) } }
-    }
-    case 'SET_COMPOSITION_REGION_RADIUS': {
-      const current: CompositionConfig = state.composition ?? DEFAULT_COMPOSITION_CONFIG
-      return { ...state, composition: { ...current, regionRadius: Math.max(20, action.payload) } }
-    }
-    case 'SET_COMPOSITION_FRAME_ENABLED': {
-      const current: CompositionConfig = state.composition ?? DEFAULT_COMPOSITION_CONFIG
-      return { ...state, composition: { ...current, frameEnabled: action.payload } }
-    }
-    case 'SET_COMPOSITION_FRAME_COLOR': {
-      const current: CompositionConfig = state.composition ?? DEFAULT_COMPOSITION_CONFIG
-      return { ...state, composition: { ...current, frameColor: action.payload } }
-    }
-    case 'SET_COMPOSITION_BOUNDARY': {
-      const current: CompositionConfig = state.composition ?? DEFAULT_COMPOSITION_CONFIG
-      return { ...state, composition: { ...current, boundary: action.payload } }
-    }
-    case 'SET_COMPOSITION_SHOW_ALL_BACKGROUNDS': {
-      const current: CompositionConfig = state.composition ?? DEFAULT_COMPOSITION_CONFIG
-      return { ...state, composition: { ...current, showAllBackgrounds: action.payload } }
-    }
     case 'LOAD_CONFIG':
       return action.payload
     default:

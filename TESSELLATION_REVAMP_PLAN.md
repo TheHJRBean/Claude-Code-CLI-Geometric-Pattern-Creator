@@ -2,8 +2,17 @@
 
 **Branch:** `feat/art-deco-egypt-theme-revamp`
 **Owner:** TheHJRBean
-**Started:** 2026-04-25  ·  **Re-scoped:** 2026-04-26 (terminology) ·  **Restructured:** 2026-04-26 (Option B)
+**Started:** 2026-04-25  ·  **Re-scoped:** 2026-04-26 (terminology) ·  **Restructured:** 2026-04-26 (Option B) ·  **Pivoted:** 2026-05-03 (mandala + composition scrapped, focus moves to user-editable editor)
 **Status anchor:** see `SESSION_STATE.md` for current progress.
+
+> **2026-05-03 pivot.** User declared dissatisfaction with the mandala and
+> composition features and scrapped both. Their source files have been
+> archived to `archive/tessellation-lab/` (with a README listing reusable
+> helpers). Steps 4–8, 12, and 13 below are marked **ARCHIVED** rather
+> than deleted so the design rationale survives. The Lab UI shell has
+> been preserved and repurposed as the workspace for the user-editable
+> tessellation editor (Step 17), now the primary focus. A fresh plan for
+> Step 17 will be drafted next.
 
 ---
 
@@ -169,7 +178,7 @@ pattern matches that example's central rosette.
 > until a strand renderer (Phase B) actually needs it. Awaiting visual
 > sign-off in the browser.
 
-#### Step 4 — Tessellation preset catalogue [S–M] · ✅
+#### Step 4 — Tessellation preset catalogue [S–M] · 🗄 ARCHIVED 2026-05-03
 **Visible:** "Presets" dropdown at the top of the Lab sidebar lists
 named tessellations. Selecting one loads a complete `PatternConfig`
 snapshot (tessellation type + scale + per-tile contact angles).
@@ -186,7 +195,7 @@ snapshot (tessellation type + scale + per-tile contact angles).
 **Acceptance:** user can produce 6+ distinct tessellations by selecting
 presets only.
 
-#### Step 5 — Layered mandala tessellation engine v1 [M] · ✅
+#### Step 5 — Layered mandala tessellation engine v1 [M] · 🗄 ARCHIVED 2026-05-03
 **Visible:** new entry "Layered Mandala" in the Lab "Tessellation"
 dropdown. Layers panel: pick outer fold-order (4/6/8/10/12/16) and add
 1–4 inner layers. Inner-layer fold dropdowns filtered by the strict
@@ -226,7 +235,7 @@ the polygon rings visibly nest and align before strands are turned on.
 >   from 100 → 250 px on first entry to mandala mode (mandala uses scale
 >   as outer-ring radius), and the Lab slider max is 600 for mandala.
 
-#### Step 6 — Mandala preset catalogue [S] · ✅
+#### Step 6 — Mandala preset catalogue [S] · 🗄 ARCHIVED 2026-05-03
 **Visible:** Step 4 Presets dropdown gains a "Mandalas" sub-section with
 3–5 prebuilt layered tessellations. *Strict-divisor only at this step;
 if MQ-1 fires, the preset list shrinks rather than the rule loosens.*
@@ -241,7 +250,7 @@ mandala-aware strand renderer (Step 12) isn't shipped yet — strands fall
 back to per-tile-type rendering and *should look broken*. That's OK at
 this step; Step 12 fixes it.
 
-#### Step 7 — Region-stitching v1, hard-frame only [M] · ✅
+#### Step 7 — Region-stitching v1, hard-frame only [M] · 🗄 ARCHIVED 2026-05-03
 **Visible:** new tessellation category "Composition" in the dropdown.
 Centre picker (any single tessellation) + Background picker (any single
 tessellation). Canvas renders the central tessellation clipped to a
@@ -275,7 +284,7 @@ background, see clean polygon match within each region and a visible
 frame at the seam. Strand-match isn't shipped yet (Step 13); strands
 turned on at this step show both halves' strands clipped at the frame.
 
-#### Step 8 — Composition preset catalogue (hard-frame) [S] · ✅
+#### Step 8 — Composition preset catalogue (hard-frame) [S] · 🗄 ARCHIVED 2026-05-03
 **Visible:** Presets dropdown gains a "Compositions" sub-section. All
 hard-frame at this step.
 
@@ -329,7 +338,7 @@ the strand component. If divergence appears, treat as a bug.
 **Acceptance:** in Lab with strands on, picking `4.8.8` and tuning the
 contact angle behaves indistinguishably from Main.
 
-#### Step 12 — Specialised mandala strand renderer [M] · ✅
+#### Step 12 — Specialised mandala strand renderer [M] · 🗄 ARCHIVED 2026-05-03
 **Visible:** turning strands on while a Layered Mandala is selected
 produces the expected concentric rosettes. Per-layer contact-angle
 control inside the Layers panel.
@@ -346,7 +355,7 @@ only. Surface MS-1 if a layer needs differentiated tile-type angles.
 **Acceptance:** Step 6's `Sultan Hassan (16+8+4)` preset, with strands
 on, produces three nested concentric rosettes that look right.
 
-#### Step 13 — Composition strand renderer + match-up boundary mode [L] · ✅ (trivial pairs verified)
+#### Step 13 — Composition strand renderer + match-up boundary mode [L] · 🗄 ARCHIVED 2026-05-03 (trivial pairs verified before archive)
 **Visible:** the Composition panel gains a "Boundary" toggle:
 *Match strands across boundary* (default for verified pairs) /
 *Hard frame*. When "Match" is selected and strands are on, strands
@@ -431,8 +440,9 @@ These appear after Step 14. Reorder by demand at that point.
   `tilings/archimedean.ts` BFS to handle multiple vertex orbits.
 - **Step 16 (opt) — Quasi-periodic generators.** Penrose P3, Ammann–
   Beenker, Stampfli/Socolar. New `category: 'quasiperiodic'`.
-- **Step 17 (opt) — User-editable tessellations.** Drag-and-drop polygon
-  placement, vertex-config editor. Persistence via the Step 14 library.
+- **Step 17 — User-editable tessellations** ⭐ **PRIMARY FOCUS as of 2026-05-03.**
+  Drag-and-drop polygon placement, vertex-config editor. Persistence
+  via the Step 14 library. Plan to be drafted in a follow-up document.
 - **Step 18 (opt) — Girih substitution tile set.** Lu & Steinhardt 2007
   fivefold system. Combines with Step 16 for Darb-i-Imam-style patterns.
 
@@ -534,6 +544,28 @@ These appear after Step 14. Reorder by demand at that point.
   Sidebar imports the lifted component; old definition deleted along
   with now-unused `useMemo` / `computeSnapPoints` / `snapToNearest`
   imports. Pre-req for Step 11.
+- **2026-05-03** — Pivot. User scrapped the mandala and composition
+  features. Steps 4–8, 12, and 13 marked ARCHIVED. Source modules
+  moved to `archive/tessellation-lab/` (mandala.ts, mandalaStrand.ts,
+  composition.ts, compositionStrand.ts, compositionVerifiedPairs.ts,
+  state/labPresets.ts) with a README listing reusable helpers
+  (per-polygon synthetic figures map, regular polygon vertex
+  generator, strict-divisor / common-divisor fold validation,
+  even-odd clipPath viewport-minus-polygon technique). `MandalaConfig`
+  and `CompositionConfig` types removed; `TilingCategory` narrowed to
+  `'archimedean' | 'rosette-patch'`; all `SET_MANDALA_*` /
+  `SET_COMPOSITION_*` reducer actions deleted; marker TILINGS entries
+  and SYMMETRY_GROUPS rows for `'layered-mandala'` / `'composition'`
+  removed; composition rendering branch removed from `PatternSVG`;
+  `usePattern` simplified to archimedean + rosette-patch only.
+  `loadLabState` and `customTessellations.ts` gained migrations that
+  silently skip retired tiling types. `TessellationLabMode` rewritten:
+  Tessellation picker + Strands panel + Display section + library UI
+  preserved; presets, Layers panel, and Composition panel removed; an
+  "Editor" placeholder section added where Step 17's drag-and-drop UI
+  will dock. `npm run build` green. Step 17 (user-editable
+  tessellations) promoted to primary focus.
+
 - **2026-05-02** — Step 13 follow-up shipped. `VERIFIED_COMPOSITION_PAIRS`
   populated with five trivial-match pairs (`square`, `hexagonal`,
   `triangular`, `4.8.8`, `3.6.3.6`, all `centre === background`). New helpers

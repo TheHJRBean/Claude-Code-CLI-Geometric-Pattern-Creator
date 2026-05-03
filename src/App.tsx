@@ -31,7 +31,6 @@ export default function App() {
   const [labShowStrands, setLabShowStrands] = useState(initialLab.showStrands)
   const [labOutlineWidth, setLabOutlineWidth] = useState(initialLab.outlineWidth)
   const [labFillOnHover, setLabFillOnHover] = useState(initialLab.fillOnHover)
-  const [labPresetId, setLabPresetId] = useState('')
 
   useEffect(() => {
     saveLabState({
@@ -81,8 +80,6 @@ export default function App() {
         onSetOutlineWidth={setLabOutlineWidth}
         fillOnHover={labFillOnHover}
         onToggleFillOnHover={setLabFillOnHover}
-        activePresetId={labPresetId}
-        onSetActivePresetId={setLabPresetId}
       />
     )
   }

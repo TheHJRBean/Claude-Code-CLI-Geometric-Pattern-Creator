@@ -434,17 +434,139 @@ all three persist. Delete one; it's gone.
 
 ### Optional / Future steps (parked)
 
-These appear after Step 14. Reorder by demand at that point.
-
-- **Step 15 (opt) — k-uniform tessellation generator.** Generalise
+- **Step 15 (parked) — k-uniform tessellation generator.** Generalise
   `tilings/archimedean.ts` BFS to handle multiple vertex orbits.
-- **Step 16 (opt) — Quasi-periodic generators.** Penrose P3, Ammann–
+- **Step 16 (parked) — Quasi-periodic generators.** Penrose P3, Ammann–
   Beenker, Stampfli/Socolar. New `category: 'quasiperiodic'`.
-- **Step 17 — User-editable tessellations** ⭐ **PRIMARY FOCUS as of 2026-05-03.**
-  Drag-and-drop polygon placement, vertex-config editor. Persistence
-  via the Step 14 library. Plan to be drafted in a follow-up document.
-- **Step 18 (opt) — Girih substitution tile set.** Lu & Steinhardt 2007
+- **Step 18 (parked) — Girih substitution tile set.** Lu & Steinhardt 2007
   fivefold system. Combines with Step 16 for Darb-i-Imam-style patterns.
+
+---
+
+## ⭐ Step 17 — User-editable tessellation editor (PRIMARY FOCUS)
+
+**Status (2026-05-03):** unstarted, design phase. The Lab UI shell has
+an empty "Editor" section placeholder where this will dock. The library
+(Step 14) is ready to persist user-built tessellations.
+
+**Vision (sketch).** The user lays out polygons on the Lab canvas
+themselves — drop a regular n-gon, snap it to an existing edge,
+duplicate, rotate, mirror — and the result becomes a tessellation that
+PIC can decorate with strands. Saved layouts appear in "My Tessellations".
+
+### Design questions to resolve before implementation
+
+A planning session must grill the user on each of these. **Do not
+silently pick.** The conservative defaults shown are starting points
+for discussion, not decisions.
+
+**E-1. Tile primitive set.**
+What can the user drop on the canvas?
+- (a) Regular n-gons only (n = 3..16), parametrised by side length.
+- (b) Regular n-gons + a small library of standard irregular tiles
+  (rhombi, kites, bowties, Girih shapes).
+- (c) Free-form polygon — user clicks vertices.
+*Conservative default:* (a). (b) and (c) layer on later if needed.
+
+**E-2. Snapping model.**
+How do tiles align to each other?
+- (a) Edge-to-edge snap with shared vertices (only legal on matching
+  edge lengths).
+- (b) Vertex-to-vertex snap with optional edge-overlap tolerance.
+- (c) Free placement, no snapping (user eyeballs it).
+*Conservative default:* (a) edge-to-edge with strict matching. Show a
+visual cue (highlighted edge) when a drag is over a snap target.
+
+**E-3. Tessellation validation.**
+Does the editor enforce that the placement actually tessellates (covers
+without overlap or gap), or accept any layout?
+- (a) Strict — reject placements that overlap or leave gaps.
+- (b) Permissive — accept anything; downstream PIC ignores the gaps.
+- (c) Hybrid — warn but allow, with a "validate" button.
+*Conservative default:* (b) permissive in v1; the BFS-style auto-fill is
+a Step 17.5 idea once basics work.
+
+**E-4. Periodicity & repeat.**
+Does the user build one fundamental domain that the canvas auto-tiles,
+or place every visible tile manually?
+- (a) Build the fundamental domain; canvas applies translational
+  symmetry to fill the viewport.
+- (b) Place every tile manually within the viewport.
+- (c) Hybrid — user marks a region as "repeat" and the editor stamps it
+  on a lattice they specify.
+*Conservative default:* (a) is more powerful but requires a lattice UI;
+(b) is simplest. Likely (b) for v1, then (a) as a follow-up.
+
+**E-5. PIC integration / tile-type identity.**
+PIC keys figures by `tileTypeId`. With user-placed tiles, what's the
+identity rule?
+- (a) Auto-derive from side count (`"3"`, `"4"`, ...) — same as
+  archimedean today.
+- (b) User-named tile types — drag a "Pentagon A" stamp, separate from
+  "Pentagon B".
+- (c) Per-instance — every placed tile has its own contact angle.
+The archived `tilings/mandalaStrand.ts` has the per-polygon synthetic
+figures-map pattern useful for (c).
+*Conservative default:* (a) for v1, (c) parked as follow-up.
+
+**E-6. Tools / interaction model.**
+Modal toolbar (select / draw / rotate) vs. always-on direct manipulation
+vs. keyboard-driven? On mobile?
+*Conservative default:* desktop-first, modal toolbar (select / place /
+rotate / delete). Mobile parked.
+
+**E-7. Undo / redo.**
+Editor actions almost certainly need undo. State shape: command history
+on top of `PatternConfig`, or full `PatternConfig` snapshots?
+*Conservative default:* full snapshots (cheap, simple); switch to
+command-pattern only if memory becomes an issue.
+
+**E-8. Persistence shape.**
+Editor layouts need to round-trip through `saveJSON` / `loadJSON` and
+through `lab-tessellations-v1`. New top-level `PatternConfig.editor?:
+EditorConfig` field, or a separate persistence track keyed by entry id?
+*Conservative default:* `editor?: EditorConfig` on `PatternConfig`,
+mirroring how `mandala?` and `composition?` used to live there.
+
+**E-9. Acceptance for v1.**
+What's the *smallest* shippable version? A starting target:
+- User can drop a square, drop a triangle, snap them edge-to-edge,
+  place a few more, and see PIC strands run over the result.
+- Layout saves and reloads from the library.
+- Edges are highlighted on hover; snap targets are highlighted during drag.
+
+Anything beyond that — repeat, mirror, lattice, named tile types,
+validation, mobile — is parked unless the user asks otherwise.
+
+### Suggested step breakdown (post-grill)
+
+Drafted *after* E-1..E-9 are resolved. Provisional shape:
+- **17.1** — `EditorConfig` shape + read-only canvas rendering of a
+  hardcoded layout (no editing yet, just round-trip).
+- **17.2** — Place a single regular polygon at a clicked point.
+- **17.3** — Edge-to-edge snap during drag.
+- **17.4** — Select / rotate / delete a placed tile.
+- **17.5** — Persistence (save / reload via library).
+- **17.6** — PIC integration (strands run over the user's layout).
+- **17.7** — Undo / redo.
+
+### Reusable bits already on hand
+
+From `archive/tessellation-lab/`:
+- Regular polygon vertex generator at the top of `mandala.ts`
+  (`regularPolygonVertices(n, radius, phi)`).
+- Per-polygon synthetic figures-map pattern in `mandalaStrand.ts`
+  (relevant if E-5 lands on per-instance angles).
+- Strict-divisor / common-divisor fold validation (relevant if rotational
+  symmetry constraints are added later).
+
+From the live tree:
+- `runPIC` accepts any `Polygon[]` — no work needed there for E-5 (a).
+- `usePattern` already hands polygons straight to `runPIC` for the
+  archimedean and rosette-patch paths; the editor path can drop in next
+  to those.
+- `PatternSVG` renders any polygons + segments — no rendering changes
+  needed for v1.
 
 ### Future ideas (already in memory)
 - `project_mandala_cheap_path_idea.md` — BFS depth=0 single-rosette mode

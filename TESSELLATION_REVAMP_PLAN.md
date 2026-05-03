@@ -103,10 +103,11 @@ still-relevant ones are kept.
 
 ## ⭐ Step 17 — User-editable tessellation editor (PRIMARY FOCUS)
 
-**Status (2026-05-03):** design grilled, sub-step breakdown drafted,
-implementation not started. Lab Editor placeholder section is in place
-in `TessellationLabMode.tsx`; library (Step 14) is ready to persist
-user-built layouts.
+**Status (2026-05-03):** 17.0 + 17.1 shipped. Data model + read-only
+render are live (`e199aee`); the Lab is now editor-only after the
+standard tessellation Type dropdown was removed (`94f651c`). 17.2
+(Design-mode shell — boundary / size / origin pickers) is the next
+active sub-step.
 
 ### Vision (refined from 2026-05-03 grill)
 
@@ -205,7 +206,7 @@ cross-references to the resolutions table.
 | Sub-step | Title                                            | Size | Decisions | Resolved Q's |
 |----------|--------------------------------------------------|------|-----------|--------------|
 | **17.0** | Pre-implementation grill for Q9–Q15.             | S    | n/a       | ✅ all       |
-| **17.1** | `EditorConfig` data model + read-only render.    | S–M  | 1, 4, 6, 14 | Q13         |
+| **17.1** | `EditorConfig` data model + read-only render.    | S–M  | 1, 4, 6, 14 | ✅ Q13       |
 | **17.2** | Boundary picker + size slider + origin picker (Design mode shell). | M | 4, 5, 6 | Q9 |
 | **17.3** | Click-to-highlight + viable-polygon picker (single edge, no propagation yet). | M | 7, 14, 14a | Q10 |
 | **17.4** | Orbit-symmetric propagation on placement.        | M    | 8         | —            |
@@ -221,14 +222,26 @@ cross-references to the resolutions table.
 - **17.0 — Pre-implementation grill.** ✅ Resolved 2026-05-03. See
   "Resolved deferred questions" table above.
 
-- **17.1 — Data model + read-only render.** Define `EditorConfig`
-  (boundaryShape, boundarySize, originPolygon, tiles[], completedTiles[])
-  with inner `version: 1`. Define `Tile` (regular n-gon at position +
-  rotation) and `IrregularTile` (vertex list). Add `editor?: EditorConfig`
-  to `PatternConfig` per Q13. Render a hardcoded layout in the Lab's
-  Editor section (no editing yet). Acceptance: a square boundary +
-  square origin + 4 triangles renders end-to-end from a hand-built
-  config.
+- **17.1 — Data model + read-only render.** ✅ Shipped 2026-05-03
+  (`e199aee`). `EditorConfig` (`version: 1`, boundaryShape, boundarySize,
+  originSides, edgeLength, tiles[]) lives in `src/types/editor.ts`.
+  `tiles[]` is a single tagged-union array (`EditorRegularTile` |
+  `EditorIrregularTile`) with an `origin: 'origin' | 'placed' |
+  'completed'` discriminator (Decision 12 keeps completed tiles
+  first-class). `editor?: EditorConfig` hung off `PatternConfig`
+  (Q13 Option C). Helpers: `regularPolygonVertices` (edge-length
+  parameterised per Decision 14), `editorTilesToPolygons` +
+  `tileTypeIdFor` (`"<n>"` for regulars; provisional placeholder for
+  irregulars until 17.5). `usePattern` editor branch dispatches when
+  `tiling.type === 'editor'` and skips viewport quantisation since the
+  patch is finite. `SavedSourceCategory` extended to include `'editor'`.
+  Lab Editor section gains Show sample patch / Clear buttons that
+  `LOAD_CONFIG` a hand-built fixture (square + 4 triangles flush to
+  each edge). Visually signed off.
+
+  Follow-up `94f651c` removed the standard tessellation Type dropdown,
+  Scale slider, Reset button, and Info panel from the Lab — the Lab is
+  now editor-only.
 
 - **17.2 — Design mode shell.** Boundary shape dropdown, boundary size
   slider, origin polygon picker. Auto-place origin at centre per
@@ -412,3 +425,19 @@ From the live tree:
   `version: 1` on `PatternConfig`; tile-type identity = full canonical
   signature for irregular tiles; figures map sticky/additive across
   flips; undo = snapshot, depth 50, design-only.
+- **2026-05-03** — Sub-step 17.1 shipped (`e199aee`). New types in
+  `src/types/editor.ts` (`EditorConfig`, `EditorRegularTile`,
+  `EditorIrregularTile`, single tagged-union `tiles[]` with `origin`
+  discriminator). New helpers in `src/editor/` (`regularPolygon.ts`,
+  `buildEditorPolygons.ts`, `sampleConfig.ts`). `editor?` field added
+  to `PatternConfig`; `usePattern` editor branch added; `SavedSource
+  Category` extended to `'editor'`. Lab Editor section gains Show
+  sample patch / Clear buttons that load a fixture (square + 4
+  triangles flush to each edge). Geometry hand-verified; visual
+  sign-off received.
+- **2026-05-03** — Follow-up `94f651c` removed the standard tessellation
+  Type dropdown, Scale slider, Reset button, and Info panel from the
+  Lab sidebar. The Lab is now editor-only — Archimedean and rosette-
+  patch tessellations remain in Main mode (consistent with the plan's
+  "Approach" section). Unused `SYMMETRY_GROUPS` import and
+  `resetTessellationDefaults` helper dropped.

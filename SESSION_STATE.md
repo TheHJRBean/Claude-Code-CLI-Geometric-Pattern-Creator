@@ -4,20 +4,23 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
-**Last action:** 2026-05-03 — sub-step **17.0** resolved. Q9–Q15 grilled
-and resolutions written into `TESSELLATION_REVAMP_PLAN.md` ("Resolved
-deferred questions" table). Notable decisions: v1 = Cut C (full
-working-draft bar); persistence = `editor?: EditorConfig` on
-`PatternConfig` with inner `version: 1`; tile-type identity = full
-canonical signature; figures sticky/additive across flips; undo =
-snapshot, depth 50, design-only.
+**Last action:** 2026-05-03 — sub-step **17.1** shipped (`e199aee`):
+`EditorConfig` data model + read-only render. New types
+(`src/types/editor.ts`), helpers (`src/editor/regularPolygon.ts`,
+`buildEditorPolygons.ts`, `sampleConfig.ts`), `editor?: EditorConfig`
+on `PatternConfig`, `usePattern` editor branch, and a Show sample
+patch / Clear pair in the Lab Editor section that loads a hand-built
+fixture (square + 4 triangles flush to each edge). Visual sign-off
+received. Follow-up `94f651c` removed the standard tessellation Type
+dropdown / Scale / Reset / Info panel from Lab — Lab is now editor-
+only; standard tessellations live in Main.
 
-**Next action:** Begin sub-step **17.1 — `EditorConfig` data model +
-read-only render**. Define `EditorConfig` (boundaryShape, boundarySize,
-originPolygon, tiles[], completedTiles[]) with inner `version: 1`. Add
-`editor?: EditorConfig` to `PatternConfig`. Render a hardcoded layout
-(square boundary + square origin + 4 triangles) in the Lab Editor
-placeholder section. End behind a green build + visual check.
+**Next action:** Begin sub-step **17.2 — Boundary picker + size slider
++ origin picker (Design-mode shell)**. Boundary shape dropdown
+(triangle / square / hexagon), size slider (rescales lattice cell
+only — Q9 Option B), origin polygon picker; auto-place origin at
+boundary centre per Decision 6. Acceptance: user can pick boundary +
+origin and see them rendered.
 
 **To rebuild context in a fresh session, read:**
 1. This file (status anchor).
@@ -52,19 +55,47 @@ Plan steps live in `TESSELLATION_REVAMP_PLAN.md`. One-liner status:
 - [done] Steps 9–11 — Lab polish, `FigureControls` lift, Lab Strands panel
 - [archived 2026-05-03] Steps 12–13 — mandala strand renderer, composition strand renderer + match-up
 - [done] Step 14 — Lab-local library (`state/customTessellations.ts`)
-- [in progress] **Step 17** — user-editable tessellation editor. 17.0 done; **17.1 next**.
+- [in progress] **Step 17** — user-editable tessellation editor. 17.0 + 17.1 done; **17.2 next**.
 - [parked] Steps 15, 16, 18 — k-uniform generator, quasi-periodic, Girih substitution
 
-## Live architecture (post-cleanup)
+## Live architecture (post-cleanup, post-17.1)
 
-- `TilingCategory` = `'archimedean' | 'rosette-patch'`. No mandala, no composition.
-- `PatternConfig` carries only `tiling`, `figures`, `lacing`, optional `edgeAngles`, optional `smoothTransitions`. No `mandala?`, no `composition?`.
-- Reducer actions are PIC + figure controls only (no `SET_MANDALA_*` / `SET_COMPOSITION_*`).
-- `usePattern` runs `generateTiling` (archimedean) or `generateRosettePatch`, then `runPIC`.
+- `TilingCategory` = `'archimedean' | 'rosette-patch'` (live tree). The
+  editor patch is signalled by `tiling.type === 'editor'` plus
+  `config.editor` payload — it has no `TilingDefinition` entry because
+  it doesn't fit the static-tiling schema.
+- `PatternConfig` carries `tiling`, `figures`, `lacing`, optional
+  `edgeAngles`, optional `smoothTransitions`, and **optional `editor?:
+  EditorConfig`** (Q13 Option C). `EditorConfig` has its own inner
+  `version: 1`.
+- `EditorConfig` shape: `{ version, boundaryShape, boundarySize,
+  originSides, edgeLength, tiles: EditorTile[] }`. `EditorTile` is a
+  tagged union of `EditorRegularTile` and `EditorIrregularTile` with
+  an `origin: 'origin' | 'placed' | 'completed'` discriminator (single
+  array per Decision 12).
+- `SavedSourceCategory` = `'archimedean' | 'rosette-patch' | 'editor'`.
+- Reducer actions are PIC + figure controls only (no editor-specific
+  actions yet — 17.2+ will add them).
+- `usePattern` dispatches: editor branch first (`tiling.type === 'editor'
+  && config.editor` → `editorTilesToPolygons` + `runPIC`), then the
+  existing archimedean / rosette-patch branches. Editor patches bypass
+  viewport quantisation since they're finite.
+- `tileTypeIdFor()` keys regular tiles as `"<n>"`. Irregular tiles get a
+  provisional `"<n>i:provisional"` placeholder until 17.5 lifts the
+  canonical-signature hash from `archive/tessellation-lab/`.
 - `PatternSVG` has no clipPath plumbing — single tile + strand layer.
 - `App.tsx` has no `activePresetId` state.
-- `TessellationLabMode` chrome: header, "Editor" placeholder section, Tessellation picker, "My Tessellations" library (Save / Rename / Duplicate / Delete + saved-entries dropdown), Strands panel (when strands on), Display section.
-- Migrations: `loadLabState` resets retired tiling types to `''` and strips dropped payloads; `listSavedTessellations` skips retired-type entries with `console.warn`.
+- `TessellationLabMode` chrome (post-17.1, post-dropdown-removal):
+  header, **Editor section** (Show sample patch / Clear buttons),
+  "My Tessellations" library (Save / Rename / Duplicate / Delete +
+  saved-entries dropdown), Strands panel (currently inert in editor
+  mode — wired at 17.6 per Q15), Display section. The standard
+  tessellation Type dropdown / Scale / Reset / Info panel were removed
+  in `94f651c` — Lab is editor-only.
+- Migrations: `loadLabState` resets retired tiling types to `''` and
+  strips dropped payloads; `listSavedTessellations` skips retired-type
+  entries with `console.warn`. `'editor'` is *not* retired and passes
+  through.
 
 ## Decisions still in force after the pivot
 
@@ -79,4 +110,5 @@ layer rule, hard-frame fallback, verified-pairs allow-list, etc.) are
 moot now those features are archived.
 
 ## Blockers
-None. 17.0 resolved on 2026-05-03; 17.1 implementation is the next active task.
+None. 17.1 visually signed off on 2026-05-03; 17.2 (Design-mode shell —
+boundary picker, size slider, origin picker) is the next active task.

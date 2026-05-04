@@ -1,4 +1,5 @@
 import type { PatternConfig, FigureConfig, LacingConfig } from '../types/pattern'
+import type { BoundaryShape } from '../types/editor'
 
 export type Action =
   | { type: 'SET_TILING_TYPE'; payload: string }
@@ -23,3 +24,9 @@ export type Action =
   | { type: 'SET_CURVE_DIRECTION'; payload: { tileTypeId: string; direction: 'left' | 'right' } }
   | { type: 'SET_SMOOTH_TRANSITIONS'; payload: boolean }
   | { type: 'LOAD_CONFIG'; payload: PatternConfig }
+  // Step 17 — editor (Design-mode shell, sub-step 17.2)
+  | { type: 'EDITOR_NEW' }
+  | { type: 'EDITOR_CLEAR' }
+  | { type: 'SET_EDITOR_BOUNDARY_SHAPE'; payload: BoundaryShape }
+  | { type: 'SET_EDITOR_BOUNDARY_SIZE'; payload: number }
+  | { type: 'SET_EDITOR_ORIGIN_SIDES'; payload: number }

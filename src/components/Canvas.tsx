@@ -45,7 +45,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   )
   // Defer the heavy tiling computation so pointer events stay responsive
   const deferredVT = useDeferredValue(viewTransform)
-  const { polygons, segments } = usePattern(config, deferredVT, size.width, size.height)
+  const { polygons, segments, boundaryOutline } = usePattern(config, deferredVT, size.width, size.height)
 
   const resetCamera = useCallback(() => {
     setViewTransform({
@@ -92,6 +92,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         cpActive={cpActive}
         outlineWidth={outlineWidth}
         fillOnHover={fillOnHover}
+        boundaryOutline={boundaryOutline}
       />
       <button
         onClick={resetCamera}

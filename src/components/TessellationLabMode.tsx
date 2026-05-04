@@ -18,6 +18,7 @@ import { SandstoneEdge } from './SandstoneEdge'
 import { useTheme } from '../theme/ThemeContext'
 import { SAMPLE_EDITOR_CONFIG } from '../editor/sampleConfig'
 import { LAB_DEFAULT_CONFIG } from '../state/labDefaults'
+import type { BoundaryShape } from '../types/editor'
 
 /**
  * Tessellation Lab — workspace for prototyping tessellations and (next phase)
@@ -208,74 +209,84 @@ export function TessellationLabMode({
 
         {/* ── Sections ────────────────────────────────────── */}
         <div className="sidebar-sections">
-          {/* Editor — Step 17. 17.1 ships a read-only sample patch render
-              to prove the data model wires through end-to-end. Design-mode
-              UI lands at 17.2+. */}
+          {/* Editor — Step 17. 17.2 ships the Design-mode shell: when a patch
+              is active, expose boundary shape + size + origin sides. The
+              origin polygon auto-places at the patch centre per Decision 6;
+              boundary size only rescales the lattice cell (Q9 Option B). */}
           <div style={{ paddingTop: 20 }}>
             <SectionTitle>Editor</SectionTitle>
-            <p style={{
-              marginTop: 0,
-              marginBottom: 10,
-              fontFamily: "'EB Garamond', Georgia, serif",
-              fontSize: 12.5,
-              color: 'var(--text-muted)',
-              lineHeight: 1.5,
-            }}>
-              Tessellation editor scaffold. Shows a hardcoded sample patch
-              (square + four triangles) to verify the data model wires
-              through. Design-mode controls land in upcoming sub-steps.
-            </p>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {([
-                {
-                  label: 'Show sample patch',
-                  onClick: () => {
-                    setActiveSavedId('')
-                    dispatch({
-                      type: 'LOAD_CONFIG',
-                      payload: {
-                        ...LAB_DEFAULT_CONFIG,
-                        tiling: { type: 'editor', scale: 100 },
-                        editor: SAMPLE_EDITOR_CONFIG,
+            {config.tiling.type === 'editor' && config.editor ? (
+              <EditorDesignControls
+                editor={config.editor}
+                dispatch={dispatch}
+                onClear={() => {
+                  setActiveSavedId('')
+                  dispatch({ type: 'EDITOR_CLEAR' })
+                }}
+              />
+            ) : (
+              <>
+                <p style={{
+                  marginTop: 0,
+                  marginBottom: 10,
+                  fontFamily: "'EB Garamond', Georgia, serif",
+                  fontSize: 12.5,
+                  color: 'var(--text-muted)',
+                  lineHeight: 1.5,
+                }}>
+                  Build a tessellation patch from a chosen boundary and origin
+                  polygon. Start with "New patch", or load the hand-built
+                  sample to see what the renderer accepts.
+                </p>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {([
+                    {
+                      label: 'New patch',
+                      onClick: () => {
+                        setActiveSavedId('')
+                        dispatch({ type: 'EDITOR_NEW' })
                       },
-                    })
-                  },
-                  disabled: config.tiling.type === 'editor',
-                },
-                {
-                  label: 'Clear',
-                  onClick: () => {
-                    setActiveSavedId('')
-                    dispatch({ type: 'LOAD_CONFIG', payload: LAB_DEFAULT_CONFIG })
-                  },
-                  disabled: config.tiling.type !== 'editor',
-                },
-              ] as const).map(b => (
-                <button
-                  key={b.label}
-                  onClick={b.onClick}
-                  disabled={b.disabled}
-                  style={{
-                    flex: '1 1 0',
-                    minWidth: 0,
-                    padding: '5px 0',
-                    fontFamily: "'Cinzel', Georgia, serif",
-                    fontSize: 9,
-                    fontWeight: 600,
-                    letterSpacing: '0.10em',
-                    textTransform: 'uppercase',
-                    cursor: b.disabled ? 'not-allowed' : 'pointer',
-                    border: '1px solid var(--border-subtle)',
-                    background: 'transparent',
-                    color: b.disabled ? 'var(--text-muted)' : 'var(--text-muted)',
-                    opacity: b.disabled ? 0.5 : 1,
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  {b.label}
-                </button>
-              ))}
-            </div>
+                    },
+                    {
+                      label: 'Show sample patch',
+                      onClick: () => {
+                        setActiveSavedId('')
+                        dispatch({
+                          type: 'LOAD_CONFIG',
+                          payload: {
+                            ...LAB_DEFAULT_CONFIG,
+                            tiling: { type: 'editor', scale: 100 },
+                            editor: SAMPLE_EDITOR_CONFIG,
+                          },
+                        })
+                      },
+                    },
+                  ] as const).map(b => (
+                    <button
+                      key={b.label}
+                      onClick={b.onClick}
+                      style={{
+                        flex: '1 1 0',
+                        minWidth: 0,
+                        padding: '5px 0',
+                        fontFamily: "'Cinzel', Georgia, serif",
+                        fontSize: 9,
+                        fontWeight: 600,
+                        letterSpacing: '0.10em',
+                        textTransform: 'uppercase',
+                        cursor: 'pointer',
+                        border: '1px solid var(--border-subtle)',
+                        background: 'transparent',
+                        color: 'var(--text-muted)',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      {b.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           {/* Library — Save / Rename / Duplicate / Delete + saved entries dropdown */}
@@ -675,3 +686,97 @@ function FieldLabel({ label, value, unit }: { label: string; value?: string; uni
 }
 
 export { ModeToggleButton }
+
+/* ── Editor Design controls (17.2) ─────────────────────── */
+
+const BOUNDARY_OPTIONS: { value: BoundaryShape; label: string }[] = [
+  { value: 'triangle', label: 'Triangle' },
+  { value: 'square', label: 'Square' },
+  { value: 'hexagon', label: 'Hexagon' },
+]
+
+interface EditorDesignControlsProps {
+  editor: NonNullable<PatternConfig['editor']>
+  dispatch: React.Dispatch<Action>
+  onClear: () => void
+}
+
+function EditorDesignControls({ editor, dispatch, onClear }: EditorDesignControlsProps) {
+  return (
+    <>
+      <FieldLabel label="Boundary shape" />
+      <div style={{ display: 'flex', gap: 0, marginBottom: 4 }}>
+        {BOUNDARY_OPTIONS.map(opt => {
+          const active = editor.boundaryShape === opt.value
+          return (
+            <button
+              key={opt.value}
+              onClick={() => dispatch({ type: 'SET_EDITOR_BOUNDARY_SHAPE', payload: opt.value })}
+              style={{
+                flex: 1,
+                padding: '5px 0',
+                fontFamily: "'Cinzel', Georgia, serif",
+                fontSize: 9,
+                fontWeight: 600,
+                letterSpacing: '0.10em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+                border: `1px solid ${active ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                background: active ? 'var(--accent-bg)' : 'transparent',
+                color: active ? 'var(--accent)' : 'var(--text-muted)',
+                transition: 'all 0.15s',
+              }}
+            >
+              {opt.label}
+            </button>
+          )
+        })}
+      </div>
+
+      <FieldLabel label="Boundary size" value={editor.boundarySize.toFixed(0)} unit=" u" />
+      <input
+        type="range"
+        className="pattern-slider"
+        min={80}
+        max={500}
+        step={1}
+        value={editor.boundarySize}
+        onChange={e => dispatch({ type: 'SET_EDITOR_BOUNDARY_SIZE', payload: Number(e.target.value) })}
+      />
+
+      <FieldLabel label="Origin sides" value={String(editor.originSides)} />
+      <input
+        type="range"
+        className="pattern-slider"
+        min={3}
+        max={12}
+        step={1}
+        value={editor.originSides}
+        onChange={e => dispatch({ type: 'SET_EDITOR_ORIGIN_SIDES', payload: Number(e.target.value) })}
+      />
+
+      <div style={{ display: 'flex', gap: 6, marginTop: 14 }}>
+        <button
+          onClick={onClear}
+          style={{
+            flex: '1 1 0',
+            minWidth: 0,
+            padding: '5px 0',
+            fontFamily: "'Cinzel', Georgia, serif",
+            fontSize: 9,
+            fontWeight: 600,
+            letterSpacing: '0.10em',
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+            border: '1px solid var(--border-subtle)',
+            background: 'transparent',
+            color: 'var(--text-muted)',
+            transition: 'all 0.15s',
+          }}
+        >
+          Clear
+        </button>
+      </div>
+    </>
+  )
+}

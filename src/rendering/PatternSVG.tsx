@@ -24,10 +24,12 @@ interface Props {
   fillOnHover?: boolean
   /** Editor-mode patch boundary (Step 17.2+). Drawn as a dashed outline below tiles. */
   boundaryOutline?: Vec2[]
+  /** Editor-mode interactive overlay (Step 17.3+). Rendered above the tile layer. */
+  editorOverlay?: React.ReactNode
 }
 
 export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
-  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, fillOnHover, boundaryOutline },
+  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, fillOnHover, boundaryOutline, editorOverlay },
   ref
 ) {
   const { x, y, zoom, rotation } = viewTransform
@@ -51,6 +53,7 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
       <g transform={rotation ? `rotate(${rotation} ${cx} ${cy})` : undefined}>
         {boundaryOutline && <BoundaryOutline vertices={boundaryOutline} />}
         <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} fillOnHover={fillOnHover} />
+        {editorOverlay}
         {showLines && <StrandLayer segments={segments} config={config} />}
         <ControlPointLayer
           segments={segments}

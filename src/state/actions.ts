@@ -30,3 +30,4 @@ export type Action =
   | { type: 'SET_EDITOR_BOUNDARY_SHAPE'; payload: BoundaryShape }
   | { type: 'SET_EDITOR_BOUNDARY_SIZE'; payload: number }
   | { type: 'SET_EDITOR_ORIGIN_SIDES'; payload: number }
+  | { type: 'EDITOR_PLACE_TILE_ON_EDGE'; payload: { tileId: string; edgeIndex: number; sides: number } }

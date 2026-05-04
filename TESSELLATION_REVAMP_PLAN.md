@@ -103,14 +103,17 @@ still-relevant ones are kept.
 
 ## ⭐ Step 17 — User-editable tessellation editor (PRIMARY FOCUS)
 
-**Status (2026-05-04):** 17.0–17.2 shipped. 17.1 landed the data
+**Status (2026-05-04):** 17.0–17.3 shipped. 17.1 landed the data
 model + read-only render (`e199aee`); follow-up `94f651c` made the
-Lab editor-only. 17.2 added the Design-mode shell (`f9d6197`):
-`EDITOR_NEW` / `EDITOR_CLEAR` plus per-knob actions for boundary
-shape / size / origin sides, an auto-placed origin tile, and a
-non-interactive dashed boundary outline rendered under tiles.
-17.2 awaits visual sign-off; **17.3 (single-edge tile placement)
-is the next active sub-step.**
+Lab editor-only. 17.2 added the Design-mode shell (`f9d6197`);
+follow-up `0aff7fb` resets placed tiles when shape / origin sides
+change. 17.3 added single-edge tile placement (`ccc7da0`):
+`computeExposedEdges`, `placeRegularNGonOnEdge`,
+`isPlacementViable` (Decision 7 angle-sum + Decision 14a),
+`viableSidesForEdge`, an interactive SVG edge layer, a screen-
+positioned picker overlay, and the `EDITOR_PLACE_TILE_ON_EDGE`
+reducer action. 17.3 awaits visual sign-off; **17.4 (orbit
+propagation) is the next active sub-step.**
 
 ### Vision (refined from 2026-05-03 grill)
 
@@ -211,7 +214,7 @@ cross-references to the resolutions table.
 | **17.0** | Pre-implementation grill for Q9–Q15.             | S    | n/a       | ✅ all       |
 | **17.1** | `EditorConfig` data model + read-only render.    | S–M  | 1, 4, 6, 14 | ✅ Q13       |
 | **17.2** | Boundary picker + size slider + origin picker (Design mode shell). ✅ shipped `f9d6197`. | M | 4, 5, 6 | ✅ Q9 |
-| **17.3** | Click-to-highlight + viable-polygon picker (single edge, no propagation yet). | M | 7, 14, 14a | Q10 |
+| **17.3** | Click-to-highlight + viable-polygon picker (single edge, no propagation yet). ✅ shipped `ccc7da0`. | M | 7, 14, 14a | ✅ Q10 |
 | **17.4** | Orbit-symmetric propagation on placement.        | M    | 8         | —            |
 | **17.5** | Complete operation — manual vertex-pair selection + canonical tile-type hash. | M–L | 9, 10, 12 | Q11 |
 | **17.6** | Strand editor mode + lattice preview + strand controls. | M | 15, 16, 17 | Q15        |
@@ -263,12 +266,26 @@ cross-references to the resolutions table.
   Awaiting visual sign-off.
 
 - **17.3 — Tile selection + viable-polygon picker (single edge).**
-  Click a tile → highlight its edges. Show viable-polygon picker per
-  Q10. Pick a polygon → place on the clicked edge only (no propagation
-  yet). Apply edge-length match (Decision 14) and overlap check
-  (Decision 7). Apply non-conforming-edge rule (Decision 14a) when an
-  edge length ≠ origin's. Acceptance: click origin's top edge → pick
-  triangle → triangle appears on that edge.
+  ✅ Shipped 2026-05-04 (`ccc7da0`). Per-tile edge highlighting was
+  refined to Q10's authoritative form: every exposed edge is always
+  live, hover highlights, click selects. New helpers in
+  `src/editor/`: `computeExposedEdges` (loose-eps endpoint match for
+  unshared edges; carries `conforming` flag for Decision 14a),
+  `placeRegularNGonOnEdge` (new tile's vertex 0 = source's p2, vertex
+  1 = source's p1 — CCW reverse, by construction), `isPlacementViable`
+  (Decision 7: interior-angle sum at the two shared endpoints ≤ 2π;
+  short-circuits on non-conforming edges), `viableSidesForEdge`
+  filtering `PICKER_SIDES = {3, 4, 5, 6, 7, 8, 9, 10, 12}`. UI:
+  `EditorEdgeLayer` lives inside `PatternSVG`'s rotation `<g>` via a
+  new `editorOverlay?: ReactNode` slot — invisible thick hit-area per
+  edge, pointer-down stops propagation so pan doesn't fire;
+  non-conforming edges render dashed and inert. `EditorPickerOverlay`
+  is a screen-space HTML popover anchored at the world midpoint via
+  a new `worldToScreen` helper in `Canvas` that respects pan, zoom
+  and rotation. Picker shows 9 n-gon icon buttons (disabled when not
+  viable) plus an empty-state message; closes on Escape. New reducer
+  action `EDITOR_PLACE_TILE_ON_EDGE` re-validates and appends a
+  placed tile. Awaiting visual sign-off.
 
 - **17.4 — Orbit propagation.** Compute the boundary's symmetry orbit
   (rotation + reflection group) once at boundary-set time. When a tile
@@ -466,4 +483,15 @@ From the live tree:
   swaps to design controls (3 shape buttons + boundary-size slider
   + origin-sides slider + Clear) when a patch is active; otherwise
   shows New patch / Show sample patch. Q9 resolved as Option B —
-  boundary size only rescales the outline. Awaiting visual sign-off.
+  boundary size only rescales the outline. Follow-up `0aff7fb`:
+  shape / origin-sides changes reset `tiles` to `[origin]`.
+- **2026-05-04** — Sub-step 17.3 shipped (`ccc7da0`). Single-edge
+  tile placement added. New geometry helpers `computeExposedEdges`,
+  `placeRegularNGonOnEdge`, `isPlacementViable` (Decision 7 angle-
+  sum at shared endpoints, short-circuit on non-conforming edges
+  per Decision 14a), `viableSidesForEdge` filtering
+  `PICKER_SIDES = {3,4,5,6,7,8,9,10,12}`. UI: `EditorEdgeLayer`
+  inside `PatternSVG`'s rotation `<g>` via new `editorOverlay`
+  slot; `EditorPickerOverlay` HTML popover positioned via new
+  `worldToScreen` helper. New reducer action
+  `EDITOR_PLACE_TILE_ON_EDGE`. Awaiting visual sign-off.

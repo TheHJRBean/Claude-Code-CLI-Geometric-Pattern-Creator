@@ -4,32 +4,36 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
-**Last action:** 2026-05-04 — sub-step **17.2** shipped (`f9d6197`):
-Design-mode shell. New `EDITOR_NEW` / `EDITOR_CLEAR` plus per-knob
-actions for boundary shape / boundary size / origin sides. New
-`createDefaultEditorConfig` + `createOriginTile` helpers
-(Decision 6 auto-placement, rotation 0, edgeLength 100). New
-`editorBoundaryVertices` returns the boundary outline; `usePattern`
-surfaces it via `PatternData.boundaryOutline`, `PatternSVG` renders
-it as a non-interactive dashed accent polygon under tiles. The
-Editor section in `TessellationLabMode` swaps to design controls
-(3 shape buttons + boundary-size slider + origin-sides slider +
-Clear) when a patch is active; otherwise shows New patch / Show
-sample patch. Q9 Option B respected — boundary size only rescales
-the outline, tile sizes untouched. Awaiting visual sign-off.
+**Last action:** 2026-05-04 — sub-step **17.3** shipped (`ccc7da0`):
+single-edge tile placement. New geometry helpers
+`computeExposedEdges`, `placeRegularNGonOnEdge`, `isPlacementViable`
+(Decision 7 angle-sum check + Decision 14a non-conforming gate),
+`viableSidesForEdge` filtering `PICKER_SIDES = {3,4,5,6,7,8,9,10,12}`.
+New `EditorEdgeLayer` renders inside `PatternSVG`'s rotation `<g>`
+via a new `editorOverlay` slot — each exposed edge has an invisible
+hit-area; pointer events stop propagation so pan doesn't fire.
+Non-conforming edges render dashed and inert. New
+`EditorPickerOverlay` is a screen-space HTML popover positioned via
+a new `worldToScreen` helper in `Canvas` that respects pan, zoom
+and the rotation `<g>`. New reducer action
+`EDITOR_PLACE_TILE_ON_EDGE` re-validates and appends a placed tile.
+`TessellationLabMode` owns `selectedEdge` state and dispatches the
+placement. Awaiting visual sign-off.
 
-Earlier: 17.1 shipped 2026-05-03 (`e199aee`) — `EditorConfig` data
-model + read-only render. Follow-up `94f651c` removed the standard
-tessellation Type dropdown / Scale / Reset / Info panel from Lab.
+Earlier: 17.2 shipped 2026-05-04 (`f9d6197`) — Design-mode shell;
+follow-up `0aff7fb` resets placed tiles when shape / origin sides
+change. 17.1 shipped 2026-05-03 (`e199aee`) — data model +
+read-only render. `94f651c` made Lab editor-only.
 
-**Next action:** Visually verify 17.2 in the browser (each shape,
-size slider, origin sides 3–12). Then begin sub-step **17.3 — Tile
-selection + viable-polygon picker (single edge)**. Click a tile →
-highlight its edges; show viable-polygon picker per Q10; pick a
-polygon → place on the clicked edge only (no propagation yet).
-Apply edge-length match (Decision 14) and overlap check (Decision 7).
-Apply non-conforming-edge rule (Decision 14a). Acceptance: click
-origin's top edge → pick triangle → triangle appears on that edge.
+**Next action:** Visually verify 17.3 in the browser (click each
+edge of the origin; pick triangle/square/hex/etc.; confirm viable
+filter; confirm Escape clears the picker; confirm pan still works
+when starting from blank canvas area). Then begin sub-step **17.4 —
+Orbit-symmetric propagation on placement**. Compute the boundary's
+rotation+reflection group once at boundary-set time; placing a tile
+on an edge places it on every orbit-equivalent edge with the same
+overlap check. Acceptance: pick triangle on square origin's top
+edge → triangles on all 4 edges.
 
 **To rebuild context in a fresh session, read:**
 1. This file (status anchor).
@@ -64,10 +68,10 @@ Plan steps live in `TESSELLATION_REVAMP_PLAN.md`. One-liner status:
 - [done] Steps 9–11 — Lab polish, `FigureControls` lift, Lab Strands panel
 - [archived 2026-05-03] Steps 12–13 — mandala strand renderer, composition strand renderer + match-up
 - [done] Step 14 — Lab-local library (`state/customTessellations.ts`)
-- [in progress] **Step 17** — user-editable tessellation editor. 17.0–17.2 done (17.2 awaiting visual sign-off); **17.3 next**.
+- [in progress] **Step 17** — user-editable tessellation editor. 17.0–17.3 done (17.3 awaiting visual sign-off); **17.4 next**.
 - [parked] Steps 15, 16, 18 — k-uniform generator, quasi-periodic, Girih substitution
 
-## Live architecture (post-cleanup, post-17.2)
+## Live architecture (post-cleanup, post-17.3)
 
 - `TilingCategory` = `'archimedean' | 'rosette-patch'` (live tree). The
   editor patch is signalled by `tiling.type === 'editor'` plus
@@ -83,13 +87,15 @@ Plan steps live in `TESSELLATION_REVAMP_PLAN.md`. One-liner status:
   an `origin: 'origin' | 'placed' | 'completed'` discriminator (single
   array per Decision 12).
 - `SavedSourceCategory` = `'archimedean' | 'rosette-patch' | 'editor'`.
-- Reducer actions: PIC + figure controls, plus editor actions
-  added at 17.2 — `EDITOR_NEW`, `EDITOR_CLEAR`,
-  `SET_EDITOR_BOUNDARY_SHAPE`, `SET_EDITOR_BOUNDARY_SIZE`,
-  `SET_EDITOR_ORIGIN_SIDES`. Knob handlers are no-ops when no
-  patch is active. `SET_EDITOR_ORIGIN_SIDES` rebuilds the origin
-  tile in place via `rebuildOriginTile`, preserving any non-origin
-  tiles for 17.3+.
+- Reducer actions: PIC + figure controls, plus editor actions —
+  `EDITOR_NEW`, `EDITOR_CLEAR`, `SET_EDITOR_BOUNDARY_SHAPE`,
+  `SET_EDITOR_BOUNDARY_SIZE`, `SET_EDITOR_ORIGIN_SIDES`,
+  `EDITOR_PLACE_TILE_ON_EDGE`. Knob handlers are no-ops when no
+  patch is active. Shape / origin-sides changes reset `tiles` to
+  `[origin]` (orbit / origin invalidates downstream tiles).
+  `EDITOR_PLACE_TILE_ON_EDGE` recomputes `computeExposedEdges`,
+  re-validates with `isPlacementViable`, and appends an `origin:
+  'placed'` tile.
 - `usePattern` dispatches: editor branch first (`tiling.type === 'editor'
   && config.editor` → `editorTilesToPolygons` + `runPIC` +
   `editorBoundaryVertices`), then the existing archimedean /
@@ -102,7 +108,10 @@ Plan steps live in `TESSELLATION_REVAMP_PLAN.md`. One-liner status:
 - `PatternSVG` has no clipPath plumbing — single tile + strand layer.
   At 17.2 it accepts an optional `boundaryOutline: Vec2[]` and renders
   it as a non-interactive dashed accent polygon below `TileLayer`
-  (via the local `BoundaryOutline` sub-component).
+  (via the local `BoundaryOutline` sub-component). At 17.3 it gained
+  an `editorOverlay?: ReactNode` slot rendered above `TileLayer`
+  inside the rotation `<g>`; `Canvas` plugs in `EditorEdgeLayer` and
+  positions the picker via screen-space `worldToScreen`.
 - `App.tsx` has no `activePresetId` state.
 - `TessellationLabMode` chrome (post-17.2): header, **Editor
   section** which swaps based on patch state — when active, shows
@@ -137,5 +146,5 @@ layer rule, hard-frame fallback, verified-pairs allow-list, etc.) are
 moot now those features are archived.
 
 ## Blockers
-None. 17.2 awaits visual sign-off; once confirmed, 17.3 (single-edge
-tile placement) is the next active task.
+None. 17.3 awaits visual sign-off; once confirmed, 17.4 (orbit
+propagation) is the next active task.

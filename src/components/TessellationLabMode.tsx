@@ -13,7 +13,7 @@ import {
   duplicateTessellation,
   getTessellation,
 } from '../state/customTessellations'
-import { Canvas } from './Canvas'
+import { Canvas, type SelectedEdge } from './Canvas'
 import { SandstoneEdge } from './SandstoneEdge'
 import { useTheme } from '../theme/ThemeContext'
 import { SAMPLE_EDITOR_CONFIG } from '../editor/sampleConfig'
@@ -84,6 +84,17 @@ export function TessellationLabMode({
   const [cpVisible] = useState<Record<string, boolean>>({})
   const [cpActive] = useState<Record<string, number>>({})
   const [showAdvanced, setShowAdvanced] = useState(false)
+
+  // ── Editor selection (Step 17.3) ───────────────────────
+  const [selectedEdge, setSelectedEdge] = useState<SelectedEdge | null>(null)
+  // Drop the selection whenever the editor patch is cleared or replaced.
+  useEffect(() => {
+    if (config.tiling.type !== 'editor' || !config.editor) setSelectedEdge(null)
+  }, [config.tiling.type, config.editor])
+  const handlePlaceTile = (sides: number) => {
+    if (!selectedEdge) return
+    dispatch({ type: 'EDITOR_PLACE_TILE_ON_EDGE', payload: { ...selectedEdge, sides } })
+  }
 
   // ── Library ────────────────────────────────────────────
   const [library, setLibrary] = useState<SavedTessellation[]>(() => listSavedTessellations())
@@ -594,6 +605,9 @@ export function TessellationLabMode({
         cpActive={cpActive}
         outlineWidth={outlineWidth}
         fillOnHover={fillOnHover}
+        selectedEdge={selectedEdge}
+        onSelectEdge={setSelectedEdge}
+        onPlaceTile={handlePlaceTile}
       />
     </div>
   )

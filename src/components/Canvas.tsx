@@ -1,10 +1,20 @@
-import { useRef, useEffect, useCallback, useState, useDeferredValue } from 'react'
+import { useRef, useEffect, useCallback, useState, useDeferredValue, useMemo } from 'react'
 import type { PatternConfig } from '../types/pattern'
 import type { Segment } from '../types/geometry'
+import type { Vec2 } from '../utils/math'
 import { usePattern } from '../hooks/usePattern'
-import { usePanZoom } from '../hooks/usePanZoom'
+import { usePanZoom, type ViewTransform } from '../hooks/usePanZoom'
 import { PatternSVG } from '../rendering/PatternSVG'
 import { RotationDial } from './RotationDial'
+import { computeExposedEdges } from '../editor/exposedEdges'
+import { viableSidesForEdge } from '../editor/placement'
+import { EditorEdgeLayer } from './EditorEdgeLayer'
+import { EditorPickerOverlay } from './EditorPickerOverlay'
+
+export interface SelectedEdge {
+  tileId: string
+  edgeIndex: number
+}
 
 interface Props {
   config: PatternConfig
@@ -16,11 +26,15 @@ interface Props {
   cpActive: Record<string, number>
   outlineWidth?: number
   fillOnHover?: boolean
+  /** Step 17.3 — editor-mode interaction handlers. Active only when an editor patch is loaded. */
+  selectedEdge?: SelectedEdge | null
+  onSelectEdge?: (edge: SelectedEdge | null) => void
+  onPlaceTile?: (sides: number) => void
 }
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, fillOnHover }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, fillOnHover, selectedEdge, onSelectEdge, onPlaceTile }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -75,6 +89,36 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // Keep segments ref up to date for export
   segmentsRef.current = segments
 
+  // ── Editor-mode overlay (Step 17.3) ──────────────────────
+  const editorActive = config.tiling.type === 'editor' && config.editor != null
+  const exposedEdges = useMemo(
+    () => editorActive && config.editor ? computeExposedEdges(config.editor) : [],
+    [editorActive, config.editor],
+  )
+  const [hoveredEdge, setHoveredEdge] = useState<SelectedEdge | null>(null)
+  useEffect(() => { if (!editorActive) setHoveredEdge(null) }, [editorActive])
+
+  const selectedEdgeData = selectedEdge && exposedEdges.find(
+    e => e.tileId === selectedEdge.tileId && e.edgeIndex === selectedEdge.edgeIndex,
+  )
+
+  const editorOverlay = editorActive && onSelectEdge ? (
+    <EditorEdgeLayer
+      edges={exposedEdges}
+      selected={selectedEdge ?? null}
+      onSelect={onSelectEdge}
+      hovered={hoveredEdge}
+      onHover={setHoveredEdge}
+    />
+  ) : null
+
+  const pickerScreenPos = selectedEdgeData
+    ? worldToScreen(selectedEdgeData.midpoint, viewTransform, size.width, size.height)
+    : null
+  const pickerViable = selectedEdgeData && config.editor
+    ? viableSidesForEdge(selectedEdgeData, config.editor)
+    : []
+
   return (
     <div ref={containerRef} className="canvas-container">
       <PatternSVG
@@ -93,7 +137,16 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         outlineWidth={outlineWidth}
         fillOnHover={fillOnHover}
         boundaryOutline={boundaryOutline}
+        editorOverlay={editorOverlay}
       />
+      {pickerScreenPos && onPlaceTile && onSelectEdge && (
+        <EditorPickerOverlay
+          position={pickerScreenPos}
+          viableSides={pickerViable}
+          onPick={n => { onPlaceTile(n); onSelectEdge(null) }}
+          onClose={() => onSelectEdge(null)}
+        />
+      )}
       <button
         onClick={resetCamera}
         title="Reset camera (Home / Ctrl+0)"
@@ -117,4 +170,32 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       <RotationDial rotation={viewTransform.rotation} onChange={onRotation} />
     </div>
   )
+}
+
+/**
+ * Map a world-space point to screen-space pixels relative to the canvas
+ * container, accounting for pan, zoom, and the rotation `<g>` applied
+ * around the viewBox centre.
+ */
+function worldToScreen(
+  world: Vec2,
+  vt: ViewTransform,
+  width: number,
+  height: number,
+): { x: number; y: number } {
+  const vw = width / vt.zoom
+  const vh = height / vt.zoom
+  const cx = vt.x + vw / 2
+  const cy = vt.y + vh / 2
+  const rad = (vt.rotation * Math.PI) / 180
+  const cos = Math.cos(rad)
+  const sin = Math.sin(rad)
+  const dx = world.x - cx
+  const dy = world.y - cy
+  const vbx = cx + dx * cos - dy * sin
+  const vby = cy + dx * sin + dy * cos
+  return {
+    x: (vbx - vt.x) * vt.zoom,
+    y: (vby - vt.y) * vt.zoom,
+  }
 }

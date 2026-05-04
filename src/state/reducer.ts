@@ -4,6 +4,8 @@ import type { Action } from './actions'
 import { TILINGS } from '../tilings/index'
 import { DEFAULT_CONFIG } from './defaults'
 import { createDefaultEditorConfig, createOriginTile } from '../editor/createDefault'
+import { computeExposedEdges } from '../editor/exposedEdges'
+import { isPlacementViable, placeRegularNGonOnEdge } from '../editor/placement'
 
 const FALLBACK_FIGURE: FigureConfig = { type: 'star', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
 
@@ -162,6 +164,16 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         tiles: [createOriginTile(sides, state.editor.edgeLength)],
       }
       return { ...state, editor: next }
+    }
+    case 'EDITOR_PLACE_TILE_ON_EDGE': {
+      if (!state.editor) return state
+      const { tileId, edgeIndex, sides } = action.payload
+      const edges = computeExposedEdges(state.editor)
+      const edge = edges.find(e => e.tileId === tileId && e.edgeIndex === edgeIndex)
+      if (!edge || !isPlacementViable(edge, sides, state.editor)) return state
+      const id = `placed-${state.editor.tiles.length}-${Date.now()}`
+      const tile = placeRegularNGonOnEdge(sides, state.editor.edgeLength, edge.p1, edge.p2, edge.sourceCenter, id)
+      return { ...state, editor: { ...state.editor, tiles: [...state.editor.tiles, tile] } }
     }
     default:
       return state

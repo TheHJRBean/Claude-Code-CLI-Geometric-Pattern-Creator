@@ -1,5 +1,5 @@
 import type { CurvePoint, FigureConfig, PatternConfig } from '../types/pattern'
-import type { EditorConfig, EditorTile } from '../types/editor'
+import type { EditorConfig } from '../types/editor'
 import type { Action } from './actions'
 import { TILINGS } from '../tilings/index'
 import { DEFAULT_CONFIG } from './defaults'
@@ -136,18 +136,30 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       void _drop
       return { ...rest, tiling: { ...state.tiling, type: '' } }
     }
-    case 'SET_EDITOR_BOUNDARY_SHAPE':
-      return updateEditor(state, { boundaryShape: action.payload })
+    case 'SET_EDITOR_BOUNDARY_SHAPE': {
+      if (!state.editor) return state
+      // Boundary shape determines the orbit symmetry; placed/completed tiles
+      // computed under the previous orbit are no longer valid. Reset to the
+      // origin tile only.
+      const next: EditorConfig = {
+        ...state.editor,
+        boundaryShape: action.payload,
+        tiles: [createOriginTile(state.editor.originSides, state.editor.edgeLength)],
+      }
+      return { ...state, editor: next }
+    }
     case 'SET_EDITOR_BOUNDARY_SIZE':
       // Q9 Option B: only the boundary outline rescales — tiles untouched.
       return updateEditor(state, { boundarySize: action.payload })
     case 'SET_EDITOR_ORIGIN_SIDES': {
       if (!state.editor) return state
       const sides = Math.max(3, Math.floor(action.payload))
+      // Changing origin sides invalidates any placed/completed tiles built on
+      // the previous origin's edges. Reset to the new origin tile only.
       const next: EditorConfig = {
         ...state.editor,
         originSides: sides,
-        tiles: rebuildOriginTile(state.editor.tiles, sides, state.editor.edgeLength),
+        tiles: [createOriginTile(sides, state.editor.edgeLength)],
       }
       return { ...state, editor: next }
     }
@@ -160,16 +172,6 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
 function updateEditor(state: PatternConfig, patch: Partial<EditorConfig>): PatternConfig {
   if (!state.editor) return state
   return { ...state, editor: { ...state.editor, ...patch } }
-}
-
-/** Replace the origin tile in-place; preserve any user-placed / completed tiles. */
-function rebuildOriginTile(tiles: EditorTile[], originSides: number, edgeLength: number): EditorTile[] {
-  const fresh = createOriginTile(originSides, edgeLength)
-  const idx = tiles.findIndex(t => t.origin === 'origin')
-  if (idx === -1) return [fresh, ...tiles]
-  const next = tiles.slice()
-  next[idx] = fresh
-  return next
 }
 
 export { DEFAULT_CONFIG }

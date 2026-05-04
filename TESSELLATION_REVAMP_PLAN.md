@@ -103,11 +103,14 @@ still-relevant ones are kept.
 
 ## ⭐ Step 17 — User-editable tessellation editor (PRIMARY FOCUS)
 
-**Status (2026-05-03):** 17.0 + 17.1 shipped. Data model + read-only
-render are live (`e199aee`); the Lab is now editor-only after the
-standard tessellation Type dropdown was removed (`94f651c`). 17.2
-(Design-mode shell — boundary / size / origin pickers) is the next
-active sub-step.
+**Status (2026-05-04):** 17.0–17.2 shipped. 17.1 landed the data
+model + read-only render (`e199aee`); follow-up `94f651c` made the
+Lab editor-only. 17.2 added the Design-mode shell (`f9d6197`):
+`EDITOR_NEW` / `EDITOR_CLEAR` plus per-knob actions for boundary
+shape / size / origin sides, an auto-placed origin tile, and a
+non-interactive dashed boundary outline rendered under tiles.
+17.2 awaits visual sign-off; **17.3 (single-edge tile placement)
+is the next active sub-step.**
 
 ### Vision (refined from 2026-05-03 grill)
 
@@ -207,7 +210,7 @@ cross-references to the resolutions table.
 |----------|--------------------------------------------------|------|-----------|--------------|
 | **17.0** | Pre-implementation grill for Q9–Q15.             | S    | n/a       | ✅ all       |
 | **17.1** | `EditorConfig` data model + read-only render.    | S–M  | 1, 4, 6, 14 | ✅ Q13       |
-| **17.2** | Boundary picker + size slider + origin picker (Design mode shell). | M | 4, 5, 6 | Q9 |
+| **17.2** | Boundary picker + size slider + origin picker (Design mode shell). ✅ shipped `f9d6197`. | M | 4, 5, 6 | ✅ Q9 |
 | **17.3** | Click-to-highlight + viable-polygon picker (single edge, no propagation yet). | M | 7, 14, 14a | Q10 |
 | **17.4** | Orbit-symmetric propagation on placement.        | M    | 8         | —            |
 | **17.5** | Complete operation — manual vertex-pair selection + canonical tile-type hash. | M–L | 9, 10, 12 | Q11 |
@@ -243,11 +246,21 @@ cross-references to the resolutions table.
   Scale slider, Reset button, and Info panel from the Lab — the Lab is
   now editor-only.
 
-- **17.2 — Design mode shell.** Boundary shape dropdown, boundary size
-  slider, origin polygon picker. Auto-place origin at centre per
-  Decision 6. Resolve Q9 first — pick a boundary-resize behaviour
-  (likely "do nothing to existing tiles, just rescale lattice cell").
-  Acceptance: user can pick boundary + origin and see them rendered.
+- **17.2 — Design mode shell.** ✅ Shipped 2026-05-04 (`f9d6197`).
+  Three controls in the Editor section: 3 boundary-shape buttons
+  (Triangle / Square / Hexagon), boundary-size slider 80–500,
+  origin-sides slider 3–12. Q9 resolved as Option B — boundary
+  size only rescales the outline, tile sizes are untouched.
+  Origin polygon auto-places at the patch centre (rotation 0,
+  default edgeLength 100) per Decision 6. New reducer actions
+  (`EDITOR_NEW`, `EDITOR_CLEAR`, `SET_EDITOR_BOUNDARY_SHAPE`,
+  `SET_EDITOR_BOUNDARY_SIZE`, `SET_EDITOR_ORIGIN_SIDES`); knob
+  handlers no-op when no patch is active. Boundary outline
+  surfaces from `usePattern` via `PatternData.boundaryOutline`
+  and renders as a non-interactive dashed accent polygon under
+  tiles in `PatternSVG`. Helpers: `createDefaultEditorConfig`,
+  `createOriginTile`, `editorBoundaryVertices`, `BOUNDARY_SIDES`.
+  Awaiting visual sign-off.
 
 - **17.3 — Tile selection + viable-polygon picker (single edge).**
   Click a tile → highlight its edges. Show viable-polygon picker per
@@ -441,3 +454,16 @@ From the live tree:
   patch tessellations remain in Main mode (consistent with the plan's
   "Approach" section). Unused `SYMMETRY_GROUPS` import and
   `resetTessellationDefaults` helper dropped.
+- **2026-05-04** — Sub-step 17.2 shipped (`f9d6197`). Design-mode
+  shell added: `EDITOR_NEW` / `EDITOR_CLEAR` plus per-knob actions
+  (`SET_EDITOR_BOUNDARY_SHAPE`, `SET_EDITOR_BOUNDARY_SIZE`,
+  `SET_EDITOR_ORIGIN_SIDES`); new `createDefaultEditorConfig` /
+  `createOriginTile` helpers (Decision 6 auto-placement, rotation 0,
+  edgeLength 100); `editorBoundaryVertices` returns the boundary
+  outline; `usePattern.PatternData.boundaryOutline` carries it
+  through; `PatternSVG` renders a non-interactive dashed accent
+  polygon under tiles. Editor section in `TessellationLabMode`
+  swaps to design controls (3 shape buttons + boundary-size slider
+  + origin-sides slider + Clear) when a patch is active; otherwise
+  shows New patch / Show sample patch. Q9 resolved as Option B —
+  boundary size only rescales the outline. Awaiting visual sign-off.

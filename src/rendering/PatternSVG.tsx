@@ -1,6 +1,7 @@
 import { forwardRef } from 'react'
 import type { Polygon, Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
+import type { Vec2 } from '../utils/math'
 import type { ViewTransform } from '../hooks/usePanZoom'
 import type { PanZoomHandlers } from '../hooks/usePanZoom'
 import { TileLayer } from './TileLayer'
@@ -21,10 +22,12 @@ interface Props {
   cpActive: Record<string, number>
   outlineWidth?: number
   fillOnHover?: boolean
+  /** Editor-mode patch boundary (Step 17.2+). Drawn as a dashed outline below tiles. */
+  boundaryOutline?: Vec2[]
 }
 
 export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
-  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, fillOnHover },
+  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, fillOnHover, boundaryOutline },
   ref
 ) {
   const { x, y, zoom, rotation } = viewTransform
@@ -46,6 +49,7 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
       onPointerUp={handlers.onPointerUp}
     >
       <g transform={rotation ? `rotate(${rotation} ${cx} ${cy})` : undefined}>
+        {boundaryOutline && <BoundaryOutline vertices={boundaryOutline} />}
         <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} fillOnHover={fillOnHover} />
         {showLines && <StrandLayer segments={segments} config={config} />}
         <ControlPointLayer
@@ -59,3 +63,21 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
     </svg>
   )
 })
+
+/** Editor-mode patch boundary — dashed grey outline, non-interactive. */
+function BoundaryOutline({ vertices }: { vertices: Vec2[] }) {
+  if (vertices.length < 3) return null
+  const points = vertices.map(v => `${v.x},${v.y}`).join(' ')
+  return (
+    <polygon
+      points={points}
+      fill="none"
+      stroke="var(--accent)"
+      strokeOpacity={0.55}
+      strokeWidth={1.2}
+      strokeDasharray="4 4"
+      vectorEffect="non-scaling-stroke"
+      pointerEvents="none"
+    />
+  )
+}

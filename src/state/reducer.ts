@@ -1,7 +1,9 @@
 import type { CurvePoint, FigureConfig, PatternConfig } from '../types/pattern'
+import type { EditorConfig, EditorTile } from '../types/editor'
 import type { Action } from './actions'
 import { TILINGS } from '../tilings/index'
 import { DEFAULT_CONFIG } from './defaults'
+import { createDefaultEditorConfig, createOriginTile } from '../editor/createDefault'
 
 const FALLBACK_FIGURE: FigureConfig = { type: 'star', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
 
@@ -123,9 +125,51 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       return { ...state, smoothTransitions: action.payload }
     case 'LOAD_CONFIG':
       return action.payload
+    case 'EDITOR_NEW':
+      return {
+        ...state,
+        tiling: { ...state.tiling, type: 'editor' },
+        editor: createDefaultEditorConfig(),
+      }
+    case 'EDITOR_CLEAR': {
+      const { editor: _drop, ...rest } = state
+      void _drop
+      return { ...rest, tiling: { ...state.tiling, type: '' } }
+    }
+    case 'SET_EDITOR_BOUNDARY_SHAPE':
+      return updateEditor(state, { boundaryShape: action.payload })
+    case 'SET_EDITOR_BOUNDARY_SIZE':
+      // Q9 Option B: only the boundary outline rescales — tiles untouched.
+      return updateEditor(state, { boundarySize: action.payload })
+    case 'SET_EDITOR_ORIGIN_SIDES': {
+      if (!state.editor) return state
+      const sides = Math.max(3, Math.floor(action.payload))
+      const next: EditorConfig = {
+        ...state.editor,
+        originSides: sides,
+        tiles: rebuildOriginTile(state.editor.tiles, sides, state.editor.edgeLength),
+      }
+      return { ...state, editor: next }
+    }
     default:
       return state
   }
+}
+
+/** Patch `EditorConfig` if active; no-op otherwise. */
+function updateEditor(state: PatternConfig, patch: Partial<EditorConfig>): PatternConfig {
+  if (!state.editor) return state
+  return { ...state, editor: { ...state.editor, ...patch } }
+}
+
+/** Replace the origin tile in-place; preserve any user-placed / completed tiles. */
+function rebuildOriginTile(tiles: EditorTile[], originSides: number, edgeLength: number): EditorTile[] {
+  const fresh = createOriginTile(originSides, edgeLength)
+  const idx = tiles.findIndex(t => t.origin === 'origin')
+  if (idx === -1) return [fresh, ...tiles]
+  const next = tiles.slice()
+  next[idx] = fresh
+  return next
 }
 
 export { DEFAULT_CONFIG }

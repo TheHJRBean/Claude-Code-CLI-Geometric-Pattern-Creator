@@ -1,16 +1,19 @@
 import { useMemo } from 'react'
 import type { PatternConfig } from '../types/pattern'
 import type { Polygon, Segment } from '../types/geometry'
+import type { Vec2 } from '../utils/math'
 import type { ViewTransform } from './usePanZoom'
 import { TILINGS } from '../tilings/index'
 import { generateTiling } from '../tilings/archimedean'
 import { generateRosettePatch } from '../tilings/rosettePatch'
-import { editorTilesToPolygons } from '../editor/buildEditorPolygons'
+import { editorBoundaryVertices, editorTilesToPolygons } from '../editor/buildEditorPolygons'
 import { runPIC } from '../pic/index'
 
 export interface PatternData {
   polygons: Polygon[]
   segments: Segment[]
+  /** Editor-mode patch boundary outline (Step 17.2+). Undefined elsewhere. */
+  boundaryOutline?: Vec2[]
 }
 
 export function usePattern(
@@ -43,7 +46,8 @@ export function usePattern(
     if (config.tiling.type === 'editor' && config.editor) {
       const polygons = editorTilesToPolygons(config.editor)
       const segments = runPIC(polygons, config)
-      return { polygons, segments }
+      const boundaryOutline = editorBoundaryVertices(config.editor)
+      return { polygons, segments, boundaryOutline }
     }
 
     const def = TILINGS[config.tiling.type]

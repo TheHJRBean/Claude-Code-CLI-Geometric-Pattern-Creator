@@ -19,9 +19,11 @@ interface Props {
   viableSides: number[]
   onPick: (sides: number) => void
   onClose: () => void
+  /** Optional — when present, the popover offers "Delete tile" for the owning tile. */
+  onDeleteOwningTile?: () => void
 }
 
-export function EditorPickerOverlay({ position, viableSides, onPick, onClose }: Props) {
+export function EditorPickerOverlay({ position, viableSides, onPick, onClose, onDeleteOwningTile }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -61,6 +63,7 @@ export function EditorPickerOverlay({ position, viableSides, onPick, onClose }: 
           No polygon fits here.
         </span>
       ) : (
+        <>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 36px)', gap: 4 }}>
           {PICKER_SIDES.map(n => {
             const enabled = viableSet.has(n)
@@ -92,6 +95,29 @@ export function EditorPickerOverlay({ position, viableSides, onPick, onClose }: 
             )
           })}
         </div>
+        </>
+      )}
+      {onDeleteOwningTile && (
+        <button
+          onClick={onDeleteOwningTile}
+          style={{
+            marginTop: empty ? 0 : 8,
+            display: 'block',
+            width: '100%',
+            padding: '5px 8px',
+            fontFamily: "'Cinzel', Georgia, serif",
+            fontSize: 9,
+            fontWeight: 600,
+            letterSpacing: '0.10em',
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+            border: '1px solid #a85050',
+            background: 'transparent',
+            color: '#a85050',
+          }}
+        >
+          Delete tile
+        </button>
       )}
     </div>
   )

@@ -95,6 +95,9 @@ export function TessellationLabMode({
     if (!selectedEdge) return
     dispatch({ type: 'EDITOR_PLACE_TILE_ON_EDGE', payload: { ...selectedEdge, sides } })
   }
+  const handleDeleteTile = (tileId: string) => {
+    dispatch({ type: 'EDITOR_DELETE_TILE', payload: { tileId } })
+  }
 
   // ── Library ────────────────────────────────────────────
   const [library, setLibrary] = useState<SavedTessellation[]>(() => listSavedTessellations())
@@ -608,6 +611,7 @@ export function TessellationLabMode({
         selectedEdge={selectedEdge}
         onSelectEdge={setSelectedEdge}
         onPlaceTile={handlePlaceTile}
+        onDeleteTile={handleDeleteTile}
       />
     </div>
   )

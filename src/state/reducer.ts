@@ -175,6 +175,17 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       const tile = placeRegularNGonOnEdge(sides, state.editor.edgeLength, edge.p1, edge.p2, edge.sourceCenter, id)
       return { ...state, editor: { ...state.editor, tiles: [...state.editor.tiles, tile] } }
     }
+    case 'EDITOR_DELETE_TILE': {
+      if (!state.editor) return state
+      const { tileId } = action.payload
+      const target = state.editor.tiles.find(t => t.id === tileId)
+      // The auto-placed origin can't be deleted — it anchors the patch.
+      if (!target || target.origin === 'origin') return state
+      return {
+        ...state,
+        editor: { ...state.editor, tiles: state.editor.tiles.filter(t => t.id !== tileId) },
+      }
+    }
     default:
       return state
   }

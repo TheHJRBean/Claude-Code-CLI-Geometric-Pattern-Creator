@@ -30,11 +30,12 @@ interface Props {
   selectedEdge?: SelectedEdge | null
   onSelectEdge?: (edge: SelectedEdge | null) => void
   onPlaceTile?: (sides: number) => void
+  onDeleteTile?: (tileId: string) => void
 }
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, fillOnHover, selectedEdge, onSelectEdge, onPlaceTile }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, fillOnHover, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -139,12 +140,17 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         boundaryOutline={boundaryOutline}
         editorOverlay={editorOverlay}
       />
-      {pickerScreenPos && onPlaceTile && onSelectEdge && (
+      {pickerScreenPos && onPlaceTile && onSelectEdge && selectedEdgeData && (
         <EditorPickerOverlay
           position={pickerScreenPos}
           viableSides={pickerViable}
           onPick={n => { onPlaceTile(n); onSelectEdge(null) }}
           onClose={() => onSelectEdge(null)}
+          onDeleteOwningTile={
+            onDeleteTile && isDeletableTile(config.editor, selectedEdgeData.tileId)
+              ? () => { onDeleteTile(selectedEdgeData.tileId); onSelectEdge(null) }
+              : undefined
+          }
         />
       )}
       <button
@@ -170,6 +176,13 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       <RotationDial rotation={viewTransform.rotation} onChange={onRotation} />
     </div>
   )
+}
+
+/** True iff the tile is non-origin (Decision 6 — origin can't be deleted). */
+function isDeletableTile(editor: PatternConfig['editor'], tileId: string): boolean {
+  if (!editor) return false
+  const t = editor.tiles.find(t => t.id === tileId)
+  return !!t && t.origin !== 'origin'
 }
 
 /**

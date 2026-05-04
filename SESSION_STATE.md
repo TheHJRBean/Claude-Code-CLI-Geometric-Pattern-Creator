@@ -25,15 +25,33 @@ follow-up `0aff7fb` resets placed tiles when shape / origin sides
 change. 17.1 shipped 2026-05-03 (`e199aee`) — data model +
 read-only render. `94f651c` made Lab editor-only.
 
-**Next action:** Visually verify 17.3 in the browser (click each
-edge of the origin; pick triangle/square/hex/etc.; confirm viable
-filter; confirm Escape clears the picker; confirm pan still works
-when starting from blank canvas area). Then begin sub-step **17.4 —
-Orbit-symmetric propagation on placement**. Compute the boundary's
-rotation+reflection group once at boundary-set time; placing a tile
-on an edge places it on every orbit-equivalent edge with the same
-overlap check. Acceptance: pick triangle on square origin's top
-edge → triangles on all 4 edges.
+**Next action:** **Sub-step 17.4 — Orbit-symmetric propagation on
+placement.** Compute the boundary's rotation+reflection group once
+at boundary-set time; placing a tile on an edge places it on every
+orbit-equivalent edge with the same overlap check. Acceptance: pick
+triangle on square origin's top edge → triangles on all 4 edges.
+
+**17.3 visual review (2026-05-04):** user confirmed it works well
+overall. Two follow-ups landed in the same session:
+1. Picker icon contrast — buttons were too dark; switched to
+   accent-bordered + accent-coloured icons (`fix(picker): brighten
+   icons` follow-up commit). Look for further refinement if still
+   under-contrast in light theme.
+2. Overlap detection — angle-sum at shared endpoints missed
+   non-adjacent tile overlaps for large candidate n-gons (e.g.,
+   placing a 12-gon on a small square's edge wrapping past
+   neighbours). `isPlacementViable` now also runs a centre-in-polygon
+   check both ways via `pointInPolygon` against `regularPolygonVertices`
+   of the candidate. Should catch the cases the user saw.
+
+**17.3 deferred:** symmetry conservation is *not* enforced on
+single-edge placements — the user can still build asymmetric
+patches. Captured as `/idea`
+(`project_editor_symmetry_enforcement_idea.md`, MEMORY.md updated).
+Decision: defer until 17.4 lands the orbit, then optionally add a
+"Strict symmetry" checkbox that *refuses* asymmetric placements
+(distinct from 17.4's default which *propagates* placements
+across the orbit).
 
 **To rebuild context in a fresh session, read:**
 1. This file (status anchor).
@@ -68,7 +86,7 @@ Plan steps live in `TESSELLATION_REVAMP_PLAN.md`. One-liner status:
 - [done] Steps 9–11 — Lab polish, `FigureControls` lift, Lab Strands panel
 - [archived 2026-05-03] Steps 12–13 — mandala strand renderer, composition strand renderer + match-up
 - [done] Step 14 — Lab-local library (`state/customTessellations.ts`)
-- [in progress] **Step 17** — user-editable tessellation editor. 17.0–17.3 done (17.3 awaiting visual sign-off); **17.4 next**.
+- [in progress] **Step 17** — user-editable tessellation editor. 17.0–17.3 done (17.3 signed off + two follow-ups); **17.4 next**.
 - [parked] Steps 15, 16, 18 — k-uniform generator, quasi-periodic, Girih substitution
 
 ## Live architecture (post-cleanup, post-17.3)
@@ -146,5 +164,5 @@ layer rule, hard-frame fallback, verified-pairs allow-list, etc.) are
 moot now those features are archived.
 
 ## Blockers
-None. 17.3 awaits visual sign-off; once confirmed, 17.4 (orbit
-propagation) is the next active task.
+None. 17.3 visually signed off (with two follow-ups that shipped
+in the same commit). 17.4 (orbit propagation) is queued.

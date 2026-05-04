@@ -74,11 +74,11 @@ export function EditorPickerOverlay({ position, viableSides, onPick, onClose }: 
                   width: 36, height: 36,
                   display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                   padding: 0,
-                  border: '1px solid var(--border-subtle)',
-                  background: 'transparent',
-                  color: enabled ? 'var(--text)' : 'var(--text-muted)',
+                  border: `1px solid ${enabled ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                  background: enabled ? 'var(--accent-bg, rgba(255,255,255,0.06))' : 'transparent',
+                  color: enabled ? 'var(--accent, #e6c97a)' : 'var(--text-muted)',
                   cursor: enabled ? 'pointer' : 'not-allowed',
-                  opacity: enabled ? 1 : 0.4,
+                  opacity: enabled ? 1 : 0.35,
                 }}
               >
                 <NgonIcon sides={n} size={18} />

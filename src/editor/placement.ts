@@ -1,6 +1,7 @@
 import type { Vec2 } from '../utils/math'
-import { pointsEqual } from '../utils/math'
+import { pointInPolygon, pointsEqual } from '../utils/math'
 import type { EditorConfig, EditorRegularTile, EditorTile } from '../types/editor'
+import { regularPolygonVertices } from './regularPolygon'
 import { EDITOR_EPS, tileVertices, type ExposedEdge } from './exposedEdges'
 
 /**
@@ -68,7 +69,29 @@ export function isPlacementViable(
   if (sides < 3) return false
 
   const newAngle = ((sides - 2) * Math.PI) / sides
-  return checkAngleSum(edge.p1, newAngle, editor.tiles) && checkAngleSum(edge.p2, newAngle, editor.tiles)
+  if (!checkAngleSum(edge.p1, newAngle, editor.tiles)) return false
+  if (!checkAngleSum(edge.p2, newAngle, editor.tiles)) return false
+
+  // Stronger overlap guard for cases the angle-sum test misses (large
+  // candidate n-gons that wrap past non-adjacent existing tiles, where no
+  // vertex coincides with the new tile). Build the candidate's vertices and
+  // check it doesn't contain any existing centre, and no existing tile
+  // contains the candidate's centre.
+  const candidate = placeRegularNGonOnEdge(sides, editor.edgeLength, edge.p1, edge.p2, edge.sourceCenter, '__probe__')
+  const candidateVerts = regularPolygonVertices(candidate.sides, candidate.center, candidate.edgeLength, candidate.rotation)
+  for (const tile of editor.tiles) {
+    const tv = tileVertices(tile)
+    const tc = tile.kind === 'regular' ? tile.center : avgCenter(tv)
+    if (pointInPolygon(tc, candidateVerts)) return false
+    if (pointInPolygon(candidate.center, tv)) return false
+  }
+  return true
+}
+
+function avgCenter(verts: Vec2[]): Vec2 {
+  let x = 0, y = 0
+  for (const v of verts) { x += v.x; y += v.y }
+  return { x: x / verts.length, y: y / verts.length }
 }
 
 function checkAngleSum(p: Vec2, newAngle: number, existing: EditorTile[]): boolean {

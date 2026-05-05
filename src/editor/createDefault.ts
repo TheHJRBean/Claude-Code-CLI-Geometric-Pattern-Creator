@@ -10,7 +10,19 @@ import type { BoundaryShape, EditorConfig, EditorRegularTile } from '../types/ed
  * doesn't touch tile sizes).
  */
 export const DEFAULT_BOUNDARY_SHAPE: BoundaryShape = 'square'
-export const DEFAULT_BOUNDARY_SIZE = 200
+/**
+ * Per-shape default boundary edge length, picked so triangle, square and
+ * hexagon all read as the same visual "size" on canvas. Hex feels largest
+ * for a given edge (width across corners = 2L), so the lower-fold shapes
+ * need bigger edges to match: triangle's altitude is ~0.87L and a square's
+ * side is L, while a hex's width is 2L.
+ */
+export const DEFAULT_BOUNDARY_SIZE_BY_SHAPE: Record<BoundaryShape, number> = {
+  triangle: 460,
+  square: 400,
+  hexagon: 200,
+}
+export const DEFAULT_BOUNDARY_SIZE = DEFAULT_BOUNDARY_SIZE_BY_SHAPE[DEFAULT_BOUNDARY_SHAPE]
 export const DEFAULT_ORIGIN_SIDES = 4
 export const DEFAULT_EDGE_LENGTH = 100
 

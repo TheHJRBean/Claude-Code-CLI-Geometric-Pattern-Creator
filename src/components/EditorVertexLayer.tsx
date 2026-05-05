@@ -17,6 +17,8 @@ interface Props {
 }
 
 const DOT_RADIUS = 5
+const SELECTED_RADIUS = 9
+const SELECTED_HALO_RADIUS = 16
 
 export function EditorVertexLayer({ vertices, firstPick, onPickVertex }: Props) {
   return (
@@ -27,14 +29,55 @@ export function EditorVertexLayer({ vertices, firstPick, onPickVertex }: Props) 
           && Math.abs(firstPick.y - v.p.y) < EDITOR_EPS
         return (
           <g key={`${v.tileId}#${v.vertexIndex}#${i}`}>
-            {/* Visible dot. */}
+            {isFirst && (
+              <>
+                {/* Outer pulsing halo so the picked vertex reads instantly. */}
+                <circle
+                  cx={v.p.x}
+                  cy={v.p.y}
+                  r={SELECTED_HALO_RADIUS}
+                  fill="var(--accent)"
+                  fillOpacity={0.18}
+                  stroke="var(--accent)"
+                  strokeOpacity={0.55}
+                  strokeWidth={1.4}
+                  vectorEffect="non-scaling-stroke"
+                  pointerEvents="none"
+                >
+                  <animate
+                    attributeName="r"
+                    values={`${SELECTED_HALO_RADIUS};${SELECTED_HALO_RADIUS + 4};${SELECTED_HALO_RADIUS}`}
+                    dur="1.6s"
+                    repeatCount="indefinite"
+                  />
+                  <animate
+                    attributeName="fill-opacity"
+                    values="0.22;0.08;0.22"
+                    dur="1.6s"
+                    repeatCount="indefinite"
+                  />
+                </circle>
+                {/* White inner ring for max contrast against any tile fill. */}
+                <circle
+                  cx={v.p.x}
+                  cy={v.p.y}
+                  r={SELECTED_RADIUS + 2}
+                  fill="none"
+                  stroke="var(--bg)"
+                  strokeWidth={2.4}
+                  vectorEffect="non-scaling-stroke"
+                  pointerEvents="none"
+                />
+              </>
+            )}
+            {/* Visible dot — selected state is bigger + solid accent. */}
             <circle
               cx={v.p.x}
               cy={v.p.y}
-              r={DOT_RADIUS}
+              r={isFirst ? SELECTED_RADIUS : DOT_RADIUS}
               fill={isFirst ? 'var(--accent)' : 'var(--bg)'}
               stroke="var(--accent)"
-              strokeWidth={1.8}
+              strokeWidth={isFirst ? 2.4 : 1.8}
               vectorEffect="non-scaling-stroke"
               pointerEvents="none"
             />

@@ -7,9 +7,11 @@ import { usePanZoom, type ViewTransform } from '../hooks/usePanZoom'
 import { PatternSVG } from '../rendering/PatternSVG'
 import { RotationDial } from './RotationDial'
 import { computeExposedEdges } from '../editor/exposedEdges'
+import { computeOuterBoundary } from '../editor/boundary'
 import { viableSidesForEdge } from '../editor/placement'
 import { EditorEdgeLayer } from './EditorEdgeLayer'
 import { EditorPickerOverlay } from './EditorPickerOverlay'
+import { EditorVertexLayer } from './EditorVertexLayer'
 
 export interface SelectedEdge {
   tileId: string
@@ -31,11 +33,15 @@ interface Props {
   onSelectEdge?: (edge: SelectedEdge | null) => void
   onPlaceTile?: (sides: number) => void
   onDeleteTile?: (tileId: string) => void
+  /** Step 17.5 — Complete mode: 'place' shows the edge picker, 'complete' shows the vertex picker. */
+  editorMode?: 'place' | 'complete'
+  firstVertexPick?: Vec2 | null
+  onPickVertex?: (p: Vec2) => void
 }
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, fillOnHover, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, fillOnHover, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, editorMode = 'place', firstVertexPick, onPickVertex }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -103,17 +109,36 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     e => e.tileId === selectedEdge.tileId && e.edgeIndex === selectedEdge.edgeIndex,
   )
 
-  const editorOverlay = editorActive && onSelectEdge ? (
-    <EditorEdgeLayer
-      edges={exposedEdges}
-      selected={selectedEdge ?? null}
-      onSelect={onSelectEdge}
-      hovered={hoveredEdge}
-      onHover={setHoveredEdge}
-    />
-  ) : null
+  // Step 17.5 — outer boundary cycle for the vertex picker, only computed
+  // when complete mode is active to keep the place-mode hot path cheap.
+  const boundaryCycle = useMemo(
+    () => editorActive && config.editor && editorMode === 'complete'
+      ? computeOuterBoundary(config.editor)
+      : [],
+    [editorActive, config.editor, editorMode],
+  )
 
-  const pickerScreenPos = selectedEdgeData
+  const editorOverlay = editorActive
+    ? editorMode === 'complete' && onPickVertex
+      ? (
+        <EditorVertexLayer
+          vertices={boundaryCycle}
+          firstPick={firstVertexPick ?? null}
+          onPickVertex={onPickVertex}
+        />
+      )
+      : onSelectEdge ? (
+        <EditorEdgeLayer
+          edges={exposedEdges}
+          selected={selectedEdge ?? null}
+          onSelect={onSelectEdge}
+          hovered={hoveredEdge}
+          onHover={setHoveredEdge}
+        />
+      ) : null
+    : null
+
+  const pickerScreenPos = selectedEdgeData && editorMode === 'place'
     ? worldToScreen(selectedEdgeData.midpoint, viewTransform, size.width, size.height)
     : null
   const pickerViable = selectedEdgeData && config.editor

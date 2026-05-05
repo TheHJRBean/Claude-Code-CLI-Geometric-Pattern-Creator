@@ -21,7 +21,6 @@ interface Props {
   cpVisible: Record<string, boolean>
   cpActive: Record<string, number>
   outlineWidth?: number
-  fillOnHover?: boolean
   /**
    * Editor-mode patch boundary outlines (Step 17.2+). Drawn as dashed
    * outlines below tiles. One in design mode; one per lattice stamp in
@@ -33,7 +32,7 @@ interface Props {
 }
 
 export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
-  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, fillOnHover, boundaryOutlines, editorOverlay },
+  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, editorOverlay },
   ref
 ) {
   const { x, y, zoom, rotation } = viewTransform
@@ -58,7 +57,7 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
         {boundaryOutlines && boundaryOutlines.map((outline, i) => (
           <BoundaryOutline key={i} vertices={outline} />
         ))}
-        <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} fillOnHover={fillOnHover} />
+        <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
         {editorOverlay}
         {showLines && <StrandLayer segments={segments} config={config} />}
         <ControlPointLayer

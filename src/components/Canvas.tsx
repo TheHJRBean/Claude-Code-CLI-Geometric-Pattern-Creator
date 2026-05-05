@@ -27,7 +27,6 @@ interface Props {
   cpVisible: Record<string, boolean>
   cpActive: Record<string, number>
   outlineWidth?: number
-  fillOnHover?: boolean
   /** Step 17.3 — editor-mode interaction handlers. Active only when an editor patch is loaded. */
   selectedEdge?: SelectedEdge | null
   onSelectEdge?: (edge: SelectedEdge | null) => void
@@ -45,7 +44,7 @@ interface Props {
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, fillOnHover, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, editorMode = 'place', firstVertexPick, onPickVertex, editorStrandMode = false, showBoundaryLattice = false }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, editorMode = 'place', firstVertexPick, onPickVertex, editorStrandMode = false, showBoundaryLattice = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -167,7 +166,6 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         cpVisible={cpVisible}
         cpActive={cpActive}
         outlineWidth={outlineWidth}
-        fillOnHover={fillOnHover}
         boundaryOutlines={boundaryOutlines}
         editorOverlay={editorOverlay}
       />

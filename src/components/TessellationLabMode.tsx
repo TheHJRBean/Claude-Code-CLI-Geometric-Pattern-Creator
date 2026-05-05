@@ -40,8 +40,6 @@ interface Props {
   onToggleShowStrands: (next: boolean) => void
   outlineWidth: number
   onSetOutlineWidth: (next: number) => void
-  fillOnHover: boolean
-  onToggleFillOnHover: (next: boolean) => void
 }
 
 function SunIcon() {
@@ -77,8 +75,6 @@ export function TessellationLabMode({
   onToggleShowStrands,
   outlineWidth,
   onSetOutlineWidth,
-  fillOnHover,
-  onToggleFillOnHover,
 }: Props) {
   const { theme, toggleTheme } = useTheme()
   const svgRef = useRef<SVGSVGElement>(null)
@@ -662,26 +658,6 @@ export function TessellationLabMode({
               value={outlineWidth}
               onChange={e => onSetOutlineWidth(Number(e.target.value))}
             />
-
-            <label style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              marginTop: 14,
-              cursor: 'pointer',
-              fontFamily: "'EB Garamond', Georgia, serif",
-              fontSize: 13.5,
-              color: fillOnHover ? 'var(--text)' : 'var(--text-muted)',
-              transition: 'color 0.15s',
-            }}>
-              <input
-                type="checkbox"
-                className="pattern-checkbox"
-                checked={fillOnHover}
-                onChange={e => onToggleFillOnHover(e.target.checked)}
-              />
-              Fill tile on hover
-            </label>
           </div>
         </div>
       </div>
@@ -698,7 +674,6 @@ export function TessellationLabMode({
         cpVisible={cpVisible}
         cpActive={cpActive}
         outlineWidth={outlineWidth}
-        fillOnHover={fillOnHover}
         selectedEdge={selectedEdge}
         onSelectEdge={setSelectedEdge}
         onPlaceTile={handlePlaceTile}

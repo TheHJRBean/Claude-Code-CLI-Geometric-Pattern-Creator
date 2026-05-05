@@ -23,6 +23,16 @@ export const DEFAULT_BOUNDARY_SIZE_BY_SHAPE: Record<BoundaryShape, number> = {
   hexagon: 200,
 }
 export const DEFAULT_BOUNDARY_SIZE = DEFAULT_BOUNDARY_SIZE_BY_SHAPE[DEFAULT_BOUNDARY_SHAPE]
+/**
+ * Slider max per shape. Triangle gets the most headroom (gap edge altitude is
+ * the limiting factor — only 0.87× edge), square gets a moderate bump, hex
+ * stays tight (corner-width = 2L already feels large).
+ */
+export const BOUNDARY_SIZE_MAX_BY_SHAPE: Record<BoundaryShape, number> = {
+  triangle: 1600,
+  square: 1000,
+  hexagon: 800,
+}
 export const DEFAULT_ORIGIN_SIDES = 4
 export const DEFAULT_EDGE_LENGTH = 100
 

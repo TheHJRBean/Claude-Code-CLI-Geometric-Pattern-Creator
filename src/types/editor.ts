@@ -52,6 +52,23 @@ export interface EditorIrregularTile {
 
 export type EditorTile = EditorRegularTile | EditorIrregularTile
 
+/**
+ * Step 17.7 — auto-complete-on-flip settings (Decision 11).
+ *
+ * `until-convex` repeatedly fills concave dents on the patch's outer boundary
+ * until the boundary cycle is convex. `match-boundary` does the same and then
+ * resizes `boundarySize` so the boundary polygon hugs the patch's convex hull.
+ *
+ * Auto-completed tiles persist as first-class `'completed'` tiles per Decision
+ * 16 — they are editable on flip-back to Design.
+ */
+export type AutoCompleteFlavor = 'until-convex' | 'match-boundary'
+
+export interface EditorAutoCompleteSettings {
+  enabled: boolean
+  flavor: AutoCompleteFlavor
+}
+
 export interface EditorConfig {
   /** Inner schema version. Bumped independently of the outer storage envelope. */
   version: 1
@@ -69,5 +86,10 @@ export interface EditorConfig {
    * for a triangle point-up ↔ point-down. Optional for back-compat.
    */
   alternateBoundary?: boolean
+  /**
+   * Auto-complete-on-flip settings (Step 17.7). Optional for back-compat;
+   * absent / `enabled: false` means flipping to Strand never mutates tiles.
+   */
+  autoComplete?: EditorAutoCompleteSettings
   tiles: EditorTile[]
 }

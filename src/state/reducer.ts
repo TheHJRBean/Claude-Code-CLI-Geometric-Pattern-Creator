@@ -7,6 +7,7 @@ import { createDefaultEditorConfig, createOriginTile, DEFAULT_BOUNDARY_SIZE_BY_S
 import { computeExposedEdges } from '../editor/exposedEdges'
 import { isPlacementViable, placeRegularNGonOnEdge } from '../editor/placement'
 import { completeGap } from '../editor/complete'
+import { autoCompletePatch } from '../editor/autoComplete'
 import { seedFiguresForEditor } from '../editor/tileTypes'
 
 const FALLBACK_FIGURE: FigureConfig = { type: 'star', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
@@ -205,6 +206,25 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       const tile = completeGap(state.editor, pA, pB, id)
       if (!tile) return state
       return seedFigures({ ...state, editor: { ...state.editor, tiles: [...state.editor.tiles, tile] } })
+    }
+    case 'SET_EDITOR_AUTO_COMPLETE_ENABLED': {
+      if (!state.editor) return state
+      const prev = state.editor.autoComplete ?? { enabled: false, flavor: 'until-convex' as const }
+      return updateEditor(state, { autoComplete: { ...prev, enabled: action.payload } })
+    }
+    case 'SET_EDITOR_AUTO_COMPLETE_FLAVOR': {
+      if (!state.editor) return state
+      const prev = state.editor.autoComplete ?? { enabled: false, flavor: 'until-convex' as const }
+      return updateEditor(state, { autoComplete: { ...prev, flavor: action.payload } })
+    }
+    case 'EDITOR_RUN_AUTO_COMPLETE': {
+      if (!state.editor) return state
+      const flavor = state.editor.autoComplete?.flavor ?? 'until-convex'
+      const { tiles, boundarySize } = autoCompletePatch(state.editor, flavor)
+      // Idempotent on already-convex patches: reference-equal tiles + same
+      // boundary size → no state churn, no figure re-seed.
+      if (tiles === state.editor.tiles && boundarySize === state.editor.boundarySize) return state
+      return seedFigures({ ...state, editor: { ...state.editor, tiles, boundarySize } })
     }
     default:
       return state

@@ -4,7 +4,30 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
-**Last action:** 2026-05-05 — sub-step **17.6** code-complete in two
+**Last action:** 2026-05-05 — sub-step **17.7** code-complete:
+auto-complete on flip (Decision 11). New `editor/autoComplete.ts`
+exports `autoCompletePatch(editor, flavor)` and `fitBoundarySize`.
+`until-convex` walks the patch's outer cycle (CCW, via existing
+`computeOuterBoundary`), finds the first reflex vertex (cross of
+incoming × outgoing edges < 0), and dispatches `completeGap` on the
+prev/next neighbours; loops up to 64 passes or until convex.
+`match-boundary` runs `until-convex` first, then resizes
+`boundarySize` to the smallest regular n-gon containing all tile
+vertices (apothem = max projection of tile vertices onto each
+boundary-edge outward normal; edge length = 2·apothem·tan(π/n)).
+`EditorConfig` gained an optional `autoComplete?: { enabled, flavor }`
+field; new reducer actions `SET_EDITOR_AUTO_COMPLETE_ENABLED`,
+`SET_EDITOR_AUTO_COMPLETE_FLAVOR`, `EDITOR_RUN_AUTO_COMPLETE`. The
+last is idempotent on already-convex patches (and on match-boundary
+re-fits to the same size). `EditorDesignControls` shows an
+"Auto-complete on entering Strand editor" checkbox + a two-button
+flavour selector when checked. `TessellationLabMode` dispatches
+`EDITOR_RUN_AUTO_COMPLETE` on the Design→Strand transition when the
+opt-in is on. Auto-completed tiles persist as first-class
+`'completed'` polygons (Decision 16) so flipping back to Design
+leaves them editable / deletable.
+
+Earlier: 2026-05-05 — sub-step **17.6** code-complete in two
 parts.
 
 **17.6a (`7056a9f`)** — canonical-signature `tileTypeId` for irregular
@@ -99,7 +122,25 @@ follow-up `0aff7fb` resets placed tiles when shape / origin sides
 change. 17.1 shipped 2026-05-03 (`e199aee`) — data model +
 read-only render. `94f651c` made Lab editor-only.
 
-**Next action:** Visual sign-off on 17.6. Probes:
+**Next action:** Visual sign-off on 17.7. Probes:
+1. New square patch (origin only, no placements) → tick auto-complete
+   → "Until convex" → flip to Strand. Patch should be unchanged
+   (already convex). Flip back, switch to Match boundary, flip again
+   → boundary should snap down to hug the origin tile.
+2. Square patch + 2 placed tiles on adjacent edges (creates an L-
+   shaped reflex on the corner) → tick auto-complete + Until convex
+   → flip → corner gap fills with an irregular completed tile. Flip
+   back to Design → the auto-fill is editable / deletable like a
+   manually-completed tile.
+3. Same patch, switch flavour to Match boundary → flip → corner fills
+   AND boundary resizes to wrap the now-convex hull.
+4. Toggle auto-complete off → flip Design→Strand → tiles unchanged
+   (no auto-fill).
+5. Idempotency probe: opt-in, flip Design→Strand, flip back, flip
+   forward again — second flip is a no-op (no extra tiles, boundary
+   stable on match-boundary).
+
+After 17.7 sign-off:
 1. New square patch + a few placed tiles → flip to Strand editor →
    patch should appear stamped on a square grid covering the viewport.
    Strand panel cards drive global strand tuning.
@@ -193,7 +234,7 @@ Plan steps live in `TESSELLATION_REVAMP_PLAN.md`. One-liner status:
 - [done] Steps 9–11 — Lab polish, `FigureControls` lift, Lab Strands panel
 - [archived 2026-05-03] Steps 12–13 — mandala strand renderer, composition strand renderer + match-up
 - [done] Step 14 — Lab-local library (`state/customTessellations.ts`)
-- [in progress] **Step 17** — user-editable tessellation editor. 17.0–17.3 done (17.3 signed off + two follow-ups); **17.4 next**.
+- [in progress] **Step 17** — user-editable tessellation editor. 17.0–17.3, 17.5–17.7 done (17.4 archived). **17.8 (persistence) next**.
 - [parked] Steps 15, 16, 18 — k-uniform generator, quasi-periodic, Girih substitution
 
 ## Live architecture (post-cleanup, post-17.3)

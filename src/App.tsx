@@ -30,16 +30,14 @@ export default function App() {
   const [labConfig, labDispatch] = useReducer(reducer, initialLab.config ?? LAB_DEFAULT_CONFIG)
   const [labShowStrands, setLabShowStrands] = useState(initialLab.showStrands)
   const [labOutlineWidth, setLabOutlineWidth] = useState(initialLab.outlineWidth)
-  const [labFillOnHover, setLabFillOnHover] = useState(initialLab.fillOnHover)
 
   useEffect(() => {
     saveLabState({
       config: labConfig,
       showStrands: labShowStrands,
       outlineWidth: labOutlineWidth,
-      fillOnHover: labFillOnHover,
     })
-  }, [labConfig, labShowStrands, labOutlineWidth, labFillOnHover])
+  }, [labConfig, labShowStrands, labOutlineWidth])
   const [showTileLayer, setShowTileLayer] = useState(false)
   const [showLines, setShowLines] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -78,8 +76,6 @@ export default function App() {
         onToggleShowStrands={setLabShowStrands}
         outlineWidth={labOutlineWidth}
         onSetOutlineWidth={setLabOutlineWidth}
-        fillOnHover={labFillOnHover}
-        onToggleFillOnHover={setLabFillOnHover}
       />
     )
   }

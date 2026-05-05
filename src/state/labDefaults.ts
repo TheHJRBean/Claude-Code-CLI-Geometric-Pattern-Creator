@@ -22,14 +22,12 @@ export interface LabPersistedState {
   config: PatternConfig
   showStrands: boolean
   outlineWidth: number
-  fillOnHover: boolean
 }
 
 export const LAB_DEFAULT_PERSISTED: LabPersistedState = {
   config: LAB_DEFAULT_CONFIG,
   showStrands: false,
   outlineWidth: 0.8,
-  fillOnHover: false,
 }
 
 export function loadLabState(): LabPersistedState {
@@ -56,7 +54,6 @@ export function loadLabState(): LabPersistedState {
       config,
       showStrands: typeof parsed.showStrands === 'boolean' ? parsed.showStrands : LAB_DEFAULT_PERSISTED.showStrands,
       outlineWidth: typeof parsed.outlineWidth === 'number' ? parsed.outlineWidth : LAB_DEFAULT_PERSISTED.outlineWidth,
-      fillOnHover: typeof parsed.fillOnHover === 'boolean' ? parsed.fillOnHover : LAB_DEFAULT_PERSISTED.fillOnHover,
     }
   } catch {
     return LAB_DEFAULT_PERSISTED

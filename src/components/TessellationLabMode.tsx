@@ -107,6 +107,8 @@ export function TessellationLabMode({
   // Step 17.6 — Design vs Strand-editor mode flip (Decision 15). Local UI
   // state — not persisted; figures persist independently per Q15.
   const [editorPhase, setEditorPhase] = useState<'design' | 'strand'>('design')
+  // Step 17.6 — strand mode: show the patch boundary stamped on the lattice.
+  const [showBoundaryLattice, setShowBoundaryLattice] = useState(false)
   // Drop strand mode if the patch goes away.
   useEffect(() => {
     if (config.tiling.type !== 'editor' || !config.editor) setEditorPhase('design')
@@ -301,6 +303,8 @@ export function TessellationLabMode({
                     setFirstVertexPick(null)
                   }
                 }}
+                showBoundaryLattice={showBoundaryLattice}
+                onToggleShowBoundaryLattice={setShowBoundaryLattice}
               />
             ) : (
               <>
@@ -682,6 +686,7 @@ export function TessellationLabMode({
         firstVertexPick={firstVertexPick}
         onPickVertex={handlePickVertex}
         editorStrandMode={editorPhase === 'strand'}
+        showBoundaryLattice={showBoundaryLattice}
       />
     </div>
   )
@@ -793,6 +798,8 @@ interface EditorDesignControlsProps {
   onCancelComplete: () => void
   editorPhase: 'design' | 'strand'
   onSetEditorPhase: (p: 'design' | 'strand') => void
+  showBoundaryLattice: boolean
+  onToggleShowBoundaryLattice: (next: boolean) => void
 }
 
 function EditorDesignControls({
@@ -805,6 +812,8 @@ function EditorDesignControls({
   onCancelComplete,
   editorPhase,
   onSetEditorPhase,
+  showBoundaryLattice,
+  onToggleShowBoundaryLattice,
 }: EditorDesignControlsProps) {
   // Once the user has placed (or completed) any tile beyond the auto-placed
   // origin, changing origin sides would wipe their work — Decision: lock the
@@ -853,9 +862,26 @@ function EditorDesignControls({
           lineHeight: 1.45,
           border: '1px solid var(--border-subtle)',
         }}>
-          {editor.boundaryShape === 'triangle'
-            ? 'Triangle lattice preview is deferred; you\'re seeing one stamp. Strand controls below still apply.'
-            : 'Patch is stamped on the boundary\'s translation lattice. Edit strand controls below; flip back to Design to change tiles.'}
+          <div>
+            {editor.boundaryShape === 'triangle'
+              ? 'Triangle lattice preview is deferred; you\'re seeing one stamp. Strand controls below still apply.'
+              : 'Patch is stamped on the boundary\'s translation lattice. Edit strand controls below; flip back to Design to change tiles.'}
+          </div>
+          <label style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginTop: 8,
+            cursor: 'pointer',
+            color: showBoundaryLattice ? 'var(--text)' : 'var(--text-muted)',
+          }}>
+            <input
+              type="checkbox"
+              checked={showBoundaryLattice}
+              onChange={e => onToggleShowBoundaryLattice(e.target.checked)}
+            />
+            Show boundary tessellation
+          </label>
         </div>
       )}
 

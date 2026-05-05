@@ -109,6 +109,8 @@ export function TessellationLabMode({
   const [editorPhase, setEditorPhase] = useState<'design' | 'strand'>('design')
   // Step 17.6 — strand mode: show the patch boundary stamped on the lattice.
   const [showBoundaryLattice, setShowBoundaryLattice] = useState(false)
+  // Mirror Main-mode's tile-visibility toggle.
+  const [showTiles, setShowTiles] = useState(true)
   // Drop strand mode if the patch goes away.
   useEffect(() => {
     if (config.tiling.type !== 'editor' || !config.editor) setEditorPhase('design')
@@ -615,6 +617,25 @@ export function TessellationLabMode({
               cursor: 'pointer',
               fontFamily: "'EB Garamond', Georgia, serif",
               fontSize: 13.5,
+              color: showTiles ? 'var(--text)' : 'var(--text-muted)',
+              transition: 'color 0.15s',
+            }}>
+              <input
+                type="checkbox"
+                className="pattern-checkbox"
+                checked={showTiles}
+                onChange={e => setShowTiles(e.target.checked)}
+              />
+              Show tiles
+            </label>
+            <label style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              marginTop: 10,
+              cursor: 'pointer',
+              fontFamily: "'EB Garamond', Georgia, serif",
+              fontSize: 13.5,
               color: showStrands ? 'var(--text)' : 'var(--text-muted)',
               transition: 'color 0.15s',
             }}>
@@ -670,7 +691,7 @@ export function TessellationLabMode({
       </div>
       <Canvas
         config={config}
-        showTileLayer={true}
+        showTileLayer={showTiles}
         showLines={showStrands}
         svgRef={svgRef}
         segmentsRef={segmentsRef}

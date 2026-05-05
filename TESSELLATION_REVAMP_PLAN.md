@@ -221,7 +221,7 @@ cross-references to the resolutions table.
 | **17.4** | Orbit-symmetric propagation on placement. 🗄 **archived 2026-05-05** (`archive/editor-orbit-17.4/`) — re-enable bundled with the symmetry-axis subgroup picker. | M | 8 | — |
 | **17.5** | Complete operation — manual vertex-pair selection. ✅ code-complete (canonical tile-type hash deferred to 17.5b / 17.6). | M | 9, 10, 12 | Q11 |
 | **17.6** | Strand editor mode + lattice preview + strand controls. ✅ a + b code-complete (triangle-lattice 2-orientation alternation deferred to 17.6c). | M | 15, 16, 17 | Q11, Q15 |
-| **17.7** | Auto-complete-on-flip (until-convex + match-boundary flavours). | M | 11 | — |
+| **17.7** | Auto-complete-on-flip (until-convex + match-boundary flavours). ✅ code-complete. | M | 11 | — |
 | **17.8** | Persistence integration (`lab-tessellations-v1` + JSON file). | S–M | 5 | Q13 |
 | **17.9** | Undo / redo.                                     | S–M  | —         | Q12          |
 | **17.10**| Non-tiling patch detection + UI tag.             | S    | 2         | —            |
@@ -332,13 +332,25 @@ cross-references to the resolutions table.
   to strand editor, see it tiled with strands. Flip back, edit, flip
   again, strands re-render correctly.
 
-- **17.7 — Auto-complete on flip (opt-in).** Checkbox in Design mode:
-  "Auto-complete on entering Strand editor". Two flavour radios:
-  *Until convex* / *Match boundary*. Match-boundary may auto-resize
-  the boundary. Auto-completed tiles persist as first-class on
-  flip-back per Decision 16. Acceptance: opt in, build incomplete
-  patch, flip → patch auto-completes, flip back → completed tiles are
-  editable.
+- **17.7 — Auto-complete on flip (opt-in).** ✅ Code-complete 2026-05-05.
+  Optional `autoComplete?: { enabled, flavor }` on `EditorConfig`
+  (back-compat: absent = disabled). New `editor/autoComplete.ts` with
+  `autoCompletePatch(editor, flavor)` + `fitBoundarySize(editor)`.
+  *Until convex* loops on the patch's CCW outer cycle, finds the first
+  reflex vertex (cross of incoming × outgoing edges < 0) and
+  dispatches `completeGap(prev, next)`; capped at 64 passes for
+  termination. *Match boundary* runs the until-convex loop, then
+  resizes `boundarySize` to the smallest regular n-gon containing all
+  tile vertices (apothem = max projection of vertices onto each
+  boundary-edge outward normal; edge length = 2·apothem·tan(π/n)).
+  New reducer actions `SET_EDITOR_AUTO_COMPLETE_ENABLED`,
+  `SET_EDITOR_AUTO_COMPLETE_FLAVOR`, `EDITOR_RUN_AUTO_COMPLETE` (last
+  is idempotent on already-convex / already-fitted patches).
+  `EditorDesignControls` exposes a checkbox + flavour selector;
+  `TessellationLabMode` dispatches `EDITOR_RUN_AUTO_COMPLETE` on the
+  Design→Strand transition when the opt-in is on. Auto-completed tiles
+  are first-class `'completed'` polygons (Decision 16) and remain
+  editable on flip-back.
 
 - **17.8 — Persistence.** Wire `EditorConfig` into both
   `lab-tessellations-v1` localStorage and the existing `saveJSON` /

@@ -294,6 +294,16 @@ export function TessellationLabMode({
                 onCancelComplete={() => setFirstVertexPick(null)}
                 editorPhase={editorPhase}
                 onSetEditorPhase={p => {
+                  // Step 17.7 — fire auto-complete on the Design→Strand
+                  // transition when the user opted in. Reducer is idempotent
+                  // on already-convex patches, so re-flips are safe.
+                  if (
+                    p === 'strand'
+                    && editorPhase === 'design'
+                    && config.editor?.autoComplete?.enabled
+                  ) {
+                    dispatch({ type: 'EDITOR_RUN_AUTO_COMPLETE' })
+                  }
                   setEditorPhase(p)
                   // Clear in-flight design picks when entering strand mode.
                   if (p === 'strand') {
@@ -970,6 +980,60 @@ function EditorDesignControls({
           Locked — clear the patch to change the origin shape.
         </div>
       )}
+
+      {/* Step 17.7 — Auto-complete on flip (Decision 11). Only meaningful in
+          Design mode; trigger fires when the user enters Strand mode. */}
+      <div style={{ marginTop: 14 }}>
+        <label style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          cursor: 'pointer',
+          fontFamily: "'EB Garamond', Georgia, serif",
+          fontSize: 13,
+          color: editor.autoComplete?.enabled ? 'var(--text)' : 'var(--text-muted)',
+          transition: 'color 0.15s',
+        }}>
+          <input
+            type="checkbox"
+            checked={!!editor.autoComplete?.enabled}
+            onChange={e => dispatch({ type: 'SET_EDITOR_AUTO_COMPLETE_ENABLED', payload: e.target.checked })}
+          />
+          Auto-complete on entering Strand editor
+        </label>
+        {editor.autoComplete?.enabled && (
+          <div style={{ display: 'flex', gap: 0, marginTop: 8 }}>
+            {([
+              { value: 'until-convex', label: 'Until convex' },
+              { value: 'match-boundary', label: 'Match boundary' },
+            ] as const).map(opt => {
+              const active = (editor.autoComplete?.flavor ?? 'until-convex') === opt.value
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => dispatch({ type: 'SET_EDITOR_AUTO_COMPLETE_FLAVOR', payload: opt.value })}
+                  style={{
+                    flex: 1,
+                    padding: '5px 0',
+                    fontFamily: "'Cinzel', Georgia, serif",
+                    fontSize: 9,
+                    fontWeight: 600,
+                    letterSpacing: '0.10em',
+                    textTransform: 'uppercase',
+                    cursor: 'pointer',
+                    border: `1px solid ${active ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                    background: active ? 'var(--accent-bg)' : 'transparent',
+                    color: active ? 'var(--accent)' : 'var(--text-muted)',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Step 17.5 — Mode toggle: Place edge tiles vs. Complete gap tiles. */}
       <div style={{ marginTop: 14 }}>

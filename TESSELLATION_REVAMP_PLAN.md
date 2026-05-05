@@ -219,7 +219,7 @@ cross-references to the resolutions table.
 | **17.2** | Boundary picker + size slider + origin picker (Design mode shell). ✅ shipped `f9d6197`. | M | 4, 5, 6 | ✅ Q9 |
 | **17.3** | Click-to-highlight + viable-polygon picker (single edge, no propagation yet). ✅ shipped `ccc7da0`. | M | 7, 14, 14a | ✅ Q10 |
 | **17.4** | Orbit-symmetric propagation on placement. 🗄 **archived 2026-05-05** (`archive/editor-orbit-17.4/`) — re-enable bundled with the symmetry-axis subgroup picker. | M | 8 | — |
-| **17.5** | Complete operation — manual vertex-pair selection + canonical tile-type hash. | M–L | 9, 10, 12 | Q11 |
+| **17.5** | Complete operation — manual vertex-pair selection. ✅ code-complete (canonical tile-type hash deferred to 17.5b / 17.6). | M | 9, 10, 12 | Q11 |
 | **17.6** | Strand editor mode + lattice preview + strand controls. | M | 15, 16, 17 | Q15        |
 | **17.7** | Auto-complete-on-flip (until-convex + match-boundary flavours). | M | 11 | — |
 | **17.8** | Persistence integration (`lab-tessellations-v1` + JSON file). | S–M | 5 | Q13 |
@@ -301,13 +301,28 @@ cross-references to the resolutions table.
   `project_editor_symmetry_axes_toggle_idea.md` — propagation
   shouldn't ship as full-D_n-by-default again.
 
-- **17.5 — Complete operation (manual).** Click two adjacent outer
-  vertices (with explicit "select adjacent pair" UI affordance — TBD).
-  Highlight the pair and orbit equivalents. Compute the gap polygon.
-  Try regular polygon fit; if not, build an irregular polygon (bowtie,
-  kite, etc.) per Decision 10. Add to data model as first-class tiles
-  per Decision 12. Acceptance: square + 4 triangles → select two
-  triangle tips → Complete fills the 4 corner gaps with new triangles.
+- **17.5 — Complete operation (manual).** ✅ Code-complete 2026-05-05.
+  Single-gap version since 17.4's orbit propagation is archived; the
+  user picks two outer-boundary vertices and one gap fills per pick
+  rather than the orbit-equivalent set. New `editor/boundary.ts`
+  walks `computeExposedEdges` into a CCW vertex cycle.
+  `editor/complete.ts` chooses between the two arcs (CCW / CW) by
+  picking the one whose chord-and-arc polygon's centroid is *outside*
+  every existing tile — handles concavities and rejects convex-side
+  chords. `tryRegularFit` accepts the gap as a regular n-gon iff all
+  sides match within `max(EDITOR_EPS·100, edge·1e-4)` and all interior
+  angles match within `1e-4` rad; otherwise falls back to an irregular
+  tile (Decision 10) stored as `EditorIrregularTile` (Decision 12).
+  Reducer action `EDITOR_COMPLETE_GAP` payload `{pA, pB}` (Vec2-based
+  so a vertex can be identified by position alone). UI: new
+  `EditorVertexLayer` of clickable boundary dots, swapped in by
+  `Canvas` when `editorMode === 'complete'`; `EditorDesignControls`
+  gained a Place / Complete toggle + hint caption + Cancel / Esc.
+  **Deferred:** the canonical-signature `<n>i:<8-char hash>` for
+  irregular `tileTypeId` (currently the provisional placeholder from
+  17.1) — to be lifted from `archive/tessellation-lab/` at 17.5b /
+  17.6 alongside the per-polygon synthetic figures-map needed for PIC
+  to draw nice strands on irregular tiles.
 
 - **17.6 — Strand editor mode + lattice preview.** Toolbar toggle in
   editor header (Decision 15). Strand editor renders the patch tiled

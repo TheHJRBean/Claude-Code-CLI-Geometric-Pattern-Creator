@@ -100,6 +100,39 @@ export function TessellationLabMode({
     dispatch({ type: 'EDITOR_DELETE_TILE', payload: { tileId } })
   }
 
+  // ── Editor mode + Complete picker (Step 17.5) ──────────
+  const [editorMode, setEditorMode] = useState<'place' | 'complete'>('place')
+  const [firstVertexPick, setFirstVertexPick] = useState<{ x: number; y: number } | null>(null)
+  // Reset picker state when patch changes or mode flips.
+  useEffect(() => { setFirstVertexPick(null) }, [editorMode, config.editor])
+  useEffect(() => {
+    if (config.tiling.type !== 'editor' || !config.editor) {
+      setEditorMode('place')
+      setFirstVertexPick(null)
+    }
+  }, [config.tiling.type, config.editor])
+  // Esc cancels an in-progress complete pick.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFirstVertexPick(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+  const handlePickVertex = (p: { x: number; y: number }) => {
+    if (!firstVertexPick) {
+      setFirstVertexPick(p)
+      return
+    }
+    // Clicking the same vertex twice cancels.
+    if (Math.abs(firstVertexPick.x - p.x) < 1e-6 && Math.abs(firstVertexPick.y - p.y) < 1e-6) {
+      setFirstVertexPick(null)
+      return
+    }
+    dispatch({ type: 'EDITOR_COMPLETE_GAP', payload: { pA: firstVertexPick, pB: p } })
+    setFirstVertexPick(null)
+  }
+
   // ── Library ────────────────────────────────────────────
   const [library, setLibrary] = useState<SavedTessellation[]>(() => listSavedTessellations())
   const [activeSavedId, setActiveSavedId] = useState<string>('')
@@ -238,6 +271,14 @@ export function TessellationLabMode({
                   setActiveSavedId('')
                   dispatch({ type: 'EDITOR_CLEAR' })
                 }}
+                editorMode={editorMode}
+                onSetEditorMode={m => {
+                  setEditorMode(m)
+                  setSelectedEdge(null)
+                  setFirstVertexPick(null)
+                }}
+                firstVertexPick={firstVertexPick}
+                onCancelComplete={() => setFirstVertexPick(null)}
               />
             ) : (
               <>
@@ -613,6 +654,9 @@ export function TessellationLabMode({
         onSelectEdge={setSelectedEdge}
         onPlaceTile={handlePlaceTile}
         onDeleteTile={handleDeleteTile}
+        editorMode={editorMode}
+        firstVertexPick={firstVertexPick}
+        onPickVertex={handlePickVertex}
       />
     </div>
   )
@@ -718,9 +762,21 @@ interface EditorDesignControlsProps {
   editor: NonNullable<PatternConfig['editor']>
   dispatch: React.Dispatch<Action>
   onClear: () => void
+  editorMode: 'place' | 'complete'
+  onSetEditorMode: (m: 'place' | 'complete') => void
+  firstVertexPick: { x: number; y: number } | null
+  onCancelComplete: () => void
 }
 
-function EditorDesignControls({ editor, dispatch, onClear }: EditorDesignControlsProps) {
+function EditorDesignControls({
+  editor,
+  dispatch,
+  onClear,
+  editorMode,
+  onSetEditorMode,
+  firstVertexPick,
+  onCancelComplete,
+}: EditorDesignControlsProps) {
   // Once the user has placed (or completed) any tile beyond the auto-placed
   // origin, changing origin sides would wipe their work — Decision: lock the
   // slider until the patch is cleared rather than risk an accidental drag.
@@ -796,6 +852,71 @@ function EditorDesignControls({ editor, dispatch, onClear }: EditorDesignControl
           Locked — clear the patch to change the origin shape.
         </div>
       )}
+
+      {/* Step 17.5 — Mode toggle: Place edge tiles vs. Complete gap tiles. */}
+      <div style={{ marginTop: 14 }}>
+        <FieldLabel label="Mode" />
+        <div style={{ display: 'flex', gap: 0 }}>
+          {(['place', 'complete'] as const).map(m => {
+            const active = editorMode === m
+            return (
+              <button
+                key={m}
+                onClick={() => onSetEditorMode(m)}
+                style={{
+                  flex: 1,
+                  padding: '5px 0',
+                  fontFamily: "'Cinzel', Georgia, serif",
+                  fontSize: 9,
+                  fontWeight: 600,
+                  letterSpacing: '0.10em',
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  border: `1px solid ${active ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                  background: active ? 'var(--accent-bg)' : 'transparent',
+                  color: active ? 'var(--accent)' : 'var(--text-muted)',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {m === 'place' ? 'Place' : 'Complete'}
+              </button>
+            )
+          })}
+        </div>
+        {editorMode === 'complete' && (
+          <div style={{
+            marginTop: 6,
+            fontFamily: "'EB Garamond', Georgia, serif",
+            fontSize: 12,
+            color: 'var(--text-muted)',
+            lineHeight: 1.4,
+          }}>
+            {firstVertexPick
+              ? 'Pick a second outer vertex to fill the gap between them. Esc to cancel.'
+              : 'Pick two outer vertices to fill the gap they bracket.'}
+            {firstVertexPick && (
+              <button
+                onClick={onCancelComplete}
+                style={{
+                  marginLeft: 6,
+                  padding: '1px 6px',
+                  fontFamily: "'Cinzel', Georgia, serif",
+                  fontSize: 9,
+                  fontWeight: 600,
+                  letterSpacing: '0.10em',
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  border: '1px solid var(--border-subtle)',
+                  background: 'transparent',
+                  color: 'var(--text-muted)',
+                }}
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       <div style={{ display: 'flex', gap: 6, marginTop: 14 }}>
         <button

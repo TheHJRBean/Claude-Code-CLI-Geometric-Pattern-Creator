@@ -4,7 +4,25 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
-**Last action:** 2026-05-05 — boundary-size + origin-sides UX
+**Last action:** 2026-05-05 — sub-step **17.5** code-complete:
+manual Complete operation. Single-gap version (no orbit propagation
+since 17.4 is parked). New `editor/boundary.ts` walks exposed edges
+into a CCW outer-boundary cycle. New `editor/complete.ts` resolves
+the gap between two picked vertices by trying both arcs and keeping
+the one whose chord-and-arc polygon's centroid is **outside** the
+patch (handles concavities + rejects convex-side chords); then
+prefers a regular-polygon fit (sides + angles within tolerance) and
+falls back to an irregular `EditorIrregularTile` per Decision 10/12.
+New reducer action `EDITOR_COMPLETE_GAP` (payload `{pA, pB}`). New
+`EditorVertexLayer` SVG layer of clickable boundary dots; `Canvas`
+swaps it in for the edge layer when `editorMode === 'complete'`.
+Editor section now has a Place / Complete mode toggle + a hint
+caption, with Esc / Cancel to drop a half-completed pick. Acceptance
+probe: square origin + 4 placed triangles → switch to Complete, click
+two adjacent triangle apexes → corner gap fills with an isosceles
+(irregular) tile.
+
+Earlier same day — boundary-size + origin-sides UX
 follow-ups. Per-shape default boundary edge lengths
 (`DEFAULT_BOUNDARY_SIZE_BY_SHAPE = { triangle: 460, square: 400,
 hexagon: 200 }`) so all three boundaries read at a comparable visual
@@ -50,14 +68,20 @@ follow-up `0aff7fb` resets placed tiles when shape / origin sides
 change. 17.1 shipped 2026-05-03 (`e199aee`) — data model +
 read-only render. `94f651c` made Lab editor-only.
 
-**Next action:** **Sub-step 17.5 — Complete operation (manual).**
-Click two adjacent outer vertices, highlight the pair, compute the
-gap polygon, prefer regular polygon fit then fall back to irregular
-(bowtie / kite) per Decision 10. Add as first-class tiles
-(Decision 12). Pull the per-polygon synthetic figures-map helper
-out of `archive/tessellation-lab/` for irregulars. Acceptance:
-square + 4 triangles → select two triangle tips → Complete fills
-the 4 corner gaps with new triangles.
+**Next action:** Visual sign-off on 17.5. Probes:
+1. New square + place 4 triangles on its edges → Complete mode →
+   pick two adjacent triangle apexes (across one corner) → the
+   corner gap fills.
+2. Repeat the click for the other 3 corners → all 4 corners filled.
+3. Hex origin + place 6 triangles → Complete the corner gaps.
+4. Convex chord (pick two non-adjacent vertices on a still-convex
+   patch) → no fill (gap centroid is inside the patch, rejected).
+5. Pick a vertex twice → cancels the pick (no fill).
+6. Cancel button + Esc both reset the half-completed pick.
+
+Strand rendering on irregular completed tiles will look provisional
+until 17.6 (canonical-signature hash + per-polygon synthetic
+figures-map). That's deferred and expected.
 
 **17.4 parking note:** archived under `archive/editor-orbit-17.4/`.
 When the user is ready, re-enable bundled with the symmetry-axis

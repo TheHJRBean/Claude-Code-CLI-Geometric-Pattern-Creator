@@ -6,6 +6,7 @@ import { DEFAULT_CONFIG } from './defaults'
 import { createDefaultEditorConfig, createOriginTile, DEFAULT_BOUNDARY_SIZE_BY_SHAPE } from '../editor/createDefault'
 import { computeExposedEdges } from '../editor/exposedEdges'
 import { isPlacementViable, placeRegularNGonOnEdge } from '../editor/placement'
+import { completeGap } from '../editor/complete'
 
 const FALLBACK_FIGURE: FigureConfig = { type: 'star', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
 
@@ -187,6 +188,14 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         ...state,
         editor: { ...state.editor, tiles: state.editor.tiles.filter(t => t.id !== tileId) },
       }
+    }
+    case 'EDITOR_COMPLETE_GAP': {
+      if (!state.editor) return state
+      const { pA, pB } = action.payload
+      const id = `completed-${state.editor.tiles.length}-${Date.now()}`
+      const tile = completeGap(state.editor, pA, pB, id)
+      if (!tile) return state
+      return { ...state, editor: { ...state.editor, tiles: [...state.editor.tiles, tile] } }
     }
     default:
       return state

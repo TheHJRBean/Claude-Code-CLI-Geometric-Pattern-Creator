@@ -1,5 +1,6 @@
 import type { PatternConfig, FigureConfig, LacingConfig } from '../types/pattern'
 import type { BoundaryShape } from '../types/editor'
+import type { Vec2 } from '../utils/math'
 
 export type Action =
   | { type: 'SET_TILING_TYPE'; payload: string }
@@ -32,3 +33,5 @@ export type Action =
   | { type: 'SET_EDITOR_ORIGIN_SIDES'; payload: number }
   | { type: 'EDITOR_PLACE_TILE_ON_EDGE'; payload: { tileId: string; edgeIndex: number; sides: number } }
   | { type: 'EDITOR_DELETE_TILE'; payload: { tileId: string } }
+  // Step 17.5 — Complete operation (manual)
+  | { type: 'EDITOR_COMPLETE_GAP'; payload: { pA: Vec2; pB: Vec2 } }

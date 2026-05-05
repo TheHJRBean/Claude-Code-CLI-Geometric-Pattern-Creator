@@ -720,6 +720,10 @@ interface EditorDesignControlsProps {
 }
 
 function EditorDesignControls({ editor, dispatch, onClear }: EditorDesignControlsProps) {
+  // Once the user has placed (or completed) any tile beyond the auto-placed
+  // origin, changing origin sides would wipe their work — Decision: lock the
+  // slider until the patch is cleared rather than risk an accidental drag.
+  const originLocked = editor.tiles.length > 1
   return (
     <>
       <FieldLabel label="Boundary shape" />
@@ -756,7 +760,7 @@ function EditorDesignControls({ editor, dispatch, onClear }: EditorDesignControl
         type="range"
         className="pattern-slider"
         min={80}
-        max={500}
+        max={800}
         step={1}
         value={editor.boundarySize}
         onChange={e => dispatch({ type: 'SET_EDITOR_BOUNDARY_SIZE', payload: Number(e.target.value) })}
@@ -770,8 +774,27 @@ function EditorDesignControls({ editor, dispatch, onClear }: EditorDesignControl
         max={12}
         step={1}
         value={editor.originSides}
+        disabled={originLocked}
         onChange={e => dispatch({ type: 'SET_EDITOR_ORIGIN_SIDES', payload: Number(e.target.value) })}
+        style={originLocked ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
       />
+      {originLocked && (
+        <div
+          style={{
+            fontFamily: "'Cinzel', Georgia, serif",
+            fontSize: 9,
+            fontWeight: 600,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: 'var(--text-muted)',
+            marginTop: 2,
+            marginBottom: 4,
+            lineHeight: 1.4,
+          }}
+        >
+          Locked — clear the patch to change the origin shape.
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 6, marginTop: 14 }}>
         <button

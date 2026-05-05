@@ -4,7 +4,18 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
-**Last action:** 2026-05-05 — sub-step **17.4 archived** the same
+**Last action:** 2026-05-05 — boundary-size + origin-sides UX
+follow-ups. Per-shape default boundary edge lengths
+(`DEFAULT_BOUNDARY_SIZE_BY_SHAPE = { triangle: 460, square: 400,
+hexagon: 200 }`) so all three boundaries read at a comparable visual
+scale; slider max bumped 500 → 800. `SET_EDITOR_BOUNDARY_SHAPE` now
+also snaps `boundarySize` to the new shape's default (consistent
+with the existing tile-reset semantics). Origin-sides slider is
+greyed out and labelled "Locked — clear the patch to change the
+origin shape" once any tile beyond the origin has been placed, so a
+stray drag can't wipe the patch.
+
+Earlier same day: sub-step **17.4 archived** the same
 day it was built. Built first as `e30fdb9` (orbit-symmetric
 placement + delete under D3/D4/D6), then the user tried it in the
 browser and didn't like how it felt — but wasn't yet sure what

@@ -3,7 +3,7 @@ import type { EditorConfig } from '../types/editor'
 import type { Action } from './actions'
 import { TILINGS } from '../tilings/index'
 import { DEFAULT_CONFIG } from './defaults'
-import { createDefaultEditorConfig, createOriginTile } from '../editor/createDefault'
+import { createDefaultEditorConfig, createOriginTile, DEFAULT_BOUNDARY_SIZE_BY_SHAPE } from '../editor/createDefault'
 import { computeExposedEdges } from '../editor/exposedEdges'
 import { isPlacementViable, placeRegularNGonOnEdge } from '../editor/placement'
 
@@ -142,10 +142,12 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       if (!state.editor) return state
       // Boundary shape determines the orbit symmetry; placed/completed tiles
       // computed under the previous orbit are no longer valid. Reset to the
-      // origin tile only.
+      // origin tile only and snap the boundary size to the new shape's
+      // default so triangle/square/hexagon read at a comparable visual scale.
       const next: EditorConfig = {
         ...state.editor,
         boundaryShape: action.payload,
+        boundarySize: DEFAULT_BOUNDARY_SIZE_BY_SHAPE[action.payload],
         tiles: [createOriginTile(state.editor.originSides, state.editor.edgeLength)],
       }
       return { ...state, editor: next }

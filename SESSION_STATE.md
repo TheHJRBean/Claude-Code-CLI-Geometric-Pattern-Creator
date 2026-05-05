@@ -4,21 +4,19 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
-**Last action:** 2026-05-05 — sub-step **17.4** code-complete:
-orbit-symmetric propagation. New `editor/symmetry.ts` exposes
-`boundarySymmetries(shape)` returning D3/D4/D6 about the boundary
-centre. New `editor/orbit.ts` resolves the picked edge's orbit via
-endpoint-equality lookup against `computeExposedEdges`, then
-`placeTilesOnOrbit` does an **all-or-nothing** placement: each orbit
-image is validated against a cumulative working state so symmetry
-never partially breaks. `EDITOR_DELETE_TILE` now deletes every
-orbit-equivalent sibling (origin still protected). Asymmetric setups
-(e.g. triangle origin in a square boundary) silently drop orbit
-images that don't land on a real exposed edge — per user direction
-the most conservative option (all-or-nothing) was taken. New `/idea`
-captured: per-patch symmetry-axis subgroup picker
-(`project_editor_symmetry_axes_toggle_idea.md`) for follow-up work.
-Awaiting visual sign-off.
+**Last action:** 2026-05-05 — sub-step **17.4 archived** the same
+day it was built. Built first as `e30fdb9` (orbit-symmetric
+placement + delete under D3/D4/D6), then the user tried it in the
+browser and didn't like how it felt — but wasn't yet sure what
+alternative they wanted. Rather than iterate blindly we **parked
+the whole feature**: moved `editor/symmetry.ts` and `editor/orbit.ts`
+to `archive/editor-orbit-17.4/` (with a restoration `README.md`),
+and reverted the reducer to 17.3's single-edge placement + tile
+delete. The `project_editor_symmetry_axes_toggle_idea.md` `/idea`
+was updated to note that re-enabling propagation should be bundled
+with a symmetry-axis subgroup picker (full / rotation-only /
+vertical / horizontal / none) — it shouldn't ship as full-D_n-by-
+default again.
 
 Earlier: 2026-05-04 — sub-step **17.3** shipped (`ccc7da0`):
 single-edge tile placement. New geometry helpers
@@ -41,21 +39,19 @@ follow-up `0aff7fb` resets placed tiles when shape / origin sides
 change. 17.1 shipped 2026-05-03 (`e199aee`) — data model +
 read-only render. `94f651c` made Lab editor-only.
 
-**Next action:** Visual sign-off on 17.4. Acceptance probes:
-1. Square boundary + square origin + pick triangle on top edge →
-   triangles appear on all 4 edges in one go.
-2. Hex boundary + hex origin + pick square on one edge → squares on
-   all 6 edges.
-3. Triangle boundary + triangle origin + pick hexagon on one edge →
-   hexagons on all 3 edges.
-4. Asymmetric (square boundary + triangle origin): only orbit images
-   landing on real edges fire — verify nothing strange happens.
-5. Delete a propagated tile → every orbit sibling disappears with it.
-6. Conflict case: place a 12-gon on a square's edge — should be
-   refused (overlap somewhere in the orbit) rather than partially
-   placed.
+**Next action:** **Sub-step 17.5 — Complete operation (manual).**
+Click two adjacent outer vertices, highlight the pair, compute the
+gap polygon, prefer regular polygon fit then fall back to irregular
+(bowtie / kite) per Decision 10. Add as first-class tiles
+(Decision 12). Pull the per-polygon synthetic figures-map helper
+out of `archive/tessellation-lab/` for irregulars. Acceptance:
+square + 4 triangles → select two triangle tips → Complete fills
+the 4 corner gaps with new triangles.
 
-After sign-off, **17.5 (Complete operation — manual)** is queued.
+**17.4 parking note:** archived under `archive/editor-orbit-17.4/`.
+When the user is ready, re-enable bundled with the symmetry-axis
+subgroup picker (see `project_editor_symmetry_axes_toggle_idea.md`)
+— don't ship full-D_n-by-default again.
 
 **17.3 visual review (2026-05-04):** user confirmed it works well
 overall. Two follow-ups landed in the same session:

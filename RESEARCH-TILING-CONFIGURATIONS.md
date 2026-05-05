@@ -620,3 +620,74 @@ Ranked by visual impact ÷ implementation cost:
 - The "freeform" Islamic pattern method (Kaplan et al. 2023, arXiv 2301.01471) which
   generalises rosette placement beyond fixed tilings — separate research thread.
 - Hyperbolic Islamic patterns (Bonner & Kaplan briefly cover; out of scope for now).
+
+---
+
+## 6. Editor-specific notes (Step 17, May 2026)
+
+Notes that arose while building the user-editable patch editor. Strictly
+implementation-adjacent, but worth recording so they don't get lost.
+
+### 6.1 Canonical shape signatures for irregular tiles
+
+To make two completed gaps with the same shape collapse to the same
+`tileTypeId` (so they share strand-figure tuning), the editor canonicalises
+an irregular polygon to a string signature:
+
+1. Compute interior angles in CCW vertex order.
+2. Compute edge lengths in CCW order, normalised by the longest edge so the
+   signature is scale-invariant.
+3. Quantise both to 4 decimal places (`round(x · 10000)`).
+4. Interleave as `[angle₀, edge₀, angle₁, edge₁, …]`.
+5. Generate every cyclic rotation (rotating by 2 elements per step keeps
+   angle/edge pairing aligned) for both the original and the reversed
+   vertex order (reflection invariance), and pick the lex-min.
+6. FNV-1a 32-bit hash → 8 lowercase hex chars.
+
+`tileTypeId = "<n>i:<hash>"`. Regulars stay on `"<n>"` so they share keys
+with the archimedean tilings. Implementation: `src/editor/tileTypeId.ts`.
+
+This is a known canonical-form trick for unordered cyclic sequences; the
+4-d.p. quantisation + reversed-pass handles floating-point drift and chiral
+duplicates without needing a heavier symbolic comparator.
+
+### 6.2 Wallpaper translation lattices for the boundary cells
+
+For the strand-editor lattice preview (Step 17.6) we need a translation
+basis that tiles the plane with one stamp per fundamental cell:
+
+| Boundary | Edge | Basis u | Basis v | Stamp orientations |
+|----------|------|---------|---------|---------------------|
+| Square   | L    | (L, 0)        | (0, L)            | 1 |
+| Hexagon  | L    | (√3·L, 0)     | (√3·L/2, 1.5·L)   | 1 |
+| Triangle | L    | (L, 0)        | (L/2, L√3/2)      | 2 (alternating up + 180°-rotated down) |
+
+Square and hex tile under translation alone, so the lattice preview
+generator simply emits one stamp per integer combination of (u, v) inside
+the viewport envelope. **Triangle** is the trickier case: equilateral
+triangles only tile the plane when neighbouring cells alternate
+orientation (the "rhombus" fundamental block contains an up + a down
+triangle), so the stamp set has two orientations on a parallelogram
+sub-lattice. v1 falls back to a single stamp + UI hint; the proper
+2-orientation generator is queued as 17.6c.
+
+For non-equilateral / non-regular boundaries (a v2 idea), the lattice
+basis would have to come from the boundary-cell geometry itself rather
+than be hard-coded; this is part of why "custom boundary shapes" was
+parked as a separate idea.
+
+### 6.3 Outer-boundary cycle from exposed edges
+
+A patch's outer boundary is reconstructed from `computeExposedEdges` by
+walking edges head-to-tail (next edge's `p1 ≈ current edge's `p2`) until
+the cycle closes. Because each tile's vertices are CCW, an exposed edge's
+`p1 → p2` direction is CCW around the patch, so the resulting cycle is
+CCW. Disconnected boundaries (i.e. a hole in the patch) would produce
+multiple cycles; the editor's reducer prevents disconnected tiles by
+construction, so v1 only handles single-cycle patches.
+
+The Complete operation uses this cycle to resolve the gap between two
+picked vertices: it walks both arcs, builds a candidate polygon (chord
++ arc) for each, and keeps the one whose centroid lies *outside* every
+existing tile. This handles concavities and rejects convex-side chords
+without needing an explicit reflex-vertex test.

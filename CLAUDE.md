@@ -58,9 +58,28 @@ rayDir = rotate(edgeDir, ±(π/2 − θ))
 
 Add a `TilingDefinition` entry to `tilings/index.ts` with the vertex configuration array (e.g. `[3, 4, 6, 4]`). The BFS generator in `archimedean.ts` handles the rest automatically.
 
+### Editor (Step 17 — Tessellation Lab patch editor)
+
+`src/editor/` is a parallel branch of the geometry pipeline that doesn't go through `TilingDefinition`. The user builds a finite **patch** inside a boundary cell and PIC runs over the patch's tiles directly.
+
+Key bits:
+
+- `types/editor.ts` — `EditorConfig` + `EditorTile` (tagged union of regular and irregular). Lives on `PatternConfig.editor` (optional). The patch is signalled by `tiling.type === 'editor'`.
+- `editor/createDefault.ts` — patch defaults; per-shape `DEFAULT_BOUNDARY_SIZE_BY_SHAPE` + `BOUNDARY_SIZE_MAX_BY_SHAPE`.
+- `editor/buildEditorPolygons.ts` — `editorTilesToPolygons` + `editorBoundaryVertices`.
+- `editor/exposedEdges.ts`, `editor/boundary.ts` — outer-boundary geometry consumed by Place / Complete UIs.
+- `editor/placement.ts` — `placeRegularNGonOnEdge` + Decision 7 / 14a viability.
+- `editor/complete.ts` — gap polygon resolution (centroid-outside-patch test) + `tryRegularFit` + irregular fallback.
+- `editor/tileTypeId.ts` — Q11 canonical-signature `tileTypeId`: `"<n>"` for regulars, `"<n>i:<8-char hex>"` for irregulars.
+- `editor/tileTypes.ts` — `editorTileTypes` for the strand panel + Q15 lazy + additive `seedFiguresForEditor`. Reducer routes editor mutations through `seedFigures`.
+- `editor/lattice.ts` — `editorLatticeStamps` for the 17.6 strand-editor lattice preview (square + hex; triangle deferred).
+- `usePattern` accepts `editorStrandMode`; when on, it stamps `editorTilesToPolygons` across the viewport on the boundary lattice.
+
+Authoritative design context lives in `TESSELLATION_REVAMP_PLAN.md` (Step 17 section) and `SESSION_STATE.md` (resume anchor). Step 17.4 (orbit-symmetric placement) was implemented and archived under `archive/editor-orbit-17.4/`; if re-enabled, ship bundled with a symmetry-axis subgroup picker (see the corresponding `/idea` memory).
+
 ### Planned stages (see plan file)
 
-The implementation follows 10 staged builds. Stages 1–6 (foundation, PIC, Archimedean tilings, strand graph, lacing, export) are complete or in progress. Stages 7–10 add: Rosette figures + Infer algorithm, Girih tiles (Lu & Steinhardt 2007), quasi-periodic/Penrose tilings, and per-edge angle control.
+`TESSELLATION_REVAMP_PLAN.md` is the live plan. Phase 0 (decisions / terminology / Option-B restructure), Steps 1–11 (Lab scaffold + tessellations + strand controls), Step 14 (Lab library), and Step 17.0–17.6 (editor, save for the parked 17.4) are done. Steps 4–8 / 12–13 were archived under `archive/tessellation-lab/`. Steps 15, 16, 18 (k-uniform / quasi-periodic / Girih substitution) are parked.
 
 ## Commit Status Tag
 

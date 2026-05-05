@@ -4,7 +4,23 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
-**Last action:** 2026-05-04 — sub-step **17.3** shipped (`ccc7da0`):
+**Last action:** 2026-05-05 — sub-step **17.4** code-complete:
+orbit-symmetric propagation. New `editor/symmetry.ts` exposes
+`boundarySymmetries(shape)` returning D3/D4/D6 about the boundary
+centre. New `editor/orbit.ts` resolves the picked edge's orbit via
+endpoint-equality lookup against `computeExposedEdges`, then
+`placeTilesOnOrbit` does an **all-or-nothing** placement: each orbit
+image is validated against a cumulative working state so symmetry
+never partially breaks. `EDITOR_DELETE_TILE` now deletes every
+orbit-equivalent sibling (origin still protected). Asymmetric setups
+(e.g. triangle origin in a square boundary) silently drop orbit
+images that don't land on a real exposed edge — per user direction
+the most conservative option (all-or-nothing) was taken. New `/idea`
+captured: per-patch symmetry-axis subgroup picker
+(`project_editor_symmetry_axes_toggle_idea.md`) for follow-up work.
+Awaiting visual sign-off.
+
+Earlier: 2026-05-04 — sub-step **17.3** shipped (`ccc7da0`):
 single-edge tile placement. New geometry helpers
 `computeExposedEdges`, `placeRegularNGonOnEdge`, `isPlacementViable`
 (Decision 7 angle-sum check + Decision 14a non-conforming gate),
@@ -25,11 +41,21 @@ follow-up `0aff7fb` resets placed tiles when shape / origin sides
 change. 17.1 shipped 2026-05-03 (`e199aee`) — data model +
 read-only render. `94f651c` made Lab editor-only.
 
-**Next action:** **Sub-step 17.4 — Orbit-symmetric propagation on
-placement.** Compute the boundary's rotation+reflection group once
-at boundary-set time; placing a tile on an edge places it on every
-orbit-equivalent edge with the same overlap check. Acceptance: pick
-triangle on square origin's top edge → triangles on all 4 edges.
+**Next action:** Visual sign-off on 17.4. Acceptance probes:
+1. Square boundary + square origin + pick triangle on top edge →
+   triangles appear on all 4 edges in one go.
+2. Hex boundary + hex origin + pick square on one edge → squares on
+   all 6 edges.
+3. Triangle boundary + triangle origin + pick hexagon on one edge →
+   hexagons on all 3 edges.
+4. Asymmetric (square boundary + triangle origin): only orbit images
+   landing on real edges fire — verify nothing strange happens.
+5. Delete a propagated tile → every orbit sibling disappears with it.
+6. Conflict case: place a 12-gon on a square's edge — should be
+   refused (overlap somewhere in the orbit) rather than partially
+   placed.
+
+After sign-off, **17.5 (Complete operation — manual)** is queued.
 
 **17.3 visual review (2026-05-04):** user confirmed it works well
 overall. Two follow-ups landed in the same session:

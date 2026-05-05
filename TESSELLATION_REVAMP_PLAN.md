@@ -103,17 +103,19 @@ still-relevant ones are kept.
 
 ## ⭐ Step 17 — User-editable tessellation editor (PRIMARY FOCUS)
 
-**Status (2026-05-04):** 17.0–17.3 shipped. 17.1 landed the data
-model + read-only render (`e199aee`); follow-up `94f651c` made the
-Lab editor-only. 17.2 added the Design-mode shell (`f9d6197`);
+**Status (2026-05-05):** 17.0–17.4 code-complete. 17.1 landed the
+data model + read-only render (`e199aee`); follow-up `94f651c` made
+the Lab editor-only. 17.2 added the Design-mode shell (`f9d6197`);
 follow-up `0aff7fb` resets placed tiles when shape / origin sides
-change. 17.3 added single-edge tile placement (`ccc7da0`):
-`computeExposedEdges`, `placeRegularNGonOnEdge`,
-`isPlacementViable` (Decision 7 angle-sum + Decision 14a),
-`viableSidesForEdge`, an interactive SVG edge layer, a screen-
-positioned picker overlay, and the `EDITOR_PLACE_TILE_ON_EDGE`
-reducer action. 17.3 awaits visual sign-off; **17.4 (orbit
-propagation) is the next active sub-step.**
+change. 17.3 added single-edge tile placement (`ccc7da0`). 17.4 adds
+orbit-symmetric propagation under the boundary's dihedral group
+(D3/D4/D6) — `editor/symmetry.ts` + `editor/orbit.ts`; placement is
+**all-or-nothing** so symmetry never partially breaks; delete is
+orbit-aware (siblings come with). New `/idea`
+(`project_editor_symmetry_axes_toggle_idea.md`) captures a future
+subgroup picker (full / rotation-only / single-axis / none). 17.4
+awaits visual sign-off; **17.5 (Complete operation — manual) is the
+next active sub-step.**
 
 ### Vision (refined from 2026-05-03 grill)
 
@@ -215,7 +217,7 @@ cross-references to the resolutions table.
 | **17.1** | `EditorConfig` data model + read-only render.    | S–M  | 1, 4, 6, 14 | ✅ Q13       |
 | **17.2** | Boundary picker + size slider + origin picker (Design mode shell). ✅ shipped `f9d6197`. | M | 4, 5, 6 | ✅ Q9 |
 | **17.3** | Click-to-highlight + viable-polygon picker (single edge, no propagation yet). ✅ shipped `ccc7da0`. | M | 7, 14, 14a | ✅ Q10 |
-| **17.4** | Orbit-symmetric propagation on placement.        | M    | 8         | —            |
+| **17.4** | Orbit-symmetric propagation on placement. ✅ code-complete (awaiting visual sign-off). | M | 8 | — |
 | **17.5** | Complete operation — manual vertex-pair selection + canonical tile-type hash. | M–L | 9, 10, 12 | Q11 |
 | **17.6** | Strand editor mode + lattice preview + strand controls. | M | 15, 16, 17 | Q15        |
 | **17.7** | Auto-complete-on-flip (until-convex + match-boundary flavours). | M | 11 | — |
@@ -287,11 +289,28 @@ cross-references to the resolutions table.
   action `EDITOR_PLACE_TILE_ON_EDGE` re-validates and appends a
   placed tile. Awaiting visual sign-off.
 
-- **17.4 — Orbit propagation.** Compute the boundary's symmetry orbit
-  (rotation + reflection group) once at boundary-set time. When a tile
-  is placed, simultaneously place on all orbit-equivalent edges. Same
-  overlap check applied per placement. Acceptance: pick triangle on
-  square origin's top edge → triangles on all 4 edges.
+- **17.4 — Orbit propagation.** ✅ Code-complete 2026-05-05.
+  `editor/symmetry.ts` exposes `boundarySymmetries(shape)` returning
+  the dihedral group D_n about the boundary centre (D3/D4/D6 for
+  triangle/square/hexagon). `editor/orbit.ts` resolves orbit edges by
+  applying every group element to the picked edge's endpoints and
+  matching against `computeExposedEdges`; asymmetric setups (e.g.
+  triangle origin in a square boundary) silently drop orbit images
+  that don't land on a real edge. `placeTilesOnOrbit` validates each
+  image against a *cumulative* working state (so two orbit-equivalent
+  placements that would touch the same future vertex don't both
+  individually pass and then overlap each other) and is
+  **all-or-nothing** — any failed image refuses the whole placement.
+  Per user direction (2026-05-05) this took the most conservative
+  option of the four open questions. `EDITOR_DELETE_TILE` now removes
+  every orbit sibling of the chosen tile (origin tile remains
+  protected). New `/idea` filed for a follow-up symmetry-axis
+  subgroup picker (`project_editor_symmetry_axes_toggle_idea.md`),
+  superseding the older strict-symmetry-checkbox idea.
+  Acceptance probes (visual): square + square origin + triangle pick
+  → triangles on all 4 edges; hex + hex origin + square pick → squares
+  on all 6; asymmetric origin-in-boundary degrades gracefully; delete
+  removes the orbit; conflicting picks refused outright.
 
 - **17.5 — Complete operation (manual).** Click two adjacent outer
   vertices (with explicit "select adjacent pair" UI affordance — TBD).

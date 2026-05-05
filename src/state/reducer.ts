@@ -5,7 +5,7 @@ import { TILINGS } from '../tilings/index'
 import { DEFAULT_CONFIG } from './defaults'
 import { createDefaultEditorConfig, createOriginTile } from '../editor/createDefault'
 import { computeExposedEdges } from '../editor/exposedEdges'
-import { isPlacementViable, placeRegularNGonOnEdge } from '../editor/placement'
+import { placeTilesOnOrbit, orbitTileIds } from '../editor/orbit'
 
 const FALLBACK_FIGURE: FigureConfig = { type: 'star', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
 
@@ -169,11 +169,16 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       if (!state.editor) return state
       const { tileId, edgeIndex, sides } = action.payload
       const edges = computeExposedEdges(state.editor)
-      const edge = edges.find(e => e.tileId === tileId && e.edgeIndex === edgeIndex)
-      if (!edge || !isPlacementViable(edge, sides, state.editor)) return state
-      const id = `placed-${state.editor.tiles.length}-${Date.now()}`
-      const tile = placeRegularNGonOnEdge(sides, state.editor.edgeLength, edge.p1, edge.p2, edge.sourceCenter, id)
-      return { ...state, editor: { ...state.editor, tiles: [...state.editor.tiles, tile] } }
+      const picked = edges.find(e => e.tileId === tileId && e.edgeIndex === edgeIndex)
+      if (!picked) return state
+      // Decision 8: propagate the placement to every orbit-equivalent edge
+      // under the boundary's dihedral group. All-or-nothing — if any orbit
+      // image fails viability, the whole placement is refused so symmetry
+      // is never partially broken.
+      const idPrefix = `placed-${state.editor.tiles.length}-${Date.now()}`
+      const placed = placeTilesOnOrbit(state.editor, picked, sides, idPrefix)
+      if (!placed || placed.length === 0) return state
+      return { ...state, editor: { ...state.editor, tiles: [...state.editor.tiles, ...placed] } }
     }
     case 'EDITOR_DELETE_TILE': {
       if (!state.editor) return state
@@ -181,10 +186,13 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       const target = state.editor.tiles.find(t => t.id === tileId)
       // The auto-placed origin can't be deleted — it anchors the patch.
       if (!target || target.origin === 'origin') return state
-      return {
-        ...state,
-        editor: { ...state.editor, tiles: state.editor.tiles.filter(t => t.id !== tileId) },
-      }
+      // Mirror placement: deleting a propagated tile removes every orbit
+      // sibling that came in with it (or that sits at an orbit-equivalent
+      // position), so symmetry is preserved on remove.
+      const remove = new Set(orbitTileIds(state.editor, target))
+      // Never delete the origin via orbit collateral.
+      const next = state.editor.tiles.filter(t => !(remove.has(t.id) && t.origin !== 'origin'))
+      return { ...state, editor: { ...state.editor, tiles: next } }
     }
     default:
       return state

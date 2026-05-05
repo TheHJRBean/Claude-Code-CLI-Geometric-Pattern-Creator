@@ -2,6 +2,7 @@ import type { Vec2 } from '../utils/math'
 import { pointsEqual } from '../utils/math'
 import type { EditorConfig } from '../types/editor'
 import { EDITOR_EPS, computeExposedEdges } from './exposedEdges'
+import { editorBoundaryVertices } from './buildEditorPolygons'
 
 /**
  * One vertex on the patch's outer boundary, tagged with the tile and vertex
@@ -56,4 +57,25 @@ export function computeOuterBoundary(editor: EditorConfig): BoundaryVertex[] {
     current = next
   }
   return cycle
+}
+
+/**
+ * Boundary-polygon corners as a `BoundaryVertex[]` cycle, in CCW order.
+ * Used by the Complete-mode vertex picker so the user can pick boundary
+ * corners as gap endpoints — and by `completeGap` when both picks land on
+ * the boundary outline rather than the patch's outer cycle.
+ *
+ * Boundary-corner entries get a synthetic `tileId === 'boundary'` and a
+ * sequential `vertexIndex` so they round-trip through the same pipeline as
+ * patch-outer vertices.
+ */
+export function computeBoundaryCycle(editor: EditorConfig): BoundaryVertex[] {
+  return editorBoundaryVertices(editor).map((p, i) => ({ p, tileId: 'boundary', vertexIndex: i }))
+}
+
+export function findCycleVertexIndex(cycle: BoundaryVertex[], p: Vec2): number {
+  for (let i = 0; i < cycle.length; i++) {
+    if (pointsEqual(cycle[i].p, p, EDITOR_EPS)) return i
+  }
+  return -1
 }

@@ -7,7 +7,8 @@ import { usePanZoom, type ViewTransform } from '../hooks/usePanZoom'
 import { PatternSVG } from '../rendering/PatternSVG'
 import { RotationDial } from './RotationDial'
 import { computeExposedEdges } from '../editor/exposedEdges'
-import { computeOuterBoundary } from '../editor/boundary'
+import { computeBoundaryCycle, computeOuterBoundary } from '../editor/boundary'
+import { EDITOR_EPS } from '../editor/exposedEdges'
 import { viableSidesForEdge } from '../editor/placement'
 import { EditorEdgeLayer } from './EditorEdgeLayer'
 import { EditorPickerOverlay } from './EditorPickerOverlay'
@@ -120,6 +121,16 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       : [],
     [editorActive, config.editor, editorMode],
   )
+  // Boundary-polygon corners — clickable in Complete mode so the user can
+  // fill regions bounded by the boundary outline. Filtered to drop corners
+  // that coincide with patch outer-cycle vertices (would render twice).
+  const boundaryCorners = useMemo(() => {
+    if (!editorActive || !config.editor || editorMode !== 'complete') return []
+    const corners = computeBoundaryCycle(config.editor)
+    return corners.filter(c => !boundaryCycle.some(v =>
+      Math.abs(v.p.x - c.p.x) < EDITOR_EPS && Math.abs(v.p.y - c.p.y) < EDITOR_EPS,
+    ))
+  }, [editorActive, config.editor, editorMode, boundaryCycle])
 
   // Strand mode hides every design overlay — the canvas is the lattice
   // preview only, and strand controls in the side panel drive what changes.
@@ -128,6 +139,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       ? (
         <EditorVertexLayer
           vertices={boundaryCycle}
+          boundaryCorners={boundaryCorners}
           firstPick={firstVertexPick ?? null}
           onPickVertex={onPickVertex}
         />

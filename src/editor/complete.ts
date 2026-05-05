@@ -3,6 +3,7 @@ import { centroid, pointInPolygon } from '../utils/math'
 import type { EditorConfig, EditorTile } from '../types/editor'
 import { tileVertices, EDITOR_EPS } from './exposedEdges'
 import { computeBoundaryCycle, computeOuterBoundary, type BoundaryVertex } from './boundary'
+import { editorBoundaryVertices } from './buildEditorPolygons'
 
 /**
  * The polygon used to "complete" a gap, returned by `computeGapPolygon`.
@@ -158,15 +159,68 @@ function computeBoundaryGapPolygon(
   return null
 }
 
+function isDegenerateTriangle(verts: Vec2[]): boolean {
+  if (verts.length !== 3) return false
+  const [a, b, c] = verts
+  const cross = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
+  return Math.abs(cross) < EDITOR_EPS
+}
+
+/**
+ * Mixed-pick gap: one endpoint is on the patch's outer cycle, the other on
+ * the boundary polygon's corners. A single chord across the patch+boundary
+ * annulus is topologically under-specified (it doesn't split the annulus),
+ * so we close the gap with a one-step neighbour from one of the cycles —
+ * yielding a triangle with the chord as one edge.
+ *
+ * Try the four candidates (prev/next on patch, prev/next on boundary) and
+ * return the first triangle that's non-degenerate, lies inside the boundary
+ * polygon, and has a centroid exterior to every existing tile.
+ */
+function computeMixedGapPolygon(
+  editor: EditorConfig,
+  patchCycle: BoundaryVertex[],
+  boundaryCycle: BoundaryVertex[],
+  patchIdx: number,
+  boundaryIdx: number,
+): GapPolygon | null {
+  const np = patchCycle.length
+  const nb = boundaryCycle.length
+  if (np < 2 || nb < 2) return null
+  const pP = patchCycle[patchIdx].p
+  const pB = boundaryCycle[boundaryIdx].p
+  const patchNext = patchCycle[(patchIdx + 1) % np].p
+  const patchPrev = patchCycle[(patchIdx - 1 + np) % np].p
+  const boundNext = boundaryCycle[(boundaryIdx + 1) % nb].p
+  const boundPrev = boundaryCycle[(boundaryIdx - 1 + nb) % nb].p
+
+  const boundaryPoly = editorBoundaryVertices(editor)
+  const candidates: Vec2[][] = [
+    [pP, patchNext, pB],
+    [pP, patchPrev, pB],
+    [pP, pB, boundNext],
+    [pP, pB, boundPrev],
+  ]
+
+  for (const cand of candidates) {
+    if (isDegenerateTriangle(cand)) continue
+    const c = centroid(cand)
+    if (isPointInPatch(c, editor)) continue
+    if (!pointInPolygon(c, boundaryPoly)) continue
+    return { vertices: ensureCCW(cand) }
+  }
+  return null
+}
+
 /**
  * Compute the tile that completes the gap defined by the two picked vertex
  * positions, preferring a regular fit (Decision 10) and falling back to an
  * irregular tile (Decision 12 — first-class polygon, same data model).
  *
- * Picks may be on either the patch's outer cycle (existing 17.5 behaviour)
- * or on the boundary polygon's corners (added so the user can fill regions
- * between the patch and the boundary outline). Mixed picks — one patch
- * vertex + one boundary corner — are not yet supported and return `null`.
+ * Picks may be on either cycle:
+ *   - both on the patch's outer cycle (17.5 behaviour),
+ *   - both on the boundary polygon's corners (boundary-arc fill),
+ *   - one of each (mixed: triangle from chord + one neighbour edge).
  *
  * Returns `null` if no gap can be computed (degenerate pick, vertex not on
  * either cycle, chord lies entirely inside patch, etc.).
@@ -179,20 +233,34 @@ export function completeGap(
 ): EditorTile | null {
   let gap: GapPolygon | null = null
 
-  // First try the patch's outer cycle — this is the common 17.5 case.
   const patchCycle = computeOuterBoundary(editor)
+  const boundaryCycle = computeBoundaryCycle(editor)
+
+  // 1) Both picks on the patch outer cycle (the common 17.5 case).
   if (patchCycle.length >= 3) {
     const ia = findCycleIndexByPoint(patchCycle, pA)
     const ib = findCycleIndexByPoint(patchCycle, pB)
     if (ia >= 0 && ib >= 0) gap = computeGapPolygon(patchCycle, ia, ib, editor)
   }
 
-  // Fall back to the boundary cycle if both picks landed there instead.
+  // 2) Both picks on the boundary polygon's corners.
   if (!gap) {
-    const boundaryCycle = computeBoundaryCycle(editor)
     const ia = findCycleIndexByPoint(boundaryCycle, pA)
     const ib = findCycleIndexByPoint(boundaryCycle, pB)
     if (ia >= 0 && ib >= 0) gap = computeBoundaryGapPolygon(boundaryCycle, ia, ib)
+  }
+
+  // 3) Mixed: one patch vertex + one boundary corner.
+  if (!gap) {
+    const patchIdxA = findCycleIndexByPoint(patchCycle, pA)
+    const patchIdxB = findCycleIndexByPoint(patchCycle, pB)
+    const boundIdxA = findCycleIndexByPoint(boundaryCycle, pA)
+    const boundIdxB = findCycleIndexByPoint(boundaryCycle, pB)
+    if (patchIdxA >= 0 && boundIdxB >= 0) {
+      gap = computeMixedGapPolygon(editor, patchCycle, boundaryCycle, patchIdxA, boundIdxB)
+    } else if (patchIdxB >= 0 && boundIdxA >= 0) {
+      gap = computeMixedGapPolygon(editor, patchCycle, boundaryCycle, patchIdxB, boundIdxA)
+    }
   }
 
   if (!gap) return null

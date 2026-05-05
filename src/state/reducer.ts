@@ -145,15 +145,15 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     }
     case 'SET_EDITOR_BOUNDARY_SHAPE': {
       if (!state.editor) return state
-      // Boundary shape determines the orbit symmetry; placed/completed tiles
-      // computed under the previous orbit are no longer valid. Reset to the
-      // origin tile only and snap the boundary size to the new shape's
+      // Tiles are preserved across boundary-shape changes — the orbit-
+      // propagation rationale that originally cleared them no longer
+      // applies (17.4 was archived, single-edge placements remain valid
+      // under any boundary). Boundary size still snaps to the new shape's
       // default so triangle/square/hexagon read at a comparable visual scale.
       const next: EditorConfig = {
         ...state.editor,
         boundaryShape: action.payload,
         boundarySize: DEFAULT_BOUNDARY_SIZE_BY_SHAPE[action.payload],
-        tiles: [createOriginTile(state.editor.originSides, state.editor.edgeLength)],
       }
       return seedFigures({ ...state, editor: next })
     }

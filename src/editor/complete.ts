@@ -2,7 +2,7 @@ import type { Vec2 } from '../utils/math'
 import { centroid, pointInPolygon } from '../utils/math'
 import type { EditorConfig, EditorTile } from '../types/editor'
 import { tileVertices, EDITOR_EPS } from './exposedEdges'
-import { computeOuterBoundary, type BoundaryVertex } from './boundary'
+import { computeBoundaryCycle, computeOuterBoundary, type BoundaryVertex } from './boundary'
 
 /**
  * The polygon used to "complete" a gap, returned by `computeGapPolygon`.
@@ -131,12 +131,45 @@ export function findCycleIndexByPoint(cycle: BoundaryVertex[], p: Vec2): number 
 }
 
 /**
+ * Like `computeGapPolygon` but disambiguates by excluding the arc whose
+ * polygon contains the patch centre. Used when both picks land on the
+ * boundary outline rather than the patch's outer cycle — there both arcs are
+ * outside any tile, so the existing `isPointInPatch` test can't tell them
+ * apart. A patch is always centred on the boundary's origin, so the arc
+ * whose polygon does NOT contain `(0, 0)` is the gap to fill.
+ */
+function computeBoundaryGapPolygon(
+  cycle: BoundaryVertex[],
+  indexA: number,
+  indexB: number,
+): GapPolygon | null {
+  const n = cycle.length
+  if (n < 3 || indexA === indexB) return null
+  const fwd = arcPath(cycle, indexA, indexB, 1)
+  const bwd = arcPath(cycle, indexA, indexB, -1)
+  const cands: Vec2[][] = []
+  if (fwd.length >= 3) cands.push(fwd)
+  if (bwd.length >= 3) cands.push(bwd)
+  // Patch is centred on origin by construction; the arc whose polygon does
+  // not enclose origin is the exterior-to-patch side.
+  for (const cand of cands) {
+    if (!pointInPolygon({ x: 0, y: 0 }, cand)) return { vertices: ensureCCW(cand) }
+  }
+  return null
+}
+
+/**
  * Compute the tile that completes the gap defined by the two picked vertex
  * positions, preferring a regular fit (Decision 10) and falling back to an
  * irregular tile (Decision 12 — first-class polygon, same data model).
  *
+ * Picks may be on either the patch's outer cycle (existing 17.5 behaviour)
+ * or on the boundary polygon's corners (added so the user can fill regions
+ * between the patch and the boundary outline). Mixed picks — one patch
+ * vertex + one boundary corner — are not yet supported and return `null`.
+ *
  * Returns `null` if no gap can be computed (degenerate pick, vertex not on
- * outer boundary, chord lies entirely inside patch, etc.).
+ * either cycle, chord lies entirely inside patch, etc.).
  */
 export function completeGap(
   editor: EditorConfig,
@@ -144,12 +177,24 @@ export function completeGap(
   pB: Vec2,
   newId: string,
 ): EditorTile | null {
-  const cycle = computeOuterBoundary(editor)
-  if (cycle.length < 3) return null
-  const ia = findCycleIndexByPoint(cycle, pA)
-  const ib = findCycleIndexByPoint(cycle, pB)
-  if (ia < 0 || ib < 0) return null
-  const gap = computeGapPolygon(cycle, ia, ib, editor)
+  let gap: GapPolygon | null = null
+
+  // First try the patch's outer cycle — this is the common 17.5 case.
+  const patchCycle = computeOuterBoundary(editor)
+  if (patchCycle.length >= 3) {
+    const ia = findCycleIndexByPoint(patchCycle, pA)
+    const ib = findCycleIndexByPoint(patchCycle, pB)
+    if (ia >= 0 && ib >= 0) gap = computeGapPolygon(patchCycle, ia, ib, editor)
+  }
+
+  // Fall back to the boundary cycle if both picks landed there instead.
+  if (!gap) {
+    const boundaryCycle = computeBoundaryCycle(editor)
+    const ia = findCycleIndexByPoint(boundaryCycle, pA)
+    const ib = findCycleIndexByPoint(boundaryCycle, pB)
+    if (ia >= 0 && ib >= 0) gap = computeBoundaryGapPolygon(boundaryCycle, ia, ib)
+  }
+
   if (!gap) return null
 
   const reg = tryRegularFit(gap)

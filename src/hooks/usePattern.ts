@@ -7,6 +7,7 @@ import { TILINGS } from '../tilings/index'
 import { generateTiling } from '../tilings/archimedean'
 import { generateRosettePatch } from '../tilings/rosettePatch'
 import { editorBoundaryVertices, editorTilesToPolygons } from '../editor/buildEditorPolygons'
+import { editorLatticeStamps } from '../editor/lattice'
 import { runPIC } from '../pic/index'
 
 export interface PatternData {
@@ -21,6 +22,8 @@ export function usePattern(
   viewTransform: ViewTransform,
   containerWidth: number,
   containerHeight: number,
+  /** Step 17.6 — when true and an editor patch is active, stamp the patch on the boundary's translation lattice across the viewport. */
+  editorStrandMode = false,
 ): PatternData {
   // Visible viewport in world coordinates
   const vw = containerWidth / viewTransform.zoom
@@ -42,12 +45,36 @@ export function usePattern(
 
   return useMemo(() => {
     // Step 17 editor: when the patch is active, render its tiles directly.
-    // The patch is finite, so viewport quantisation doesn't apply.
+    // Design mode = single patch; Strand mode = lattice-stamped across the
+    // viewport so the user sees how strands flow across boundaries.
     if (config.tiling.type === 'editor' && config.editor) {
-      const polygons = editorTilesToPolygons(config.editor)
+      const basePolys = editorTilesToPolygons(config.editor)
+      if (!editorStrandMode) {
+        const segments = runPIC(basePolys, config)
+        const boundaryOutline = editorBoundaryVertices(config.editor)
+        return { polygons: basePolys, segments, boundaryOutline }
+      }
+      // Strand mode — stamp on the lattice. Lacking a v1 lattice for
+      // triangle (deferred to 17.6c), the helper returns a single stamp
+      // and the user gets a one-patch preview.
+      const stamps = editorLatticeStamps(config.editor, {
+        x: genX, y: genY, width: genW, height: genH,
+      })
+      const polygons: typeof basePolys = []
+      for (let s = 0; s < stamps.length; s++) {
+        const stamp = stamps[s]
+        for (const p of basePolys) {
+          polygons.push({
+            ...p,
+            id: `${p.id}@${s}`,
+            center: { x: p.center.x + stamp.translation.x, y: p.center.y + stamp.translation.y },
+            vertices: p.vertices.map(v => ({ x: v.x + stamp.translation.x, y: v.y + stamp.translation.y })),
+          })
+        }
+      }
       const segments = runPIC(polygons, config)
-      const boundaryOutline = editorBoundaryVertices(config.editor)
-      return { polygons, segments, boundaryOutline }
+      // No boundary outline in strand mode — the lattice is the visual.
+      return { polygons, segments }
     }
 
     const def = TILINGS[config.tiling.type]
@@ -61,5 +88,5 @@ export function usePattern(
     const segments = runPIC(polygons, config)
 
     return { polygons, segments }
-  }, [config, genX, genY, genW, genH])
+  }, [config, genX, genY, genW, genH, editorStrandMode])
 }

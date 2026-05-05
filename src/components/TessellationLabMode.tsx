@@ -104,6 +104,13 @@ export function TessellationLabMode({
   // ── Editor mode + Complete picker (Step 17.5) ──────────
   const [editorMode, setEditorMode] = useState<'place' | 'complete'>('place')
   const [firstVertexPick, setFirstVertexPick] = useState<{ x: number; y: number } | null>(null)
+  // Step 17.6 — Design vs Strand-editor mode flip (Decision 15). Local UI
+  // state — not persisted; figures persist independently per Q15.
+  const [editorPhase, setEditorPhase] = useState<'design' | 'strand'>('design')
+  // Drop strand mode if the patch goes away.
+  useEffect(() => {
+    if (config.tiling.type !== 'editor' || !config.editor) setEditorPhase('design')
+  }, [config.tiling.type, config.editor])
   // Reset picker state when patch changes or mode flips.
   useEffect(() => { setFirstVertexPick(null) }, [editorMode, config.editor])
   useEffect(() => {
@@ -285,6 +292,15 @@ export function TessellationLabMode({
                 }}
                 firstVertexPick={firstVertexPick}
                 onCancelComplete={() => setFirstVertexPick(null)}
+                editorPhase={editorPhase}
+                onSetEditorPhase={p => {
+                  setEditorPhase(p)
+                  // Clear in-flight design picks when entering strand mode.
+                  if (p === 'strand') {
+                    setSelectedEdge(null)
+                    setFirstVertexPick(null)
+                  }
+                }}
               />
             ) : (
               <>
@@ -665,6 +681,7 @@ export function TessellationLabMode({
         editorMode={editorMode}
         firstVertexPick={firstVertexPick}
         onPickVertex={handlePickVertex}
+        editorStrandMode={editorPhase === 'strand'}
       />
     </div>
   )
@@ -774,6 +791,8 @@ interface EditorDesignControlsProps {
   onSetEditorMode: (m: 'place' | 'complete') => void
   firstVertexPick: { x: number; y: number } | null
   onCancelComplete: () => void
+  editorPhase: 'design' | 'strand'
+  onSetEditorPhase: (p: 'design' | 'strand') => void
 }
 
 function EditorDesignControls({
@@ -784,13 +803,63 @@ function EditorDesignControls({
   onSetEditorMode,
   firstVertexPick,
   onCancelComplete,
+  editorPhase,
+  onSetEditorPhase,
 }: EditorDesignControlsProps) {
   // Once the user has placed (or completed) any tile beyond the auto-placed
   // origin, changing origin sides would wipe their work — Decision: lock the
   // slider until the patch is cleared rather than risk an accidental drag.
   const originLocked = editor.tiles.length > 1
+  const inStrand = editorPhase === 'strand'
   return (
     <>
+      {/* Step 17.6 — Design / Strand-editor phase flip (Decision 15). */}
+      <FieldLabel label="Phase" />
+      <div style={{ display: 'flex', gap: 0, marginBottom: inStrand ? 4 : 12 }}>
+        {(['design', 'strand'] as const).map(p => {
+          const active = editorPhase === p
+          return (
+            <button
+              key={p}
+              onClick={() => onSetEditorPhase(p)}
+              style={{
+                flex: 1,
+                padding: '5px 0',
+                fontFamily: "'Cinzel', Georgia, serif",
+                fontSize: 9,
+                fontWeight: 600,
+                letterSpacing: '0.10em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+                border: `1px solid ${active ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                background: active ? 'var(--accent-bg)' : 'transparent',
+                color: active ? 'var(--accent)' : 'var(--text-muted)',
+                transition: 'all 0.15s',
+              }}
+            >
+              {p === 'design' ? 'Design' : 'Strand editor'}
+            </button>
+          )
+        })}
+      </div>
+      {inStrand && (
+        <div style={{
+          marginTop: 0,
+          marginBottom: 14,
+          padding: '8px 10px',
+          fontFamily: "'EB Garamond', Georgia, serif",
+          fontSize: 12,
+          color: 'var(--text-muted)',
+          lineHeight: 1.45,
+          border: '1px solid var(--border-subtle)',
+        }}>
+          {editor.boundaryShape === 'triangle'
+            ? 'Triangle lattice preview is deferred; you\'re seeing one stamp. Strand controls below still apply.'
+            : 'Patch is stamped on the boundary\'s translation lattice. Edit strand controls below; flip back to Design to change tiles.'}
+        </div>
+      )}
+
+      {!inStrand && <>
       <FieldLabel label="Boundary shape" />
       <div style={{ display: 'flex', gap: 0, marginBottom: 4 }}>
         {BOUNDARY_OPTIONS.map(opt => {
@@ -948,6 +1017,7 @@ function EditorDesignControls({
           Clear
         </button>
       </div>
+      </>}
     </>
   )
 }

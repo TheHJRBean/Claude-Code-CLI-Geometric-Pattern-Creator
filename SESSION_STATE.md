@@ -4,7 +4,38 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
-**Last action:** 2026-05-05 — sub-step **17.5** code-complete:
+**Last action:** 2026-05-05 — sub-step **17.6** code-complete in two
+parts.
+
+**17.6a (`7056a9f`)** — canonical-signature `tileTypeId` for irregular
+tiles per Q11 (Option B): regular `"<n>"`, irregular
+`"<n>i:<8-char hex>"` from interior-angles + edge-length-ratios
+quantised to 4 d.p., reduced to lex-min cyclic / reflective rotation,
+FNV-1a hashed. New `editor/tileTypeId.ts` + `editor/tileTypes.ts`
+expose `tileTypeIdFor`, `tileTypeLabel`, `editorTileTypes`,
+`seedFiguresForEditor`. Reducer's editor cases all run through a
+`seedFigures` helper (Q15: lazy + additive — deletes never strip
+figures, so re-placing the same shape restores tuning). Strand panel
+in Lab now lists one card per distinct tile type in the patch
+("Triangle" / "Square" / … for regulars; "Irregular A/B/C…" for
+irregulars in first-seen order).
+
+**17.6b** — strand-editor lattice preview + Design / Strand phase
+flip. New `editor/lattice.ts` returns translation-stamps covering the
+viewport for square (basis (L,0)/(0,L)) and hex (basis (√3·L,0) /
+(√3·L/2, 1.5L)). Triangle defers to a follow-up (needs 2-orientation
+alternation); strand mode on a triangle boundary shows a single
+stamp with an explanatory note. `usePattern` accepts an
+`editorStrandMode` flag; when on, it generates polygons by stamping
+`editorTilesToPolygons` at every lattice translation, runs PIC over
+the whole stamped set, and returns no `boundaryOutline`. `Canvas`
+hides the edge / vertex / picker overlays in strand mode.
+`TessellationLabMode` owns a `editorPhase: 'design' | 'strand'`
+flag (UI-only); `EditorDesignControls` shows a Design / Strand
+editor toggle at the top, and in strand phase replaces the design
+rows with a hint card.
+
+Earlier: 2026-05-05 — sub-step **17.5** code-complete:
 manual Complete operation. Single-gap version (no orbit propagation
 since 17.4 is parked). New `editor/boundary.ts` walks exposed edges
 into a CCW outer-boundary cycle. New `editor/complete.ts` resolves
@@ -68,7 +99,26 @@ follow-up `0aff7fb` resets placed tiles when shape / origin sides
 change. 17.1 shipped 2026-05-03 (`e199aee`) — data model +
 read-only render. `94f651c` made Lab editor-only.
 
-**Next action:** Visual sign-off on 17.5. Probes:
+**Next action:** Visual sign-off on 17.6. Probes:
+1. New square patch + a few placed tiles → flip to Strand editor →
+   patch should appear stamped on a square grid covering the viewport.
+   Strand panel cards drive global strand tuning.
+2. Hex patch with placed tiles → strand mode → hex lattice stamping.
+3. Triangle patch → strand mode → single stamp with the deferred-lattice
+   notice.
+4. Place a tile in design mode, flip to strand, edit contact angle,
+   flip back to design — the figure tuning should persist (Q15
+   stickiness).
+5. Build a patch with one irregular completed tile and one regular
+   placed tile → strand panel should list both as separate cards
+   ("Irregular A" + "Triangle" or similar).
+
+**17.5 deferred items still in 17.6a:** none — canonical-hash + lazy
+seeding shipped here. **17.6c follow-up:** triangle 2-orientation
+lattice (alternating up/down stamps). Will file as `/idea` if you want
+to formally park it.
+
+Visual sign-off on 17.5 probes:
 1. New square + place 4 triangles on its edges → Complete mode →
    pick two adjacent triangle apexes (across one corner) → the
    corner gap fills.

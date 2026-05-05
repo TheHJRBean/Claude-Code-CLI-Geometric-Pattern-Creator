@@ -911,6 +911,25 @@ function EditorDesignControls({
         })}
       </div>
 
+      <label style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        marginTop: 10,
+        cursor: 'pointer',
+        fontFamily: "'EB Garamond', Georgia, serif",
+        fontSize: 13,
+        color: editor.alternateBoundary ? 'var(--text)' : 'var(--text-muted)',
+        transition: 'color 0.15s',
+      }}>
+        <input
+          type="checkbox"
+          checked={!!editor.alternateBoundary}
+          onChange={e => dispatch({ type: 'SET_EDITOR_ALTERNATE_BOUNDARY', payload: e.target.checked })}
+        />
+        Alternate orientation
+      </label>
+
       <FieldLabel label="Boundary size" value={editor.boundarySize.toFixed(0)} unit=" u" />
       <input
         type="range"

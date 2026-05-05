@@ -26,16 +26,31 @@ export interface LatticeStamp {
 /** Boundary's lattice basis vectors. `null` for shapes without a v1 lattice. */
 function latticeBasis(editor: EditorConfig): { u: Vec2; v: Vec2 } | null {
   const L = editor.boundarySize
+  let basis: { u: Vec2; v: Vec2 } | null
   switch (editor.boundaryShape) {
     case 'square':
-      return { u: { x: L, y: 0 }, v: { x: 0, y: L } }
+      basis = { u: { x: L, y: 0 }, v: { x: 0, y: L } }
+      break
     case 'hexagon': {
       const s = Math.sqrt(3) * L
-      return { u: { x: s, y: 0 }, v: { x: s / 2, y: 1.5 * L } }
+      basis = { u: { x: s, y: 0 }, v: { x: s / 2, y: 1.5 * L } }
+      break
     }
     case 'triangle':
       return null // deferred to 17.6c
   }
+  if (editor.alternateBoundary) {
+    // Rotate basis vectors by π/n so the lattice cells track the rotated
+    // boundary outline (square → diamond, hex point-up → flat-top).
+    const sides = editor.boundaryShape === 'square' ? 4 : 6
+    const a = Math.PI / sides
+    const c = Math.cos(a), s = Math.sin(a)
+    basis = {
+      u: { x: basis.u.x * c - basis.u.y * s, y: basis.u.x * s + basis.u.y * c },
+      v: { x: basis.v.x * c - basis.v.y * s, y: basis.v.x * s + basis.v.y * c },
+    }
+  }
+  return basis
 }
 
 /** True iff the boundary supports a lattice preview in this version. */

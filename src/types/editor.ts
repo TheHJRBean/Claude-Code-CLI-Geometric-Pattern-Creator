@@ -62,5 +62,12 @@ export interface EditorConfig {
   originSides: number
   /** Global edge length for all regular placements (Decision 14, locked at origin time). */
   edgeLength: number
+  /**
+   * When true, the boundary outline (and its lattice basis in strand mode)
+   * is rotated by π/n — the "alternate" orientation. For a square that's
+   * the diamond ↔ axis-aligned flip; for a hexagon point-up ↔ flat-top;
+   * for a triangle point-up ↔ point-down. Optional for back-compat.
+   */
+  alternateBoundary?: boolean
   tiles: EditorTile[]
 }

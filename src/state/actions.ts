@@ -30,6 +30,7 @@ export type Action =
   | { type: 'EDITOR_CLEAR' }
   | { type: 'SET_EDITOR_BOUNDARY_SHAPE'; payload: BoundaryShape }
   | { type: 'SET_EDITOR_BOUNDARY_SIZE'; payload: number }
+  | { type: 'SET_EDITOR_ALTERNATE_BOUNDARY'; payload: boolean }
   | { type: 'SET_EDITOR_ORIGIN_SIDES'; payload: number }
   | { type: 'EDITOR_PLACE_TILE_ON_EDGE'; payload: { tileId: string; edgeIndex: number; sides: number } }
   | { type: 'EDITOR_DELETE_TILE'; payload: { tileId: string } }

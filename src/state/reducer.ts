@@ -159,6 +159,10 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     case 'SET_EDITOR_BOUNDARY_SIZE':
       // Q9 Option B: only the boundary outline rescales — tiles untouched.
       return updateEditor(state, { boundarySize: action.payload })
+    case 'SET_EDITOR_ALTERNATE_BOUNDARY':
+      // Pure visual flip: rotates the boundary outline (and its lattice basis
+      // in strand mode) by π/n. Tile contents are untouched.
+      return updateEditor(state, { alternateBoundary: action.payload })
     case 'SET_EDITOR_ORIGIN_SIDES': {
       if (!state.editor) return state
       const sides = Math.max(3, Math.floor(action.payload))

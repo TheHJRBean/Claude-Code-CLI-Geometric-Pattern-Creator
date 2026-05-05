@@ -36,7 +36,11 @@ const BOUNDARY_ROTATION: Record<BoundaryShape, number> = {
 export function editorBoundaryVertices(editor: EditorConfig): Vec2[] {
   const sides = BOUNDARY_SIDES[editor.boundaryShape]
   const rotation = BOUNDARY_ROTATION[editor.boundaryShape]
-  return regularPolygonVertices(sides, { x: 0, y: 0 }, editor.boundarySize, rotation)
+  // π/n flips the boundary into its alternate orientation (diamond ↔
+  // axis-aligned for a square, point-up ↔ flat-top for a hexagon,
+  // point-up ↔ point-down for a triangle).
+  const offset = editor.alternateBoundary ? Math.PI / sides : 0
+  return regularPolygonVertices(sides, { x: 0, y: 0 }, editor.boundarySize, rotation + offset)
 }
 
 /**

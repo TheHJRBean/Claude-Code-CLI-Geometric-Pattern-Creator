@@ -17,6 +17,7 @@ import { Canvas, type SelectedEdge } from './Canvas'
 import { SandstoneEdge } from './SandstoneEdge'
 import { useTheme } from '../theme/ThemeContext'
 import { SAMPLE_EDITOR_CONFIG } from '../editor/sampleConfig'
+import { BOUNDARY_SIZE_MAX_BY_SHAPE } from '../editor/createDefault'
 import { LAB_DEFAULT_CONFIG } from '../state/labDefaults'
 import type { BoundaryShape } from '../types/editor'
 
@@ -760,7 +761,7 @@ function EditorDesignControls({ editor, dispatch, onClear }: EditorDesignControl
         type="range"
         className="pattern-slider"
         min={80}
-        max={800}
+        max={BOUNDARY_SIZE_MAX_BY_SHAPE[editor.boundaryShape]}
         step={1}
         value={editor.boundarySize}
         onChange={e => dispatch({ type: 'SET_EDITOR_BOUNDARY_SIZE', payload: Number(e.target.value) })}

@@ -7,6 +7,7 @@ import { createDefaultEditorConfig, createOriginTile, DEFAULT_BOUNDARY_SIZE_BY_S
 import { computeExposedEdges } from '../editor/exposedEdges'
 import { isPlacementViable, placeRegularNGonOnEdge } from '../editor/placement'
 import { completeGap } from '../editor/complete'
+import { seedFiguresForEditor } from '../editor/tileTypes'
 
 const FALLBACK_FIGURE: FigureConfig = { type: 'star', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
 
@@ -128,12 +129,14 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       return { ...state, smoothTransitions: action.payload }
     case 'LOAD_CONFIG':
       return action.payload
-    case 'EDITOR_NEW':
-      return {
+    case 'EDITOR_NEW': {
+      const editor = createDefaultEditorConfig()
+      return seedFigures({
         ...state,
         tiling: { ...state.tiling, type: 'editor' },
-        editor: createDefaultEditorConfig(),
-      }
+        editor,
+      })
+    }
     case 'EDITOR_CLEAR': {
       const { editor: _drop, ...rest } = state
       void _drop
@@ -151,7 +154,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         boundarySize: DEFAULT_BOUNDARY_SIZE_BY_SHAPE[action.payload],
         tiles: [createOriginTile(state.editor.originSides, state.editor.edgeLength)],
       }
-      return { ...state, editor: next }
+      return seedFigures({ ...state, editor: next })
     }
     case 'SET_EDITOR_BOUNDARY_SIZE':
       // Q9 Option B: only the boundary outline rescales — tiles untouched.
@@ -166,7 +169,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         originSides: sides,
         tiles: [createOriginTile(sides, state.editor.edgeLength)],
       }
-      return { ...state, editor: next }
+      return seedFigures({ ...state, editor: next })
     }
     case 'EDITOR_PLACE_TILE_ON_EDGE': {
       if (!state.editor) return state
@@ -176,7 +179,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       if (!edge || !isPlacementViable(edge, sides, state.editor)) return state
       const id = `placed-${state.editor.tiles.length}-${Date.now()}`
       const tile = placeRegularNGonOnEdge(sides, state.editor.edgeLength, edge.p1, edge.p2, edge.sourceCenter, id)
-      return { ...state, editor: { ...state.editor, tiles: [...state.editor.tiles, tile] } }
+      return seedFigures({ ...state, editor: { ...state.editor, tiles: [...state.editor.tiles, tile] } })
     }
     case 'EDITOR_DELETE_TILE': {
       if (!state.editor) return state
@@ -184,6 +187,8 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       const target = state.editor.tiles.find(t => t.id === tileId)
       // The auto-placed origin can't be deleted — it anchors the patch.
       if (!target || target.origin === 'origin') return state
+      // Q15: orphaned figures are retained on tile removal so re-placing the
+      // same shape restores the user's tuning. We only ever add to figures.
       return {
         ...state,
         editor: { ...state.editor, tiles: state.editor.tiles.filter(t => t.id !== tileId) },
@@ -195,7 +200,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       const id = `completed-${state.editor.tiles.length}-${Date.now()}`
       const tile = completeGap(state.editor, pA, pB, id)
       if (!tile) return state
-      return { ...state, editor: { ...state.editor, tiles: [...state.editor.tiles, tile] } }
+      return seedFigures({ ...state, editor: { ...state.editor, tiles: [...state.editor.tiles, tile] } })
     }
     default:
       return state
@@ -206,6 +211,17 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
 function updateEditor(state: PatternConfig, patch: Partial<EditorConfig>): PatternConfig {
   if (!state.editor) return state
   return { ...state, editor: { ...state.editor, ...patch } }
+}
+
+/**
+ * Q15 — after any editor mutation, ensure every distinct `tileTypeId` in the
+ * patch has a `figures` entry. No-op when the editor is inactive or every
+ * tile type is already seeded.
+ */
+function seedFigures(state: PatternConfig): PatternConfig {
+  if (!state.editor) return state
+  const next = seedFiguresForEditor(state.figures, state.editor)
+  return next === state.figures ? state : { ...state, figures: next }
 }
 
 export { DEFAULT_CONFIG }

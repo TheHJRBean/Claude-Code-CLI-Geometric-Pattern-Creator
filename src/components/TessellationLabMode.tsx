@@ -20,6 +20,7 @@ import { SAMPLE_EDITOR_CONFIG } from '../editor/sampleConfig'
 import { BOUNDARY_SIZE_MAX_BY_SHAPE } from '../editor/createDefault'
 import { LAB_DEFAULT_CONFIG } from '../state/labDefaults'
 import type { BoundaryShape } from '../types/editor'
+import { editorTileTypes } from '../editor/tileTypes'
 
 /**
  * Tessellation Lab — workspace for prototyping tessellations and (next phase)
@@ -153,9 +154,14 @@ export function TessellationLabMode({
   }, [])
 
   const def = config.tiling.type ? TILINGS[config.tiling.type] : undefined
-  const tileTypes: TileTypeInfo[] = def
-    ? def.tileTypes ?? Array.from(new Set(def.vertexConfig)).map(n => ({ id: String(n), sides: n, label: `${n}-gon` }))
-    : []
+  // Editor patches don't have a `TilingDefinition` — derive their tile types
+  // from the patch itself so the strand panel renders one card per distinct
+  // n-gon (and one per distinct irregular signature) currently on canvas.
+  const tileTypes: TileTypeInfo[] = config.tiling.type === 'editor' && config.editor
+    ? editorTileTypes(config.editor)
+    : def
+      ? def.tileTypes ?? Array.from(new Set(def.vertexConfig)).map(n => ({ id: String(n), sides: n, label: `${n}-gon` }))
+      : []
 
   const handleLoadSaved = (id: string) => {
     setActiveSavedId(id)
@@ -424,8 +430,10 @@ export function TessellationLabMode({
           </div>
 
           {/* Strands — basic per-tile-type controls.
-              Only visible when strands are on AND a tessellation is selected. */}
-          {showStrands && def && (
+              Visible when strands are on AND we have something to render
+              over: a static tessellation definition, or an editor patch
+              (17.6a — the strand panel's tile cards now reflect the patch). */}
+          {showStrands && (def || (config.tiling.type === 'editor' && config.editor)) && (
             <div style={{ paddingTop: 22 }}>
               <SectionTitle>Strands</SectionTitle>
               {tileTypes.map(tt => {

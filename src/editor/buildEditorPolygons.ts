@@ -1,8 +1,11 @@
 import type { Polygon } from '../types/geometry'
-import type { BoundaryShape, EditorConfig, EditorTile } from '../types/editor'
+import type { BoundaryShape, EditorConfig } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import { regularPolygonVertices } from './regularPolygon'
 import { centroid } from '../utils/math'
+import { tileTypeIdFor } from './tileTypeId'
+
+export { tileTypeIdFor }
 
 /**
  * Side count for each supported boundary shape.
@@ -34,22 +37,6 @@ export function editorBoundaryVertices(editor: EditorConfig): Vec2[] {
   const sides = BOUNDARY_SIDES[editor.boundaryShape]
   const rotation = BOUNDARY_ROTATION[editor.boundaryShape]
   return regularPolygonVertices(sides, { x: 0, y: 0 }, editor.boundarySize, rotation)
-}
-
-/**
- * Map an editor tile onto the `tileTypeId` used by `runPIC` for figure-config
- * lookup.
- *
- * Q11 resolution (Option B):
- *   - Regular n-gon → `"<n>"` (matches the existing archimedean convention).
- *   - Irregular tile → canonical-signature hash, planned for sub-step 17.5.
- *
- * 17.1 only ships regular tiles, so the irregular branch returns a
- * provisional placeholder. Replaced wholesale at 17.5.
- */
-export function tileTypeIdFor(tile: EditorTile): string {
-  if (tile.kind === 'regular') return String(tile.sides)
-  return `${tile.vertices.length}i:provisional`
 }
 
 /**

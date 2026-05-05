@@ -39,11 +39,13 @@ interface Props {
   onPickVertex?: (p: Vec2) => void
   /** Step 17.6 — when true, the editor patch is stamped on the boundary's translation lattice. Hides design overlays. */
   editorStrandMode?: boolean
+  /** Step 17.6 — when true in strand mode, draw the patch boundary outline at every lattice stamp. */
+  showBoundaryLattice?: boolean
 }
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, fillOnHover, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, editorMode = 'place', firstVertexPick, onPickVertex, editorStrandMode = false }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, fillOnHover, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, editorMode = 'place', firstVertexPick, onPickVertex, editorStrandMode = false, showBoundaryLattice = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -68,7 +70,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   )
   // Defer the heavy tiling computation so pointer events stay responsive
   const deferredVT = useDeferredValue(viewTransform)
-  const { polygons, segments, boundaryOutline } = usePattern(config, deferredVT, size.width, size.height, editorStrandMode)
+  const { polygons, segments, boundaryOutlines } = usePattern(config, deferredVT, size.width, size.height, editorStrandMode, showBoundaryLattice)
 
   const resetCamera = useCallback(() => {
     setViewTransform({
@@ -166,7 +168,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         cpActive={cpActive}
         outlineWidth={outlineWidth}
         fillOnHover={fillOnHover}
-        boundaryOutline={boundaryOutline}
+        boundaryOutlines={boundaryOutlines}
         editorOverlay={editorOverlay}
       />
       {pickerScreenPos && onPlaceTile && onSelectEdge && selectedEdgeData && (

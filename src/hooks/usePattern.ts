@@ -13,8 +13,13 @@ import { runPIC } from '../pic/index'
 export interface PatternData {
   polygons: Polygon[]
   segments: Segment[]
-  /** Editor-mode patch boundary outline (Step 17.2+). Undefined elsewhere. */
-  boundaryOutline?: Vec2[]
+  /**
+   * Editor-mode patch boundary outlines (Step 17.2+).
+   * - Design mode: a single outline (the patch boundary).
+   * - Strand mode + `showBoundaryLattice`: one outline per lattice stamp.
+   * - Otherwise: undefined.
+   */
+  boundaryOutlines?: Vec2[][]
 }
 
 export function usePattern(
@@ -24,6 +29,8 @@ export function usePattern(
   containerHeight: number,
   /** Step 17.6 — when true and an editor patch is active, stamp the patch on the boundary's translation lattice across the viewport. */
   editorStrandMode = false,
+  /** Step 17.6 — when true in strand mode, also draw the patch boundary outline at every lattice stamp. */
+  showBoundaryLattice = false,
 ): PatternData {
   // Visible viewport in world coordinates
   const vw = containerWidth / viewTransform.zoom
@@ -52,7 +59,7 @@ export function usePattern(
       if (!editorStrandMode) {
         const segments = runPIC(basePolys, config)
         const boundaryOutline = editorBoundaryVertices(config.editor)
-        return { polygons: basePolys, segments, boundaryOutline }
+        return { polygons: basePolys, segments, boundaryOutlines: [boundaryOutline] }
       }
       // Strand mode — stamp on the lattice. Lacking a v1 lattice for
       // triangle (deferred to 17.6c), the helper returns a single stamp
@@ -73,8 +80,15 @@ export function usePattern(
         }
       }
       const segments = runPIC(polygons, config)
-      // No boundary outline in strand mode — the lattice is the visual.
-      return { polygons, segments }
+      // Boundary outlines are opt-in in strand mode (showBoundaryLattice).
+      let boundaryOutlines: Vec2[][] | undefined
+      if (showBoundaryLattice) {
+        const baseOutline = editorBoundaryVertices(config.editor)
+        boundaryOutlines = stamps.map(stamp =>
+          baseOutline.map(v => ({ x: v.x + stamp.translation.x, y: v.y + stamp.translation.y })),
+        )
+      }
+      return { polygons, segments, boundaryOutlines }
     }
 
     const def = TILINGS[config.tiling.type]
@@ -88,5 +102,5 @@ export function usePattern(
     const segments = runPIC(polygons, config)
 
     return { polygons, segments }
-  }, [config, genX, genY, genW, genH, editorStrandMode])
+  }, [config, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice])
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { regularPolygonVertices } from '../editor/regularPolygon'
 import { PICKER_SIDES } from '../editor/placement'
 
@@ -32,12 +32,26 @@ const NGON_LABEL: Record<number, string> = {
 export function EditorPickerOverlay({
   position, viableSides, onPick, onClose, onDeleteOwningTile,
 }: Props) {
+  const dialogRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
     }
+    // Click anywhere outside the picker (including on a different edge) closes it.
+    // Defer to capture phase so we run before the edge layer's own pointerdown
+    // would re-select; the layer's handler then runs and selects the new edge,
+    // but the outside-click first wipes any half-state cleanly.
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node | null
+      if (target && dialogRef.current && dialogRef.current.contains(target)) return
+      onClose()
+    }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('pointerdown', onPointerDown)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('pointerdown', onPointerDown)
+    }
   }, [onClose])
 
   const [hoveredN, setHoveredN] = useState<number | null>(null)
@@ -46,6 +60,7 @@ export function EditorPickerOverlay({
 
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-label="Pick polygon to place"
       onPointerDown={e => e.stopPropagation()}

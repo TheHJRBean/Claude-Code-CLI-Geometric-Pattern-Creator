@@ -222,7 +222,7 @@ cross-references to the resolutions table.
 | **17.5** | Complete operation — manual vertex-pair selection. ✅ code-complete (canonical tile-type hash deferred to 17.5b / 17.6). | M | 9, 10, 12 | Q11 |
 | **17.6** | Strand editor mode + lattice preview + strand controls. ✅ a + b code-complete (triangle-lattice 2-orientation alternation deferred to 17.6c). | M | 15, 16, 17 | Q11, Q15 |
 | **17.7** | Auto-complete-on-flip (until-convex). Boundary fitting split out as a separate **Wrap boundary** design-mode toggle. ✅ shipped. | M | 11 | — |
-| **17.8** | Persistence integration (`lab-tessellations-v1` + JSON file). | S–M | 5 | Q13 |
+| **17.8** | Persistence validation + migration scaffold for `EditorConfig`. ✅ code-complete. | S–M | 5 | Q13 |
 | **17.9** | Undo / redo.                                     | S–M  | —         | Q12          |
 | **17.10**| Non-tiling patch detection + UI tag.             | S    | 2         | —            |
 
@@ -359,11 +359,21 @@ cross-references to the resolutions table.
   auto-complete; small caption under the boundary-size slider when
   wrap is engaged ("Driven by Wrap boundary — drag to override.").
 
-- **17.8 — Persistence.** Wire `EditorConfig` into both
-  `lab-tessellations-v1` localStorage and the existing `saveJSON` /
-  `loadJSON` file format. Schema-versioned. Acceptance: save 3 patches
-  across categories, reload browser, all three persist. Export to
-  JSON, import on another browser, patch round-trips.
+- **17.8 — Persistence.** ✅ Code-complete 2026-05-06.
+  `EditorConfig` already round-tripped through localStorage / JSON for
+  free (since `config` is JSON-serialised wholesale), so 17.8's actual
+  scope was **load-time validation + migration scaffold**. New
+  `src/editor/migrations.ts` exports `migrateEditorConfig(unknown)` —
+  the version dispatch hook for future `EditorConfig.version` bumps.
+  Validates shape, returns `null` on bad input. New
+  `src/state/configValidation.ts` exports `loadPatternConfig` +
+  `ConfigValidationError`: validates `tiling`/`figures`/`lacing`,
+  rejects retired tiling types, routes the optional `editor` field
+  through `migrateEditorConfig`. `loadJSON` validates on import;
+  `customTessellations.listSavedTessellations` skips bad rows with a
+  console warning so a single corrupt entry doesn't blank the
+  library. `App.handleLoadJSON` surfaces validation errors via
+  `window.alert` rather than silently logging.
 
 - **17.9 — Undo / redo.** Resolve Q12 first. Default plan: snapshot-
   based undo on `EditorConfig`. Acceptance: place 5 tiles, undo 3,
@@ -546,3 +556,18 @@ From the live tree:
   tile mutation when the flag is on. Manual boundary-size drag clears
   the flag. `AutoCompleteFlavor` and `SET_EDITOR_AUTO_COMPLETE_FLAVOR`
   retired; `autoCompletePatch` no longer takes a flavor.
+- **2026-05-06** — UI move (`af06d66`): auto-complete checkbox lives
+  inside the Mode section's Complete branch (only surfaces when
+  Complete is selected). Wrap boundary stays above the Mode toggle
+  since it applies in both modes.
+- **2026-05-06** — Sub-step 17.8 code-complete. Persistence
+  validation + migration scaffold added: `src/editor/migrations.ts`
+  (`migrateEditorConfig` — version dispatch hook for future schema
+  bumps), `src/state/configValidation.ts` (`loadPatternConfig` +
+  `ConfigValidationError`). Wired into `loadJSON` (file import) and
+  `customTessellations.listSavedTessellations` (localStorage). Bad
+  library rows skip with a warning rather than blanking the whole
+  library. `loadJSON` errors surface via `window.alert` in
+  `App.handleLoadJSON`. Cross-boundary-Complete idea
+  (`project_editor_cross_boundary_complete_idea.md`) parked as 17.5b
+  the same day.

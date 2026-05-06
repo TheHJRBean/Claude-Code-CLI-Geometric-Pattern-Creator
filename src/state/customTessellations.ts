@@ -1,5 +1,6 @@
 import type { PatternConfig } from '../types/pattern'
 import { TILINGS } from '../tilings/index'
+import { ConfigValidationError, loadPatternConfig } from './configValidation'
 
 /**
  * Lab-local library of user-saved tessellations.
@@ -45,10 +46,6 @@ function categoryFor(config: PatternConfig): SavedSourceCategory {
   return def?.category === 'rosette-patch' ? 'rosette-patch' : 'archimedean'
 }
 
-// Tessellation types removed in the 2026-05-03 cleanup. Saved entries
-// pointing at these get skipped on load with a console warning.
-const RETIRED_TILING_TYPES = new Set(['layered-mandala', 'composition'])
-
 export function listSavedTessellations(): SavedTessellation[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -57,19 +54,21 @@ export function listSavedTessellations(): SavedTessellation[] {
     if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.entries)) {
       return []
     }
-    return parsed.entries.filter(e => {
-      if (!e || typeof e !== 'object') return false
-      if (typeof e.id !== 'string' || typeof e.name !== 'string') return false
-      if (!e.config || !e.config.tiling) {
-        console.warn('Skipping malformed saved tessellation', e.id)
-        return false
+    const out: SavedTessellation[] = []
+    for (const e of parsed.entries) {
+      if (!e || typeof e !== 'object') continue
+      if (typeof e.id !== 'string' || typeof e.name !== 'string') continue
+      try {
+        // Validate + migrate the config; corrupt entries are skipped with a
+        // warning so a single bad row doesn't blank the whole library.
+        const config = loadPatternConfig(e.config)
+        out.push({ ...e, config })
+      } catch (err) {
+        const reason = err instanceof ConfigValidationError ? err.message : 'unknown error'
+        console.warn(`Skipping saved tessellation "${e.name}": ${reason}`)
       }
-      if (RETIRED_TILING_TYPES.has(e.config.tiling.type)) {
-        console.warn(`Skipping saved tessellation "${e.name}" — type "${e.config.tiling.type}" was retired in the 2026-05-03 cleanup.`)
-        return false
-      }
-      return true
-    })
+    }
+    return out
   } catch (err) {
     console.warn('Failed to load saved tessellations', err)
     return []

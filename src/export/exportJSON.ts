@@ -1,4 +1,5 @@
 import type { PatternConfig } from '../types/pattern'
+import { ConfigValidationError, loadPatternConfig } from '../state/configValidation'
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
@@ -25,11 +26,17 @@ export function loadJSON(): Promise<PatternConfig> {
       if (!file) return reject(new Error('No file selected'))
       const reader = new FileReader()
       reader.onload = e => {
+        let parsed: unknown
         try {
-          const config = JSON.parse(e.target!.result as string) as PatternConfig
-          resolve(config)
+          parsed = JSON.parse(e.target!.result as string)
         } catch {
-          reject(new Error('Invalid JSON file'))
+          return reject(new Error('Invalid JSON file'))
+        }
+        try {
+          resolve(loadPatternConfig(parsed))
+        } catch (err) {
+          if (err instanceof ConfigValidationError) reject(err)
+          else reject(new Error('Could not load pattern config.'))
         }
       }
       reader.readAsText(file)

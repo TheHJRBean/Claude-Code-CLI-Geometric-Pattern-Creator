@@ -1,5 +1,5 @@
 import type { PatternConfig, FigureConfig, LacingConfig } from '../types/pattern'
-import type { AutoCompleteFlavor, BoundaryShape } from '../types/editor'
+import type { BoundaryShape } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 
 export type Action =
@@ -38,5 +38,6 @@ export type Action =
   | { type: 'EDITOR_COMPLETE_GAP'; payload: { pA: Vec2; pB: Vec2 } }
   // Step 17.7 — Auto-complete on flip (Decision 11)
   | { type: 'SET_EDITOR_AUTO_COMPLETE_ENABLED'; payload: boolean }
-  | { type: 'SET_EDITOR_AUTO_COMPLETE_FLAVOR'; payload: AutoCompleteFlavor }
   | { type: 'EDITOR_RUN_AUTO_COMPLETE' }
+  // Wrap boundary — design-mode boundary fitting (formerly match-boundary flavour)
+  | { type: 'SET_EDITOR_WRAP_BOUNDARY'; payload: boolean }

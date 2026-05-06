@@ -1,22 +1,17 @@
-import type { AutoCompleteFlavor, EditorConfig, EditorTile } from '../types/editor'
+import type { EditorConfig, EditorTile } from '../types/editor'
 import { computeOuterBoundary } from './boundary'
 import { completeGap } from './complete'
 import { tileVertices } from './exposedEdges'
 import { BOUNDARY_SIDES } from './buildEditorPolygons'
 
 /**
- * Step 17.7 — auto-complete-on-flip (Decision 11).
+ * Step 17.7 — auto-complete (Decision 11).
  *
- * Two flavours:
- *   - `until-convex`  fill concave (reflex) dents on the patch's outer
- *                     boundary until the cycle is convex. Boundary size
- *                     is untouched.
- *   - `match-boundary` same as above, then resize `boundarySize` so the
- *                     boundary polygon hugs the patch's convex hull.
- *
- * Auto-completed tiles are first-class `'completed'` polygons emitted by
- * `completeGap`; on flip-back to Design they're editable like any other
- * completed tile (Decision 16).
+ * Fills concave (reflex) dents on the patch's outer boundary until the cycle
+ * is convex. Auto-completed tiles are first-class `'completed'` polygons
+ * emitted by `completeGap`; on flip-back to Design they're editable like any
+ * other completed tile (Decision 16). Boundary size is untouched — the
+ * separate `wrapBoundary` mode handles boundary fitting in Design mode.
  */
 
 /** Hard cap on fill iterations to guarantee termination on pathological input. */
@@ -26,7 +21,6 @@ const REFLEX_EPS = 1e-9
 
 export interface AutoCompleteResult {
   tiles: EditorTile[]
-  boundarySize: number
 }
 
 /**
@@ -87,18 +81,12 @@ export function fitBoundarySize(editor: EditorConfig): number {
 }
 
 /**
- * Pure helper: runs auto-complete on `editor` and returns the new tiles list
- * + (possibly updated) boundary size. The reducer is responsible for swapping
- * these onto state and re-seeding figures.
- *
- * Idempotent on already-convex patches — `until-convex` exits immediately if
- * no reflex vertex exists, and `match-boundary` resolves to the same fitted
- * boundary on subsequent calls.
+ * Pure helper: runs auto-complete on `editor` and returns the new tiles list.
+ * The reducer is responsible for swapping the result onto state and re-seeding
+ * figures. Idempotent on already-convex patches — exits immediately when no
+ * reflex vertex exists.
  */
-export function autoCompletePatch(
-  editor: EditorConfig,
-  flavor: AutoCompleteFlavor,
-): AutoCompleteResult {
+export function autoCompletePatch(editor: EditorConfig): AutoCompleteResult {
   let tiles = editor.tiles
   for (let pass = 0; pass < MAX_PASSES; pass++) {
     const work: EditorConfig = { ...editor, tiles }
@@ -114,10 +102,5 @@ export function autoCompletePatch(
     if (!tile) break
     tiles = [...tiles, tile]
   }
-  let boundarySize = editor.boundarySize
-  if (flavor === 'match-boundary') {
-    const fit = fitBoundarySize({ ...editor, tiles })
-    if (Number.isFinite(fit) && fit > 0) boundarySize = fit
-  }
-  return { tiles, boundarySize }
+  return { tiles }
 }

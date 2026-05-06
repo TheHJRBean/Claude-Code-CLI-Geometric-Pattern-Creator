@@ -191,29 +191,31 @@ follow-up `0aff7fb` resets placed tiles when shape / origin sides
 change. 17.1 shipped 2026-05-03 (`e199aee`) — data model +
 read-only render. `94f651c` made Lab editor-only.
 
-**Next action:** Visual sign-off on 17.9. Probes:
-1. New square patch → place 5 tiles → press Cmd/Ctrl+Z five times →
-   patch back to origin only. Cmd/Ctrl+Shift+Z (or click Redo) five
-   times → all 5 tiles restored.
-2. Slider coalescing: drag the boundary-size slider continuously →
-   release → one undo press should restore the pre-drag size, not
-   step through every intermediate value.
-3. Cross-phase: place 3 tiles (Design) → flip to Strand → tune a
-   contact angle → flip back to Design → press Undo. Should undo
-   the *3rd tile placement* (strand tuning is off-stack); contact-
-   angle remains tuned.
-4. Mid-history mutate: place 5 tiles → undo 3 → place 1 new tile →
-   `future` should clear (Redo disabled).
-5. Library load: build a patch → save it → load a different saved
-   entry → Undo button greyed out (history cleared per Q12).
-6. Depth cap: place 60 tiles in a row → only 50 undos available.
-7. Keyboard hijack guard: focus the library Save dialog text input
-   → Cmd/Z should not fire undo (it's the OS undo for the input).
+**17.9 signed off 2026-05-06** — undo/redo confirmed working.
 
-After 17.9 sign-off, **17.10 — Non-tiling patch detection + UI tag**
-is next (the last v1 sub-step). Detects when the patch outline
-doesn't match the boundary polygon at strand-editor entry and shows
-a tag explaining why.
+**2026-05-06 — sub-step 17.10 code-complete: non-tiling patch
+detection + UI tag.** New `src/editor/nonTilingDetection.ts`
+exports `detectPatchTilingStatus(editor)` — shoelace-area compare
+of `computeOuterBoundary` vs `editorBoundaryVertices` with a 1%
+relative tolerance. Returns `{ kind: 'tiling' }` or
+`{ kind: 'non-tiling', reason: 'underfills' | 'overflows' | 'empty' }`.
+`TessellationLabMode` renders a small `NonTilingWarning` block
+inside the strand-mode info card when the status is non-tiling
+("Patch doesn't fill the boundary — stamped copies will leave
+gaps." / "Patch extends past the boundary — stamped copies will
+overlap."). Diagnostic only; no auto-fix per scope. This is the
+last v1 sub-step — Step 17 v1 complete pending visual sign-off.
+
+**Next action:** Visual sign-off on 17.10. Probes:
+1. New square patch (only origin) → flip to Strand → warning shows
+   "doesn't fill the boundary" since origin is smaller than
+   default boundary.
+2. Square patch + Wrap boundary on → flip to Strand → no warning
+   (wrap forces patch outline = boundary).
+3. Square boundary, place tiles that extend past one edge → flip
+   to Strand → warning shows "extends past the boundary".
+4. Hex boundary fully covered with placed/completed tiles → flip
+   to Strand → no warning.
 
 17.8 sign-off probes (carried forward — confirm before 17.9 sign-off):
 1. Save 3 patches across categories → reload → all persist.

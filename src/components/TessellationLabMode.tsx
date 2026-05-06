@@ -12,7 +12,7 @@ import { useTheme } from '../theme/ThemeContext'
 import { SAMPLE_EDITOR_CONFIG } from '../editor/sampleConfig'
 import { BOUNDARY_SIZE_MAX_BY_SHAPE } from '../editor/createDefault'
 import { LAB_DEFAULT_CONFIG } from '../state/labDefaults'
-import type { BoundaryShape } from '../types/editor'
+import type { BoundaryShape, SymmetryMode } from '../types/editor'
 import { editorTileTypes } from '../editor/tileTypes'
 import { useEditorHistory } from '../editor/useEditorHistory'
 import { detectPatchTilingStatus } from '../editor/nonTilingDetection'
@@ -1072,6 +1072,41 @@ function EditorDesignControls({
           }}
         >
           Locked — clear the patch to change the origin shape.
+        </div>
+      )}
+
+      {/* Step 17.4 (re-enabled) — Symmetry picker. The chosen subgroup of
+          the boundary's dihedral group governs how placements + deletes
+          propagate. None = single-edge (17.3 behaviour, the default).
+          Horizontal mirror is hidden for triangle (no horizontal mirror
+          axis exists on an equilateral triangle). */}
+      <FieldLabel label="Symmetry" />
+      <select
+        className="pattern-select"
+        value={editor.symmetryMode ?? 'none'}
+        onChange={e => dispatch({ type: 'SET_EDITOR_SYMMETRY_MODE', payload: e.target.value as SymmetryMode })}
+      >
+        <option value="none">None — single edge</option>
+        <option value="full">Full — all rotations + mirrors</option>
+        <option value="rotation">Rotation only</option>
+        <option value="vertical">Vertical mirror only</option>
+        {editor.boundaryShape !== 'triangle' && (
+          <option value="horizontal">Horizontal mirror only</option>
+        )}
+      </select>
+      {(editor.symmetryMode ?? 'none') !== 'none' && (
+        <div style={{
+          fontFamily: "'Cinzel', Georgia, serif",
+          fontSize: 9,
+          fontWeight: 600,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          color: 'var(--text-muted)',
+          marginTop: 4,
+          marginBottom: 4,
+          lineHeight: 1.4,
+        }}>
+          Placements + deletes propagate under this subgroup.
         </div>
       )}
 

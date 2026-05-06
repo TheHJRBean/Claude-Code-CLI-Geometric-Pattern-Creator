@@ -1,57 +1,5 @@
 # SESSION_STATE.md
 
-## 🔧 IN-PROGRESS: Step 17.4 re-enable — Symmetry-axis toggle
-
-**Started:** 2026-05-06. Re-introducing the archived 17.4 orbit
-propagation behind a user-controlled subgroup picker so it doesn't
-ship as full-D_n-by-default again. Idea memo:
-`project_editor_symmetry_axes_toggle_idea.md`. Archive to lift
-from: `archive/editor-orbit-17.4/` (`symmetry.ts`, `orbit.ts`,
-`README.md`).
-
-**Decisions locked**
-
-1. Default mode is **`'none'`** (current 17.3 single-edge behaviour).
-   Picker is opt-in — existing patches behave unchanged on load.
-2. Five subgroup options: `full | rotation | vertical | horizontal | none`.
-   Stored as `editor.symmetryMode?: SymmetryMode` (optional → default
-   none). No schema-version bump; migration sets the default.
-3. **Triangle has no horizontal mirror axis** — disable
-   `'horizontal'` for triangle in the picker (greyed with note).
-4. Picker affects *future* placements + deletes only. Existing tiles
-   stay put when the user switches modes. Switching never auto-fixes
-   asymmetric tiles or auto-removes orbit siblings.
-5. `SET_EDITOR_SYMMETRY_MODE` is a design-mode action → pushes to
-   undo history (matches other editor mutations).
-
-**Sub-steps**
-
-- [done] 17.4a — `src/editor/symmetry.ts` + `src/editor/orbit.ts`
-  restored from archive. `boundarySymmetries(shape, mode)` returns
-  the requested subgroup; `'horizontal'` defensively returns
-  identity-only for triangle. `orbit.ts` reads
-  `editor.symmetryMode ?? 'none'` so legacy patches behave like 17.3.
-- [done] 17.4b — `SymmetryMode` type + `editor.symmetryMode` field
-  added. Migration accepts the field if present, omits it otherwise
-  (read defaults to `'none'`). `SET_EDITOR_SYMMETRY_MODE` action +
-  history tracking added.
-- [done] 17.4c — Reducer's `EDITOR_PLACE_TILE_ON_EDGE` routes
-  through `placeTilesOnOrbit` when mode ≠ none; `EDITOR_DELETE_TILE`
-  removes the orbit set (origin tile filtered out defensively).
-  None mode preserves the 17.3 single-edge behaviour exactly.
-- [todo] 17.4d — UI: "Symmetry" picker section in
-  `EditorDesignControls`. 5 buttons; horizontal disabled for
-  triangle.
-- [todo] 17.4e — Plan doc + memory file update; visual sign-off.
-
-**To resume mid-flight in a fresh session:**
-1. Read this section + the idea memo.
-2. `git log --oneline -10` to see what's already committed.
-3. Last completed sub-step is the highest [done] above.
-4. `archive/editor-orbit-17.4/README.md` documents the original
-   restoration steps; the new version diverges by parameterising
-   `boundarySymmetries` with `SymmetryMode`.
-
 ## ▶ RESUME HERE
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
@@ -242,6 +190,43 @@ Earlier: 17.2 shipped 2026-05-04 (`f9d6197`) — Design-mode shell;
 follow-up `0aff7fb` resets placed tiles when shape / origin sides
 change. 17.1 shipped 2026-05-03 (`e199aee`) — data model +
 read-only render. `94f651c` made Lab editor-only.
+
+**2026-05-06 — Step 17.4 re-enabled (Symmetry-axis subgroup
+picker).** Restored `src/editor/symmetry.ts` + `src/editor/orbit.ts`
+from `archive/editor-orbit-17.4/` and parameterised
+`boundarySymmetries(shape, mode)` with the new `SymmetryMode` =
+`'full' | 'rotation' | 'vertical' | 'horizontal' | 'none'`. Default
+on `editor.symmetryMode` is absent → reads as `'none'` (current 17.3
+single-edge behaviour) so legacy patches load unchanged. Reducer's
+`EDITOR_PLACE_TILE_ON_EDGE` and `EDITOR_DELETE_TILE` route through
+`placeTilesOnOrbit` / `orbitTileIds` when mode ≠ none; orbit-aware
+delete filters the origin tile out defensively. Picker UI in
+`EditorDesignControls` is a `<select>` between Origin sides and
+Wrap boundary; "Horizontal mirror only" is hidden for triangle (no
+horizontal mirror axis on an equilateral triangle).
+`SET_EDITOR_SYMMETRY_MODE` is a design-mode action so undo/redo
+covers it. Plan doc decision row for 17.4 flipped from archived to
+re-enabled. Idea memo `project_editor_symmetry_axes_toggle_idea.md`
+deleted (DELIVERED).
+
+**Visual sign-off probes for 17.4:**
+1. Square boundary, mode = Full → place a tile on one edge → 4
+   propagated copies appear on each square edge.
+2. Mode = Rotation only → place a tile → 4 copies (rotation only,
+   no extra mirror copies).
+3. Mode = Vertical mirror only → place a tile on the right side →
+   1 mirrored copy on the left only.
+4. Mode = Horizontal → place a tile on the top → 1 mirror on the
+   bottom. (Should not appear on triangle.)
+5. Mode = None → place a tile → goes only on the clicked edge.
+6. With propagated tiles: switch mode (e.g. Full → None) → existing
+   tiles stay put. Place another tile → no propagation.
+7. Delete one of an orbit set: should remove all siblings.
+8. Triangle boundary: dropdown should NOT show "Horizontal".
+9. Undo/redo: place under Full → undo → all 4 disappear together.
+10. Save the patch with mode = Full → reload → mode persists.
+11. Load a legacy saved patch (no symmetryMode field) → defaults to
+    "None"; placements behave 17.3-style.
 
 **2026-05-06 — Steps 17.6c + 17.6d signed off.**
 

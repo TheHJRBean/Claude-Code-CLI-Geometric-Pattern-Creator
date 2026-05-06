@@ -592,3 +592,12 @@ From the live tree:
   the stack. Keyboard: Cmd/Ctrl+Z and Cmd/Ctrl+Shift+Z (also
   Ctrl+Y), guarded against text-input focus. Undo/Redo buttons in
   the editor design header.
+- **2026-05-06** — Lab UI polish (`69e1f7b`, fix `9ddb1d5`). Sidebar
+  sections (Editor / My Tessellations / Strands / Display) gained
+  chevron-toggle collapse matching Main mode; state persisted to
+  `lab-sidebar-collapsed-sections`. New `TextPromptModal` component
+  replaced `window.prompt` for Save / Rename — Esc / backdrop /
+  Cancel dismiss, Enter to confirm, focus + select on open. Initial
+  modal commit used a non-existent `--bg` variable that fell through
+  to transparent; `9ddb1d5` fixed by switching the dialog to
+  `--bg-elevated` and the input to `--bg-input`.

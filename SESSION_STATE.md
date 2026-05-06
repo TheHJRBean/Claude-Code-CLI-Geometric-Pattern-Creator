@@ -4,7 +4,20 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
-**Last action:** 2026-05-06 — sub-step **17.9** code-complete:
+**Last action:** 2026-05-06 — Lab UI polish: collapsible sections
++ custom Save/Rename modal (`69e1f7b`, fix `9ddb1d5`). All four
+sidebar sections (Editor / My Tessellations / Strands / Display)
+now have chevron-toggle headers matching Main mode; open/closed
+state persists per-section to `lab-sidebar-collapsed-sections` in
+localStorage. New `src/components/TextPromptModal.tsx` replaces the
+two `window.prompt` calls with an in-app dialog (Esc / backdrop /
+Cancel dismiss; Enter to confirm; focus + select on open; empty
+input disables confirm). The modal sits at `--bg-elevated` so it
+reads opaque against the canvas (initial commit used a non-existent
+`--bg` variable that fell through to transparent — fix in
+`9ddb1d5`).
+
+Earlier 2026-05-06 — sub-step **17.9** code-complete:
 undo / redo (Q12). New `src/editor/history.ts` defines
 `DESIGN_MODE_ACTIONS`, `HISTORY_DEPTH = 50`, and
 `HISTORY_COALESCE_MS = 500`. New `src/editor/useEditorHistory.ts`

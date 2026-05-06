@@ -4,7 +4,23 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
-**Last action:** 2026-05-06 — Lab UI polish: collapsible sections
+**Last action:** 2026-05-06 — Step 17.4 re-enabled + signed off.
+Symmetry-axis subgroup picker (`9015ac0`) plus follow-up fix
+(`7be4ef4`) so the polygon picker hides side counts whose orbit
+images would fail viability (the original symptom: octagon offered
+on a square origin under Full mode, click silently did nothing).
+Default mode is `'none'` (legacy 17.3 behaviour); user opts into
+`'full' | 'rotation' | 'vertical' | 'horizontal'` via the
+`<select>` between Origin sides and Wrap boundary in the Editor
+Design controls. Triangle hides "Horizontal mirror" since
+equilateral triangles have no horizontal mirror axis. Idea memo
+deleted on delivery; plan decision row flipped from archived to
+re-enabled. Two related ideas remain captured for future work:
+`project_editor_cross_boundary_complete_idea.md` and the new
+`project_editor_enclosed_pocket_idea.md` (multi-vertex-gap → one
+tile mechanic).
+
+Earlier 2026-05-06 — Lab UI polish: collapsible sections
 + custom Save/Rename modal (`69e1f7b`, fix `9ddb1d5`). All four
 sidebar sections (Editor / My Tessellations / Strands / Display)
 now have chevron-toggle headers matching Main mode; open/closed
@@ -191,42 +207,28 @@ follow-up `0aff7fb` resets placed tiles when shape / origin sides
 change. 17.1 shipped 2026-05-03 (`e199aee`) — data model +
 read-only render. `94f651c` made Lab editor-only.
 
-**2026-05-06 — Step 17.4 re-enabled (Symmetry-axis subgroup
-picker).** Restored `src/editor/symmetry.ts` + `src/editor/orbit.ts`
-from `archive/editor-orbit-17.4/` and parameterised
-`boundarySymmetries(shape, mode)` with the new `SymmetryMode` =
-`'full' | 'rotation' | 'vertical' | 'horizontal' | 'none'`. Default
-on `editor.symmetryMode` is absent → reads as `'none'` (current 17.3
-single-edge behaviour) so legacy patches load unchanged. Reducer's
-`EDITOR_PLACE_TILE_ON_EDGE` and `EDITOR_DELETE_TILE` route through
-`placeTilesOnOrbit` / `orbitTileIds` when mode ≠ none; orbit-aware
-delete filters the origin tile out defensively. Picker UI in
-`EditorDesignControls` is a `<select>` between Origin sides and
-Wrap boundary; "Horizontal mirror only" is hidden for triangle (no
-horizontal mirror axis on an equilateral triangle).
+**2026-05-06 — Step 17.4 re-enabled + signed off** (`9015ac0` +
+fix `7be4ef4`). Restored `src/editor/symmetry.ts` +
+`src/editor/orbit.ts` from `archive/editor-orbit-17.4/` and
+parameterised `boundarySymmetries(shape, mode)` with the new
+`SymmetryMode` = `'full' | 'rotation' | 'vertical' | 'horizontal'
+| 'none'`. Default on `editor.symmetryMode` is absent → reads as
+`'none'` (current 17.3 single-edge behaviour) so legacy patches
+load unchanged. Reducer's `EDITOR_PLACE_TILE_ON_EDGE` and
+`EDITOR_DELETE_TILE` route through `placeTilesOnOrbit` /
+`orbitTileIds` when mode ≠ none; orbit-aware delete filters the
+origin tile out defensively. Picker UI in `EditorDesignControls`
+is a `<select>` between Origin sides and Wrap boundary;
+"Horizontal mirror only" is hidden for triangle (no horizontal
+mirror axis on an equilateral triangle).
 `SET_EDITOR_SYMMETRY_MODE` is a design-mode action so undo/redo
-covers it. Plan doc decision row for 17.4 flipped from archived to
-re-enabled. Idea memo `project_editor_symmetry_axes_toggle_idea.md`
-deleted (DELIVERED).
-
-**Visual sign-off probes for 17.4:**
-1. Square boundary, mode = Full → place a tile on one edge → 4
-   propagated copies appear on each square edge.
-2. Mode = Rotation only → place a tile → 4 copies (rotation only,
-   no extra mirror copies).
-3. Mode = Vertical mirror only → place a tile on the right side →
-   1 mirrored copy on the left only.
-4. Mode = Horizontal → place a tile on the top → 1 mirror on the
-   bottom. (Should not appear on triangle.)
-5. Mode = None → place a tile → goes only on the clicked edge.
-6. With propagated tiles: switch mode (e.g. Full → None) → existing
-   tiles stay put. Place another tile → no propagation.
-7. Delete one of an orbit set: should remove all siblings.
-8. Triangle boundary: dropdown should NOT show "Horizontal".
-9. Undo/redo: place under Full → undo → all 4 disappear together.
-10. Save the patch with mode = Full → reload → mode persists.
-11. Load a legacy saved patch (no symmetryMode field) → defaults to
-    "None"; placements behave 17.3-style.
+covers it. Follow-up fix (`7be4ef4`): `viableSidesForEdge` in
+`orbit.ts` runs an orbit-wide probe so the picker hides side
+counts whose orbit images would fail viability — replaces the
+silent-fail behaviour the user hit on octagon-into-square. Plan
+doc decision row for 17.4 flipped from archived to re-enabled.
+Idea memo `project_editor_symmetry_axes_toggle_idea.md` deleted
+(DELIVERED).
 
 **2026-05-06 — Steps 17.6c + 17.6d signed off.**
 
@@ -276,16 +278,20 @@ gaps." / "Patch extends past the boundary — stamped copies will
 overlap."). Diagnostic only; no auto-fix per scope. This is the
 last v1 sub-step — Step 17 v1 complete pending visual sign-off.
 
-**Next action:** Visual sign-off on 17.10. Probes:
-1. New square patch (only origin) → flip to Strand → warning shows
-   "doesn't fill the boundary" since origin is smaller than
-   default boundary.
-2. Square patch + Wrap boundary on → flip to Strand → no warning
-   (wrap forces patch outline = boundary).
-3. Square boundary, place tiles that extend past one edge → flip
-   to Strand → warning shows "extends past the boundary".
-4. Hex boundary fully covered with placed/completed tiles → flip
-   to Strand → no warning.
+**Next action:** Step 17 v1 is feature-complete. All shipped
+sub-steps (17.0–17.10, plus 17.4 re-enabled) are signed off
+through 2026-05-06. Pick-up options for the next session, in
+rough priority order (no commitment yet):
+
+1. **Cross-boundary Complete fill** + **enclosed-pocket Complete
+   fill** (`project_editor_cross_boundary_complete_idea.md` +
+   `project_editor_enclosed_pocket_idea.md`). Captured as related
+   ideas — both about resolving multi-vertex gaps as a single
+   irregular tile rather than as N pieces. Co-design recommended.
+2. **Step 15** k-uniform tiling generator (parked).
+3. **Step 16** quasi-periodic tilings (parked).
+4. **Step 18** Girih substitution (parked).
+5. Other Lab UX or strand-rendering polish — open list.
 
 17.8 sign-off probes (carried forward — confirm before 17.9 sign-off):
 1. Save 3 patches across categories → reload → all persist.
@@ -394,7 +400,7 @@ Plan steps live in `TESSELLATION_REVAMP_PLAN.md`. One-liner status:
 - [done] Steps 9–11 — Lab polish, `FigureControls` lift, Lab Strands panel
 - [archived 2026-05-03] Steps 12–13 — mandala strand renderer, composition strand renderer + match-up
 - [done] Step 14 — Lab-local library (`state/customTessellations.ts`)
-- [in progress] **Step 17** — user-editable tessellation editor. 17.0–17.3, 17.5–17.9 done (17.4 archived). **17.10 (non-tiling detection) next**.
+- [done] **Step 17 v1** — user-editable tessellation editor. 17.0–17.10 shipped + signed off. 17.4 re-enabled 2026-05-06 behind the `SymmetryMode` subgroup picker.
 - [parked] Steps 15, 16, 18 — k-uniform generator, quasi-periodic, Girih substitution
 
 ## Live architecture (post-cleanup, post-17.3)

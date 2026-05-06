@@ -22,6 +22,7 @@ import { LAB_DEFAULT_CONFIG } from '../state/labDefaults'
 import type { BoundaryShape } from '../types/editor'
 import { editorTileTypes } from '../editor/tileTypes'
 import { useEditorHistory } from '../editor/useEditorHistory'
+import { detectPatchTilingStatus } from '../editor/nonTilingDetection'
 import { TextPromptModal } from './TextPromptModal'
 
 /**
@@ -931,6 +932,42 @@ function FieldLabel({ label, value, unit }: { label: string; value?: string; uni
 
 export { ModeToggleButton }
 
+/* ── Step 17.10 — non-tiling patch warning ─────────────── */
+
+function NonTilingWarning({ editor }: { editor: NonNullable<PatternConfig['editor']> }) {
+  const status = detectPatchTilingStatus(editor)
+  if (status.kind === 'tiling') return null
+  const message = status.reason === 'overflows'
+    ? "Patch extends past the boundary — stamped copies will overlap."
+    : status.reason === 'empty'
+      ? "Patch is empty — no tiles to stamp."
+      : "Patch doesn't fill the boundary — stamped copies will leave gaps."
+  return (
+    <div style={{
+      marginTop: 8,
+      padding: '6px 8px',
+      border: '1px solid #a85050',
+      background: 'rgba(168, 80, 80, 0.08)',
+      color: '#a85050',
+      fontSize: 11.5,
+      lineHeight: 1.4,
+    }}>
+      <span style={{
+        fontFamily: "'Cinzel', Georgia, serif",
+        fontSize: 9,
+        fontWeight: 600,
+        letterSpacing: '0.14em',
+        textTransform: 'uppercase',
+        display: 'block',
+        marginBottom: 3,
+      }}>
+        Non-tiling patch
+      </span>
+      {message}
+    </div>
+  )
+}
+
 /* ── Editor Design controls (17.2) ─────────────────────── */
 
 const BOUNDARY_OPTIONS: { value: BoundaryShape; label: string }[] = [
@@ -1059,6 +1096,7 @@ function EditorDesignControls({
               ? 'Triangle lattice preview is deferred; you\'re seeing one stamp. Strand controls below still apply.'
               : 'Patch is stamped on the boundary\'s translation lattice. Edit strand controls below; flip back to Design to change tiles.'}
           </div>
+          <NonTilingWarning editor={editor} />
           <label style={{
             display: 'flex',
             alignItems: 'center',

@@ -67,6 +67,21 @@ export interface EditorAutoCompleteSettings {
   enabled: boolean
 }
 
+/**
+ * Step 17.4 (re-enabled) — subgroup of the boundary's dihedral symmetry
+ * group that placements + deletes propagate under. `'none'` reproduces the
+ * 17.3 single-edge behaviour and is the default for back-compat.
+ *
+ * - `'full'`     — the full dihedral group D_n (n rotations + n reflections).
+ * - `'rotation'` — n rotations only (C_n), no mirrors.
+ * - `'vertical'` — identity + reflection across the vertical axis.
+ * - `'horizontal'`— identity + reflection across the horizontal axis.
+ *                  Triangle has no horizontal mirror axis; the picker
+ *                  disables this option for triangle boundaries.
+ * - `'none'`     — identity only (single-edge placement + delete).
+ */
+export type SymmetryMode = 'full' | 'rotation' | 'vertical' | 'horizontal' | 'none'
+
 export interface EditorConfig {
   /** Inner schema version. Bumped independently of the outer storage envelope. */
   version: 1
@@ -96,5 +111,12 @@ export interface EditorConfig {
    * slider turns this off.
    */
   wrapBoundary?: boolean
+  /**
+   * Subgroup of the boundary's symmetry group that `EDITOR_PLACE_TILE_ON_EDGE`
+   * and `EDITOR_DELETE_TILE` propagate under (Step 17.4 re-enable).
+   * Optional; defaults to `'none'` (single-edge placement, the 17.3
+   * behaviour) on read of legacy patches.
+   */
+  symmetryMode?: SymmetryMode
   tiles: EditorTile[]
 }

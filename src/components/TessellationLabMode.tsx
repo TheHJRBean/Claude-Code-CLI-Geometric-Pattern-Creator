@@ -21,6 +21,7 @@ import { BOUNDARY_SIZE_MAX_BY_SHAPE } from '../editor/createDefault'
 import { LAB_DEFAULT_CONFIG } from '../state/labDefaults'
 import type { BoundaryShape } from '../types/editor'
 import { editorTileTypes } from '../editor/tileTypes'
+import { useEditorHistory } from '../editor/useEditorHistory'
 
 /**
  * Tessellation Lab — workspace for prototyping tessellations and (next phase)
@@ -70,7 +71,7 @@ export function TessellationLabMode({
   mode,
   onToggleMode,
   config,
-  dispatch,
+  dispatch: rawDispatch,
   showStrands,
   onToggleShowStrands,
   outlineWidth,
@@ -82,6 +83,37 @@ export function TessellationLabMode({
   const [cpVisible] = useState<Record<string, boolean>>({})
   const [cpActive] = useState<Record<string, number>>({})
   const [showAdvanced, setShowAdvanced] = useState(false)
+
+  // Step 17.9 — wrap dispatch so design-mode editor mutations push undo
+  // snapshots. All Lab-side dispatches must use this `dispatch`; bypassing
+  // it skips history. `LOAD_CONFIG` clears the stack inside the hook (Q12).
+  const { dispatch, undo, redo, canUndo, canRedo } = useEditorHistory(
+    config.editor,
+    rawDispatch,
+  )
+
+  // Cmd/Ctrl+Z and Cmd/Ctrl+Shift+Z (or Ctrl+Y) drive undo / redo. Listener
+  // is mounted only while Lab is active since the component unmounts on
+  // mode toggle.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const meta = e.metaKey || e.ctrlKey
+      if (!meta) return
+      // Ignore if focus is in an input/textarea/select so typing into the
+      // library Save / Rename prompt doesn't trigger undo.
+      const target = e.target as HTMLElement | null
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return
+      if (e.key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        undo()
+      } else if ((e.key === 'z' && e.shiftKey) || e.key === 'y') {
+        e.preventDefault()
+        redo()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [undo, redo])
 
   // ── Editor selection (Step 17.3) ───────────────────────
   const [selectedEdge, setSelectedEdge] = useState<SelectedEdge | null>(null)
@@ -313,6 +345,10 @@ export function TessellationLabMode({
                 }}
                 showBoundaryLattice={showBoundaryLattice}
                 onToggleShowBoundaryLattice={setShowBoundaryLattice}
+                onUndo={undo}
+                onRedo={redo}
+                canUndo={canUndo}
+                canRedo={canRedo}
               />
             ) : (
               <>
@@ -806,6 +842,10 @@ interface EditorDesignControlsProps {
   onSetEditorPhase: (p: 'design' | 'strand') => void
   showBoundaryLattice: boolean
   onToggleShowBoundaryLattice: (next: boolean) => void
+  onUndo: () => void
+  onRedo: () => void
+  canUndo: boolean
+  canRedo: boolean
 }
 
 function EditorDesignControls({
@@ -820,6 +860,10 @@ function EditorDesignControls({
   onSetEditorPhase,
   showBoundaryLattice,
   onToggleShowBoundaryLattice,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
 }: EditorDesignControlsProps) {
   // Once the user has placed (or completed) any tile beyond the auto-placed
   // origin, changing origin sides would wipe their work — Decision: lock the
@@ -828,6 +872,39 @@ function EditorDesignControls({
   const inStrand = editorPhase === 'strand'
   return (
     <>
+      {/* Step 17.9 — Undo / Redo header (Q12). Visible in both phases:
+          history is preserved across Design ↔ Strand flips, but only design-
+          mode actions ever push to it. */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+        {([
+          { label: '↶ Undo', onClick: onUndo, disabled: !canUndo },
+          { label: '↷ Redo', onClick: onRedo, disabled: !canRedo },
+        ] as const).map(b => (
+          <button
+            key={b.label}
+            onClick={b.onClick}
+            disabled={b.disabled}
+            style={{
+              flex: 1,
+              padding: '5px 0',
+              fontFamily: "'Cinzel', Georgia, serif",
+              fontSize: 9,
+              fontWeight: 600,
+              letterSpacing: '0.10em',
+              textTransform: 'uppercase',
+              cursor: b.disabled ? 'not-allowed' : 'pointer',
+              border: '1px solid var(--border-subtle)',
+              background: 'transparent',
+              color: 'var(--text-muted)',
+              opacity: b.disabled ? 0.4 : 1,
+              transition: 'all 0.15s',
+            }}
+          >
+            {b.label}
+          </button>
+        ))}
+      </div>
+
       {/* Step 17.6 — Design / Strand-editor phase flip (Decision 15). */}
       <FieldLabel label="Phase" />
       <div style={{ display: 'flex', gap: 0, marginBottom: inStrand ? 4 : 12 }}>

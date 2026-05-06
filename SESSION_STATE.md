@@ -4,7 +4,29 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
-**Last action:** 2026-05-06 — sub-step **17.8** code-complete:
+**Last action:** 2026-05-06 — sub-step **17.9** code-complete:
+undo / redo (Q12). New `src/editor/history.ts` defines
+`DESIGN_MODE_ACTIONS`, `HISTORY_DEPTH = 50`, and
+`HISTORY_COALESCE_MS = 500`. New `src/editor/useEditorHistory.ts`
+hook wraps the base dispatch — for any action in
+`DESIGN_MODE_ACTIONS`, snapshots the prior `EditorConfig` to a `past`
+stack (capped at 50, FIFO eviction); consecutive same-type actions
+within 500ms coalesce into one entry so a slider drag is one undo
+step. `LOAD_CONFIG` clears the entire stack. New action
+`EDITOR_RESTORE_SNAPSHOT` (payload `EditorConfig | null`) is the
+restore primitive used by undo/redo: when payload is null it drops
+`editor` and zeroes `tiling.type`, otherwise it sets `editor` and
+re-seeds figures (no `applyWrap` — snapshot already carries its own
+boundary size). Strand-mode actions (figure tuning, lacing, curves)
+explicitly bypass the stack so flipping back from Strand never
+resurfaces stale figure tuning. Cmd/Ctrl+Z and Cmd/Ctrl+Shift+Z
+(plus Ctrl+Y) bound globally while Lab is mounted; ignored when
+focus is in an input/textarea/select so the library Save / Rename
+prompts aren't hijacked. `EditorDesignControls` gained an Undo /
+Redo header row above the Phase toggle, visible in both phases per
+Q12 ("preserved across Design ↔ Strand flips").
+
+Earlier: 2026-05-06 — sub-step **17.8** code-complete:
 persistence validation + migration scaffold. New
 `src/editor/migrations.ts` exports `migrateEditorConfig(unknown)`:
 takes an unvalidated value (from JSON / localStorage), checks shape,
@@ -156,21 +178,35 @@ follow-up `0aff7fb` resets placed tiles when shape / origin sides
 change. 17.1 shipped 2026-05-03 (`e199aee`) — data model +
 read-only render. `94f651c` made Lab editor-only.
 
-**Next action:** Visual sign-off on 17.8. Probes:
-1. Save 3 patches across categories (archimedean / rosette-patch /
-   editor) → reload browser → all three persist in the library.
-2. Save current editor patch via "Save JSON" → re-import via "Load
-   JSON" → identical state, including `wrapBoundary` and
-   `autoComplete.enabled` if set.
-3. Open browser devtools, write a malformed editor field directly to
-   `lab-tessellations-v1` → reload → bad row skipped with console
-   warning, other rows still load.
-4. Try importing an unrelated JSON file → friendly alert ("Could not
-   load file: ...") rather than a crashed render.
+**Next action:** Visual sign-off on 17.9. Probes:
+1. New square patch → place 5 tiles → press Cmd/Ctrl+Z five times →
+   patch back to origin only. Cmd/Ctrl+Shift+Z (or click Redo) five
+   times → all 5 tiles restored.
+2. Slider coalescing: drag the boundary-size slider continuously →
+   release → one undo press should restore the pre-drag size, not
+   step through every intermediate value.
+3. Cross-phase: place 3 tiles (Design) → flip to Strand → tune a
+   contact angle → flip back to Design → press Undo. Should undo
+   the *3rd tile placement* (strand tuning is off-stack); contact-
+   angle remains tuned.
+4. Mid-history mutate: place 5 tiles → undo 3 → place 1 new tile →
+   `future` should clear (Redo disabled).
+5. Library load: build a patch → save it → load a different saved
+   entry → Undo button greyed out (history cleared per Q12).
+6. Depth cap: place 60 tiles in a row → only 50 undos available.
+7. Keyboard hijack guard: focus the library Save dialog text input
+   → Cmd/Z should not fire undo (it's the OS undo for the input).
 
-After 17.8 sign-off, **17.9 — Undo/redo** is next (snapshot-based
-on `EditorConfig`, depth cap 50, design-mode mutations only,
-preserved across design ↔ strand flips).
+After 17.9 sign-off, **17.10 — Non-tiling patch detection + UI tag**
+is next (the last v1 sub-step). Detects when the patch outline
+doesn't match the boundary polygon at strand-editor entry and shows
+a tag explaining why.
+
+17.8 sign-off probes (carried forward — confirm before 17.9 sign-off):
+1. Save 3 patches across categories → reload → all persist.
+2. Save → load JSON round-trips wrap/auto-complete flags.
+3. Devtools-corrupt one library row → bad row skipped on reload.
+4. Import unrelated JSON → friendly alert.
 
 17.7 sign-off probes (2026-05-06) — confirmed working:
 - Auto-complete checkbox alone fills concave dents on flip.
@@ -273,7 +309,7 @@ Plan steps live in `TESSELLATION_REVAMP_PLAN.md`. One-liner status:
 - [done] Steps 9–11 — Lab polish, `FigureControls` lift, Lab Strands panel
 - [archived 2026-05-03] Steps 12–13 — mandala strand renderer, composition strand renderer + match-up
 - [done] Step 14 — Lab-local library (`state/customTessellations.ts`)
-- [in progress] **Step 17** — user-editable tessellation editor. 17.0–17.3, 17.5–17.8 done (17.4 archived). **17.9 (undo/redo) next**.
+- [in progress] **Step 17** — user-editable tessellation editor. 17.0–17.3, 17.5–17.9 done (17.4 archived). **17.10 (non-tiling detection) next**.
 - [parked] Steps 15, 16, 18 — k-uniform generator, quasi-periodic, Girih substitution
 
 ## Live architecture (post-cleanup, post-17.3)

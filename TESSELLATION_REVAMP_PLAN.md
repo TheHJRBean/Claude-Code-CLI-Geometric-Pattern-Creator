@@ -107,20 +107,17 @@ still-relevant ones are kept.
 
 ## ⭐ Step 17 — User-editable tessellation editor (PRIMARY FOCUS)
 
-**Status (2026-05-05):** 17.0–17.3 live. 17.1 landed the data model
-+ read-only render (`e199aee`); follow-up `94f651c` made the Lab
-editor-only. 17.2 added the Design-mode shell (`f9d6197`); follow-up
-`0aff7fb` resets placed tiles when shape / origin sides change. 17.3
-added single-edge tile placement (`ccc7da0`). **17.4 was built and
-then archived in the same session** (`e30fdb9` → reverted): the
-user tried full-D_n orbit propagation in the browser and didn't like
-how it felt but wasn't yet sure what they *did* want, so the entire
-implementation was parked under `archive/editor-orbit-17.4/` and the
-reducer reverted to 17.3's single-edge behaviour. Re-enabling orbit
-propagation should be bundled with the symmetry-axis subgroup picker
-captured in `project_editor_symmetry_axes_toggle_idea.md` — it
-shouldn't ship as full-D_n-by-default again. **17.5 (Complete
-operation — manual) is the next active sub-step.**
+**Status (2026-05-06):** Step 17 v1 is feature-complete + signed
+off. All sub-steps 17.0–17.10 shipped, including the parked 17.4
+which was **re-enabled 2026-05-06** (`9015ac0` + picker-fix
+`7be4ef4`) behind a `SymmetryMode` subgroup picker — `'full'`
+matches the original archived behaviour, but the default is
+`'none'` (single-edge, the 17.3 behaviour) so legacy patches load
+unchanged. The `archive/editor-orbit-17.4/` directory remains as
+historical reference; `src/editor/symmetry.ts` and `src/editor/orbit.ts`
+are the live versions. Future Editor follow-ups captured as ideas:
+cross-boundary Complete fill + enclosed-pocket Complete fill
+(related multi-vertex-gap mechanic, recommended co-design).
 
 ### Vision (refined from 2026-05-03 grill)
 

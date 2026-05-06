@@ -68,18 +68,23 @@ Key bits:
 - `editor/createDefault.ts` — patch defaults; per-shape `DEFAULT_BOUNDARY_SIZE_BY_SHAPE` + `BOUNDARY_SIZE_MAX_BY_SHAPE`.
 - `editor/buildEditorPolygons.ts` — `editorTilesToPolygons` + `editorBoundaryVertices`.
 - `editor/exposedEdges.ts`, `editor/boundary.ts` — outer-boundary geometry consumed by Place / Complete UIs.
-- `editor/placement.ts` — `placeRegularNGonOnEdge` + Decision 7 / 14a viability.
+- `editor/placement.ts` — `placeRegularNGonOnEdge` + Decision 7 / 14a single-edge viability + `viableSidesForEdge` (single-edge picker filter).
+- `editor/symmetry.ts` — `boundarySymmetries(shape, mode)` returns the picked subgroup of the boundary's dihedral group (`SymmetryMode` = `'full' | 'rotation' | 'vertical' | 'horizontal' | 'none'`). 17.4 re-enabled 2026-05-06.
+- `editor/orbit.ts` — `orbitEdges` / `placeTilesOnOrbit` / `orbitTileIds` for symmetry-aware placement + delete; also exports an orbit-aware `viableSidesForEdge` that probes the full orbit so the picker hides side counts whose orbit images would fail. Reads `editor.symmetryMode ?? 'none'` (legacy patches read as 17.3 single-edge behaviour).
 - `editor/complete.ts` — gap polygon resolution (centroid-outside-patch test) + `tryRegularFit` + irregular fallback.
 - `editor/tileTypeId.ts` — Q11 canonical-signature `tileTypeId`: `"<n>"` for regulars, `"<n>i:<8-char hex>"` for irregulars.
 - `editor/tileTypes.ts` — `editorTileTypes` for the strand panel + Q15 lazy + additive `seedFiguresForEditor`. Reducer routes editor mutations through `seedFigures`.
-- `editor/lattice.ts` — `editorLatticeStamps` for the 17.6 strand-editor lattice preview (square + hex; triangle deferred).
-- `usePattern` accepts `editorStrandMode`; when on, it stamps `editorTilesToPolygons` across the viewport on the boundary lattice.
+- `editor/lattice.ts` — `editorLatticeStamps` for the 17.6 strand-editor lattice preview (square + hex + triangle via 2-orientation cell). `editorOneRingNeighbourStamps` for the 17.6d Design-mode "Show neighbours" preview.
+- `editor/nonTilingDetection.ts` — 17.10 patch-vs-boundary area compare for the strand-mode warning tag.
+- `editor/migrations.ts` — 17.8 load-time validation; reads `symmetryMode` if present, defaults absent (= `'none'`).
+- `editor/history.ts` + `editor/useEditorHistory.ts` — 17.9 undo/redo with `DESIGN_MODE_ACTIONS` allowlist, depth 50, 500 ms coalesce.
+- `usePattern` accepts `editorStrandMode`, `showBoundaryLattice`, `editorNeighbourPreview`, `editorNeighbourBoundaries`, `editorNeighbourStrands`. Strand mode stamps `editorTilesToPolygons` across the viewport on the boundary lattice; neighbour preview adds a one-ring ghost layer in Design mode.
 
-Authoritative design context lives in `TESSELLATION_REVAMP_PLAN.md` (Step 17 section) and `SESSION_STATE.md` (resume anchor). Step 17.4 (orbit-symmetric placement) was implemented and archived under `archive/editor-orbit-17.4/`; if re-enabled, ship bundled with a symmetry-axis subgroup picker (see the corresponding `/idea` memory).
+Authoritative design context lives in `TESSELLATION_REVAMP_PLAN.md` (Step 17 section) and `SESSION_STATE.md` (resume anchor). Step 17.4 was archived 2026-05-05 then re-enabled 2026-05-06 behind the subgroup picker — `archive/editor-orbit-17.4/` is now historical only.
 
 ### Planned stages (see plan file)
 
-`TESSELLATION_REVAMP_PLAN.md` is the live plan. Phase 0 (decisions / terminology / Option-B restructure), Steps 1–11 (Lab scaffold + tessellations + strand controls), Step 14 (Lab library), and Step 17.0–17.6 (editor, save for the parked 17.4) are done. Steps 4–8 / 12–13 were archived under `archive/tessellation-lab/`. Steps 15, 16, 18 (k-uniform / quasi-periodic / Girih substitution) are parked.
+`TESSELLATION_REVAMP_PLAN.md` is the live plan. Phase 0 (decisions / terminology / Option-B restructure), Steps 1–11 (Lab scaffold + tessellations + strand controls), Step 14 (Lab library), and Step 17 v1 (17.0–17.10 + 17.4 re-enabled) are done + signed off. Steps 4–8 / 12–13 were archived under `archive/tessellation-lab/`. Steps 15, 16, 18 (k-uniform / quasi-periodic / Girih substitution) are parked. Captured ideas for future Editor work: cross-boundary Complete fill + enclosed-pocket Complete fill (related multi-vertex-gap mechanic).
 
 ## Commit Status Tag
 

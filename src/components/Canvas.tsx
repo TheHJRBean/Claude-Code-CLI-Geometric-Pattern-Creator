@@ -41,11 +41,13 @@ interface Props {
   editorStrandMode?: boolean
   /** Step 17.6 — when true in strand mode, draw the patch boundary outline at every lattice stamp. */
   showBoundaryLattice?: boolean
+  /** Step 17.6d — Design-mode neighbour preview. Ignored in strand mode. */
+  editorNeighbourPreview?: boolean
 }
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, editorMode = 'place', firstVertexPick, onPickVertex, editorStrandMode = false, showBoundaryLattice = false }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, editorMode = 'place', firstVertexPick, onPickVertex, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -70,7 +72,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   )
   // Defer the heavy tiling computation so pointer events stay responsive
   const deferredVT = useDeferredValue(viewTransform)
-  const { polygons, segments, boundaryOutlines } = usePattern(config, deferredVT, size.width, size.height, editorStrandMode, showBoundaryLattice)
+  const { polygons, segments, boundaryOutlines, ghostPolygons } = usePattern(config, deferredVT, size.width, size.height, editorStrandMode, showBoundaryLattice, editorNeighbourPreview)
 
   const resetCamera = useCallback(() => {
     setViewTransform({
@@ -179,6 +181,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         cpActive={cpActive}
         outlineWidth={outlineWidth}
         boundaryOutlines={boundaryOutlines}
+        ghostPolygons={ghostPolygons}
         editorOverlay={editorOverlay}
       />
       {pickerScreenPos && onPlaceTile && onSelectEdge && selectedEdgeData && (

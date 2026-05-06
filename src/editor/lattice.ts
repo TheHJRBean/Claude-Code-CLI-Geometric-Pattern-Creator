@@ -59,6 +59,30 @@ export function supportsLatticePreview(shape: BoundaryShape): boolean {
 }
 
 /**
+ * Step 17.6d — one ring of neighbour stamps around the patch (centre stamp
+ * excluded). Used by Design-mode "Show neighbours" preview so the user can
+ * see how the patch joins its lattice neighbours before flipping to Strand
+ * mode. Returns `[]` for triangle boundaries (no v1 lattice).
+ *
+ * Square: 8 neighbours (orthogonal + diagonal).
+ * Hexagon: 6 neighbours (axial 1-ring; (1,1) / (-1,-1) are 2 cells away).
+ */
+export function editorOneRingNeighbourStamps(editor: EditorConfig): LatticeStamp[] {
+  const basis = latticeBasis(editor)
+  if (!basis) return []
+  const offsets: Array<[number, number]> = editor.boundaryShape === 'square'
+    ? [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]]
+    : [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]]
+  return offsets.map(([a, b]) => ({
+    translation: {
+      x: a * basis.u.x + b * basis.v.x,
+      y: a * basis.u.y + b * basis.v.y,
+    },
+    rotation: 0,
+  }))
+}
+
+/**
  * Generate enough lattice stamps to cover the given viewport (world coords).
  * The patch always renders at lattice point (0,0); additional stamps are
  * added in a square envelope of the basis sufficient to fill the viewport

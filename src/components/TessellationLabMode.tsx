@@ -133,6 +133,10 @@ export function TessellationLabMode({
   const [editorPhase, setEditorPhase] = useState<'design' | 'strand'>('design')
   // Step 17.6 — strand mode: show the patch boundary stamped on the lattice.
   const [showBoundaryLattice, setShowBoundaryLattice] = useState(false)
+  // Step 17.6d — Design mode: low-opacity ghost copies of the patch at the
+  // one-ring lattice neighbours so the user can preview how their patch
+  // joins the surrounding stamps before flipping to Strand mode.
+  const [showNeighbours, setShowNeighbours] = useState(false)
   // Mirror Main-mode's tile-visibility toggle.
   const [showTiles, setShowTiles] = useState(true)
   // Drop strand mode if the patch goes away.
@@ -286,6 +290,8 @@ export function TessellationLabMode({
                 }}
                 showBoundaryLattice={showBoundaryLattice}
                 onToggleShowBoundaryLattice={setShowBoundaryLattice}
+                showNeighbours={showNeighbours}
+                onToggleShowNeighbours={setShowNeighbours}
                 onUndo={undo}
                 onRedo={redo}
                 canUndo={canUndo}
@@ -610,6 +616,7 @@ export function TessellationLabMode({
         onPickVertex={handlePickVertex}
         editorStrandMode={editorPhase === 'strand'}
         showBoundaryLattice={showBoundaryLattice}
+        editorNeighbourPreview={editorPhase === 'design' && showNeighbours && !config.editor?.wrapBoundary}
       />
     </div>
   )
@@ -815,6 +822,8 @@ interface EditorDesignControlsProps {
   onSetEditorPhase: (p: 'design' | 'strand') => void
   showBoundaryLattice: boolean
   onToggleShowBoundaryLattice: (next: boolean) => void
+  showNeighbours: boolean
+  onToggleShowNeighbours: (next: boolean) => void
   onUndo: () => void
   onRedo: () => void
   canUndo: boolean
@@ -833,6 +842,8 @@ function EditorDesignControls({
   onSetEditorPhase,
   showBoundaryLattice,
   onToggleShowBoundaryLattice,
+  showNeighbours,
+  onToggleShowNeighbours,
   onUndo,
   onRedo,
   canUndo,
@@ -1069,6 +1080,54 @@ function EditorDesignControls({
           Wrap boundary
         </label>
       </div>
+
+      {/* Step 17.6d — Show neighbours. Disabled while wrap is on (boundary
+          edge moves under the user's feet) or on triangle (no v1 lattice). */}
+      {(() => {
+        const wrapOn = !!editor.wrapBoundary
+        const triangle = editor.boundaryShape === 'triangle'
+        const disabled = wrapOn || triangle
+        return (
+          <div style={{ marginTop: 10 }}>
+            <label style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              cursor: disabled ? 'not-allowed' : 'pointer',
+              fontFamily: "'EB Garamond', Georgia, serif",
+              fontSize: 13,
+              color: showNeighbours && !disabled ? 'var(--text)' : 'var(--text-muted)',
+              opacity: disabled ? 0.5 : 1,
+              transition: 'color 0.15s, opacity 0.15s',
+            }}>
+              <input
+                type="checkbox"
+                checked={showNeighbours && !disabled}
+                disabled={disabled}
+                onChange={e => onToggleShowNeighbours(e.target.checked)}
+              />
+              Show neighbours
+            </label>
+            {disabled && (
+              <div style={{
+                fontFamily: "'Cinzel', Georgia, serif",
+                fontSize: 9,
+                fontWeight: 600,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: 'var(--text-muted)',
+                marginTop: 2,
+                marginBottom: 4,
+                lineHeight: 1.4,
+              }}>
+                {wrapOn
+                  ? 'Disable Wrap boundary to preview neighbours.'
+                  : 'Triangle lattice preview is deferred.'}
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Step 17.5 — Mode toggle: Place edge tiles vs. Complete gap tiles. */}
       <div style={{ marginTop: 14 }}>

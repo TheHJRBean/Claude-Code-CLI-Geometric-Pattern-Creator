@@ -27,12 +27,17 @@ interface Props {
    * strand mode when the boundary-lattice toggle is on.
    */
   boundaryOutlines?: Vec2[][]
+  /**
+   * Editor-mode neighbour-preview ghost polygons (Step 17.6d). Drawn at
+   * low opacity below the main tile layer; non-interactive.
+   */
+  ghostPolygons?: Polygon[]
   /** Editor-mode interactive overlay (Step 17.3+). Rendered above the tile layer. */
   editorOverlay?: React.ReactNode
 }
 
 export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
-  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, editorOverlay },
+  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, ghostPolygons, editorOverlay },
   ref
 ) {
   const { x, y, zoom, rotation } = viewTransform
@@ -54,6 +59,11 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
       onPointerUp={handlers.onPointerUp}
     >
       <g transform={rotation ? `rotate(${rotation} ${cx} ${cy})` : undefined}>
+        {ghostPolygons && ghostPolygons.length > 0 && (
+          <g opacity={0.25} pointerEvents="none">
+            <TileLayer polygons={ghostPolygons} visible={showTileLayer} outlineWidth={outlineWidth} />
+          </g>
+        )}
         {boundaryOutlines && boundaryOutlines.map((outline, i) => (
           <BoundaryOutline key={i} vertices={outline} />
         ))}

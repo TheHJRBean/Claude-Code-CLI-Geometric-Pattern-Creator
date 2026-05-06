@@ -22,6 +22,7 @@ import { LAB_DEFAULT_CONFIG } from '../state/labDefaults'
 import type { BoundaryShape } from '../types/editor'
 import { editorTileTypes } from '../editor/tileTypes'
 import { useEditorHistory } from '../editor/useEditorHistory'
+import { TextPromptModal } from './TextPromptModal'
 
 /**
  * Tessellation Lab — workspace for prototyping tessellations and (next phase)
@@ -177,12 +178,36 @@ export function TessellationLabMode({
   const [library, setLibrary] = useState<SavedTessellation[]>(() => listSavedTessellations())
   const [activeSavedId, setActiveSavedId] = useState<string>('')
   const [libraryError, setLibraryError] = useState<string | null>(null)
+  // Custom Save / Rename modal state — replaces window.prompt so the dialog
+  // matches the rest of the UI and isn't subject to browser prompt-blocking.
+  const [textModal, setTextModal] = useState<{
+    title: string
+    confirmLabel: string
+    initialValue: string
+    onConfirm: (value: string) => void
+  } | null>(null)
   const refreshLibrary = () => setLibrary(listSavedTessellations())
   const flashError = (msg: string | null) => {
     setLibraryError(msg)
     if (msg) window.setTimeout(() => setLibraryError(null), 4000)
   }
   const activeSaved = activeSavedId ? library.find(e => e.id === activeSavedId) ?? null : null
+
+  // ── Section collapse (matches Main mode pattern) ───────
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('lab-sidebar-collapsed-sections')
+      return saved ? JSON.parse(saved) : {}
+    } catch { return {} }
+  })
+  const toggleSection = (key: string) => {
+    setCollapsedSections(prev => {
+      const next = { ...prev, [key]: !prev[key] }
+      try { localStorage.setItem('lab-sidebar-collapsed-sections', JSON.stringify(next)) } catch { /* ignore */ }
+      return next
+    })
+  }
+  const isOpen = (key: string) => !collapsedSections[key]
 
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
@@ -214,25 +239,39 @@ export function TessellationLabMode({
       ? `${activeSaved.name} (modified)`
       : def
         ? def.label
-        : 'Untitled'
-    const name = window.prompt('Name this tessellation', suggested)
-    if (name === null) return
-    const result = saveTessellation(name, config)
-    if (result.error) {
-      flashError(result.error.message)
-      return
-    }
-    refreshLibrary()
-    if (result.entry) setActiveSavedId(result.entry.id)
+        : config.tiling.type === 'editor'
+          ? 'My patch'
+          : 'Untitled'
+    setTextModal({
+      title: 'Name this tessellation',
+      confirmLabel: 'Save',
+      initialValue: suggested,
+      onConfirm: name => {
+        setTextModal(null)
+        const result = saveTessellation(name, config)
+        if (result.error) {
+          flashError(result.error.message)
+          return
+        }
+        refreshLibrary()
+        if (result.entry) setActiveSavedId(result.entry.id)
+      },
+    })
   }
 
   const handleRename = () => {
     if (!activeSaved) return
-    const next = window.prompt('Rename tessellation', activeSaved.name)
-    if (next === null) return
-    const err = renameTessellation(activeSaved.id, next)
-    if (err) flashError(err.message)
-    else refreshLibrary()
+    setTextModal({
+      title: 'Rename tessellation',
+      confirmLabel: 'Rename',
+      initialValue: activeSaved.name,
+      onConfirm: next => {
+        setTextModal(null)
+        const err = renameTessellation(activeSaved.id, next)
+        if (err) flashError(err.message)
+        else refreshLibrary()
+      },
+    })
   }
 
   const handleDelete = () => {
@@ -307,8 +346,8 @@ export function TessellationLabMode({
               origin polygon auto-places at the patch centre per Decision 6;
               boundary size only rescales the lattice cell (Q9 Option B). */}
           <div style={{ paddingTop: 20 }}>
-            <SectionTitle>Editor</SectionTitle>
-            {config.tiling.type === 'editor' && config.editor ? (
+            <SectionTitle open={isOpen('editor')} onToggle={() => toggleSection('editor')}>Editor</SectionTitle>
+            {isOpen('editor') && (config.tiling.type === 'editor' && config.editor ? (
               <EditorDesignControls
                 editor={config.editor}
                 dispatch={dispatch}
@@ -412,12 +451,13 @@ export function TessellationLabMode({
                   ))}
                 </div>
               </>
-            )}
+            ))}
           </div>
 
           {/* Library — Save / Rename / Duplicate / Delete + saved entries dropdown */}
           <div style={{ paddingTop: 22 }}>
-            <SectionTitle>My Tessellations</SectionTitle>
+            <SectionTitle open={isOpen('library')} onToggle={() => toggleSection('library')}>My Tessellations</SectionTitle>
+            {isOpen('library') && (<>
             <FieldLabel label="Saved" />
             <select
               className="pattern-select"
@@ -491,6 +531,7 @@ export function TessellationLabMode({
                 Saved {new Date(activeSaved.createdAt).toLocaleString()}
               </p>
             )}
+            </>)}
           </div>
 
           {/* Strands — basic per-tile-type controls.
@@ -499,7 +540,8 @@ export function TessellationLabMode({
               (17.6a — the strand panel's tile cards now reflect the patch). */}
           {showStrands && (def || (config.tiling.type === 'editor' && config.editor)) && (
             <div style={{ paddingTop: 22 }}>
-              <SectionTitle>Strands</SectionTitle>
+              <SectionTitle open={isOpen('strands')} onToggle={() => toggleSection('strands')}>Strands</SectionTitle>
+              {isOpen('strands') && (<>
               {tileTypes.map(tt => {
                 const fig = config.figures[tt.id]
                 if (!fig) return null
@@ -646,12 +688,14 @@ export function TessellationLabMode({
                   in Lab is parked — switch to Main if you need them.
                 </p>
               )}
+              </>)}
             </div>
           )}
 
           {/* Display — strand overlay + outline weight + hover fill */}
           <div style={{ paddingTop: 22 }}>
-            <SectionTitle>Display</SectionTitle>
+            <SectionTitle open={isOpen('display')} onToggle={() => toggleSection('display')}>Display</SectionTitle>
+            {isOpen('display') && (<>
             <label style={{
               display: 'flex',
               alignItems: 'center',
@@ -704,9 +748,18 @@ export function TessellationLabMode({
               value={outlineWidth}
               onChange={e => onSetOutlineWidth(Number(e.target.value))}
             />
+            </>)}
           </div>
         </div>
       </div>
+      <TextPromptModal
+        open={textModal !== null}
+        title={textModal?.title ?? ''}
+        confirmLabel={textModal?.confirmLabel ?? 'Save'}
+        initialValue={textModal?.initialValue ?? ''}
+        onConfirm={value => textModal?.onConfirm(value)}
+        onCancel={() => setTextModal(null)}
+      />
 
       <div className="sandstone-edge-wrapper" aria-hidden="true">
         <SandstoneEdge />
@@ -766,14 +819,35 @@ function ModeToggleButton({ mode, onToggleMode }: { mode: 'main' | 'lab'; onTogg
   )
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
+function SectionChevron({ open }: { open: boolean }) {
   return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: 7,
-      marginBottom: 14,
-    }}>
+    <svg
+      width="9"
+      height="9"
+      viewBox="0 0 10 10"
+      style={{
+        transform: open ? 'rotate(0deg)' : 'rotate(-90deg)',
+        transition: 'transform 0.2s ease',
+        flexShrink: 0,
+        color: 'var(--accent)',
+        opacity: 0.5,
+      }}
+      aria-hidden="true"
+    >
+      <polyline points="2.5 4 5 6.5 7.5 4" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function SectionTitle({ children, open, onToggle }: {
+  children: React.ReactNode
+  open?: boolean
+  onToggle?: () => void
+}) {
+  const interactive = typeof onToggle === 'function'
+  const isOpen = open ?? true
+  const inner = (
+    <>
       <span style={{
         fontFamily: "'Cinzel', Georgia, serif",
         fontSize: 10,
@@ -785,7 +859,42 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
         {children}
       </span>
       <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, var(--divider), transparent)' }} />
-    </div>
+      {interactive && <SectionChevron open={isOpen} />}
+    </>
+  )
+  if (!interactive) {
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 7,
+        marginBottom: 14,
+      }}>
+        {inner}
+      </div>
+    )
+  }
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={isOpen}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 7,
+        marginBottom: isOpen ? 14 : 2,
+        width: '100%',
+        background: 'transparent',
+        border: 'none',
+        padding: '6px 0',
+        cursor: 'pointer',
+        textAlign: 'left',
+        transition: 'margin-bottom 0.2s ease',
+      }}
+    >
+      {inner}
+    </button>
   )
 }
 

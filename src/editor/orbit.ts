@@ -3,7 +3,7 @@ import { pointsEqual } from '../utils/math'
 import type { EditorConfig, EditorTile } from '../types/editor'
 import { EDITOR_EPS, computeExposedEdges, tileVertices, type ExposedEdge } from './exposedEdges'
 import { applySym, boundarySymmetries } from './symmetry'
-import { isPlacementViable, placeRegularNGonOnEdge } from './placement'
+import { isPlacementViable, placeRegularNGonOnEdge, PICKER_SIDES, viableSidesForEdge as viableSidesSingle } from './placement'
 
 /**
  * Step 17.4 (re-enabled) — orbit-symmetric edge resolution and placement
@@ -119,4 +119,25 @@ function centroidOf(verts: Vec2[]): Vec2 {
   let x = 0, y = 0
   for (const v of verts) { x += v.x; y += v.y }
   return { x: x / verts.length, y: y / verts.length }
+}
+
+/**
+ * Mode-aware picker filter: returns only those candidate side counts whose
+ * full orbit placement would succeed (not just the single clicked edge).
+ *
+ * Without this gate the picker offers sizes that pass single-edge viability
+ * but fail orbit-wide viability — the user clicks, the reducer's
+ * `placeTilesOnOrbit` returns `null`, and the placement silently fails. The
+ * orbit probe here matches the reducer's call exactly.
+ */
+export function viableSidesForEdge(edge: ExposedEdge, editor: EditorConfig): number[] {
+  const mode = editor.symmetryMode ?? 'none'
+  if (mode === 'none') return viableSidesSingle(edge, editor)
+  // Orbit-aware: a side is offered only if the full orbit placement succeeds.
+  // Single-edge viability is a necessary condition, so prefilter to keep the
+  // probe count small.
+  return PICKER_SIDES.filter(n =>
+    isPlacementViable(edge, n, editor)
+    && placeTilesOnOrbit(editor, edge, n, '__probe__') !== null,
+  )
 }

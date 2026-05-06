@@ -70,9 +70,13 @@ still-relevant ones are kept.
    "Show strands" toggle (off by default).
 4. **Lab-resident custom tessellations.** Specialised renderers per
    category live exclusively in Lab. **No Main-mode bridge.**
-5. **Library is Lab-only**, persisted to `lab-tessellations-v1`
-   localStorage. Existing JSON `saveJSON` / `loadJSON` remains the
-   canonical share format.
+5. ~~**Library is Lab-only**, persisted to `lab-tessellations-v1`~~
+   **REVERSED 2026-05-06.** Both modes have an in-app library; Lab uses
+   `lab-tessellations-v1` and Main uses `main-configs-v1` (separate
+   namespaces). Implementation lives in `state/configLibrary.ts`
+   (factory keyed by storage key). Existing JSON `saveJSON` /
+   `loadJSON` remains the canonical share format for cross-machine
+   transfer.
 6. **`TilingCategory` = `'archimedean' | 'rosette-patch'`** in the
    live tree post-pivot. Step 17 will introduce a third category
    (`'editor'` or similar — name TBD at 17.1).

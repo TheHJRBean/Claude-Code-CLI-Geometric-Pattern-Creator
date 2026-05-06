@@ -43,11 +43,15 @@ interface Props {
   showBoundaryLattice?: boolean
   /** Step 17.6d — Design-mode neighbour preview. Ignored in strand mode. */
   editorNeighbourPreview?: boolean
+  /** Step 17.6d — Design-mode neighbour preview: also draw boundary outlines at each neighbour stamp. */
+  editorNeighbourBoundaries?: boolean
+  /** Step 17.6d — Design-mode neighbour preview: include ghosts in PIC so strands flow across boundaries. */
+  editorNeighbourStrands?: boolean
 }
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, editorMode = 'place', firstVertexPick, onPickVertex, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, editorMode = 'place', firstVertexPick, onPickVertex, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -72,7 +76,17 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   )
   // Defer the heavy tiling computation so pointer events stay responsive
   const deferredVT = useDeferredValue(viewTransform)
-  const { polygons, segments, boundaryOutlines, ghostPolygons } = usePattern(config, deferredVT, size.width, size.height, editorStrandMode, showBoundaryLattice, editorNeighbourPreview)
+  const { polygons, segments, boundaryOutlines, ghostPolygons } = usePattern(
+    config,
+    deferredVT,
+    size.width,
+    size.height,
+    editorStrandMode,
+    showBoundaryLattice,
+    editorNeighbourPreview,
+    editorNeighbourBoundaries,
+    editorNeighbourStrands,
+  )
 
   const resetCamera = useCallback(() => {
     setViewTransform({

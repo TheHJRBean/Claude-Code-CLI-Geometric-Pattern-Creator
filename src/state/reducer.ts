@@ -7,7 +7,7 @@ import { createDefaultEditorConfig, createOriginTile, DEFAULT_BOUNDARY_SIZE_BY_S
 import { computeExposedEdges } from '../editor/exposedEdges'
 import { isPlacementViable, placeRegularNGonOnEdge } from '../editor/placement'
 import { completeGap } from '../editor/complete'
-import { autoCompletePatch } from '../editor/autoComplete'
+import { autoCompletePatch, fitBoundarySize } from '../editor/autoComplete'
 import { seedFiguresForEditor } from '../editor/tileTypes'
 
 const FALLBACK_FIGURE: FigureConfig = { type: 'star', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
@@ -155,15 +155,18 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         boundaryShape: action.payload,
         boundarySize: DEFAULT_BOUNDARY_SIZE_BY_SHAPE[action.payload],
       }
-      return seedFigures({ ...state, editor: next })
+      return applyWrap(seedFigures({ ...state, editor: next }))
     }
     case 'SET_EDITOR_BOUNDARY_SIZE':
       // Q9 Option B: only the boundary outline rescales — tiles untouched.
-      return updateEditor(state, { boundarySize: action.payload })
+      // Manual slider drag implies the user wants a specific size, so wrap
+      // turns off.
+      if (!state.editor) return state
+      return updateEditor(state, { boundarySize: action.payload, wrapBoundary: false })
     case 'SET_EDITOR_ALTERNATE_BOUNDARY':
       // Pure visual flip: rotates the boundary outline (and its lattice basis
       // in strand mode) by π/n. Tile contents are untouched.
-      return updateEditor(state, { alternateBoundary: action.payload })
+      return applyWrap(updateEditor(state, { alternateBoundary: action.payload }))
     case 'SET_EDITOR_ORIGIN_SIDES': {
       if (!state.editor) return state
       const sides = Math.max(3, Math.floor(action.payload))
@@ -174,7 +177,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         originSides: sides,
         tiles: [createOriginTile(sides, state.editor.edgeLength)],
       }
-      return seedFigures({ ...state, editor: next })
+      return applyWrap(seedFigures({ ...state, editor: next }))
     }
     case 'EDITOR_PLACE_TILE_ON_EDGE': {
       if (!state.editor) return state
@@ -184,7 +187,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       if (!edge || !isPlacementViable(edge, sides, state.editor)) return state
       const id = `placed-${state.editor.tiles.length}-${Date.now()}`
       const tile = placeRegularNGonOnEdge(sides, state.editor.edgeLength, edge.p1, edge.p2, edge.sourceCenter, id)
-      return seedFigures({ ...state, editor: { ...state.editor, tiles: [...state.editor.tiles, tile] } })
+      return applyWrap(seedFigures({ ...state, editor: { ...state.editor, tiles: [...state.editor.tiles, tile] } }))
     }
     case 'EDITOR_DELETE_TILE': {
       if (!state.editor) return state
@@ -194,10 +197,10 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       if (!target || target.origin === 'origin') return state
       // Q15: orphaned figures are retained on tile removal so re-placing the
       // same shape restores the user's tuning. We only ever add to figures.
-      return {
+      return applyWrap({
         ...state,
         editor: { ...state.editor, tiles: state.editor.tiles.filter(t => t.id !== tileId) },
-      }
+      })
     }
     case 'EDITOR_COMPLETE_GAP': {
       if (!state.editor) return state
@@ -205,26 +208,27 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       const id = `completed-${state.editor.tiles.length}-${Date.now()}`
       const tile = completeGap(state.editor, pA, pB, id)
       if (!tile) return state
-      return seedFigures({ ...state, editor: { ...state.editor, tiles: [...state.editor.tiles, tile] } })
+      return applyWrap(seedFigures({ ...state, editor: { ...state.editor, tiles: [...state.editor.tiles, tile] } }))
     }
     case 'SET_EDITOR_AUTO_COMPLETE_ENABLED': {
       if (!state.editor) return state
-      const prev = state.editor.autoComplete ?? { enabled: false, flavor: 'until-convex' as const }
+      const prev = state.editor.autoComplete ?? { enabled: false }
       return updateEditor(state, { autoComplete: { ...prev, enabled: action.payload } })
-    }
-    case 'SET_EDITOR_AUTO_COMPLETE_FLAVOR': {
-      if (!state.editor) return state
-      const prev = state.editor.autoComplete ?? { enabled: false, flavor: 'until-convex' as const }
-      return updateEditor(state, { autoComplete: { ...prev, flavor: action.payload } })
     }
     case 'EDITOR_RUN_AUTO_COMPLETE': {
       if (!state.editor) return state
-      const flavor = state.editor.autoComplete?.flavor ?? 'until-convex'
-      const { tiles, boundarySize } = autoCompletePatch(state.editor, flavor)
-      // Idempotent on already-convex patches: reference-equal tiles + same
-      // boundary size → no state churn, no figure re-seed.
-      if (tiles === state.editor.tiles && boundarySize === state.editor.boundarySize) return state
-      return seedFigures({ ...state, editor: { ...state.editor, tiles, boundarySize } })
+      const { tiles } = autoCompletePatch(state.editor)
+      // Idempotent on already-convex patches: reference-equal tiles → no
+      // state churn, no figure re-seed.
+      if (tiles === state.editor.tiles) return state
+      return applyWrap(seedFigures({ ...state, editor: { ...state.editor, tiles } }))
+    }
+    case 'SET_EDITOR_WRAP_BOUNDARY': {
+      if (!state.editor) return state
+      const next = updateEditor(state, { wrapBoundary: action.payload })
+      // Toggling on must take effect immediately — otherwise the toggle does
+      // nothing visible until the next tile mutation.
+      return action.payload ? applyWrap(next) : next
     }
     default:
       return state
@@ -246,6 +250,18 @@ function seedFigures(state: PatternConfig): PatternConfig {
   if (!state.editor) return state
   const next = seedFiguresForEditor(state.figures, state.editor)
   return next === state.figures ? state : { ...state, figures: next }
+}
+
+/**
+ * If `wrapBoundary` is on, recompute `boundarySize` so the boundary polygon
+ * hugs the patch. No-op otherwise. Called after every tile-mutating action so
+ * the boundary stays fitted as the user builds.
+ */
+function applyWrap(state: PatternConfig): PatternConfig {
+  if (!state.editor || !state.editor.wrapBoundary) return state
+  const fit = fitBoundarySize(state.editor)
+  if (!Number.isFinite(fit) || fit <= 0 || fit === state.editor.boundarySize) return state
+  return { ...state, editor: { ...state.editor, boundarySize: fit } }
 }
 
 export { DEFAULT_CONFIG }

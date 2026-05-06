@@ -221,7 +221,7 @@ cross-references to the resolutions table.
 | **17.4** | Orbit-symmetric propagation on placement. 🗄 **archived 2026-05-05** (`archive/editor-orbit-17.4/`) — re-enable bundled with the symmetry-axis subgroup picker. | M | 8 | — |
 | **17.5** | Complete operation — manual vertex-pair selection. ✅ code-complete (canonical tile-type hash deferred to 17.5b / 17.6). | M | 9, 10, 12 | Q11 |
 | **17.6** | Strand editor mode + lattice preview + strand controls. ✅ a + b code-complete (triangle-lattice 2-orientation alternation deferred to 17.6c). | M | 15, 16, 17 | Q11, Q15 |
-| **17.7** | Auto-complete-on-flip (until-convex + match-boundary flavours). ✅ code-complete. | M | 11 | — |
+| **17.7** | Auto-complete-on-flip (until-convex). Boundary fitting split out as a separate **Wrap boundary** design-mode toggle. ✅ shipped. | M | 11 | — |
 | **17.8** | Persistence integration (`lab-tessellations-v1` + JSON file). | S–M | 5 | Q13 |
 | **17.9** | Undo / redo.                                     | S–M  | —         | Q12          |
 | **17.10**| Non-tiling patch detection + UI tag.             | S    | 2         | —            |
@@ -332,25 +332,32 @@ cross-references to the resolutions table.
   to strand editor, see it tiled with strands. Flip back, edit, flip
   again, strands re-render correctly.
 
-- **17.7 — Auto-complete on flip (opt-in).** ✅ Code-complete 2026-05-05.
-  Optional `autoComplete?: { enabled, flavor }` on `EditorConfig`
+- **17.7 — Auto-complete on flip + Wrap boundary.** ✅ Shipped
+  2026-05-05; flavour split refactored 2026-05-06.
+  Optional `autoComplete?: { enabled }` on `EditorConfig`
   (back-compat: absent = disabled). New `editor/autoComplete.ts` with
-  `autoCompletePatch(editor, flavor)` + `fitBoundarySize(editor)`.
-  *Until convex* loops on the patch's CCW outer cycle, finds the first
+  `autoCompletePatch(editor)` + `fitBoundarySize(editor)`.
+  Auto-complete loops on the patch's CCW outer cycle, finds the first
   reflex vertex (cross of incoming × outgoing edges < 0) and
   dispatches `completeGap(prev, next)`; capped at 64 passes for
-  termination. *Match boundary* runs the until-convex loop, then
-  resizes `boundarySize` to the smallest regular n-gon containing all
-  tile vertices (apothem = max projection of vertices onto each
-  boundary-edge outward normal; edge length = 2·apothem·tan(π/n)).
-  New reducer actions `SET_EDITOR_AUTO_COMPLETE_ENABLED`,
-  `SET_EDITOR_AUTO_COMPLETE_FLAVOR`, `EDITOR_RUN_AUTO_COMPLETE` (last
-  is idempotent on already-convex / already-fitted patches).
-  `EditorDesignControls` exposes a checkbox + flavour selector;
+  termination. New reducer actions `SET_EDITOR_AUTO_COMPLETE_ENABLED`,
+  `EDITOR_RUN_AUTO_COMPLETE` (latter is idempotent on already-convex
+  patches). `EditorDesignControls` exposes a single checkbox.
   `TessellationLabMode` dispatches `EDITOR_RUN_AUTO_COMPLETE` on the
   Design→Strand transition when the opt-in is on. Auto-completed tiles
   are first-class `'completed'` polygons (Decision 16) and remain
   editable on flip-back.
+
+  **Wrap boundary** (the former `match-boundary` flavour) is now its
+  own design-mode mode: `EditorConfig.wrapBoundary` flag + new action
+  `SET_EDITOR_WRAP_BOUNDARY`. When on, a reducer-level `applyWrap`
+  helper recomputes `boundarySize = fitBoundarySize(editor)` after
+  every tile-mutating case (place / complete / delete / origin-sides /
+  boundary-shape / alternate / auto-complete run). Manual drag of the
+  boundary-size slider clears the flag so the slider remains
+  meaningful when wrap is off. UI: a second checkbox below
+  auto-complete; small caption under the boundary-size slider when
+  wrap is engaged ("Driven by Wrap boundary — drag to override.").
 
 - **17.8 — Persistence.** Wire `EditorConfig` into both
   `lab-tessellations-v1` localStorage and the existing `saveJSON` /
@@ -530,3 +537,12 @@ From the live tree:
   slot; `EditorPickerOverlay` HTML popover positioned via new
   `worldToScreen` helper. New reducer action
   `EDITOR_PLACE_TILE_ON_EDGE`. Awaiting visual sign-off.
+- **2026-05-06** — 17.7 refactor: split the `match-boundary` flavour
+  out into a separate **Wrap boundary** design-mode toggle. Auto-
+  complete keeps a single checkbox (no flavour dropdown) and always
+  runs until-convex on Design→Strand flip. New
+  `EditorConfig.wrapBoundary` field + `SET_EDITOR_WRAP_BOUNDARY`
+  action; `applyWrap` helper recomputes `boundarySize` after every
+  tile mutation when the flag is on. Manual boundary-size drag clears
+  the flag. `AutoCompleteFlavor` and `SET_EDITOR_AUTO_COMPLETE_FLAVOR`
+  retired; `autoCompletePatch` no longer takes a flavor.

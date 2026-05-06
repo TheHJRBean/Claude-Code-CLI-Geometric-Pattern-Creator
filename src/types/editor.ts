@@ -55,18 +55,16 @@ export type EditorTile = EditorRegularTile | EditorIrregularTile
 /**
  * Step 17.7 — auto-complete-on-flip settings (Decision 11).
  *
- * `until-convex` repeatedly fills concave dents on the patch's outer boundary
- * until the boundary cycle is convex. `match-boundary` does the same and then
- * resizes `boundarySize` so the boundary polygon hugs the patch's convex hull.
+ * Auto-complete repeatedly fills concave dents on the patch's outer boundary
+ * until the cycle is convex. Auto-completed tiles persist as first-class
+ * `'completed'` tiles per Decision 16 — they are editable on flip-back to
+ * Design.
  *
- * Auto-completed tiles persist as first-class `'completed'` tiles per Decision
- * 16 — they are editable on flip-back to Design.
+ * Boundary fitting (formerly the `match-boundary` flavour) is now its own
+ * design-mode mode: `EditorConfig.wrapBoundary`.
  */
-export type AutoCompleteFlavor = 'until-convex' | 'match-boundary'
-
 export interface EditorAutoCompleteSettings {
   enabled: boolean
-  flavor: AutoCompleteFlavor
 }
 
 export interface EditorConfig {
@@ -91,5 +89,12 @@ export interface EditorConfig {
    * absent / `enabled: false` means flipping to Strand never mutates tiles.
    */
   autoComplete?: EditorAutoCompleteSettings
+  /**
+   * When true, `boundarySize` auto-fits to the patch in Design mode after any
+   * tile mutation — the boundary polygon hugs the convex hull of all tile
+   * vertices. Optional for back-compat. Manually dragging the boundary-size
+   * slider turns this off.
+   */
+  wrapBoundary?: boolean
   tiles: EditorTile[]
 }

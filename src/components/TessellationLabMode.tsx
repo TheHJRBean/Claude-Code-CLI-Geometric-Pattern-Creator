@@ -950,6 +950,23 @@ function EditorDesignControls({
         value={editor.boundarySize}
         onChange={e => dispatch({ type: 'SET_EDITOR_BOUNDARY_SIZE', payload: Number(e.target.value) })}
       />
+      {editor.wrapBoundary && (
+        <div
+          style={{
+            fontFamily: "'Cinzel', Georgia, serif",
+            fontSize: 9,
+            fontWeight: 600,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: 'var(--text-muted)',
+            marginTop: 2,
+            marginBottom: 4,
+            lineHeight: 1.4,
+          }}
+        >
+          Driven by Wrap boundary — drag to override.
+        </div>
+      )}
 
       <FieldLabel label="Origin sides" value={String(editor.originSides)} />
       <input
@@ -981,8 +998,9 @@ function EditorDesignControls({
         </div>
       )}
 
-      {/* Step 17.7 — Auto-complete on flip (Decision 11). Only meaningful in
-          Design mode; trigger fires when the user enters Strand mode. */}
+      {/* Step 17.7 — Auto-complete on flip (Decision 11). Fills concave dents
+          when entering Strand mode. Wrap boundary lives below as a separate
+          design-mode mode that fits the boundary to the patch live. */}
       <div style={{ marginTop: 14 }}>
         <label style={{
           display: 'flex',
@@ -1001,38 +1019,24 @@ function EditorDesignControls({
           />
           Auto-complete on entering Strand editor
         </label>
-        {editor.autoComplete?.enabled && (
-          <div style={{ display: 'flex', gap: 0, marginTop: 8 }}>
-            {([
-              { value: 'until-convex', label: 'Until convex' },
-              { value: 'match-boundary', label: 'Match boundary' },
-            ] as const).map(opt => {
-              const active = (editor.autoComplete?.flavor ?? 'until-convex') === opt.value
-              return (
-                <button
-                  key={opt.value}
-                  onClick={() => dispatch({ type: 'SET_EDITOR_AUTO_COMPLETE_FLAVOR', payload: opt.value })}
-                  style={{
-                    flex: 1,
-                    padding: '5px 0',
-                    fontFamily: "'Cinzel', Georgia, serif",
-                    fontSize: 9,
-                    fontWeight: 600,
-                    letterSpacing: '0.10em',
-                    textTransform: 'uppercase',
-                    cursor: 'pointer',
-                    border: `1px solid ${active ? 'var(--accent)' : 'var(--border-subtle)'}`,
-                    background: active ? 'var(--accent-bg)' : 'transparent',
-                    color: active ? 'var(--accent)' : 'var(--text-muted)',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  {opt.label}
-                </button>
-              )
-            })}
-          </div>
-        )}
+        <label style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          marginTop: 8,
+          cursor: 'pointer',
+          fontFamily: "'EB Garamond', Georgia, serif",
+          fontSize: 13,
+          color: editor.wrapBoundary ? 'var(--text)' : 'var(--text-muted)',
+          transition: 'color 0.15s',
+        }}>
+          <input
+            type="checkbox"
+            checked={!!editor.wrapBoundary}
+            onChange={e => dispatch({ type: 'SET_EDITOR_WRAP_BOUNDARY', payload: e.target.checked })}
+          />
+          Wrap boundary
+        </label>
       </div>
 
       {/* Step 17.5 — Mode toggle: Place edge tiles vs. Complete gap tiles. */}

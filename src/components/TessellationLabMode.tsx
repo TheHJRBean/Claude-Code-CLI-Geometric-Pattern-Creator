@@ -137,6 +137,8 @@ export function TessellationLabMode({
   // one-ring lattice neighbours so the user can preview how their patch
   // joins the surrounding stamps before flipping to Strand mode.
   const [showNeighbours, setShowNeighbours] = useState(false)
+  const [showNeighbourBoundaries, setShowNeighbourBoundaries] = useState(false)
+  const [showNeighbourStrands, setShowNeighbourStrands] = useState(false)
   // Mirror Main-mode's tile-visibility toggle.
   const [showTiles, setShowTiles] = useState(true)
   // Drop strand mode if the patch goes away.
@@ -292,6 +294,10 @@ export function TessellationLabMode({
                 onToggleShowBoundaryLattice={setShowBoundaryLattice}
                 showNeighbours={showNeighbours}
                 onToggleShowNeighbours={setShowNeighbours}
+                showNeighbourBoundaries={showNeighbourBoundaries}
+                onToggleShowNeighbourBoundaries={setShowNeighbourBoundaries}
+                showNeighbourStrands={showNeighbourStrands}
+                onToggleShowNeighbourStrands={setShowNeighbourStrands}
                 onUndo={undo}
                 onRedo={redo}
                 canUndo={canUndo}
@@ -617,6 +623,8 @@ export function TessellationLabMode({
         editorStrandMode={editorPhase === 'strand'}
         showBoundaryLattice={showBoundaryLattice}
         editorNeighbourPreview={editorPhase === 'design' && showNeighbours && !config.editor?.wrapBoundary}
+        editorNeighbourBoundaries={showNeighbourBoundaries}
+        editorNeighbourStrands={showNeighbourStrands}
       />
     </div>
   )
@@ -824,6 +832,10 @@ interface EditorDesignControlsProps {
   onToggleShowBoundaryLattice: (next: boolean) => void
   showNeighbours: boolean
   onToggleShowNeighbours: (next: boolean) => void
+  showNeighbourBoundaries: boolean
+  onToggleShowNeighbourBoundaries: (next: boolean) => void
+  showNeighbourStrands: boolean
+  onToggleShowNeighbourStrands: (next: boolean) => void
   onUndo: () => void
   onRedo: () => void
   canUndo: boolean
@@ -844,6 +856,10 @@ function EditorDesignControls({
   onToggleShowBoundaryLattice,
   showNeighbours,
   onToggleShowNeighbours,
+  showNeighbourBoundaries,
+  onToggleShowNeighbourBoundaries,
+  showNeighbourStrands,
+  onToggleShowNeighbourStrands,
   onUndo,
   onRedo,
   canUndo,
@@ -1087,6 +1103,7 @@ function EditorDesignControls({
         const wrapOn = !!editor.wrapBoundary
         const triangle = editor.boundaryShape === 'triangle'
         const disabled = wrapOn || triangle
+        const active = showNeighbours && !disabled
         return (
           <div style={{ marginTop: 10 }}>
             <label style={{
@@ -1096,13 +1113,13 @@ function EditorDesignControls({
               cursor: disabled ? 'not-allowed' : 'pointer',
               fontFamily: "'EB Garamond', Georgia, serif",
               fontSize: 13,
-              color: showNeighbours && !disabled ? 'var(--text)' : 'var(--text-muted)',
+              color: active ? 'var(--text)' : 'var(--text-muted)',
               opacity: disabled ? 0.5 : 1,
               transition: 'color 0.15s, opacity 0.15s',
             }}>
               <input
                 type="checkbox"
-                checked={showNeighbours && !disabled}
+                checked={active}
                 disabled={disabled}
                 onChange={e => onToggleShowNeighbours(e.target.checked)}
               />
@@ -1123,6 +1140,44 @@ function EditorDesignControls({
                 {wrapOn
                   ? 'Disable Wrap boundary to preview neighbours.'
                   : 'Triangle lattice preview is deferred.'}
+              </div>
+            )}
+            {active && (
+              <div style={{ marginTop: 6, marginLeft: 22, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  cursor: 'pointer',
+                  fontFamily: "'EB Garamond', Georgia, serif",
+                  fontSize: 12.5,
+                  color: showNeighbourBoundaries ? 'var(--text)' : 'var(--text-muted)',
+                  transition: 'color 0.15s',
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={showNeighbourBoundaries}
+                    onChange={e => onToggleShowNeighbourBoundaries(e.target.checked)}
+                  />
+                  Show boundaries
+                </label>
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  cursor: 'pointer',
+                  fontFamily: "'EB Garamond', Georgia, serif",
+                  fontSize: 12.5,
+                  color: showNeighbourStrands ? 'var(--text)' : 'var(--text-muted)',
+                  transition: 'color 0.15s',
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={showNeighbourStrands}
+                    onChange={e => onToggleShowNeighbourStrands(e.target.checked)}
+                  />
+                  Show strands
+                </label>
               </div>
             )}
           </div>

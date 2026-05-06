@@ -39,6 +39,10 @@ export function usePattern(
   showBoundaryLattice = false,
   /** Step 17.6d — Design-mode neighbour preview. Ignored in strand mode. */
   editorNeighbourPreview = false,
+  /** Step 17.6d — Design-mode neighbour preview: also draw the boundary outline at each neighbour stamp. */
+  editorNeighbourBoundaries = false,
+  /** Step 17.6d — Design-mode neighbour preview: include ghosts in the PIC input so strands flow across boundaries. */
+  editorNeighbourStrands = false,
 ): PatternData {
   // Visible viewport in world coordinates
   const vw = containerWidth / viewTransform.zoom
@@ -65,9 +69,9 @@ export function usePattern(
     if (config.tiling.type === 'editor' && config.editor) {
       const basePolys = editorTilesToPolygons(config.editor)
       if (!editorStrandMode) {
-        const segments = runPIC(basePolys, config)
-        const boundaryOutline = editorBoundaryVertices(config.editor)
+        const baseOutline = editorBoundaryVertices(config.editor)
         let ghostPolygons: typeof basePolys | undefined
+        let boundaryOutlines: Vec2[][] = [baseOutline]
         if (editorNeighbourPreview) {
           const ringStamps = editorOneRingNeighbourStamps(config.editor)
           if (ringStamps.length > 0) {
@@ -83,9 +87,26 @@ export function usePattern(
                 })
               }
             }
+            if (editorNeighbourBoundaries) {
+              for (const stamp of ringStamps) {
+                boundaryOutlines.push(
+                  baseOutline.map(v => ({
+                    x: v.x + stamp.translation.x,
+                    y: v.y + stamp.translation.y,
+                  })),
+                )
+              }
+            }
           }
         }
-        return { polygons: basePolys, segments, boundaryOutlines: [boundaryOutline], ghostPolygons }
+        // Strands flow across stamp boundaries when the user opts in by
+        // including ghost polygons in the PIC input. Otherwise PIC runs on
+        // the centre patch only and strands stop at the boundary.
+        const picInput = editorNeighbourPreview && editorNeighbourStrands && ghostPolygons
+          ? [...basePolys, ...ghostPolygons]
+          : basePolys
+        const segments = runPIC(picInput, config)
+        return { polygons: basePolys, segments, boundaryOutlines, ghostPolygons }
       }
       // Strand mode — stamp on the lattice. Lacking a v1 lattice for
       // triangle (deferred to 17.6c), the helper returns a single stamp
@@ -128,5 +149,5 @@ export function usePattern(
     const segments = runPIC(polygons, config)
 
     return { polygons, segments }
-  }, [config, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview])
+  }, [config, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview, editorNeighbourBoundaries, editorNeighbourStrands])
 }

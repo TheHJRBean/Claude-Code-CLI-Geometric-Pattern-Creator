@@ -946,9 +946,8 @@ function EditorDesignControls({
           border: '1px solid var(--border-subtle)',
         }}>
           <div>
-            {editor.boundaryShape === 'triangle'
-              ? 'Triangle lattice preview is deferred; you\'re seeing one stamp. Strand controls below still apply.'
-              : 'Patch is stamped on the boundary\'s translation lattice. Edit strand controls below; flip back to Design to change tiles.'}
+            Patch is stamped on the boundary's translation lattice. Edit
+            strand controls below; flip back to Design to change tiles.
           </div>
           <NonTilingWarning editor={editor} />
           <label style={{

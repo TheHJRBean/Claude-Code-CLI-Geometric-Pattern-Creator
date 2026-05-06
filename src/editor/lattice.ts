@@ -55,8 +55,49 @@ function latticeBasis(editor: EditorConfig): { u: Vec2; v: Vec2 } | null {
 }
 
 /** True iff the boundary supports a lattice preview in this version. */
-export function supportsLatticePreview(shape: BoundaryShape): boolean {
-  return shape !== 'triangle'
+export function supportsLatticePreview(_shape: BoundaryShape): boolean {
+  return true
+}
+
+/**
+ * Expanded lattice descriptor: basis vectors that span the *cell* lattice
+ * plus a list of intra-cell stamps (relative offsets + rotations) that
+ * fill one cell. Square / hex have one stamp per cell; triangle has two —
+ * the source orientation plus a 180°-flipped copy — since equilateral
+ * triangles need two orientations to tile the plane.
+ */
+interface ExpandedLattice {
+  u: Vec2
+  v: Vec2
+  intraStamps: LatticeStamp[]
+}
+
+function expandedLattice(editor: EditorConfig): ExpandedLattice | null {
+  if (editor.boundaryShape === 'triangle') {
+    const verts = editorBoundaryVertices(editor)
+    if (verts.length !== 3) return null
+    const m = [0, 1, 2].map(i => ({
+      x: (verts[i].x + verts[(i + 1) % 3].x) / 2,
+      y: (verts[i].y + verts[(i + 1) % 3].y) / 2,
+    }))
+    // u, v span the same-orientation triangle sublattice; the intra-cell
+    // partner sits at 2·M[2] (an edge-shared opposite-orientation triangle).
+    return {
+      u: { x: 2 * (m[0].x - m[2].x), y: 2 * (m[0].y - m[2].y) },
+      v: { x: 2 * (m[1].x - m[2].x), y: 2 * (m[1].y - m[2].y) },
+      intraStamps: [
+        { translation: { x: 0, y: 0 }, rotation: 0 },
+        { translation: { x: 2 * m[2].x, y: 2 * m[2].y }, rotation: Math.PI },
+      ],
+    }
+  }
+  const basis = latticeBasis(editor)
+  if (!basis) return null
+  return {
+    u: basis.u,
+    v: basis.v,
+    intraStamps: [{ translation: { x: 0, y: 0 }, rotation: 0 }],
+  }
 }
 
 /**
@@ -114,16 +155,16 @@ export function editorLatticeStamps(
   editor: EditorConfig,
   viewport: { x: number; y: number; width: number; height: number },
 ): LatticeStamp[] {
-  const basis = latticeBasis(editor)
-  if (!basis) return [{ translation: { x: 0, y: 0 }, rotation: 0 }]
+  const lat = expandedLattice(editor)
+  if (!lat) return [{ translation: { x: 0, y: 0 }, rotation: 0 }]
 
   // Map viewport corners back to lattice coords (a, b) such that
   // (a·u + b·v) lies near each corner. Solve a 2x2 linear system per corner.
-  const det = basis.u.x * basis.v.y - basis.u.y * basis.v.x
+  const det = lat.u.x * lat.v.y - lat.u.y * lat.v.x
   if (Math.abs(det) < 1e-9) return [{ translation: { x: 0, y: 0 }, rotation: 0 }]
   const inv = {
-    a: basis.v.y / det, b: -basis.v.x / det,
-    c: -basis.u.y / det, d: basis.u.x / det,
+    a: lat.v.y / det, b: -lat.v.x / det,
+    c: -lat.u.y / det, d: lat.u.x / det,
   }
   const corners: Vec2[] = [
     { x: viewport.x, y: viewport.y },
@@ -148,13 +189,17 @@ export function editorLatticeStamps(
   const stamps: LatticeStamp[] = []
   for (let a = a0; a <= a1; a++) {
     for (let b = b0; b <= b1; b++) {
-      stamps.push({
-        translation: {
-          x: a * basis.u.x + b * basis.v.x,
-          y: a * basis.u.y + b * basis.v.y,
-        },
-        rotation: 0,
-      })
+      const baseX = a * lat.u.x + b * lat.v.x
+      const baseY = a * lat.u.y + b * lat.v.y
+      for (const intra of lat.intraStamps) {
+        stamps.push({
+          translation: {
+            x: baseX + intra.translation.x,
+            y: baseY + intra.translation.y,
+          },
+          rotation: intra.rotation,
+        })
+      }
     }
   }
   return stamps

@@ -116,21 +116,30 @@ export function usePattern(
         const segments = runPIC(picInput, config)
         return { polygons: basePolys, segments, boundaryOutlines, ghostPolygons }
       }
-      // Strand mode — stamp on the lattice. Lacking a v1 lattice for
-      // triangle (deferred to 17.6c), the helper returns a single stamp
-      // and the user gets a one-patch preview.
+      // Strand mode — stamp on the lattice. Triangle uses a 2-orientation
+      // lattice (source + 180°-flipped) so the stamps' rotations matter.
       const stamps = editorLatticeStamps(config.editor, {
         x: genX, y: genY, width: genW, height: genH,
       })
       const polygons: typeof basePolys = []
       for (let s = 0; s < stamps.length; s++) {
         const stamp = stamps[s]
+        const t = stamp.translation
+        const cos = Math.cos(stamp.rotation)
+        const sin = Math.sin(stamp.rotation)
+        const rot = (v: Vec2): Vec2 => stamp.rotation === 0
+          ? v
+          : { x: v.x * cos - v.y * sin, y: v.x * sin + v.y * cos }
         for (const p of basePolys) {
+          const c = rot(p.center)
           polygons.push({
             ...p,
             id: `${p.id}@${s}`,
-            center: { x: p.center.x + stamp.translation.x, y: p.center.y + stamp.translation.y },
-            vertices: p.vertices.map(v => ({ x: v.x + stamp.translation.x, y: v.y + stamp.translation.y })),
+            center: { x: c.x + t.x, y: c.y + t.y },
+            vertices: p.vertices.map(v => {
+              const r = rot(v)
+              return { x: r.x + t.x, y: r.y + t.y }
+            }),
           })
         }
       }
@@ -139,9 +148,15 @@ export function usePattern(
       let boundaryOutlines: Vec2[][] | undefined
       if (showBoundaryLattice) {
         const baseOutline = editorBoundaryVertices(config.editor)
-        boundaryOutlines = stamps.map(stamp =>
-          baseOutline.map(v => ({ x: v.x + stamp.translation.x, y: v.y + stamp.translation.y })),
-        )
+        boundaryOutlines = stamps.map(stamp => {
+          const cos = Math.cos(stamp.rotation)
+          const sin = Math.sin(stamp.rotation)
+          return baseOutline.map(v => {
+            const rx = stamp.rotation === 0 ? v.x : v.x * cos - v.y * sin
+            const ry = stamp.rotation === 0 ? v.y : v.x * sin + v.y * cos
+            return { x: rx + stamp.translation.x, y: ry + stamp.translation.y }
+          })
+        })
       }
       return { polygons, segments, boundaryOutlines }
     }

@@ -1,5 +1,5 @@
 import type { PatternConfig, FigureConfig, LacingConfig } from '../types/pattern'
-import type { BoundaryShape } from '../types/editor'
+import type { BoundaryShape, EditorConfig } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 
 export type Action =
@@ -41,3 +41,5 @@ export type Action =
   | { type: 'EDITOR_RUN_AUTO_COMPLETE' }
   // Wrap boundary — design-mode boundary fitting (formerly match-boundary flavour)
   | { type: 'SET_EDITOR_WRAP_BOUNDARY'; payload: boolean }
+  // Step 17.9 — undo/redo restores a snapshot. `null` means "no editor".
+  | { type: 'EDITOR_RESTORE_SNAPSHOT'; payload: EditorConfig | null }

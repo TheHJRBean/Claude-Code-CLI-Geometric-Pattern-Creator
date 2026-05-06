@@ -223,7 +223,7 @@ cross-references to the resolutions table.
 | **17.6** | Strand editor mode + lattice preview + strand controls. ✅ a + b code-complete (triangle-lattice 2-orientation alternation deferred to 17.6c). | M | 15, 16, 17 | Q11, Q15 |
 | **17.7** | Auto-complete-on-flip (until-convex). Boundary fitting split out as a separate **Wrap boundary** design-mode toggle. ✅ shipped. | M | 11 | — |
 | **17.8** | Persistence validation + migration scaffold for `EditorConfig`. ✅ code-complete. | S–M | 5 | Q13 |
-| **17.9** | Undo / redo.                                     | S–M  | —         | Q12          |
+| **17.9** | Undo / redo. ✅ code-complete.                   | S–M  | —         | Q12          |
 | **17.10**| Non-tiling patch detection + UI tag.             | S    | 2         | —            |
 
 **Sub-step detail.**
@@ -375,9 +375,21 @@ cross-references to the resolutions table.
   library. `App.handleLoadJSON` surfaces validation errors via
   `window.alert` rather than silently logging.
 
-- **17.9 — Undo / redo.** Resolve Q12 first. Default plan: snapshot-
-  based undo on `EditorConfig`. Acceptance: place 5 tiles, undo 3,
-  redo 2, state matches.
+- **17.9 — Undo / redo.** ✅ Code-complete 2026-05-06. Snapshot-based
+  on `EditorConfig` (Q12). New `src/editor/history.ts` exposes
+  `DESIGN_MODE_ACTIONS`, `HISTORY_DEPTH = 50`, and
+  `HISTORY_COALESCE_MS = 500`. New `src/editor/useEditorHistory`
+  hook wraps the base dispatch — design-mode actions push the prior
+  `EditorConfig` to a `past` stack (capped, FIFO eviction), and
+  consecutive same-type actions within 500ms coalesce into one entry
+  so a slider drag is a single undo step. `LOAD_CONFIG` clears the
+  stack. New action `EDITOR_RESTORE_SNAPSHOT` (payload
+  `EditorConfig | null`) is the restore primitive. Strand-mode
+  actions (figure tuning, lacing, curves) bypass the stack. Cmd/Ctrl
+  +Z and Cmd/Ctrl+Shift+Z (plus Ctrl+Y) bound globally while Lab is
+  mounted; ignored when focus is in an input/textarea/select so
+  library prompts aren't hijacked. Undo / Redo header row added to
+  `EditorDesignControls` above the Phase toggle.
 
 - **17.10 — Non-tiling patch detection + UI tag.** When the patch
   outline doesn't match the boundary polygon at strand-editor entry
@@ -571,3 +583,12 @@ From the live tree:
   `App.handleLoadJSON`. Cross-boundary-Complete idea
   (`project_editor_cross_boundary_complete_idea.md`) parked as 17.5b
   the same day.
+- **2026-05-06** — Sub-step 17.9 code-complete. Undo / redo on
+  `EditorConfig` (Q12). New `src/editor/history.ts` (constants +
+  action allowlist) + `src/editor/useEditorHistory` (dispatch
+  wrapper). Slider-drag coalescing collapses fast same-type actions
+  into one history entry. `LOAD_CONFIG` clears the stack;
+  `EDITOR_RESTORE_SNAPSHOT` restores; strand-mode tuning bypasses
+  the stack. Keyboard: Cmd/Ctrl+Z and Cmd/Ctrl+Shift+Z (also
+  Ctrl+Y), guarded against text-input focus. Undo/Redo buttons in
+  the editor design header.

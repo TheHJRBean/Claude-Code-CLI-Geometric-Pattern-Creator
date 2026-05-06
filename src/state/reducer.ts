@@ -230,6 +230,23 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       // nothing visible until the next tile mutation.
       return action.payload ? applyWrap(next) : next
     }
+    case 'EDITOR_RESTORE_SNAPSHOT': {
+      // Step 17.9 — undo/redo. Snapshot already has its own boundarySize, so
+      // we don't run applyWrap (the snapshot represents the post-wrap state
+      // at the time it was captured). seedFigures keeps figure-map coverage
+      // consistent with the restored tile types.
+      const snapshot = action.payload
+      if (snapshot === null) {
+        const { editor: _drop, ...rest } = state
+        void _drop
+        return { ...rest, tiling: { ...state.tiling, type: '' } }
+      }
+      return seedFigures({
+        ...state,
+        tiling: { ...state.tiling, type: 'editor' },
+        editor: snapshot,
+      })
+    }
     default:
       return state
   }

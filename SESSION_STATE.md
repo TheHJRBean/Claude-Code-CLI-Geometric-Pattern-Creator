@@ -4,7 +4,29 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
-**Last action:** 2026-05-06 — split 17.7's `match-boundary` flavour
+**Last action:** 2026-05-06 — sub-step **17.8** code-complete:
+persistence validation + migration scaffold. New
+`src/editor/migrations.ts` exports `migrateEditorConfig(unknown)`:
+takes an unvalidated value (from JSON / localStorage), checks shape,
+returns a clean `EditorConfig` or `null`. The version dispatch is the
+intended hook for future `EditorConfig.version` bumps; only `1` is
+valid today. New `src/state/configValidation.ts` exports
+`loadPatternConfig(unknown)` + `ConfigValidationError`: validates
+`tiling`, `figures`, `lacing`; rejects retired tiling types
+(`layered-mandala`, `composition`); routes the optional `editor`
+field through `migrateEditorConfig`. `loadJSON` now returns a
+validated `PatternConfig` and rejects with a `ConfigValidationError`
+on malformed input; `App.handleLoadJSON` surfaces the message via
+`window.alert`. `customTessellations.listSavedTessellations` runs
+each entry through `loadPatternConfig` and skips bad rows with a
+warning so one corrupt entry doesn't blank the whole library.
+
+Earlier 2026-05-06 — UI move: auto-complete checkbox now lives inside
+the Mode section's Complete branch; only surfaces when Complete is
+selected (`af06d66`). Wrap boundary stays above the Mode toggle since
+it applies in both Place and Complete.
+
+Earlier: 2026-05-06 — split 17.7's `match-boundary` flavour
 out into a separate design-mode "Wrap boundary" toggle. Auto-complete
 keeps its single checkbox (no dropdown) and always runs until-convex
 on Design→Strand flip. `EditorConfig.wrapBoundary` is a new optional
@@ -134,12 +156,21 @@ follow-up `0aff7fb` resets placed tiles when shape / origin sides
 change. 17.1 shipped 2026-05-03 (`e199aee`) — data model +
 read-only render. `94f651c` made Lab editor-only.
 
-**Next action:** **17.8 — persistence integration.** Wire
-`EditorConfig` (now including `wrapBoundary`) into both
-`lab-tessellations-v1` localStorage and the existing `saveJSON` /
-`loadJSON` file format. Schema-versioned. Acceptance: save 3 patches
-across categories, reload browser, all three persist. Export to
-JSON, import on another browser, patch round-trips.
+**Next action:** Visual sign-off on 17.8. Probes:
+1. Save 3 patches across categories (archimedean / rosette-patch /
+   editor) → reload browser → all three persist in the library.
+2. Save current editor patch via "Save JSON" → re-import via "Load
+   JSON" → identical state, including `wrapBoundary` and
+   `autoComplete.enabled` if set.
+3. Open browser devtools, write a malformed editor field directly to
+   `lab-tessellations-v1` → reload → bad row skipped with console
+   warning, other rows still load.
+4. Try importing an unrelated JSON file → friendly alert ("Could not
+   load file: ...") rather than a crashed render.
+
+After 17.8 sign-off, **17.9 — Undo/redo** is next (snapshot-based
+on `EditorConfig`, depth cap 50, design-mode mutations only,
+preserved across design ↔ strand flips).
 
 17.7 sign-off probes (2026-05-06) — confirmed working:
 - Auto-complete checkbox alone fills concave dents on flip.
@@ -242,7 +273,7 @@ Plan steps live in `TESSELLATION_REVAMP_PLAN.md`. One-liner status:
 - [done] Steps 9–11 — Lab polish, `FigureControls` lift, Lab Strands panel
 - [archived 2026-05-03] Steps 12–13 — mandala strand renderer, composition strand renderer + match-up
 - [done] Step 14 — Lab-local library (`state/customTessellations.ts`)
-- [in progress] **Step 17** — user-editable tessellation editor. 17.0–17.3, 17.5–17.7 done (17.4 archived). **17.8 (persistence) next**.
+- [in progress] **Step 17** — user-editable tessellation editor. 17.0–17.3, 17.5–17.8 done (17.4 archived). **17.9 (undo/redo) next**.
 - [parked] Steps 15, 16, 18 — k-uniform generator, quasi-periodic, Girih substitution
 
 ## Live architecture (post-cleanup, post-17.3)

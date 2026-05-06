@@ -97,6 +97,8 @@ export default function App() {
       dispatch({ type: 'LOAD_CONFIG', payload: loaded })
     } catch (e) {
       console.error(e)
+      const msg = e instanceof Error ? e.message : 'Could not load file.'
+      window.alert(`Could not load file: ${msg}`)
     }
   }
 

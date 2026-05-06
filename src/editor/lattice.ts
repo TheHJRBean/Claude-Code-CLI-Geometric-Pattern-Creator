@@ -1,5 +1,6 @@
 import type { Vec2 } from '../utils/math'
 import type { BoundaryShape, EditorConfig } from '../types/editor'
+import { editorBoundaryVertices } from './buildEditorPolygons'
 
 /**
  * Step 17.6 — strand-editor mode lattice preview.
@@ -62,12 +63,33 @@ export function supportsLatticePreview(shape: BoundaryShape): boolean {
  * Step 17.6d — one ring of neighbour stamps around the patch (centre stamp
  * excluded). Used by Design-mode "Show neighbours" preview so the user can
  * see how the patch joins its lattice neighbours before flipping to Strand
- * mode. Returns `[]` for triangle boundaries (no v1 lattice).
+ * mode.
  *
- * Square: 8 neighbours (orthogonal + diagonal).
- * Hexagon: 6 neighbours (axial 1-ring; (1,1) / (-1,-1) are 2 cells away).
+ * - Square: 8 neighbours (orthogonal + diagonal); rotation 0.
+ * - Hexagon: 6 axial neighbours; rotation 0.
+ * - Triangle: 3 edge-shared neighbours, each flipped 180° around the patch
+ *   centroid (an up-triangle's edge-neighbours are point-down). Computed
+ *   directly from boundary edge midpoints so it handles `alternateBoundary`.
  */
 export function editorOneRingNeighbourStamps(editor: EditorConfig): LatticeStamp[] {
+  if (editor.boundaryShape === 'triangle') {
+    const verts = editorBoundaryVertices(editor)
+    if (verts.length !== 3) return []
+    const stamps: LatticeStamp[] = []
+    for (let i = 0; i < 3; i++) {
+      const a = verts[i]
+      const b = verts[(i + 1) % 3]
+      // Edge midpoint M; the reflected (down-)triangle's centroid sits at
+      // 2·M since the source centroid is at the origin. Stamp = translate
+      // by 2·M, rotate 180° about the patch centre.
+      const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+      stamps.push({
+        translation: { x: 2 * m.x, y: 2 * m.y },
+        rotation: Math.PI,
+      })
+    }
+    return stamps
+  }
   const basis = latticeBasis(editor)
   if (!basis) return []
   const offsets: Array<[number, number]> = editor.boundaryShape === 'square'

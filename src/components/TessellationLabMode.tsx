@@ -1098,11 +1098,12 @@ function EditorDesignControls({
       </div>
 
       {/* Step 17.6d — Show neighbours. Disabled while wrap is on (boundary
-          edge moves under the user's feet) or on triangle (no v1 lattice). */}
+          edge moves under the user's feet). Triangle support added — the
+          three edge-shared down-triangles are computed directly from the
+          boundary vertices. */}
       {(() => {
         const wrapOn = !!editor.wrapBoundary
-        const triangle = editor.boundaryShape === 'triangle'
-        const disabled = wrapOn || triangle
+        const disabled = wrapOn
         const active = showNeighbours && !disabled
         return (
           <div style={{ marginTop: 10 }}>
@@ -1137,9 +1138,7 @@ function EditorDesignControls({
                 marginBottom: 4,
                 lineHeight: 1.4,
               }}>
-                {wrapOn
-                  ? 'Disable Wrap boundary to preview neighbours.'
-                  : 'Triangle lattice preview is deferred.'}
+                Disable Wrap boundary to preview neighbours.
               </div>
             )}
             {active && (

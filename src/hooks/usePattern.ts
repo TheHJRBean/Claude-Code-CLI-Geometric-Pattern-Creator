@@ -77,23 +77,31 @@ export function usePattern(
           if (ringStamps.length > 0) {
             ghostPolygons = []
             for (let s = 0; s < ringStamps.length; s++) {
-              const t = ringStamps[s].translation
+              const stamp = ringStamps[s]
+              const t = stamp.translation
+              const cos = Math.cos(stamp.rotation)
+              const sin = Math.sin(stamp.rotation)
+              const rot = (v: Vec2): Vec2 => stamp.rotation === 0
+                ? v
+                : { x: v.x * cos - v.y * sin, y: v.x * sin + v.y * cos }
               for (const p of basePolys) {
+                const c = rot(p.center)
                 ghostPolygons.push({
                   ...p,
                   id: `${p.id}~ghost@${s}`,
-                  center: { x: p.center.x + t.x, y: p.center.y + t.y },
-                  vertices: p.vertices.map(v => ({ x: v.x + t.x, y: v.y + t.y })),
+                  center: { x: c.x + t.x, y: c.y + t.y },
+                  vertices: p.vertices.map(v => {
+                    const r = rot(v)
+                    return { x: r.x + t.x, y: r.y + t.y }
+                  }),
                 })
               }
-            }
-            if (editorNeighbourBoundaries) {
-              for (const stamp of ringStamps) {
+              if (editorNeighbourBoundaries) {
                 boundaryOutlines.push(
-                  baseOutline.map(v => ({
-                    x: v.x + stamp.translation.x,
-                    y: v.y + stamp.translation.y,
-                  })),
+                  baseOutline.map(v => {
+                    const r = rot(v)
+                    return { x: r.x + t.x, y: r.y + t.y }
+                  }),
                 )
               }
             }

@@ -6,6 +6,7 @@ import { DEFAULT_CONFIG } from './defaults'
 import { createDefaultEditorConfig, createOriginTile, DEFAULT_BOUNDARY_SIZE_BY_SHAPE } from '../editor/createDefault'
 import { computeExposedEdges } from '../editor/exposedEdges'
 import { isPlacementViable, placeRegularNGonOnEdge } from '../editor/placement'
+import { orbitTileIds, placeTilesOnOrbit } from '../editor/orbit'
 import { completeGap } from '../editor/complete'
 import { autoCompletePatch, fitBoundarySize } from '../editor/autoComplete'
 import { seedFiguresForEditor } from '../editor/tileTypes'
@@ -184,10 +185,24 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       const { tileId, edgeIndex, sides } = action.payload
       const edges = computeExposedEdges(state.editor)
       const edge = edges.find(e => e.tileId === tileId && e.edgeIndex === edgeIndex)
-      if (!edge || !isPlacementViable(edge, sides, state.editor)) return state
-      const id = `placed-${state.editor.tiles.length}-${Date.now()}`
-      const tile = placeRegularNGonOnEdge(sides, state.editor.edgeLength, edge.p1, edge.p2, edge.sourceCenter, id)
-      return applyWrap(seedFigures({ ...state, editor: { ...state.editor, tiles: [...state.editor.tiles, tile] } }))
+      if (!edge) return state
+      const mode = state.editor.symmetryMode ?? 'none'
+      // Subgroup picker — `'none'` keeps the 17.3 single-edge behaviour.
+      // Other subgroups propagate the placement under the chosen orbit;
+      // any orbit image that fails viability fails the whole placement.
+      if (mode === 'none') {
+        if (!isPlacementViable(edge, sides, state.editor)) return state
+        const id = `placed-${state.editor.tiles.length}-${Date.now()}`
+        const tile = placeRegularNGonOnEdge(sides, state.editor.edgeLength, edge.p1, edge.p2, edge.sourceCenter, id)
+        return applyWrap(seedFigures({ ...state, editor: { ...state.editor, tiles: [...state.editor.tiles, tile] } }))
+      }
+      const idPrefix = `placed-${state.editor.tiles.length}-${Date.now()}`
+      const placements = placeTilesOnOrbit(state.editor, edge, sides, idPrefix)
+      if (!placements) return state
+      return applyWrap(seedFigures({
+        ...state,
+        editor: { ...state.editor, tiles: [...state.editor.tiles, ...placements] },
+      }))
     }
     case 'EDITOR_DELETE_TILE': {
       if (!state.editor) return state
@@ -195,11 +210,22 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       const target = state.editor.tiles.find(t => t.id === tileId)
       // The auto-placed origin can't be deleted — it anchors the patch.
       if (!target || target.origin === 'origin') return state
+      const mode = state.editor.symmetryMode ?? 'none'
+      // Orbit-aware delete: removing one propagated tile takes its orbit
+      // siblings with it, otherwise the patch's symmetry would silently
+      // break. None mode = single-tile delete (17.3 behaviour). The origin
+      // tile is filtered out of the orbit set defensively.
+      const ids = mode === 'none'
+        ? new Set([tileId])
+        : new Set(orbitTileIds(state.editor, target).filter(id => {
+            const t = state.editor!.tiles.find(t => t.id === id)
+            return t && t.origin !== 'origin'
+          }))
       // Q15: orphaned figures are retained on tile removal so re-placing the
       // same shape restores the user's tuning. We only ever add to figures.
       return applyWrap({
         ...state,
-        editor: { ...state.editor, tiles: state.editor.tiles.filter(t => t.id !== tileId) },
+        editor: { ...state.editor, tiles: state.editor.tiles.filter(t => !ids.has(t.id)) },
       })
     }
     case 'EDITOR_COMPLETE_GAP': {
@@ -229,6 +255,14 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       // Toggling on must take effect immediately — otherwise the toggle does
       // nothing visible until the next tile mutation.
       return action.payload ? applyWrap(next) : next
+    }
+    case 'SET_EDITOR_SYMMETRY_MODE': {
+      if (!state.editor) return state
+      // Triangle has no horizontal mirror — coerce the request defensively.
+      const mode = action.payload === 'horizontal' && state.editor.boundaryShape === 'triangle'
+        ? 'none'
+        : action.payload
+      return updateEditor(state, { symmetryMode: mode })
     }
     case 'EDITOR_RESTORE_SNAPSHOT': {
       // Step 17.9 — undo/redo. Snapshot already has its own boundarySize, so

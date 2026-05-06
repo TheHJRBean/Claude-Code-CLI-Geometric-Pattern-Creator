@@ -4,7 +4,10 @@ import type {
   EditorIrregularTile,
   EditorRegularTile,
   EditorTile,
+  SymmetryMode,
 } from '../types/editor'
+
+const SYMMETRY_MODES = new Set<SymmetryMode>(['full', 'rotation', 'vertical', 'horizontal', 'none'])
 
 /**
  * Step 17.8 — load-time validation + migration scaffold for `EditorConfig`.
@@ -110,5 +113,11 @@ export function migrateEditorConfig(raw: unknown): EditorConfig | null {
       out.autoComplete = { enabled: ac.enabled }
     }
   }
+  if (typeof r.symmetryMode === 'string' && SYMMETRY_MODES.has(r.symmetryMode as SymmetryMode)) {
+    out.symmetryMode = r.symmetryMode as SymmetryMode
+  }
+  // Legacy patches without `symmetryMode` keep the field absent — readers
+  // default it to `'none'` (the 17.3 single-edge behaviour) so loading an
+  // old patch never silently propagates placements.
   return out
 }

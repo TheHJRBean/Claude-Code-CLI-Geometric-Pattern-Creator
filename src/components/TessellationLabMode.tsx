@@ -998,32 +998,12 @@ function EditorDesignControls({
         </div>
       )}
 
-      {/* Step 17.7 — Auto-complete on flip (Decision 11). Fills concave dents
-          when entering Strand mode. Wrap boundary lives below as a separate
-          design-mode mode that fits the boundary to the patch live. */}
+      {/* Wrap boundary — design-mode boundary fitting (live). */}
       <div style={{ marginTop: 14 }}>
         <label style={{
           display: 'flex',
           alignItems: 'center',
           gap: 10,
-          cursor: 'pointer',
-          fontFamily: "'EB Garamond', Georgia, serif",
-          fontSize: 13,
-          color: editor.autoComplete?.enabled ? 'var(--text)' : 'var(--text-muted)',
-          transition: 'color 0.15s',
-        }}>
-          <input
-            type="checkbox"
-            checked={!!editor.autoComplete?.enabled}
-            onChange={e => dispatch({ type: 'SET_EDITOR_AUTO_COMPLETE_ENABLED', payload: e.target.checked })}
-          />
-          Auto-complete on entering Strand editor
-        </label>
-        <label style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          marginTop: 8,
           cursor: 'pointer',
           fontFamily: "'EB Garamond', Georgia, serif",
           fontSize: 13,
@@ -1070,37 +1050,60 @@ function EditorDesignControls({
           })}
         </div>
         {editorMode === 'complete' && (
-          <div style={{
-            marginTop: 6,
-            fontFamily: "'EB Garamond', Georgia, serif",
-            fontSize: 12,
-            color: 'var(--text-muted)',
-            lineHeight: 1.4,
-          }}>
-            {firstVertexPick
-              ? 'Pick a second outer vertex to fill the gap between them. Esc to cancel.'
-              : 'Pick two outer vertices to fill the gap they bracket.'}
-            {firstVertexPick && (
-              <button
-                onClick={onCancelComplete}
-                style={{
-                  marginLeft: 6,
-                  padding: '1px 6px',
-                  fontFamily: "'Cinzel', Georgia, serif",
-                  fontSize: 9,
-                  fontWeight: 600,
-                  letterSpacing: '0.10em',
-                  textTransform: 'uppercase',
-                  cursor: 'pointer',
-                  border: '1px solid var(--border-subtle)',
-                  background: 'transparent',
-                  color: 'var(--text-muted)',
-                }}
-              >
-                Cancel
-              </button>
-            )}
-          </div>
+          <>
+            {/* Step 17.7 — Auto-complete on flip (Decision 11). Lives in
+                Complete mode since it's a Complete-style operation that
+                fires automatically on Design→Strand flip. */}
+            <label style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              marginTop: 10,
+              cursor: 'pointer',
+              fontFamily: "'EB Garamond', Georgia, serif",
+              fontSize: 13,
+              color: editor.autoComplete?.enabled ? 'var(--text)' : 'var(--text-muted)',
+              transition: 'color 0.15s',
+            }}>
+              <input
+                type="checkbox"
+                checked={!!editor.autoComplete?.enabled}
+                onChange={e => dispatch({ type: 'SET_EDITOR_AUTO_COMPLETE_ENABLED', payload: e.target.checked })}
+              />
+              Auto-complete on entering Strand editor
+            </label>
+            <div style={{
+              marginTop: 8,
+              fontFamily: "'EB Garamond', Georgia, serif",
+              fontSize: 12,
+              color: 'var(--text-muted)',
+              lineHeight: 1.4,
+            }}>
+              {firstVertexPick
+                ? 'Pick a second outer vertex to fill the gap between them. Esc to cancel.'
+                : 'Pick two outer vertices to fill the gap they bracket.'}
+              {firstVertexPick && (
+                <button
+                  onClick={onCancelComplete}
+                  style={{
+                    marginLeft: 6,
+                    padding: '1px 6px',
+                    fontFamily: "'Cinzel', Georgia, serif",
+                    fontSize: 9,
+                    fontWeight: 600,
+                    letterSpacing: '0.10em',
+                    textTransform: 'uppercase',
+                    cursor: 'pointer',
+                    border: '1px solid var(--border-subtle)',
+                    background: 'transparent',
+                    color: 'var(--text-muted)',
+                  }}
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+          </>
         )}
       </div>
 

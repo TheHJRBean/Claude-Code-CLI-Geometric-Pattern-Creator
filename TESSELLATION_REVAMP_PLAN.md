@@ -222,7 +222,7 @@ cross-references to the resolutions table.
 | **17.1** | `EditorConfig` data model + read-only render.    | S–M  | 1, 4, 6, 14 | ✅ Q13       |
 | **17.2** | Boundary picker + size slider + origin picker (Design mode shell). ✅ shipped `f9d6197`. | M | 4, 5, 6 | ✅ Q9 |
 | **17.3** | Click-to-highlight + viable-polygon picker (single edge, no propagation yet). ✅ shipped `ccc7da0`. | M | 7, 14, 14a | ✅ Q10 |
-| **17.4** | Orbit-symmetric propagation on placement. 🗄 **archived 2026-05-05** (`archive/editor-orbit-17.4/`) — re-enable bundled with the symmetry-axis subgroup picker. | M | 8 | — |
+| **17.4** | Orbit-symmetric propagation on placement. ✅ **re-enabled 2026-05-06** behind a `SymmetryMode` subgroup picker (none / full / rotation / vertical / horizontal). Default `'none'` keeps 17.3 single-edge behaviour for legacy patches. | M | 8 | — |
 | **17.5** | Complete operation — manual vertex-pair selection. ✅ code-complete (canonical tile-type hash deferred to 17.5b / 17.6). | M | 9, 10, 12 | Q11 |
 | **17.6** | Strand editor mode + lattice preview + strand controls. ✅ a + b code-complete (triangle-lattice 2-orientation alternation deferred to 17.6c). | M | 15, 16, 17 | Q11, Q15 |
 | **17.7** | Auto-complete-on-flip (until-convex). Boundary fitting split out as a separate **Wrap boundary** design-mode toggle. ✅ shipped. | M | 11 | — |

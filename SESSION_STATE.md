@@ -191,6 +191,19 @@ follow-up `0aff7fb` resets placed tiles when shape / origin sides
 change. 17.1 shipped 2026-05-03 (`e199aee`) — data model +
 read-only render. `94f651c` made Lab editor-only.
 
+**2026-05-06 — Main "My Patterns" library shipped.** Reversed plan
+decision #10. New `state/configLibrary.ts` factory (storage-key
+parameterised) backs both libraries. `state/customTessellations.ts`
+became a thin wrapper using `lab-tessellations-v1`; new
+`state/mainConfigs.ts` wraps `main-configs-v1` so namespaces stay
+separate. UI lifted into `components/ConfigLibraryPanel.tsx` and
+plugged into both Lab's "My Tessellations" and Main's new "My
+Patterns" sidebar section (between Display and Export). Panel
+takes a controlled `activeId` so external resets — Lab's Clear /
+New / Sample, Main's Load JSON — can wipe selection. Removed the
+old root-level `TextPromptModal` + library state from
+`TessellationLabMode.tsx` since the panel owns its own modal now.
+
 **17.9 signed off 2026-05-06** — undo/redo confirmed working.
 
 **2026-05-06 — sub-step 17.10 code-complete: non-tiling patch

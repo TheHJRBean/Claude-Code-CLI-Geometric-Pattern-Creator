@@ -5,6 +5,8 @@ import { TILINGS, SYMMETRY_GROUPS } from '../tilings/index'
 import type { TileTypeInfo } from '../types/tiling'
 import { useTheme } from '../theme/ThemeContext'
 import { FigureControls } from './strands/FigureControls'
+import { mainConfigLibrary } from '../state/mainConfigs'
+import { ConfigLibraryPanel } from './ConfigLibraryPanel'
 
 interface Props {
   mode: 'main' | 'lab'
@@ -286,6 +288,16 @@ export function Sidebar({
         id: String(s), sides: s, label: `${s}-gon`,
       })))
     : []
+
+  // Step 17 follow-up — Main "My Patterns" library. Active-entry id stays
+  // until the user explicitly loads a different starting point (Load JSON
+  // or another saved entry); slider tweaks do not reset it so the user
+  // can re-Save a modified version against the original name.
+  const [activePatternId, setActivePatternId] = useState<string>('')
+  const handleLoadJSON = () => {
+    setActivePatternId('')
+    onLoadJSON()
+  }
 
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
     try {
@@ -600,6 +612,23 @@ export function Sidebar({
           )}
         </div>
 
+        {/* My Patterns — in-app library of saved configs (mirrors Lab's). */}
+        <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
+          <LotusDivider />
+          <SectionTitle open={isOpen('library')} onToggle={() => toggleSection('library')}>My Patterns</SectionTitle>
+          {isOpen('library') && (
+            <ConfigLibraryPanel
+              library={mainConfigLibrary}
+              currentConfig={config}
+              onLoad={c => dispatch({ type: 'LOAD_CONFIG', payload: c })}
+              nounSingular="pattern"
+              activeId={activePatternId}
+              onActiveIdChange={setActivePatternId}
+            />
+          )}
+          <div style={{ marginBottom: 4 }} />
+        </div>
+
         {/* Export */}
         <div style={{ paddingTop: 4, paddingBottom: 28 }}>
           <LotusDivider />
@@ -610,7 +639,7 @@ export function Sidebar({
               <ExportBtn onClick={onExportPNG}>PNG</ExportBtn>
               <ExportBtn onClick={onExportUnwovenSVG}>Unwoven SVG</ExportBtn>
               <ExportBtn onClick={onSaveJSON} secondary>Save JSON</ExportBtn>
-              <ExportBtn onClick={onLoadJSON} secondary>Load JSON</ExportBtn>
+              <ExportBtn onClick={handleLoadJSON} secondary>Load JSON</ExportBtn>
             </div>
           )}
         </div>

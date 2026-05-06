@@ -4,15 +4,8 @@ import type { PatternConfig } from '../types/pattern'
 import type { Action } from '../state/actions'
 import { TILINGS } from '../tilings/index'
 import type { TileTypeInfo } from '../types/tiling'
-import {
-  type SavedTessellation,
-  listSavedTessellations,
-  saveTessellation,
-  renameTessellation,
-  deleteTessellation,
-  duplicateTessellation,
-  getTessellation,
-} from '../state/customTessellations'
+import { createConfigLibrary } from '../state/configLibrary'
+import { ConfigLibraryPanel } from './ConfigLibraryPanel'
 import { Canvas, type SelectedEdge } from './Canvas'
 import { SandstoneEdge } from './SandstoneEdge'
 import { useTheme } from '../theme/ThemeContext'
@@ -23,7 +16,8 @@ import type { BoundaryShape } from '../types/editor'
 import { editorTileTypes } from '../editor/tileTypes'
 import { useEditorHistory } from '../editor/useEditorHistory'
 import { detectPatchTilingStatus } from '../editor/nonTilingDetection'
-import { TextPromptModal } from './TextPromptModal'
+
+const labLibrary = createConfigLibrary('lab-tessellations-v1')
 
 /**
  * Tessellation Lab — workspace for prototyping tessellations and (next phase)
@@ -176,23 +170,9 @@ export function TessellationLabMode({
   }
 
   // ── Library ────────────────────────────────────────────
-  const [library, setLibrary] = useState<SavedTessellation[]>(() => listSavedTessellations())
+  // Active-entry selection lives here so external buttons (Clear / New /
+  // Sample) can reset it via the controlled prop on `ConfigLibraryPanel`.
   const [activeSavedId, setActiveSavedId] = useState<string>('')
-  const [libraryError, setLibraryError] = useState<string | null>(null)
-  // Custom Save / Rename modal state — replaces window.prompt so the dialog
-  // matches the rest of the UI and isn't subject to browser prompt-blocking.
-  const [textModal, setTextModal] = useState<{
-    title: string
-    confirmLabel: string
-    initialValue: string
-    onConfirm: (value: string) => void
-  } | null>(null)
-  const refreshLibrary = () => setLibrary(listSavedTessellations())
-  const flashError = (msg: string | null) => {
-    setLibraryError(msg)
-    if (msg) window.setTimeout(() => setLibraryError(null), 4000)
-  }
-  const activeSaved = activeSavedId ? library.find(e => e.id === activeSavedId) ?? null : null
 
   // ── Section collapse (matches Main mode pattern) ───────
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
@@ -210,14 +190,6 @@ export function TessellationLabMode({
   }
   const isOpen = (key: string) => !collapsedSections[key]
 
-  useEffect(() => {
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === 'lab-tessellations-v1') refreshLibrary()
-    }
-    window.addEventListener('storage', onStorage)
-    return () => window.removeEventListener('storage', onStorage)
-  }, [])
-
   const def = config.tiling.type ? TILINGS[config.tiling.type] : undefined
   // Editor patches don't have a `TilingDefinition` — derive their tile types
   // from the patch itself so the strand panel renders one card per distinct
@@ -227,77 +199,6 @@ export function TessellationLabMode({
     : def
       ? def.tileTypes ?? Array.from(new Set(def.vertexConfig)).map(n => ({ id: String(n), sides: n, label: `${n}-gon` }))
       : []
-
-  const handleLoadSaved = (id: string) => {
-    setActiveSavedId(id)
-    if (!id) return
-    const entry = getTessellation(id)
-    if (entry) dispatch({ type: 'LOAD_CONFIG', payload: entry.config })
-  }
-
-  const handleSave = () => {
-    const suggested = activeSaved
-      ? `${activeSaved.name} (modified)`
-      : def
-        ? def.label
-        : config.tiling.type === 'editor'
-          ? 'My patch'
-          : 'Untitled'
-    setTextModal({
-      title: 'Name this tessellation',
-      confirmLabel: 'Save',
-      initialValue: suggested,
-      onConfirm: name => {
-        setTextModal(null)
-        const result = saveTessellation(name, config)
-        if (result.error) {
-          flashError(result.error.message)
-          return
-        }
-        refreshLibrary()
-        if (result.entry) setActiveSavedId(result.entry.id)
-      },
-    })
-  }
-
-  const handleRename = () => {
-    if (!activeSaved) return
-    setTextModal({
-      title: 'Rename tessellation',
-      confirmLabel: 'Rename',
-      initialValue: activeSaved.name,
-      onConfirm: next => {
-        setTextModal(null)
-        const err = renameTessellation(activeSaved.id, next)
-        if (err) flashError(err.message)
-        else refreshLibrary()
-      },
-    })
-  }
-
-  const handleDelete = () => {
-    if (!activeSaved) return
-    const ok = window.confirm(`Delete "${activeSaved.name}"? This cannot be undone.`)
-    if (!ok) return
-    const err = deleteTessellation(activeSaved.id)
-    if (err) {
-      flashError(err.message)
-      return
-    }
-    refreshLibrary()
-    setActiveSavedId('')
-  }
-
-  const handleDuplicate = () => {
-    if (!activeSaved) return
-    const result = duplicateTessellation(activeSaved.id)
-    if (result.error) {
-      flashError(result.error.message)
-      return
-    }
-    refreshLibrary()
-    if (result.entry) setActiveSavedId(result.entry.id)
-  }
 
   return (
     <div className="app-layout">
@@ -458,81 +359,16 @@ export function TessellationLabMode({
           {/* Library — Save / Rename / Duplicate / Delete + saved entries dropdown */}
           <div style={{ paddingTop: 22 }}>
             <SectionTitle open={isOpen('library')} onToggle={() => toggleSection('library')}>My Tessellations</SectionTitle>
-            {isOpen('library') && (<>
-            <FieldLabel label="Saved" />
-            <select
-              className="pattern-select"
-              value={activeSavedId}
-              onChange={e => handleLoadSaved(e.target.value)}
-            >
-              <option value="">— select a saved tessellation —</option>
-              {library.map(e => (
-                <option key={e.id} value={e.id}>{e.name}</option>
-              ))}
-            </select>
-
-            <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
-              {([
-                { label: 'Save', onClick: handleSave, disabled: !config.tiling.type },
-                { label: 'Rename', onClick: handleRename, disabled: !activeSaved },
-                { label: 'Duplicate', onClick: handleDuplicate, disabled: !activeSaved },
-                { label: 'Delete', onClick: handleDelete, disabled: !activeSaved, danger: true },
-              ] as const).map(b => (
-                <button
-                  key={b.label}
-                  onClick={b.onClick}
-                  disabled={b.disabled}
-                  style={{
-                    flex: '1 1 0',
-                    minWidth: 0,
-                    padding: '5px 0',
-                    fontFamily: "'Cinzel', Georgia, serif",
-                    fontSize: 9,
-                    fontWeight: 600,
-                    letterSpacing: '0.10em',
-                    textTransform: 'uppercase',
-                    cursor: b.disabled ? 'not-allowed' : 'pointer',
-                    border: '1px solid var(--border-subtle)',
-                    background: 'transparent',
-                    color: b.disabled
-                      ? 'var(--text-muted)'
-                      : 'danger' in b && b.danger
-                        ? '#a85050'
-                        : 'var(--text-muted)',
-                    opacity: b.disabled ? 0.5 : 1,
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  {b.label}
-                </button>
-              ))}
-            </div>
-            {libraryError && (
-              <p style={{
-                marginTop: 6,
-                marginBottom: 0,
-                fontFamily: "'EB Garamond', Georgia, serif",
-                fontSize: 12,
-                color: '#a85050',
-                lineHeight: 1.4,
-              }}>
-                {libraryError}
-              </p>
+            {isOpen('library') && (
+              <ConfigLibraryPanel
+                library={labLibrary}
+                currentConfig={config}
+                onLoad={c => dispatch({ type: 'LOAD_CONFIG', payload: c })}
+                nounSingular="tessellation"
+                activeId={activeSavedId}
+                onActiveIdChange={setActiveSavedId}
+              />
             )}
-            {!libraryError && activeSaved && (
-              <p style={{
-                marginTop: 6,
-                marginBottom: 0,
-                fontFamily: "'EB Garamond', Georgia, serif",
-                fontStyle: 'italic',
-                fontSize: 11.5,
-                color: 'var(--text-muted)',
-                lineHeight: 1.4,
-              }}>
-                Saved {new Date(activeSaved.createdAt).toLocaleString()}
-              </p>
-            )}
-            </>)}
           </div>
 
           {/* Strands — basic per-tile-type controls.
@@ -753,15 +589,6 @@ export function TessellationLabMode({
           </div>
         </div>
       </div>
-      <TextPromptModal
-        open={textModal !== null}
-        title={textModal?.title ?? ''}
-        confirmLabel={textModal?.confirmLabel ?? 'Save'}
-        initialValue={textModal?.initialValue ?? ''}
-        onConfirm={value => textModal?.onConfirm(value)}
-        onCancel={() => setTextModal(null)}
-      />
-
       <div className="sandstone-edge-wrapper" aria-hidden="true">
         <SandstoneEdge />
       </div>

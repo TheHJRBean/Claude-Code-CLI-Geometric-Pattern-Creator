@@ -1,152 +1,49 @@
 import type { PatternConfig } from '../types/pattern'
-import { TILINGS } from '../tilings/index'
-import { ConfigValidationError, loadPatternConfig } from './configValidation'
+import {
+  createConfigLibrary,
+  type SavedConfig,
+  type SavedSourceCategory,
+  type LibraryError,
+  type SaveResult,
+} from './configLibrary'
 
 /**
- * Lab-local library of user-saved tessellations.
+ * Lab-local library of user-saved tessellations. Persists to localStorage
+ * under `lab-tessellations-v1`. Implementation lives in `configLibrary.ts`;
+ * this module is the Lab-keyed wrapper.
  *
- * Persists to localStorage under `lab-tessellations-v1`. Schema-versioned
- * so future shape changes can migrate without losing the user's library.
- *
- * Library is Lab-only — Main mode does not surface saved entries.
+ * Main mode has its own parallel wrapper in `mainConfigs.ts`, keyed
+ * separately so the two libraries don't pollute each other.
  */
 
-export type SavedSourceCategory = 'archimedean' | 'rosette-patch' | 'editor'
+const lib = createConfigLibrary('lab-tessellations-v1')
 
-export interface SavedTessellation {
-  id: string
-  name: string
-  createdAt: number
-  config: PatternConfig
-  sourceCategory: SavedSourceCategory
-}
+/** Backwards-compat alias for `SavedConfig`. */
+export type SavedTessellation = SavedConfig
+export type { SavedSourceCategory, LibraryError, SaveResult }
 
-const STORAGE_KEY = 'lab-tessellations-v1'
-
-interface PersistedShape {
-  version: 1
-  entries: SavedTessellation[]
-}
-
-export interface LibraryError {
-  kind: 'quota' | 'corrupt' | 'unavailable'
-  message: string
-}
-
-function uuid(): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID()
-  }
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
-}
-
-function categoryFor(config: PatternConfig): SavedSourceCategory {
-  if (config.tiling.type === 'editor') return 'editor'
-  const def = TILINGS[config.tiling.type]
-  return def?.category === 'rosette-patch' ? 'rosette-patch' : 'archimedean'
-}
+export const STORAGE_KEY = lib.storageKey
 
 export function listSavedTessellations(): SavedTessellation[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw) as Partial<PersistedShape>
-    if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.entries)) {
-      return []
-    }
-    const out: SavedTessellation[] = []
-    for (const e of parsed.entries) {
-      if (!e || typeof e !== 'object') continue
-      if (typeof e.id !== 'string' || typeof e.name !== 'string') continue
-      try {
-        // Validate + migrate the config; corrupt entries are skipped with a
-        // warning so a single bad row doesn't blank the whole library.
-        const config = loadPatternConfig(e.config)
-        out.push({ ...e, config })
-      } catch (err) {
-        const reason = err instanceof ConfigValidationError ? err.message : 'unknown error'
-        console.warn(`Skipping saved tessellation "${e.name}": ${reason}`)
-      }
-    }
-    return out
-  } catch (err) {
-    console.warn('Failed to load saved tessellations', err)
-    return []
-  }
-}
-
-function writeAll(entries: SavedTessellation[]): LibraryError | null {
-  try {
-    const payload: PersistedShape = { version: 1, entries }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
-    return null
-  } catch (err) {
-    if (err instanceof DOMException && (err.name === 'QuotaExceededError' || err.code === 22)) {
-      return { kind: 'quota', message: 'Browser storage is full. Delete an entry and try again.' }
-    }
-    return { kind: 'unavailable', message: 'Local storage is unavailable in this browser.' }
-  }
-}
-
-export interface SaveResult {
-  entry?: SavedTessellation
-  error?: LibraryError
+  return lib.list()
 }
 
 export function saveTessellation(name: string, config: PatternConfig): SaveResult {
-  const trimmed = name.trim() || 'Untitled'
-  const entries = listSavedTessellations()
-  const entry: SavedTessellation = {
-    id: uuid(),
-    name: trimmed,
-    createdAt: Date.now(),
-    config: structuredCloneSafe(config),
-    sourceCategory: categoryFor(config),
-  }
-  const error = writeAll([...entries, entry])
-  if (error) return { error }
-  return { entry }
+  return lib.save(name, config)
 }
 
 export function renameTessellation(id: string, newName: string): LibraryError | null {
-  const trimmed = newName.trim()
-  if (!trimmed) return null
-  const entries = listSavedTessellations().map(e =>
-    e.id === id ? { ...e, name: trimmed } : e,
-  )
-  return writeAll(entries)
+  return lib.rename(id, newName)
 }
 
 export function deleteTessellation(id: string): LibraryError | null {
-  const entries = listSavedTessellations().filter(e => e.id !== id)
-  return writeAll(entries)
+  return lib.delete(id)
 }
 
 export function duplicateTessellation(id: string): SaveResult {
-  const entries = listSavedTessellations()
-  const source = entries.find(e => e.id === id)
-  if (!source) {
-    return { error: { kind: 'corrupt', message: 'Entry not found.' } }
-  }
-  const copy: SavedTessellation = {
-    ...source,
-    id: uuid(),
-    name: `${source.name} (copy)`,
-    createdAt: Date.now(),
-    config: structuredCloneSafe(source.config),
-  }
-  const error = writeAll([...entries, copy])
-  if (error) return { error }
-  return { entry: copy }
+  return lib.duplicate(id)
 }
 
 export function getTessellation(id: string): SavedTessellation | null {
-  return listSavedTessellations().find(e => e.id === id) ?? null
-}
-
-function structuredCloneSafe<T>(value: T): T {
-  if (typeof structuredClone === 'function') {
-    try { return structuredClone(value) } catch { /* fall through */ }
-  }
-  return JSON.parse(JSON.stringify(value)) as T
+  return lib.get(id)
 }

@@ -7,7 +7,7 @@ import { TILINGS } from '../tilings/index'
 import { generateTiling } from '../tilings/archimedean'
 import { generateRosettePatch } from '../tilings/rosettePatch'
 import { editorBoundaryVertices, editorTilesToPolygons } from '../editor/buildEditorPolygons'
-import { editorLatticeStamps } from '../editor/lattice'
+import { editorLatticeStamps, editorOneRingNeighbourStamps } from '../editor/lattice'
 import { runPIC } from '../pic/index'
 
 export interface PatternData {
@@ -20,6 +20,12 @@ export interface PatternData {
    * - Otherwise: undefined.
    */
   boundaryOutlines?: Vec2[][]
+  /**
+   * Step 17.6d — Design-mode neighbour preview. Polygons stamped at the
+   * one-ring lattice offsets around the patch, drawn at low opacity so the
+   * user can see how their patch joins its neighbours. Excluded from PIC.
+   */
+  ghostPolygons?: Polygon[]
 }
 
 export function usePattern(
@@ -31,6 +37,8 @@ export function usePattern(
   editorStrandMode = false,
   /** Step 17.6 — when true in strand mode, also draw the patch boundary outline at every lattice stamp. */
   showBoundaryLattice = false,
+  /** Step 17.6d — Design-mode neighbour preview. Ignored in strand mode. */
+  editorNeighbourPreview = false,
 ): PatternData {
   // Visible viewport in world coordinates
   const vw = containerWidth / viewTransform.zoom
@@ -59,7 +67,25 @@ export function usePattern(
       if (!editorStrandMode) {
         const segments = runPIC(basePolys, config)
         const boundaryOutline = editorBoundaryVertices(config.editor)
-        return { polygons: basePolys, segments, boundaryOutlines: [boundaryOutline] }
+        let ghostPolygons: typeof basePolys | undefined
+        if (editorNeighbourPreview) {
+          const ringStamps = editorOneRingNeighbourStamps(config.editor)
+          if (ringStamps.length > 0) {
+            ghostPolygons = []
+            for (let s = 0; s < ringStamps.length; s++) {
+              const t = ringStamps[s].translation
+              for (const p of basePolys) {
+                ghostPolygons.push({
+                  ...p,
+                  id: `${p.id}~ghost@${s}`,
+                  center: { x: p.center.x + t.x, y: p.center.y + t.y },
+                  vertices: p.vertices.map(v => ({ x: v.x + t.x, y: v.y + t.y })),
+                })
+              }
+            }
+          }
+        }
+        return { polygons: basePolys, segments, boundaryOutlines: [boundaryOutline], ghostPolygons }
       }
       // Strand mode — stamp on the lattice. Lacking a v1 lattice for
       // triangle (deferred to 17.6c), the helper returns a single stamp
@@ -102,5 +128,5 @@ export function usePattern(
     const segments = runPIC(polygons, config)
 
     return { polygons, segments }
-  }, [config, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice])
+  }, [config, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview])
 }

@@ -191,18 +191,34 @@ follow-up `0aff7fb` resets placed tiles when shape / origin sides
 change. 17.1 shipped 2026-05-03 (`e199aee`) — data model +
 read-only render. `94f651c` made Lab editor-only.
 
-**2026-05-06 — Main "My Patterns" library shipped.** Reversed plan
-decision #10. New `state/configLibrary.ts` factory (storage-key
-parameterised) backs both libraries. `state/customTessellations.ts`
-became a thin wrapper using `lab-tessellations-v1`; new
-`state/mainConfigs.ts` wraps `main-configs-v1` so namespaces stay
-separate. UI lifted into `components/ConfigLibraryPanel.tsx` and
-plugged into both Lab's "My Tessellations" and Main's new "My
-Patterns" sidebar section (between Display and Export). Panel
-takes a controlled `activeId` so external resets — Lab's Clear /
-New / Sample, Main's Load JSON — can wipe selection. Removed the
-old root-level `TextPromptModal` + library state from
-`TessellationLabMode.tsx` since the panel owns its own modal now.
+**2026-05-06 — Step 17.6d: Design-mode neighbour preview.** Added a
+"Show neighbours" checkbox to the Editor Design controls that
+renders one ring of low-opacity ghost stamps around the patch so
+the user can see how it joins its lattice neighbours before
+flipping to Strand mode. Standalone preview feature; cross-boundary
+fill (the original 17.5b idea) remains parked but is now easier to
+plan for since the user can visually identify the cross-boundary
+gaps. New `editorOneRingNeighbourStamps(editor)` in
+`editor/lattice.ts` returns 8 offsets for square / 6 for hex / `[]`
+for triangle. `usePattern` accepts `editorNeighbourPreview` and
+returns `ghostPolygons: Polygon[]` (ignored by PIC; pure visual).
+`PatternSVG` renders the ghost layer in a `<g opacity={0.25}
+pointer-events="none">` below the boundary outline + main TileLayer.
+Toggle is disabled while `wrapBoundary` is on (boundary moves
+mid-edit) or on a triangle boundary (no v1 lattice); both cases
+surface a tiny caption explaining why.
+
+**2026-05-06 — Main "My Patterns" library shipped + signed off.**
+Reversed plan decision #10. New `state/configLibrary.ts` factory
+(storage-key parameterised) backs both libraries.
+`state/customTessellations.ts` became a thin wrapper using
+`lab-tessellations-v1`; new `state/mainConfigs.ts` wraps
+`main-configs-v1` so namespaces stay separate. UI lifted into
+`components/ConfigLibraryPanel.tsx` and plugged into both Lab's
+"My Tessellations" and Main's new "My Patterns" sidebar section
+(between Display and Export). Panel takes a controlled `activeId`
+so external resets — Lab's Clear / New / Sample, Main's Load JSON
+— can wipe selection.
 
 **17.9 signed off 2026-05-06** — undo/redo confirmed working.
 

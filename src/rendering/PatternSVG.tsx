@@ -68,7 +68,6 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
           <BoundaryOutline key={i} vertices={outline} />
         ))}
         <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
-        {editorOverlay}
         {showLines && <StrandLayer segments={segments} config={config} />}
         <ControlPointLayer
           segments={segments}
@@ -77,6 +76,11 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
           active={cpActive}
           zoom={zoom}
         />
+        {/* 17.11 — editorOverlay must be the topmost interactive layer so
+            vertex dots at neighbour-stamp coordinates aren't blocked by
+            strand strokes painted above. ControlPointLayer is already
+            pointerEvents="none" so order vs it is purely visual. */}
+        {editorOverlay}
       </g>
     </svg>
   )

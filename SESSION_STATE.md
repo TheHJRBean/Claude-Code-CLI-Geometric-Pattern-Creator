@@ -4,7 +4,51 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
-**Last action:** 2026-05-07 — Step **17.11** (multi-vertex Complete:
+**Last action:** 2026-05-07 — Step **17.11b** (orbit propagation
+for multi-vertex Complete) code-complete. Build green. Awaiting
+visual sign-off.
+
+New `placePolygonsOnOrbit(editor, picks, idPrefix)` in
+`src/editor/orbit.ts` mirrors `placeTilesOnOrbit`'s conventions:
+applies each subgroup element to each pick, gates by
+vertex-coincidence with the union of patch-outer / boundary /
+pocket / neighbour vertex sets snapshotted from the initial
+editor, dedups by tile centroid, and builds the placements
+cumulatively against a working state — aborts (returns `null`)
+if any orbit copy fails `completeNGap`. `symmetryMode='none'` ⇒
+identity-only group ⇒ identical to 17.11 single-instance
+behaviour. Reducer's `EDITOR_COMPLETE_N_GAP` now routes through
+this helper instead of the bare `completeNGap`.
+
+**Sign-off probes for 17.11b:**
+1. `symmetryMode='none'` — multi-vertex Complete still produces
+   exactly one tile (regression check vs. 17.11 sign-off probes).
+2. Square + `'full'` (D4) + Ctrl-pick a corner-gap polygon →
+   Enter → all 4 corners fill in one gesture.
+3. Hexagon + `'full'` (D6) + Ctrl-pick a corner-gap polygon →
+   Enter → all 6 corners fill.
+4. Triangle + `'full'` (D3) + Ctrl-pick → all 3 corner gaps fill.
+5. Square + `'rotation'` only + Ctrl-pick → 4 rotated copies fill,
+   no reflections.
+6. Square + `'vertical'` mirror only + Ctrl-pick on the right →
+   the seed + the left mirror image fill (2 tiles).
+7. Asymmetric patch — square + an extra placed tile that breaks
+   D4 + `'full'` + Ctrl-pick a gap on the asymmetric side → only
+   the seed places (orbit images that would land in non-existent
+   gaps are silently dropped via the vertex-coincidence gate).
+8. Cross-boundary case — square + `'full'` + Ctrl-pick spanning
+   the boundary edge to a neighbour vertex → 4 corner-meet tiles,
+   one per stamp corner.
+9. Undo after orbit commit — Ctrl/Cmd+Z reverts the entire orbit
+   set in one undo step (single action = single history entry).
+10. Pick on the symmetry axis — Ctrl-pick 3 vertices that lie on
+    the vertical mirror with `'full'` → the vertical-reflection
+    orbit image deduplicates with itself (centroid dedup), no
+    duplicate tile.
+
+Earlier 2026-05-07 — Step **17.11** (multi-vertex Complete:
+
+Earlier 2026-05-07 — Step **17.11** (multi-vertex Complete:
 cross-boundary + enclosed pocket) shipped + signed off. First
 sub-step of Step 17 v2 done. User confirmed multi-vertex
 completions work, click order produces the expected polygon, and

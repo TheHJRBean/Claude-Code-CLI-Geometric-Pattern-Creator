@@ -4,6 +4,9 @@ import type { EditorConfig, EditorTile } from '../types/editor'
 import { EDITOR_EPS, computeExposedEdges, tileVertices, type ExposedEdge } from './exposedEdges'
 import { applySym, boundarySymmetries } from './symmetry'
 import { isPlacementViable, placeRegularNGonOnEdge, PICKER_SIDES, viableSidesForEdge as viableSidesSingle } from './placement'
+import { computeAllCycles, computeBoundaryCycle } from './boundary'
+import { neighbourCycleVertices } from './lattice'
+import { completeNGap } from './completeN'
 
 /**
  * Step 17.4 (re-enabled) — orbit-symmetric edge resolution and placement
@@ -119,6 +122,64 @@ function centroidOf(verts: Vec2[]): Vec2 {
   let x = 0, y = 0
   for (const v of verts) { x += v.x; y += v.y }
   return { x: x / verts.length, y: y / verts.length }
+}
+
+/**
+ * Step 17.11b — orbit propagation for multi-vertex Complete.
+ *
+ * Apply each subgroup element to the user's pick list, building one tile
+ * per surviving orbit image. Mirrors `placeTilesOnOrbit` conventions:
+ *
+ *   (a) All-or-nothing on validation. If any orbit image's polygon fails
+ *       `completeNGap` against the cumulative working state, return `null`
+ *       — symmetry must never partially break.
+ *   (b) Vertex-coincidence gate. Each transformed pick must coincide with
+ *       a real selectable vertex from the *initial* editor (patch outer /
+ *       boundary corners / pocket cycles / neighbour cycles). Orbit
+ *       images that fail this are silently dropped (asymmetric-patch case
+ *       — the gap doesn't exist on that orbit branch).
+ *   (c) Centroid dedup. Symmetry transforms whose orbit image coincides
+ *       with an earlier one (picks on a fixed axis, etc.) collapse to one
+ *       tile.
+ *   (d) `symmetryMode='none'` returns the identity-only group, so this
+ *       function trivially produces the 17.11 single-instance result.
+ */
+export function placePolygonsOnOrbit(
+  editor: EditorConfig,
+  picks: Vec2[],
+  idPrefix: string,
+): EditorTile[] | null {
+  // Snapshot the selectable vertex set against the *initial* editor. Vertex
+  // positions don't move when sibling tiles get added later in the loop, so
+  // this set stays valid across the cumulative build.
+  const cycles = computeAllCycles(editor)
+  const selectable: Vec2[] = [
+    ...cycles.outer.map(v => v.p),
+    ...cycles.pockets.flat().map(v => v.p),
+    ...computeBoundaryCycle(editor).map(v => v.p),
+    ...neighbourCycleVertices(editor, cycles.outer).flat().map(v => v.p),
+  ]
+  const inSelectable = (p: Vec2) =>
+    selectable.some(q => pointsEqual(p, q, EDITOR_EPS))
+
+  const syms = boundarySymmetries(editor.boundaryShape, editor.symmetryMode ?? 'none')
+  const seenCentroids: Vec2[] = []
+  const placements: EditorTile[] = []
+  let working: EditorConfig = editor
+
+  for (let i = 0; i < syms.length; i++) {
+    const transformed = picks.map(p => applySym(syms[i], p))
+    if (!transformed.every(inSelectable)) continue
+    const c = centroidOf(transformed)
+    if (seenCentroids.some(q => pointsEqual(c, q, EDITOR_EPS))) continue
+    seenCentroids.push(c)
+    const tile = completeNGap(working, transformed, `${idPrefix}-${i}`)
+    if (!tile) return null
+    placements.push(tile)
+    working = { ...working, tiles: [...working.tiles, tile] }
+  }
+
+  return placements.length > 0 ? placements : null
 }
 
 /**

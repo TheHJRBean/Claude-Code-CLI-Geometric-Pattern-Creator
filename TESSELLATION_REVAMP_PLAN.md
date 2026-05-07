@@ -228,6 +228,7 @@ cross-references to the resolutions table.
 | **17.9** | Undo / redo. ✅ code-complete.                   | S–M  | —         | Q12          |
 | **17.10**| Non-tiling patch detection + UI tag.             | S    | 2         | —            |
 | **17.11**| Multi-vertex Complete (cross-boundary + enclosed pocket). ✅ shipped 2026-05-07; user signed off on enclosed-pocket + chord-regression + UI guidance. Open follow-ups: chord-mode + neighbour-vertex picks silently no-op (auto-promote-to-multi or explicit modifier-required UX TBD); neighbour-click selection awaits browser confirmation that the layer-order fix landed. | M | 9, 10, 12 | — |
+| **17.11b**| Orbit propagation for multi-vertex Complete. 🚧 in progress 2026-05-07. | S | 8 | — |
 
 **Sub-step detail.**
 
@@ -539,14 +540,55 @@ cross-references to the resolutions table.
     6. Undo immediately after commit → tile removed, picks not restored.
 
   **Out of scope (parked).**
-  - **17.11b — Orbit propagation for multi-vertex Complete.** Make
-    `EDITOR_COMPLETE_N_GAP` propagate across the symmetry orbit (per
-    `editor.symmetryMode`) the same way `EDITOR_PLACE_TILE_ON_EDGE` does
-    at 17.4. Deferred until 17.11 ships and the user has tested
-    single-instance behaviour.
   - "Mirror vertices" mechanic from the original parked memo — superseded
     by the simpler "expose neighbour vertices when Show neighbours is on"
     approach.
+
+- **17.11b — Orbit propagation for multi-vertex Complete.**
+  🚧 In progress, started 2026-05-07.
+
+  **Goal.** `EDITOR_COMPLETE_N_GAP` propagates across the boundary's
+  symmetry subgroup (`editor.symmetryMode`) the same way
+  `EDITOR_PLACE_TILE_ON_EDGE` does at 17.4. With `symmetryMode='full'`
+  on a square boundary, one Ctrl-click sequence at one corner fills
+  all four corner gaps in a single user gesture instead of forcing
+  the user to repeat the same pick on every orbit copy.
+
+  **Locked design (mirrors 17.4 conventions).**
+
+  | # | Question | Resolution |
+  |---|----------|-----------|
+  | a | Failure mode | All-or-nothing on validation — if any surviving orbit image fails `validateNGapPolygon` against the cumulative state, abort the whole operation. Symmetry must never partially break. |
+  | b | Asymmetric patches | Each transformed pick must coincide (within `EDITOR_EPS`) with a real selectable vertex (patch outer cycle / boundary corner / pocket / neighbour). Orbit images that don't satisfy this are silently dropped (not counted as failures). Mirrors 17.4's `orbitEdges`. |
+  | c | Dedup | Orbit images producing tiles with coincident centroids collapse to one tile — handles picks on a symmetry axis whose orbit image equals themselves. |
+  | d | `symmetryMode='none'` | Trivially preserved: `boundarySymmetries(shape, 'none')` returns `[IDENTITY]`, so the loop runs once and the result equals 17.11's single-instance behaviour. |
+
+  **Implementation.**
+  - New `placePolygonsOnOrbit(editor, picks, idPrefix)` in
+    `editor/orbit.ts` — parallels `placeTilesOnOrbit`. Loops the
+    chosen subgroup; for each element, transforms the pick list,
+    gates by vertex-coincidence, builds the tile via `completeNGap`
+    against the cumulative working state.
+  - Reducer `EDITOR_COMPLETE_N_GAP` routes through the new helper
+    instead of the bare `completeNGap`. Same `applyWrap +
+    seedFigures` envelope.
+  - No UI change. Picker preview still validates the seed only —
+    the orbit visualisation is implicit (user sees N tiles appear
+    at once on commit).
+
+  **Acceptance probes.**
+  1. `symmetryMode='none'` — single-instance behaviour from 17.11
+     unchanged (regression).
+  2. Square + `'full'` (D4) + Ctrl-pick a corner gap → all 4 corners
+     fill on Enter.
+  3. Hex + `'full'` (D6) + Ctrl-pick a corner gap → all 6 corners
+     fill on Enter.
+  4. Square + `'full'` + asymmetric patch (e.g. 1 placed triangle
+     breaks D4) + Ctrl-pick on the asymmetric side → only the seed
+     places; the 3 orbit images that would land in empty space are
+     silently dropped via the vertex-coincidence gate.
+  5. Cross-boundary case — square + `'full'` + Ctrl-pick spanning
+     the boundary edge → 4 corner-meet tiles, one per stamp corner.
 
 ### Reusable bits already on hand
 

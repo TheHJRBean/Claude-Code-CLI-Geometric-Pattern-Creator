@@ -8,7 +8,7 @@ import { computeExposedEdges } from '../editor/exposedEdges'
 import { isPlacementViable, placeRegularNGonOnEdge } from '../editor/placement'
 import { orbitTileIds, placeTilesOnOrbit } from '../editor/orbit'
 import { completeGap } from '../editor/complete'
-import { completeNGap } from '../editor/completeN'
+import { placePolygonsOnOrbit } from '../editor/orbit'
 import { autoCompletePatch, fitBoundarySize } from '../editor/autoComplete'
 import { seedFiguresForEditor } from '../editor/tileTypes'
 
@@ -240,10 +240,14 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     case 'EDITOR_COMPLETE_N_GAP': {
       if (!state.editor) return state
       const { picks } = action.payload
-      const id = `completed-n-${state.editor.tiles.length}-${Date.now()}`
-      const tile = completeNGap(state.editor, picks, id)
-      if (!tile) return state
-      return applyWrap(seedFigures({ ...state, editor: { ...state.editor, tiles: [...state.editor.tiles, tile] } }))
+      // 17.11b — orbit propagation. With symmetryMode='none' this returns
+      // the same single-instance tile array as 17.11; with a non-trivial
+      // subgroup, all orbit images that pass the vertex-coincidence gate
+      // place atomically (or none of them do, per Decision a).
+      const idPrefix = `completed-n-${state.editor.tiles.length}-${Date.now()}`
+      const tiles = placePolygonsOnOrbit(state.editor, picks, idPrefix)
+      if (!tiles || tiles.length === 0) return state
+      return applyWrap(seedFigures({ ...state, editor: { ...state.editor, tiles: [...state.editor.tiles, ...tiles] } }))
     }
     case 'SET_EDITOR_AUTO_COMPLETE_ENABLED': {
       if (!state.editor) return state

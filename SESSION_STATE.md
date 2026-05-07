@@ -29,11 +29,59 @@ Locked design (this conversation):
 - Symmetry-orbit propagation parked as 17.11b follow-up.
 - Standard `ctrlKey || metaKey` cross-platform.
 
-**Next implementation step:** 17.11.0 — generalise
-`computeOuterBoundary` into `computeAllCycles(editor)` returning
-`{ outer, pockets[] }`. Connected-components walk over
-`computeExposedEdges`. Outer = largest CCW cycle; pockets = the rest
-(CW since they bound interior holes).
+**17.11 progress (2026-05-07).** Sub-steps 17.11.0–17.11.6 are
+code-complete. Build green (`npm run build`). Awaiting visual
+sign-off (17.11.7) before declaring 17.11 done.
+
+Commits, in order:
+- `9f505a6` — plan + cycle detection (17.11.0).
+- `06011b5` — pocket + neighbour vertex exposure (17.11.1+17.11.2).
+- `424dee4` — multi-pick state machine (17.11.3).
+- `80fbc2c` — completeNGap + Enter to commit (17.11.5+17.11.6).
+- `9406ee9` — preview polygon with validity tint (17.11.4).
+
+**Sign-off probes for 17.11.7:**
+1. Existing 17.5 chord regression — square + 4 corner triangles → no
+   modifier → click 2 adjacent triangle apexes → corner gap fills as
+   today (one tile, single click sequence).
+2. Enclosed pocket — build a patch with an interior triangular hole
+   (3 tiles forming a triangular gap inside the patch). Pocket
+   vertices should appear as accent-tinted dots distinct from the
+   outer-cycle dots. Ctrl/Cmd-click the 3 pocket vertices in CCW
+   order → preview polygon shows accent fill → press Enter → one
+   irregular tile fills the pocket. Subsequent click on an outer
+   vertex without modifier should start a fresh chord pick (not
+   extend the previous multi-pick).
+3. Cross-boundary — square or hex patch with one or two corners
+   missing → "Show neighbours" on → ghost dots at neighbour stamps'
+   outer cycles render at ~0.45 opacity. Ctrl/Cmd-click 1 patch
+   vertex + 2 neighbour vertices forming a corner-gap polygon →
+   Enter → tile commits with vertices straddling the boundary.
+   Strand-mode lattice should show one continuous fill at the
+   meeting point (not three sub-pieces).
+4. Self-intersection — Ctrl/Cmd-click 4 vertices in a bowtie order
+   (2 patch + 2 across) → preview tints red with dashed stroke →
+   Enter no-ops → Esc clears.
+5. Centroid-inside-tile — Ctrl/Cmd-click 3 vertices that bracket
+   tiles (rather than a gap) → preview tints red → Enter no-ops.
+6. Duplicate vertex — Ctrl/Cmd-click the same vertex twice →
+   preview tints red.
+7. Esc cancellation — at any pick depth, Esc clears all picks
+   (chord OR multi).
+8. Cancel button — at picks.length ≥ 1, Cancel button shows in the
+   hint area; click it → all picks cleared.
+9. Undo — after a multi-vertex commit, Ctrl/Cmd+Z reverts the
+   completed tile (action is in DESIGN_MODE_ACTIONS).
+10. Cross-platform — on Mac, Cmd-click engages multi mode the same
+    as Ctrl-click on Linux/Windows.
+
+If 17.11.7 finds bugs, fix them as a follow-up commit before sign-off.
+After sign-off, delete `project_editor_complete_n_gap.md` from memory
+and remove its line from `MEMORY.md` (per memory hygiene rule).
+
+**Parked follow-up:** 17.11b — orbit propagation for multi-vertex
+Complete (apply `editor.symmetryMode` to mirror the completed polygon
+across the orbit, the way 17.4 mirrors `EDITOR_PLACE_TILE_ON_EDGE`).
 
 Earlier 2026-05-06 — Step 17.4 re-enabled + signed off.
 Symmetry-axis subgroup picker (`9015ac0`) plus follow-up fix

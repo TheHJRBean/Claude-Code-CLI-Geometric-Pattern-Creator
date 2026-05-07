@@ -160,18 +160,26 @@ export function TessellationLabMode({
       resetPicks()
     }
   }, [config.tiling.type, config.editor])
-  // Esc cancels an in-progress complete pick (chord OR multi). Skip when
-  // focus is in a form control so library prompts aren't hijacked.
+  // Esc cancels an in-progress complete pick (chord OR multi). Enter commits
+  // a multi-pick polygon (17.11.6). Skip when focus is in a form control so
+  // library prompts and the boundary-size slider aren't hijacked.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null
       const tag = t?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
-      if (e.key === 'Escape') resetPicks()
+      if (e.key === 'Escape') {
+        resetPicks()
+        return
+      }
+      if (e.key === 'Enter' && multiMode && picks.length >= 3) {
+        dispatch({ type: 'EDITOR_COMPLETE_N_GAP', payload: { picks } })
+        resetPicks()
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [dispatch, multiMode, picks])
   const handlePickVertex = (p: Vec2, ctrlOrCmd: boolean) => {
     // Ctrl/Cmd-click: engage / extend multi mode. Append the pick to whatever
     // is already there (a single chord-mode pick is promoted into the

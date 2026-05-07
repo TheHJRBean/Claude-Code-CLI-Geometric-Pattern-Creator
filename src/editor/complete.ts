@@ -34,7 +34,7 @@ function isPointInPatch(p: Vec2, editor: EditorConfig): boolean {
   return false
 }
 
-function ensureCCW(verts: Vec2[]): Vec2[] {
+export function ensureCCW(verts: Vec2[]): Vec2[] {
   let area2 = 0
   for (let i = 0; i < verts.length; i++) {
     const j = (i + 1) % verts.length

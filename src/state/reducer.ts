@@ -8,6 +8,7 @@ import { computeExposedEdges } from '../editor/exposedEdges'
 import { isPlacementViable, placeRegularNGonOnEdge } from '../editor/placement'
 import { orbitTileIds, placeTilesOnOrbit } from '../editor/orbit'
 import { completeGap } from '../editor/complete'
+import { completeNGap } from '../editor/completeN'
 import { autoCompletePatch, fitBoundarySize } from '../editor/autoComplete'
 import { seedFiguresForEditor } from '../editor/tileTypes'
 
@@ -233,6 +234,14 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       const { pA, pB } = action.payload
       const id = `completed-${state.editor.tiles.length}-${Date.now()}`
       const tile = completeGap(state.editor, pA, pB, id)
+      if (!tile) return state
+      return applyWrap(seedFigures({ ...state, editor: { ...state.editor, tiles: [...state.editor.tiles, tile] } }))
+    }
+    case 'EDITOR_COMPLETE_N_GAP': {
+      if (!state.editor) return state
+      const { picks } = action.payload
+      const id = `completed-n-${state.editor.tiles.length}-${Date.now()}`
+      const tile = completeNGap(state.editor, picks, id)
       if (!tile) return state
       return applyWrap(seedFigures({ ...state, editor: { ...state.editor, tiles: [...state.editor.tiles, tile] } }))
     }

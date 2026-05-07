@@ -5,14 +5,26 @@
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
 **Last action:** 2026-05-07 — Step **17.11** (multi-vertex Complete:
-cross-boundary + enclosed pocket) kicked off. First sub-step of
-Step 17 v2. Plan written into `TESSELLATION_REVAMP_PLAN.md`
-(table row + detailed sub-section with locked design rows a–h and
-sub-step breakdown 17.11.0–17.11.7). The two parked idea memos
-(`project_editor_cross_boundary_complete_idea.md` +
-`project_editor_enclosed_pocket_idea.md`) merged into a single
-in-progress tracking memo `project_editor_complete_n_gap.md`;
-originals deleted, `MEMORY.md` updated.
+cross-boundary + enclosed pocket) shipped + signed off. First
+sub-step of Step 17 v2 done. User confirmed multi-vertex
+completions work, click order produces the expected polygon, and
+the preview/hint UI guides cleanly. Tracking memo
+`project_editor_complete_n_gap.md` deleted on delivery; `MEMORY.md`
+line removed.
+
+Two follow-ups captured in the plan (not blocking sign-off):
+1. **Neighbour-vertex Ctrl/Cmd-click** — `b6a2568` moved
+   `editorOverlay` to be the topmost child of the rotation `<g>` in
+   `PatternSVG`. Strand strokes had been catching clicks at
+   neighbour coordinates because they painted above the editor
+   overlay. Awaiting browser confirmation that neighbour picks now
+   register.
+2. **Chord-mode click-on-neighbour silently no-ops.** No modifier
+   + click 1 patch + click 1 neighbour → `completeGap` can't find
+   the neighbour on any cycle → returns null, picks reset, no tile.
+   Path forward: either auto-promote chord → multi when the second
+   click lands on a neighbour, or refuse the click with a hint.
+   Decide before next neighbour-fill iteration.
 
 Locked design (this conversation):
 - Click order = polygon order (user owns ordering).
@@ -29,16 +41,14 @@ Locked design (this conversation):
 - Symmetry-orbit propagation parked as 17.11b follow-up.
 - Standard `ctrlKey || metaKey` cross-platform.
 
-**17.11 progress (2026-05-07).** Sub-steps 17.11.0–17.11.6 are
-code-complete. Build green (`npm run build`). Awaiting visual
-sign-off (17.11.7) before declaring 17.11 done.
-
-Commits, in order:
+**17.11 commit chain (2026-05-07):**
 - `9f505a6` — plan + cycle detection (17.11.0).
 - `06011b5` — pocket + neighbour vertex exposure (17.11.1+17.11.2).
 - `424dee4` — multi-pick state machine (17.11.3).
 - `80fbc2c` — completeNGap + Enter to commit (17.11.5+17.11.6).
 - `9406ee9` — preview polygon with validity tint (17.11.4).
+- `1a64d8f` — progress notes + sign-off probes.
+- `b6a2568` — fix: 17.11.7 layer-order (neighbour-vertex clicks).
 
 **Sign-off probes for 17.11.7:**
 1. Existing 17.5 chord regression — square + 4 corner triangles → no

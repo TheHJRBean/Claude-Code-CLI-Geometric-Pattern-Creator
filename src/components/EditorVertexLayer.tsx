@@ -27,9 +27,13 @@ interface Props {
   neighbourVertices?: BoundaryVertex[]
   /** Step 17.11.3 — accumulated picks. Length 0 or 1 in chord mode; arbitrary in multi mode. */
   picks: Vec2[]
+  /** Step 17.11.4 — `null` = no preview, `true|false` = valid/invalid tint. */
+  previewValid?: boolean | null
   /** Step 17.11.3 — modifier state passed through so the parent can branch into multi mode. */
   onPickVertex: (p: Vec2, ctrlOrCmd: boolean) => void
 }
+
+const DANGER_COLOR = '#a85050'
 
 const DOT_RADIUS = 5
 const NEIGHBOUR_DOT_RADIUS = 4
@@ -161,10 +165,30 @@ export function EditorVertexLayer({
   pocketVertices = [],
   neighbourVertices = [],
   picks,
+  previewValid = null,
   onPickVertex,
 }: Props) {
+  // 17.11.4 — preview the in-progress polygon when the picker has at least
+  // 3 picks. Tint flips to `DANGER_COLOR` on invalid pick sequences so the
+  // user gets immediate feedback while drawing.
+  const showPreview = previewValid !== null && picks.length >= 3
+  const previewColor = previewValid ? 'var(--accent)' : DANGER_COLOR
+  const previewPoints = picks.map(p => `${p.x},${p.y}`).join(' ')
   return (
     <g id="editor-vertex-layer">
+      {showPreview && (
+        <polygon
+          points={previewPoints}
+          fill={previewColor}
+          fillOpacity={0.18}
+          stroke={previewColor}
+          strokeOpacity={0.6}
+          strokeWidth={1.4}
+          strokeDasharray={previewValid ? undefined : '4 3'}
+          vectorEffect="non-scaling-stroke"
+          pointerEvents="none"
+        />
+      )}
       {/* Render order, bottom → top: neighbour ghosts (lowest priority),
           boundary corners, pocket vertices, patch vertices. Selection halo
           inside `VertexDot` keeps the picked dot visually on top within its

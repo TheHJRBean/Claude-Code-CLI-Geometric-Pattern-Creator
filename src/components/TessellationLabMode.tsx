@@ -13,6 +13,7 @@ import { SAMPLE_EDITOR_CONFIG } from '../editor/sampleConfig'
 import { BOUNDARY_SIZE_MAX_BY_SHAPE } from '../editor/createDefault'
 import { LAB_DEFAULT_CONFIG } from '../state/labDefaults'
 import type { BoundaryShape, SymmetryMode } from '../types/editor'
+import type { Vec2 } from '../utils/math'
 import { editorTileTypes } from '../editor/tileTypes'
 import { useEditorHistory } from '../editor/useEditorHistory'
 import { detectPatchTilingStatus } from '../editor/nonTilingDetection'
@@ -125,9 +126,14 @@ export function TessellationLabMode({
     dispatch({ type: 'EDITOR_DELETE_TILE', payload: { tileId } })
   }
 
-  // ── Editor mode + Complete picker (Step 17.5) ──────────
+  // ── Editor mode + Complete picker (Step 17.5 / 17.11) ──
   const [editorMode, setEditorMode] = useState<'place' | 'complete'>('place')
-  const [firstVertexPick, setFirstVertexPick] = useState<{ x: number; y: number } | null>(null)
+  // 17.11.3 — multi-pick state. `multiMode` is engaged by Ctrl/Cmd-click and
+  // persists until Enter (commit) or Esc (cancel). When `multiMode` is false,
+  // `picks` is the legacy 17.5 chord state (length 0 or 1) and clicking a
+  // second vertex commits an `EDITOR_COMPLETE_GAP` exactly as before.
+  const [picks, setPicks] = useState<Vec2[]>([])
+  const [multiMode, setMultiMode] = useState(false)
   // Step 17.6 — Design vs Strand-editor mode flip (Decision 15). Local UI
   // state — not persisted; figures persist independently per Q15.
   const [editorPhase, setEditorPhase] = useState<'design' | 'strand'>('design')
@@ -146,33 +152,52 @@ export function TessellationLabMode({
     if (config.tiling.type !== 'editor' || !config.editor) setEditorPhase('design')
   }, [config.tiling.type, config.editor])
   // Reset picker state when patch changes or mode flips.
-  useEffect(() => { setFirstVertexPick(null) }, [editorMode, config.editor])
+  const resetPicks = () => { setPicks([]); setMultiMode(false) }
+  useEffect(() => { resetPicks() }, [editorMode, config.editor])
   useEffect(() => {
     if (config.tiling.type !== 'editor' || !config.editor) {
       setEditorMode('place')
-      setFirstVertexPick(null)
+      resetPicks()
     }
   }, [config.tiling.type, config.editor])
-  // Esc cancels an in-progress complete pick.
+  // Esc cancels an in-progress complete pick (chord OR multi). Skip when
+  // focus is in a form control so library prompts aren't hijacked.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setFirstVertexPick(null)
+      const t = e.target as HTMLElement | null
+      const tag = t?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (e.key === 'Escape') resetPicks()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
-  const handlePickVertex = (p: { x: number; y: number }) => {
-    if (!firstVertexPick) {
-      setFirstVertexPick(p)
+  const handlePickVertex = (p: Vec2, ctrlOrCmd: boolean) => {
+    // Ctrl/Cmd-click: engage / extend multi mode. Append the pick to whatever
+    // is already there (a single chord-mode pick is promoted into the
+    // multi-pick polygon).
+    if (ctrlOrCmd) {
+      setPicks(prev => [...prev, p])
+      setMultiMode(true)
       return
     }
-    // Clicking the same vertex twice cancels.
-    if (Math.abs(firstVertexPick.x - p.x) < 1e-6 && Math.abs(firstVertexPick.y - p.y) < 1e-6) {
-      setFirstVertexPick(null)
+    // Already in multi mode: plain click still appends. Release of Ctrl is
+    // a visual no-op (Decision f) — only Enter commits and Esc cancels.
+    if (multiMode) {
+      setPicks(prev => [...prev, p])
       return
     }
-    dispatch({ type: 'EDITOR_COMPLETE_GAP', payload: { pA: firstVertexPick, pB: p } })
-    setFirstVertexPick(null)
+    // Chord mode (17.5 behaviour, unchanged).
+    if (picks.length === 0) {
+      setPicks([p])
+      return
+    }
+    if (Math.abs(picks[0].x - p.x) < 1e-6 && Math.abs(picks[0].y - p.y) < 1e-6) {
+      setPicks([])
+      return
+    }
+    dispatch({ type: 'EDITOR_COMPLETE_GAP', payload: { pA: picks[0], pB: p } })
+    setPicks([])
   }
 
   // ── Library ────────────────────────────────────────────
@@ -267,10 +292,11 @@ export function TessellationLabMode({
                 onSetEditorMode={m => {
                   setEditorMode(m)
                   setSelectedEdge(null)
-                  setFirstVertexPick(null)
+                  resetPicks()
                 }}
-                firstVertexPick={firstVertexPick}
-                onCancelComplete={() => setFirstVertexPick(null)}
+                picks={picks}
+                multiMode={multiMode}
+                onCancelComplete={resetPicks}
                 editorPhase={editorPhase}
                 onSetEditorPhase={p => {
                   // Step 17.7 — fire auto-complete on the Design→Strand
@@ -287,7 +313,7 @@ export function TessellationLabMode({
                   // Clear in-flight design picks when entering strand mode.
                   if (p === 'strand') {
                     setSelectedEdge(null)
-                    setFirstVertexPick(null)
+                    resetPicks()
                   }
                 }}
                 showBoundaryLattice={showBoundaryLattice}
@@ -618,7 +644,7 @@ export function TessellationLabMode({
         onPlaceTile={handlePlaceTile}
         onDeleteTile={handleDeleteTile}
         editorMode={editorMode}
-        firstVertexPick={firstVertexPick}
+        picks={picks}
         onPickVertex={handlePickVertex}
         editorStrandMode={editorPhase === 'strand'}
         showBoundaryLattice={showBoundaryLattice}
@@ -824,7 +850,8 @@ interface EditorDesignControlsProps {
   onClear: () => void
   editorMode: 'place' | 'complete'
   onSetEditorMode: (m: 'place' | 'complete') => void
-  firstVertexPick: { x: number; y: number } | null
+  picks: Vec2[]
+  multiMode: boolean
   onCancelComplete: () => void
   editorPhase: 'design' | 'strand'
   onSetEditorPhase: (p: 'design' | 'strand') => void
@@ -848,7 +875,8 @@ function EditorDesignControls({
   onClear,
   editorMode,
   onSetEditorMode,
-  firstVertexPick,
+  picks,
+  multiMode,
   onCancelComplete,
   editorPhase,
   onSetEditorPhase,
@@ -1277,10 +1305,12 @@ function EditorDesignControls({
               color: 'var(--text-muted)',
               lineHeight: 1.4,
             }}>
-              {firstVertexPick
-                ? 'Pick a second outer vertex to fill the gap between them. Esc to cancel.'
-                : 'Pick two outer vertices to fill the gap they bracket.'}
-              {firstVertexPick && (
+              {multiMode
+                ? `${picks.length} ${picks.length === 1 ? 'vertex' : 'vertices'} selected. Press Enter to commit, Esc to cancel.`
+                : picks.length > 0
+                  ? 'Pick a second outer vertex to fill the gap between them. Esc to cancel.'
+                  : 'Pick two outer vertices to fill the gap, or hold Ctrl/Cmd and click N for a multi-vertex fill.'}
+              {picks.length > 0 && (
                 <button
                   onClick={onCancelComplete}
                   style={{

@@ -40,6 +40,12 @@ interface Props {
   picks?: Vec2[]
   /** Step 17.11 — `ctrlOrCmd` reflects whether the modifier was held during the click. */
   onPickVertex?: (p: Vec2, ctrlOrCmd: boolean) => void
+  /**
+   * Step 17.11.4 — preview-polygon validity. `null` = no preview shown
+   * (chord mode, or multi mode with N<3); `true|false` toggles the
+   * accent-vs-danger tint of the preview polygon.
+   */
+  previewValid?: boolean | null
   /** Step 17.6 — when true, the editor patch is stamped on the boundary's translation lattice. Hides design overlays. */
   editorStrandMode?: boolean
   /** Step 17.6 — when true in strand mode, draw the patch boundary outline at every lattice stamp. */
@@ -54,7 +60,7 @@ interface Props {
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, editorMode = 'place', picks, onPickVertex, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, editorMode = 'place', picks, onPickVertex, previewValid = null, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -179,6 +185,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
           pocketVertices={pocketVertices}
           neighbourVertices={neighbourVertices}
           picks={picks ?? []}
+          previewValid={previewValid}
           onPickVertex={onPickVertex}
         />
       )

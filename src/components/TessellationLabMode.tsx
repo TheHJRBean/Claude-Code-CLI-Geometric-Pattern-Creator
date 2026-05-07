@@ -14,6 +14,7 @@ import { BOUNDARY_SIZE_MAX_BY_SHAPE } from '../editor/createDefault'
 import { LAB_DEFAULT_CONFIG } from '../state/labDefaults'
 import type { BoundaryShape, SymmetryMode } from '../types/editor'
 import type { Vec2 } from '../utils/math'
+import { validateNGapPolygon } from '../editor/completeN'
 import { editorTileTypes } from '../editor/tileTypes'
 import { useEditorHistory } from '../editor/useEditorHistory'
 import { detectPatchTilingStatus } from '../editor/nonTilingDetection'
@@ -654,6 +655,13 @@ export function TessellationLabMode({
         editorMode={editorMode}
         picks={picks}
         onPickVertex={handlePickVertex}
+        previewValid={
+          // 17.11.4 — preview only validates in multi mode with ≥3 picks; the
+          // chord branch never has more than 1 pick so it stays untouched.
+          multiMode && picks.length >= 3 && config.editor
+            ? validateNGapPolygon(picks, config.editor).kind === 'valid'
+            : null
+        }
         editorStrandMode={editorPhase === 'strand'}
         showBoundaryLattice={showBoundaryLattice}
         editorNeighbourPreview={editorPhase === 'design' && showNeighbours && !config.editor?.wrapBoundary}

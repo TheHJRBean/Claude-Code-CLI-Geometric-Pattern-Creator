@@ -36,8 +36,10 @@ interface Props {
   onDeleteTile?: (tileId: string) => void
   /** Step 17.5 — Complete mode: 'place' shows the edge picker, 'complete' shows the vertex picker. */
   editorMode?: 'place' | 'complete'
-  firstVertexPick?: Vec2 | null
-  onPickVertex?: (p: Vec2) => void
+  /** Step 17.11 — accumulated picks (chord mode: 0–1; multi mode: 0+). */
+  picks?: Vec2[]
+  /** Step 17.11 — `ctrlOrCmd` reflects whether the modifier was held during the click. */
+  onPickVertex?: (p: Vec2, ctrlOrCmd: boolean) => void
   /** Step 17.6 — when true, the editor patch is stamped on the boundary's translation lattice. Hides design overlays. */
   editorStrandMode?: boolean
   /** Step 17.6 — when true in strand mode, draw the patch boundary outline at every lattice stamp. */
@@ -52,7 +54,7 @@ interface Props {
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, editorMode = 'place', firstVertexPick, onPickVertex, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, editorMode = 'place', picks, onPickVertex, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -176,7 +178,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
           boundaryCorners={boundaryCorners}
           pocketVertices={pocketVertices}
           neighbourVertices={neighbourVertices}
-          firstPick={firstVertexPick ?? null}
+          picks={picks ?? []}
           onPickVertex={onPickVertex}
         />
       )

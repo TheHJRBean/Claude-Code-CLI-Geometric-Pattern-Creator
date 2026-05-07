@@ -25,8 +25,10 @@ interface Props {
   boundaryCorners?: BoundaryVertex[]
   pocketVertices?: BoundaryVertex[]
   neighbourVertices?: BoundaryVertex[]
-  firstPick: Vec2 | null
-  onPickVertex: (p: Vec2) => void
+  /** Step 17.11.3 — accumulated picks. Length 0 or 1 in chord mode; arbitrary in multi mode. */
+  picks: Vec2[]
+  /** Step 17.11.3 — modifier state passed through so the parent can branch into multi mode. */
+  onPickVertex: (p: Vec2, ctrlOrCmd: boolean) => void
 }
 
 const DOT_RADIUS = 5
@@ -44,8 +46,8 @@ interface DotStyle {
   strokeDasharray?: string
 }
 
-function styleFor(variant: DotVariant, isFirst: boolean): DotStyle {
-  if (isFirst) {
+function styleFor(variant: DotVariant, isPicked: boolean): DotStyle {
+  if (isPicked) {
     return { radius: SELECTED_RADIUS, fill: 'var(--accent)', stroke: 'var(--accent)', strokeWidth: 2.4 }
   }
   switch (variant) {
@@ -75,18 +77,18 @@ function styleFor(variant: DotVariant, isFirst: boolean): DotStyle {
 interface DotProps {
   v: BoundaryVertex
   variant: DotVariant
-  firstPick: Vec2 | null
-  onPickVertex: (p: Vec2) => void
+  picks: Vec2[]
+  onPickVertex: (p: Vec2, ctrlOrCmd: boolean) => void
 }
 
-function VertexDot({ v, variant, firstPick, onPickVertex }: DotProps) {
-  const isFirst = firstPick != null
-    && Math.abs(firstPick.x - v.p.x) < EDITOR_EPS
-    && Math.abs(firstPick.y - v.p.y) < EDITOR_EPS
-  const style = styleFor(variant, isFirst)
+function VertexDot({ v, variant, picks, onPickVertex }: DotProps) {
+  const isPicked = picks.some(q =>
+    Math.abs(q.x - v.p.x) < EDITOR_EPS && Math.abs(q.y - v.p.y) < EDITOR_EPS,
+  )
+  const style = styleFor(variant, isPicked)
   return (
     <g>
-      {isFirst && (
+      {isPicked && (
         <>
           <circle
             cx={v.p.x}
@@ -146,7 +148,7 @@ function VertexDot({ v, variant, firstPick, onPickVertex }: DotProps) {
         style={{ cursor: 'pointer' }}
         onPointerDown={ev => {
           ev.stopPropagation()
-          onPickVertex(v.p)
+          onPickVertex(v.p, ev.ctrlKey || ev.metaKey)
         }}
       />
     </g>
@@ -158,7 +160,7 @@ export function EditorVertexLayer({
   boundaryCorners = [],
   pocketVertices = [],
   neighbourVertices = [],
-  firstPick,
+  picks,
   onPickVertex,
 }: Props) {
   return (
@@ -172,7 +174,7 @@ export function EditorVertexLayer({
           key={`n-${v.tileId}#${v.vertexIndex}#${i}`}
           v={v}
           variant="neighbour"
-          firstPick={firstPick}
+          picks={picks}
           onPickVertex={onPickVertex}
         />
       ))}
@@ -181,7 +183,7 @@ export function EditorVertexLayer({
           key={`b-${v.tileId}#${v.vertexIndex}#${i}`}
           v={v}
           variant="boundary"
-          firstPick={firstPick}
+          picks={picks}
           onPickVertex={onPickVertex}
         />
       ))}
@@ -190,7 +192,7 @@ export function EditorVertexLayer({
           key={`k-${v.tileId}#${v.vertexIndex}#${i}`}
           v={v}
           variant="pocket"
-          firstPick={firstPick}
+          picks={picks}
           onPickVertex={onPickVertex}
         />
       ))}
@@ -199,7 +201,7 @@ export function EditorVertexLayer({
           key={`p-${v.tileId}#${v.vertexIndex}#${i}`}
           v={v}
           variant="patch"
-          firstPick={firstPick}
+          picks={picks}
           onPickVertex={onPickVertex}
         />
       ))}

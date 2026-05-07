@@ -228,7 +228,7 @@ cross-references to the resolutions table.
 | **17.9** | Undo / redo. ✅ code-complete.                   | S–M  | —         | Q12          |
 | **17.10**| Non-tiling patch detection + UI tag.             | S    | 2         | —            |
 | **17.11**| Multi-vertex Complete (cross-boundary + enclosed pocket). ✅ shipped 2026-05-07; user signed off on enclosed-pocket + chord-regression + UI guidance. Open follow-ups: chord-mode + neighbour-vertex picks silently no-op (auto-promote-to-multi or explicit modifier-required UX TBD); neighbour-click selection awaits browser confirmation that the layer-order fix landed. | M | 9, 10, 12 | — |
-| **17.11b**| Orbit propagation for multi-vertex Complete. 🚧 in progress 2026-05-07. | S | 8 | — |
+| **17.11b**| Orbit propagation for multi-vertex Complete. ✅ shipped + signed off 2026-05-07. | S | 8 | — |
 
 **Sub-step detail.**
 
@@ -545,7 +545,7 @@ cross-references to the resolutions table.
     approach.
 
 - **17.11b — Orbit propagation for multi-vertex Complete.**
-  🚧 In progress, started 2026-05-07.
+  ✅ Shipped + signed off 2026-05-07 (`73f5f81`).
 
   **Goal.** `EDITOR_COMPLETE_N_GAP` propagates across the boundary's
   symmetry subgroup (`editor.symmetryMode`) the same way

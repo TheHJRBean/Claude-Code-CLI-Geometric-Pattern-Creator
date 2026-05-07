@@ -5,8 +5,8 @@
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
 **Last action:** 2026-05-07 — Step **17.11b** (orbit propagation
-for multi-vertex Complete) code-complete. Build green. Awaiting
-visual sign-off.
+for multi-vertex Complete) shipped + signed off (`73f5f81`).
+User confirmed orbit propagation works.
 
 New `placePolygonsOnOrbit(editor, picks, idPrefix)` in
 `src/editor/orbit.ts` mirrors `placeTilesOnOrbit`'s conventions:

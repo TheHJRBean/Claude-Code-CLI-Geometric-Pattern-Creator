@@ -34,8 +34,10 @@ export type Action =
   | { type: 'SET_EDITOR_ORIGIN_SIDES'; payload: number }
   | { type: 'EDITOR_PLACE_TILE_ON_EDGE'; payload: { tileId: string; edgeIndex: number; sides: number } }
   | { type: 'EDITOR_DELETE_TILE'; payload: { tileId: string } }
-  // Step 17.5 — Complete operation (manual)
+  // Step 17.5 — Complete operation (manual, 2-vertex chord)
   | { type: 'EDITOR_COMPLETE_GAP'; payload: { pA: Vec2; pB: Vec2 } }
+  // Step 17.11 — Complete operation (multi-vertex polygon pick)
+  | { type: 'EDITOR_COMPLETE_N_GAP'; payload: { picks: Vec2[] } }
   // Step 17.7 — Auto-complete on flip (Decision 11)
   | { type: 'SET_EDITOR_AUTO_COMPLETE_ENABLED'; payload: boolean }
   | { type: 'EDITOR_RUN_AUTO_COMPLETE' }

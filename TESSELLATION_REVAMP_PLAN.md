@@ -108,16 +108,17 @@ still-relevant ones are kept.
 ## ⭐ Step 17 — User-editable tessellation editor (PRIMARY FOCUS)
 
 **Status (2026-05-07):** Step 17 v1 signed off (17.0–17.10, plus
-17.4 re-enabled 2026-05-06). **Step 17 v2 has begun** with sub-step
-**17.11** (multi-vertex Complete — cross-boundary + enclosed pocket).
-The two parked memo files
-(`project_editor_cross_boundary_complete_idea.md` +
-`project_editor_enclosed_pocket_idea.md`) have been merged into one
-in-progress tracking memo `project_editor_complete_n_gap.md` (status:
-IN-PROGRESS) — both originals deleted. The
-`archive/editor-orbit-17.4/` directory remains as historical
-reference; `src/editor/symmetry.ts` and `src/editor/orbit.ts` are the
-live versions.
+17.4 re-enabled 2026-05-06). **Step 17 v2 sub-step 17.11**
+(multi-vertex Complete — cross-boundary + enclosed pocket) shipped
++ signed off the same day. The merged tracking memo
+`project_editor_complete_n_gap.md` deleted on delivery.
+Open follow-ups: chord-mode click-on-neighbour silently no-ops
+(needs auto-promote-to-multi or modifier-required UX); the
+PatternSVG layer-order fix that unblocks neighbour Ctrl/Cmd-clicks
+landed in the same chunk and is awaiting browser confirmation.
+The `archive/editor-orbit-17.4/` directory remains as historical
+reference; `src/editor/symmetry.ts` and `src/editor/orbit.ts` are
+the live versions.
 
 ### Vision (refined from 2026-05-03 grill)
 
@@ -226,7 +227,7 @@ cross-references to the resolutions table.
 | **17.8** | Persistence validation + migration scaffold for `EditorConfig`. ✅ code-complete. | S–M | 5 | Q13 |
 | **17.9** | Undo / redo. ✅ code-complete.                   | S–M  | —         | Q12          |
 | **17.10**| Non-tiling patch detection + UI tag.             | S    | 2         | —            |
-| **17.11**| Multi-vertex Complete (cross-boundary + enclosed pocket). 🚧 in progress 2026-05-07. | M | 9, 10, 12 | — |
+| **17.11**| Multi-vertex Complete (cross-boundary + enclosed pocket). ✅ shipped 2026-05-07; user signed off on enclosed-pocket + chord-regression + UI guidance. Open follow-ups: chord-mode + neighbour-vertex picks silently no-op (auto-promote-to-multi or explicit modifier-required UX TBD); neighbour-click selection awaits browser confirmation that the layer-order fix landed. | M | 9, 10, 12 | — |
 
 **Sub-step detail.**
 
@@ -401,7 +402,31 @@ cross-references to the resolutions table.
   can't tile, flip to strand editor, see floating preview + tag.
 
 - **17.11 — Multi-vertex Complete (cross-boundary + enclosed pocket).**
-  🚧 In progress, started 2026-05-07. First sub-step of Step 17 v2.
+  ✅ Shipped + signed off 2026-05-07. First sub-step of Step 17 v2.
+
+  **Sign-off (2026-05-07).** User confirmed multi-vertex completions
+  work, click-order semantics produce the expected polygon, and the
+  preview + hint UI guide cleanly. Two follow-up items recorded
+  (not blocking sign-off):
+  1. **Neighbour-vertex selection (Ctrl/Cmd-click).** PatternSVG
+     painted `editorOverlay` below `StrandLayer`, so strand strokes
+     (default `pointerEvents='auto'`) intercepted clicks at neighbour
+     coordinates before the vertex hit-area could fire. Patch /
+     boundary / pocket dots survived because tile-fill interiors don't
+     catch clicks. Fix landed in `b6a2568` — moved `editorOverlay` to
+     the topmost child of the rotation `<g>`. Awaiting browser
+     confirmation.
+  2. **Chord-mode click-on-neighbour silently no-ops.** Without a
+     modifier, the second click on a neighbour vertex dispatches
+     `EDITOR_COMPLETE_GAP` whose `completeGap` can't find the
+     neighbour point on either patch / boundary cycle, so it returns
+     null and the picks reset with no tile created. Two reasonable
+     paths forward (deferred, captured here for revisit):
+     - Auto-promote chord → multi when the second click lands on a
+       neighbour vertex (requires the click handler to know the
+       variant; smallest API change).
+     - Reject chord-mode neighbour clicks with a hint that
+       Ctrl/Cmd-click is required for cross-boundary picks.
 
   **Goal.** Generalise Complete from strict 2-vertex chord (17.5) to an
   N-vertex polygon pick so the user can fill (a) interior pockets that

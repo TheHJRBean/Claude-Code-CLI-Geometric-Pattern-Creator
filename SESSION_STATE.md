@@ -4,7 +4,38 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
-**Last action:** 2026-05-06 — Step 17.4 re-enabled + signed off.
+**Last action:** 2026-05-07 — Step **17.11** (multi-vertex Complete:
+cross-boundary + enclosed pocket) kicked off. First sub-step of
+Step 17 v2. Plan written into `TESSELLATION_REVAMP_PLAN.md`
+(table row + detailed sub-section with locked design rows a–h and
+sub-step breakdown 17.11.0–17.11.7). The two parked idea memos
+(`project_editor_cross_boundary_complete_idea.md` +
+`project_editor_enclosed_pocket_idea.md`) merged into a single
+in-progress tracking memo `project_editor_complete_n_gap.md`;
+originals deleted, `MEMORY.md` updated.
+
+Locked design (this conversation):
+- Click order = polygon order (user owns ordering).
+- Validity: N≥3, simple polygon, centroid exterior to every existing
+  tile. Mid-pick preview tints red while invalid.
+- Cross-boundary tile = plain `EditorIrregularTile` straddling the
+  boundary edge (Decision 5 covers it; no new tile kind).
+- No pocket auto-detect — pocket cycle vertices are merely *exposed*
+  as click targets. User picks them like any other vertex.
+- Plain (no-modifier) 2-vertex chord flow unchanged — Ctrl/Cmd is
+  purely the "I want N>2" modifier.
+- Releasing Ctrl/Cmd does **not** commit; picks remain visually
+  highlighted. **Enter** commits, **Esc** cancels.
+- Symmetry-orbit propagation parked as 17.11b follow-up.
+- Standard `ctrlKey || metaKey` cross-platform.
+
+**Next implementation step:** 17.11.0 — generalise
+`computeOuterBoundary` into `computeAllCycles(editor)` returning
+`{ outer, pockets[] }`. Connected-components walk over
+`computeExposedEdges`. Outer = largest CCW cycle; pockets = the rest
+(CW since they bound interior holes).
+
+Earlier 2026-05-06 — Step 17.4 re-enabled + signed off.
 Symmetry-axis subgroup picker (`9015ac0`) plus follow-up fix
 (`7be4ef4`) so the polygon picker hides side counts whose orbit
 images would fail viability (the original symptom: octagon offered

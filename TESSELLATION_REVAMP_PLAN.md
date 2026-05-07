@@ -107,17 +107,17 @@ still-relevant ones are kept.
 
 ## ⭐ Step 17 — User-editable tessellation editor (PRIMARY FOCUS)
 
-**Status (2026-05-06):** Step 17 v1 is feature-complete + signed
-off. All sub-steps 17.0–17.10 shipped, including the parked 17.4
-which was **re-enabled 2026-05-06** (`9015ac0` + picker-fix
-`7be4ef4`) behind a `SymmetryMode` subgroup picker — `'full'`
-matches the original archived behaviour, but the default is
-`'none'` (single-edge, the 17.3 behaviour) so legacy patches load
-unchanged. The `archive/editor-orbit-17.4/` directory remains as
-historical reference; `src/editor/symmetry.ts` and `src/editor/orbit.ts`
-are the live versions. Future Editor follow-ups captured as ideas:
-cross-boundary Complete fill + enclosed-pocket Complete fill
-(related multi-vertex-gap mechanic, recommended co-design).
+**Status (2026-05-07):** Step 17 v1 signed off (17.0–17.10, plus
+17.4 re-enabled 2026-05-06). **Step 17 v2 has begun** with sub-step
+**17.11** (multi-vertex Complete — cross-boundary + enclosed pocket).
+The two parked memo files
+(`project_editor_cross_boundary_complete_idea.md` +
+`project_editor_enclosed_pocket_idea.md`) have been merged into one
+in-progress tracking memo `project_editor_complete_n_gap.md` (status:
+IN-PROGRESS) — both originals deleted. The
+`archive/editor-orbit-17.4/` directory remains as historical
+reference; `src/editor/symmetry.ts` and `src/editor/orbit.ts` are the
+live versions.
 
 ### Vision (refined from 2026-05-03 grill)
 
@@ -226,6 +226,7 @@ cross-references to the resolutions table.
 | **17.8** | Persistence validation + migration scaffold for `EditorConfig`. ✅ code-complete. | S–M | 5 | Q13 |
 | **17.9** | Undo / redo. ✅ code-complete.                   | S–M  | —         | Q12          |
 | **17.10**| Non-tiling patch detection + UI tag.             | S    | 2         | —            |
+| **17.11**| Multi-vertex Complete (cross-boundary + enclosed pocket). 🚧 in progress 2026-05-07. | M | 9, 10, 12 | — |
 
 **Sub-step detail.**
 
@@ -398,6 +399,129 @@ cross-references to the resolutions table.
   (Decision 2) or drop into auto-complete (Decision 11) — the user
   opt-in determines which. Acceptance: build a patch that geometrically
   can't tile, flip to strand editor, see floating preview + tag.
+
+- **17.11 — Multi-vertex Complete (cross-boundary + enclosed pocket).**
+  🚧 In progress, started 2026-05-07. First sub-step of Step 17 v2.
+
+  **Goal.** Generalise Complete from strict 2-vertex chord (17.5) to an
+  N-vertex polygon pick so the user can fill (a) interior pockets that
+  the chord-arc cycle can't see, and (b) gaps that span the boundary
+  edge into one-ring neighbour stamps. Both cases unify under "click N
+  vertices in order, commit one irregular tile."
+
+  **Locked design (this conversation, 2026-05-07).** Resolves the
+  open questions captured in the parked
+  `project_editor_cross_boundary_complete_idea.md` and
+  `project_editor_enclosed_pocket_idea.md` memos:
+
+  | # | Question | Resolution |
+  |---|----------|-----------|
+  | a | Polygon ordering | Click order verbatim. User owns ordering; no auto-cycle-walk. |
+  | b | Validity | N ≥ 3, simple polygon (no self-intersection), centroid exterior to every existing tile. Mid-pick preview tinted red while invalid. |
+  | c | Cross-boundary tile representation | Plain `EditorIrregularTile` whose vertices straddle the boundary edge. Decision 5 (tiles can poke outside) covers it — no new tile kind. |
+  | d | Pocket auto-detect | None. Pocket-cycle vertices are merely **exposed** as click targets in Complete mode. User picks them like any other vertex. |
+  | e | Plain 2-vertex flow | Unchanged. Ctrl/Cmd is purely the "I want N>2" modifier; existing chord behaviour is preserved when no modifier is held. |
+  | f | Commit gesture | Ctrl/Cmd + click(s) accumulate vertices. Releasing the modifier is **not** a commit — picks remain visually highlighted. **Enter** commits, **Esc** cancels. |
+  | g | Symmetry orbit propagation | Out of scope for 17.11; tracked as 17.11b follow-up. Initial implementation is single-instance only. |
+  | h | Cross-platform modifier | Standard `ctrlKey || metaKey`. |
+
+  **Sub-step breakdown.**
+
+  - **17.11.0 — Cycle detection.** Generalise `computeOuterBoundary` so
+    it returns *all* closed cycles drawn from `computeExposedEdges` —
+    the outer cycle (existing) plus zero-or-more inner pocket cycles.
+    New helper `computeAllCycles(editor): { outer: BoundaryVertex[];
+    pockets: BoundaryVertex[][] }` in `editor/boundary.ts` (or new
+    `editor/cycles.ts` if cleaner). Outer = the cycle whose signed area
+    is largest *and* CCW; pockets = the remaining cycles, oriented CW
+    (since they bound interior holes). No UI change — just the data
+    layer.
+
+  - **17.11.1 — Neighbour vertex exposure.** When the
+    `editorNeighbourPreview` toggle is on **and** Complete mode is
+    active, surface the outer-cycle vertices of one-ring neighbour
+    stamps (`editorOneRingNeighbourStamps`) as selectable points.
+    Each neighbour vertex is a transformed copy of a real patch vertex
+    (rotation + translation per stamp); we tag it with a synthetic
+    `tileId === 'neighbour-{stampIdx}'` and a sequential `vertexIndex`
+    so it round-trips through the same `BoundaryVertex` pipeline as
+    patch / boundary / pocket vertices. Click resolves to the
+    transformed world `Vec2`.
+
+  - **17.11.2 — Vertex layer variants.** Extend `EditorVertexLayer`
+    with two new variant tags: `'pocket'` (interior cycle vertex) and
+    `'neighbour'` (one-ring stamp vertex). Distinct visuals — pocket
+    dots use a filled accent ring (subtly inset to read as "inside");
+    neighbour dots match the existing ghost-stamp opacity (≈ 0.4) so
+    they read as "the same vertex, on the next stamp over." Hover
+    tooltips clarify ("Pocket vertex" / "Neighbour-stamp vertex").
+
+  - **17.11.3 — Multi-pick state machine.** Replace the current
+    `firstVertexPick: Vec2 | null` state in `TessellationLabMode` with:
+
+    ```ts
+    type CompletePickState =
+      | { mode: 'idle' }
+      | { mode: 'chord'; first: Vec2 }       // ← unchanged 17.5 flow
+      | { mode: 'multi'; picks: Vec2[] }     // ← new
+    ```
+
+    Plain click while `mode === 'idle'`: → `chord`. Plain click while
+    `mode === 'chord'`: dispatch the existing `EDITOR_COMPLETE_GAP`
+    (regression-safe). Ctrl/Cmd-click from any mode: → `multi` with
+    accumulated picks. While `mode === 'multi'`: any click (with or
+    without modifier) appends to `picks`. Mode switch is visible in
+    the design controls' hint caption.
+
+  - **17.11.4 — Validation + preview.** New `validateNGapPolygon(picks,
+    editor): 'valid' | 'too-few' | 'self-intersecting' | 'inside-tile'`.
+    Render an in-progress preview polygon (SVG `<polygon>` with thin
+    stroke) connecting `picks` in click order; fill is `var(--accent)`
+    at 0.18 opacity when valid, `var(--danger)` at 0.18 when invalid.
+    The preview lives inside `EditorVertexLayer` so it shares the
+    rotation `<g>`.
+
+  - **17.11.5 — completeNGap.** New `editor/completeN.ts` exports
+    `completeNGap(editor, picks, newId): EditorTile | null`. Uses
+    `picks` directly as the polygon (no chord-arc resolution),
+    `ensureCCW`, `tryRegularFit` (already exported from
+    `complete.ts` — reuse), else `EditorIrregularTile`. New reducer
+    action `EDITOR_COMPLETE_N_GAP` payload `{ picks: Vec2[] }`. Action
+    is a `DESIGN_MODE_ACTIONS` member so it's covered by undo/redo.
+    `seedFigures` + `applyWrap` like the existing 17.5 path.
+
+  - **17.11.6 — Commit/cancel gestures.** Document-level keydown listener
+    in `TessellationLabMode` while the editor mode is `'complete'` and
+    state is `'multi'`: `Enter` → dispatch + clear; `Escape` → clear.
+    Ctrl/Cmd `keyup` is a visual no-op (state stays `'multi'` until
+    Enter/Esc per Decision f). Suppress when focus is in an
+    `<input>`/`<textarea>`/`<select>` so library prompts aren't hijacked
+    (mirrors the 17.9 undo/redo guard).
+
+  - **17.11.7 — Build + visual sign-off probes.** `npm run build` green
+    + manual probes:
+    1. Square + 4 corner triangles → 2-vertex chord still fills one corner
+       (17.5 regression).
+    2. Square + 4 corner triangles + an interior tile creating a triangular
+       pocket → Ctrl-click 3 pocket vertices, Enter → one tile fills the
+       pocket.
+    3. Hex patch → "Show neighbours" on → Ctrl-click 1 patch vertex + 2
+       neighbour vertices forming a corner gap → Enter → single
+       cross-boundary tile renders the same gap on every stamp.
+    4. Self-intersecting pick (Ctrl-click 4 vertices in bowtie order) →
+       preview tints red, Enter is a no-op.
+    5. Esc with picks present → all picks cleared, no tile committed.
+    6. Undo immediately after commit → tile removed, picks not restored.
+
+  **Out of scope (parked).**
+  - **17.11b — Orbit propagation for multi-vertex Complete.** Make
+    `EDITOR_COMPLETE_N_GAP` propagate across the symmetry orbit (per
+    `editor.symmetryMode`) the same way `EDITOR_PLACE_TILE_ON_EDGE` does
+    at 17.4. Deferred until 17.11 ships and the user has tested
+    single-instance behaviour.
+  - "Mirror vertices" mechanic from the original parked memo — superseded
+    by the simpler "expose neighbour vertices when Show neighbours is on"
+    approach.
 
 ### Reusable bits already on hand
 

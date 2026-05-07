@@ -7,8 +7,9 @@ import { usePanZoom, type ViewTransform } from '../hooks/usePanZoom'
 import { PatternSVG } from '../rendering/PatternSVG'
 import { RotationDial } from './RotationDial'
 import { computeExposedEdges } from '../editor/exposedEdges'
-import { computeBoundaryCycle, computeOuterBoundary } from '../editor/boundary'
+import { computeAllCycles, computeBoundaryCycle } from '../editor/boundary'
 import { EDITOR_EPS } from '../editor/exposedEdges'
+import { neighbourCycleVertices } from '../editor/lattice'
 import { viableSidesForEdge } from '../editor/orbit'
 import { EditorEdgeLayer } from './EditorEdgeLayer'
 import { EditorPickerOverlay } from './EditorPickerOverlay'
@@ -129,13 +130,21 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     e => e.tileId === selectedEdge.tileId && e.edgeIndex === selectedEdge.edgeIndex,
   )
 
-  // Step 17.5 — outer boundary cycle for the vertex picker, only computed
-  // when complete mode is active to keep the place-mode hot path cheap.
-  const boundaryCycle = useMemo(
+  // Step 17.5 / 17.11 — outer + pocket cycles for the vertex picker, only
+  // computed when complete mode is active to keep the place-mode hot path
+  // cheap. Pockets are 17.11.0's interior holes.
+  const allCycles = useMemo(
     () => editorActive && config.editor && editorMode === 'complete'
-      ? computeOuterBoundary(config.editor)
-      : [],
+      ? computeAllCycles(config.editor)
+      : { outer: [], pockets: [] },
     [editorActive, config.editor, editorMode],
+  )
+  const boundaryCycle = allCycles.outer
+  // Pocket vertices are clickable in Complete mode. Flatten the per-pocket
+  // cycles into a single array — variant rendering doesn't need the grouping.
+  const pocketVertices = useMemo(
+    () => allCycles.pockets.flat(),
+    [allCycles.pockets],
   )
   // Boundary-polygon corners — clickable in Complete mode so the user can
   // fill regions bounded by the boundary outline. Filtered to drop corners
@@ -147,6 +156,15 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       Math.abs(v.p.x - c.p.x) < EDITOR_EPS && Math.abs(v.p.y - c.p.y) < EDITOR_EPS,
     ))
   }, [editorActive, config.editor, editorMode, boundaryCycle])
+  // Step 17.11.1 — neighbour-stamp outer-cycle vertices, exposed only when
+  // "Show neighbours" is on so cross-boundary picks line up with the visible
+  // ghost geometry. Flatten to a single array since variant styling already
+  // tags them as ghosts.
+  const neighbourVertices = useMemo(() => {
+    if (!editorActive || !config.editor || editorMode !== 'complete') return []
+    if (!editorNeighbourPreview || editorStrandMode) return []
+    return neighbourCycleVertices(config.editor, boundaryCycle).flat()
+  }, [editorActive, config.editor, editorMode, editorNeighbourPreview, editorStrandMode, boundaryCycle])
 
   // Strand mode hides every design overlay — the canvas is the lattice
   // preview only, and strand controls in the side panel drive what changes.
@@ -156,6 +174,8 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         <EditorVertexLayer
           vertices={boundaryCycle}
           boundaryCorners={boundaryCorners}
+          pocketVertices={pocketVertices}
+          neighbourVertices={neighbourVertices}
           firstPick={firstVertexPick ?? null}
           onPickVertex={onPickVertex}
         />

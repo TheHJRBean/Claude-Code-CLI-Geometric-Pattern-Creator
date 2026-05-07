@@ -1,6 +1,7 @@
 import type { Vec2 } from '../utils/math'
 import type { BoundaryShape, EditorConfig } from '../types/editor'
 import { editorBoundaryVertices } from './buildEditorPolygons'
+import type { BoundaryVertex } from './boundary'
 
 /**
  * Step 17.6 — strand-editor mode lattice preview.
@@ -143,6 +144,49 @@ export function editorOneRingNeighbourStamps(editor: EditorConfig): LatticeStamp
     },
     rotation: 0,
   }))
+}
+
+/**
+ * Apply a lattice stamp (rotation about origin → translation) to a point.
+ * Mirrors the inline transform in `usePattern`'s strand-mode stamping.
+ */
+export function applyStamp(p: Vec2, stamp: LatticeStamp): Vec2 {
+  if (stamp.rotation === 0) {
+    return { x: p.x + stamp.translation.x, y: p.y + stamp.translation.y }
+  }
+  const c = Math.cos(stamp.rotation)
+  const s = Math.sin(stamp.rotation)
+  return {
+    x: p.x * c - p.y * s + stamp.translation.x,
+    y: p.x * s + p.y * c + stamp.translation.y,
+  }
+}
+
+/**
+ * Step 17.11.1 — neighbour-stamp outer-cycle vertices, exposed as click
+ * targets in Complete mode when "Show neighbours" is on. Each entry is a
+ * full transformed copy of the patch's outer cycle, tagged with a synthetic
+ * `tileId === 'neighbour-{stampIdx}'` so it round-trips through the same
+ * `BoundaryVertex` pipeline as patch / boundary / pocket vertices.
+ *
+ * Picking a neighbour vertex resolves to the transformed world `Vec2`, which
+ * is exactly what `completeNGap` needs — the resulting irregular tile's
+ * vertices straddle the boundary edge per Decision 5 (tiles can poke
+ * outside; coincident copies overlay correctly when stamped).
+ */
+export function neighbourCycleVertices(
+  editor: EditorConfig,
+  outerCycle: BoundaryVertex[],
+): BoundaryVertex[][] {
+  if (outerCycle.length === 0) return []
+  const stamps = editorOneRingNeighbourStamps(editor)
+  return stamps.map((stamp, stampIdx) =>
+    outerCycle.map((v, i) => ({
+      p: applyStamp(v.p, stamp),
+      tileId: `neighbour-${stampIdx}`,
+      vertexIndex: i,
+    })),
+  )
 }
 
 /**

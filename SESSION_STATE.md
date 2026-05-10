@@ -4,15 +4,43 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
-**Last action:** 2026-05-10 — Editor v2 boundary configurations
-**4.8.8 (octagon + square)** is the LIVE configuration. Cell-edge
-slider behaves with single-shape parity (scales cell + boundary
-outline + tile centres but not the origin polygons). Tile placement
-(picker) is live in composition. Wrap-boundary toggle works
-per-active-tile. Complete-mode vertices expose across every
-boundary tile, and completion routes to whichever tile actually
-hosts the picks. **No open follow-ups in this arc — sign-off probes
-in §"Sign-off probes" below.**
+**Last action:** 2026-05-10 — Editor v2 4.8.8 composition feature parity
+with single-shape patches. Three tools added in one pass:
+
+1. **Alternate orientation per active tile** — `SET_EDITOR_ALTERNATE_BOUNDARY`
+   now routes through `updatePatch`, flipping just the active boundary
+   tile's inner-patch boundary. The cell vectors + `BoundaryTile.center`
+   / `rotation` are untouched so the unit cell still tiles by translation.
+   Checkbox in `EditorDesignControls` no longer hidden under composition.
+2. **Show neighbours preview in composition** — new
+   `compositionOneRingStamps(composition)` in `compositionLattice.ts`
+   returns 8 cell-level translation stamps. `usePattern` and the Canvas
+   neighbour-vertex layer both branch on composition: ghost polygons +
+   ghost boundary outlines + ghost outer-cycle vertex picks all stamp
+   the merged unit cell (octagon + square together, per stamp).
+3. **Cross-tile edit/delete in composition** — `ExposedEdge` and
+   `SelectedEdge` gained an optional `hostBoundaryTileId`. Canvas
+   aggregates exposed edges from every boundary tile (each tagged with
+   host id) and renders each edge under its own `BoundaryTile`
+   transform. `EditorEdgeLayer` disambiguates by all three keys.
+   `TessellationLabMode.handleSelectEdge` auto-dispatches
+   `SET_ACTIVE_BOUNDARY_TILE` when the user clicks an edge in a
+   non-active host so the existing `EDITOR_PLACE_TILE_ON_EDGE` and
+   `EDITOR_DELETE_TILE` reducer cases (which route through
+   `activePatch`) target the right inner patch.
+
+Round-trip verification: `migrateBoundaryComposition` /
+`migrateBoundaryTile` / `migratePatchFields(allowOctagon=true)` already
+cover composition save/load via `loadPatternConfig`; `structuredClone`
+preserves the composition object intact through localStorage.
+
+Earlier same day — Editor v2 boundary configurations
+**4.8.8 (octagon + square)** went LIVE. Cell-edge slider behaves with
+single-shape parity (scales cell + boundary outline + tile centres
+but not the origin polygons). Tile placement (picker) was live in
+composition. Wrap-boundary toggle worked per-active-tile.
+Complete-mode vertices exposed across every boundary tile, and
+completion routed to whichever tile actually hosted the picks.
 
 Phase log:
 - `93dcdd4` Phase 1 — `EditorPatch` + `src/editor/active.ts`

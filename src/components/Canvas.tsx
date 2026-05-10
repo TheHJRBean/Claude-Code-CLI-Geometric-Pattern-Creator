@@ -10,9 +10,11 @@ import type { ExposedEdge } from '../editor/exposedEdges'
 import { computeExposedEdges } from '../editor/exposedEdges'
 import { computeAllCycles, computeBoundaryCycle, type BoundaryVertex } from '../editor/boundary'
 import { EDITOR_EPS } from '../editor/exposedEdges'
-import { neighbourCycleVertices } from '../editor/lattice'
+import { neighbourCycleVertices, applyStamp } from '../editor/lattice'
+import { compositionOneRingStamps } from '../editor/compositionLattice'
 import { viableSidesForEdge } from '../editor/orbit'
 import { activePatch } from '../editor/active'
+import { computeOuterBoundary } from '../editor/boundary'
 import { EditorEdgeLayer } from './EditorEdgeLayer'
 import { EditorPickerOverlay } from './EditorPickerOverlay'
 import { EditorVertexLayer } from './EditorVertexLayer'
@@ -63,6 +65,12 @@ function transformBoundaryVertex(v: BoundaryVertex, tx: { translation: Vec2; rot
 export interface SelectedEdge {
   tileId: string
   edgeIndex: number
+  /**
+   * Composition mode only — the BoundaryTile id this edge belongs to.
+   * Used by the Lab to auto-switch the active boundary tile when the user
+   * clicks an edge inside an inactive tile. Absent on single-shape patches.
+   */
+  hostBoundaryTileId?: string
 }
 
 interface Props {
@@ -178,19 +186,44 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // truth for validation + dispatch, and transform a parallel list for
   // rendering / picker placement.
   const tileTx = useMemo(() => activeTileTransform(config), [config])
-  const exposedEdges = useMemo(
-    () => editorActive && config.editor ? computeExposedEdges(activePatch(config.editor)) : [],
-    [editorActive, config.editor],
-  )
-  const renderedEdges = useMemo(
-    () => tileTx ? exposedEdges.map(e => transformEdge(e, tileTx)) : exposedEdges,
-    [exposedEdges, tileTx],
-  )
+  // Composition: aggregate exposed edges from every boundary tile so the user
+  // can place inside any tile (auto-switches active on click). Each edge is
+  // tagged with its host BoundaryTile id; the patch-local edge stays the
+  // source of truth for validation, while a parallel cell-local copy is
+  // rendered. Single-shape: just the active patch's edges (no host id).
+  const exposedEdges = useMemo(() => {
+    if (!editorActive || !config.editor) return [] as ExposedEdge[]
+    const composition = config.editor.composition
+    if (!composition) return computeExposedEdges(activePatch(config.editor))
+    const out: ExposedEdge[] = []
+    for (const bt of composition.tiles) {
+      for (const e of computeExposedEdges(bt.patch)) {
+        out.push({ ...e, hostBoundaryTileId: bt.id })
+      }
+    }
+    return out
+  }, [editorActive, config.editor])
+  const renderedEdges = useMemo(() => {
+    if (!editorActive || !config.editor) return exposedEdges
+    const composition = config.editor.composition
+    if (!composition) return tileTx ? exposedEdges.map(e => transformEdge(e, tileTx)) : exposedEdges
+    // Per-host transform: each edge transforms via its own BoundaryTile.
+    const txByHost = new Map<string, { translation: Vec2; rotation: number }>()
+    for (const bt of composition.tiles) {
+      txByHost.set(bt.id, { translation: bt.center, rotation: bt.rotation })
+    }
+    return exposedEdges.map(e => {
+      const tx = e.hostBoundaryTileId ? txByHost.get(e.hostBoundaryTileId) : undefined
+      return tx ? transformEdge(e, tx) : e
+    })
+  }, [exposedEdges, tileTx, editorActive, config.editor])
   const [hoveredEdge, setHoveredEdge] = useState<SelectedEdge | null>(null)
   useEffect(() => { if (!editorActive) setHoveredEdge(null) }, [editorActive])
 
   const selectedEdgeData = selectedEdge && exposedEdges.find(
-    e => e.tileId === selectedEdge.tileId && e.edgeIndex === selectedEdge.edgeIndex,
+    e => e.tileId === selectedEdge.tileId
+      && e.edgeIndex === selectedEdge.edgeIndex
+      && (selectedEdge.hostBoundaryTileId ?? null) === (e.hostBoundaryTileId ?? null),
   )
 
   // Step 17.5 / 17.11 — outer + pocket cycles for the vertex picker, only
@@ -271,12 +304,36 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // Step 17.11.1 — neighbour-stamp outer-cycle vertices, exposed only when
   // "Show neighbours" is on so cross-boundary picks line up with the visible
   // ghost geometry. Flatten to a single array since variant styling already
-  // tags them as ghosts. Single-shape only in v1 (composition has no per-tile
-  // neighbour-ring concept; the cell already shows the multi-tile context).
+  // tags them as ghosts.
+  // Composition: each cell-level neighbour stamp brings every boundary tile's
+  // outer cycle along (1 octagon + 1 square per stamp for 4.8.8). We compute
+  // each tile's outer cycle in patch-local, lift to cell-local via the
+  // BoundaryTile transform, then translate by the neighbour stamp.
   const neighbourVertices = useMemo(() => {
     if (!editorActive || !config.editor || editorMode !== 'complete') return []
     if (!editorNeighbourPreview || editorStrandMode) return []
-    if (config.editor.composition) return []
+    const composition = config.editor.composition
+    if (composition) {
+      const stamps = compositionOneRingStamps(composition)
+      const out: BoundaryVertex[] = []
+      for (let s = 0; s < stamps.length; s++) {
+        const stamp = stamps[s]
+        for (const bt of composition.tiles) {
+          const tx = { translation: bt.center, rotation: bt.rotation }
+          const cycle = computeOuterBoundary(bt.patch)
+          for (let i = 0; i < cycle.length; i++) {
+            const v = cycle[i]
+            const cellLocal = applyTransform(v.p, tx)
+            out.push({
+              p: applyStamp(cellLocal, stamp),
+              tileId: `neighbour-${s}/${bt.id}`,
+              vertexIndex: i,
+            })
+          }
+        }
+      }
+      return out
+    }
     return neighbourCycleVertices(config.editor, boundaryCycle).flat()
   }, [editorActive, config.editor, editorMode, editorNeighbourPreview, editorStrandMode, boundaryCycle])
 

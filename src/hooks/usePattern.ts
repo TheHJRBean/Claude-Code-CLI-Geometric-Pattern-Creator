@@ -11,6 +11,7 @@ import { editorLatticeStamps, editorOneRingNeighbourStamps } from '../editor/lat
 import {
   compositionBoundaryOutlines,
   compositionLatticeStamps,
+  compositionOneRingStamps,
   compositionToPolygons,
 } from '../editor/compositionLattice'
 import { runPIC } from '../pic/index'
@@ -82,11 +83,15 @@ export function usePattern(
           : [editorBoundaryVertices(config.editor)]
         let ghostPolygons: typeof basePolys | undefined
         let boundaryOutlines: Vec2[][] = [...baseOutlines]
-        // Neighbour preview is single-shape only in v1 — composition's cell
-        // already contains both boundary tiles together; the user can flip
-        // to Strand mode to see the lattice-stamped composition.
-        if (editorNeighbourPreview && !composition) {
-          const ringStamps = editorOneRingNeighbourStamps(config.editor)
+        // Neighbour preview: single-shape uses the per-patch one-ring;
+        // composition uses the cell-level one-ring (8 surrounding cells via
+        // the composition's translation basis, each carrying every boundary
+        // tile in the cell — so for 4.8.8, every neighbour stamp brings 1
+        // octagon + 1 square along).
+        if (editorNeighbourPreview) {
+          const ringStamps = composition
+            ? compositionOneRingStamps(composition)
+            : editorOneRingNeighbourStamps(config.editor)
           if (ringStamps.length > 0) {
             ghostPolygons = []
             for (let s = 0; s < ringStamps.length; s++) {
@@ -110,13 +115,14 @@ export function usePattern(
                 })
               }
               if (editorNeighbourBoundaries) {
-                // Single-shape branch: baseOutlines is exactly one entry.
-                boundaryOutlines.push(
-                  baseOutlines[0].map(v => {
+                // Composition emits one outline per boundary tile per stamp
+                // (octagon + square × N); single-shape emits one per stamp.
+                for (const outline of baseOutlines) {
+                  boundaryOutlines.push(outline.map(v => {
                     const r = rot(v)
                     return { x: r.x + t.x, y: r.y + t.y }
-                  }),
-                )
+                  }))
+                }
               }
             }
           }

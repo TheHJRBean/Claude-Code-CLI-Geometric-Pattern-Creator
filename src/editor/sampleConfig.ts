@@ -48,7 +48,7 @@ function trianglesAroundSquare(half: number, edge: number): EditorRegularTile[] 
 }
 
 export const SAMPLE_EDITOR_CONFIG: EditorConfig = {
-  version: 1,
+  version: 2,
   boundaryShape: 'square',
   boundarySize: 240,
   originSides: 4,

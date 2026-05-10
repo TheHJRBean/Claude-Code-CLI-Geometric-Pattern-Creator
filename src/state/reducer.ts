@@ -200,11 +200,13 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         // the old offset and the two outlines overlap as the cell grows).
         // patch.edgeLength + the tile contents stay so the origin tile
         // keeps its own size — single-shape parity.
+        // Manual slider drag clears wrap on every patch (single-shape
+        // parity — explicit override of the auto-fit).
         const k = c.edgeLength === 0 ? 1 : next / c.edgeLength
         const tiles = c.tiles.map(t => ({
           ...t,
           center: { x: t.center.x * k, y: t.center.y * k },
-          patch: { ...t.patch, boundarySize: next },
+          patch: { ...t.patch, boundarySize: next, wrapBoundary: false },
         }))
         const active = tiles.find(t => t.id === c.activeTileId) ?? tiles[0]
         return {
@@ -327,9 +329,17 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     }
     case 'SET_EDITOR_WRAP_BOUNDARY': {
       if (!state.editor) return state
-      // wrapBoundary is meaningless when composition is set (the cell drives
-      // boundary geometry, not the patch's outline). Force false.
-      if (state.editor.composition) return state
+      // Composition: the toggle is per-active-patch — wrap fits the cell
+      // edge to whichever boundary tile the user is currently editing.
+      // Single-shape: same behaviour as before.
+      if (state.editor.composition) {
+        const next = updatePatch(
+          state,
+          patch => ({ ...patch, wrapBoundary: action.payload }),
+          { wrap: false, seed: false },
+        )
+        return action.payload ? applyWrap(next) : next
+      }
       const next = updateEditor(state, { wrapBoundary: action.payload })
       // Toggling on must take effect immediately — otherwise the toggle does
       // nothing visible until the next tile mutation.
@@ -373,10 +383,12 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       // Pure UI pane swap. Mirror the new active tile's per-patch fields up
       // to the wrapper so legacy single-shape readers (that haven't migrated
       // through activePatch yet) see the active tile's view. Excluded from
-      // the undo stack — see history.ts DESIGN_MODE_ACTIONS.
+      // the undo stack — see history.ts DESIGN_MODE_ACTIONS. If the new
+      // active patch has wrap on, refit the cell to it (wrap follows the
+      // selected boundary tile per the v1 contract).
       const nextComposition = { ...composition, activeTileId: tileId }
       const active = nextComposition.tiles.find(t => t.id === tileId)!
-      return {
+      const swapped: PatternConfig = {
         ...state,
         editor: {
           version: 2,
@@ -384,6 +396,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
           composition: nextComposition,
         },
       }
+      return applyWrap(swapped)
     }
     case 'EDITOR_RESTORE_SNAPSHOT': {
       // Step 17.9 — undo/redo. Snapshot already has its own boundarySize, so
@@ -452,12 +465,39 @@ function seedFigures(state: PatternConfig): PatternConfig {
 /**
  * If `wrapBoundary` is on, recompute `boundarySize` so the boundary polygon
  * hugs the patch. No-op otherwise. Called after every tile-mutating action so
- * the boundary stays fitted as the user builds. Composition-active editors
- * skip wrap entirely — the cell vectors are derived from
- * `composition.edgeLength` and per-patch wrap is meaningless.
+ * the boundary stays fitted as the user builds.
+ *
+ * Composition: per-active-patch wrap. When the active boundary tile's
+ * `patch.wrapBoundary` is on, fit `composition.edgeLength` to the active
+ * patch's tile contents and propagate to the sibling tile (so the 4.8.8
+ * invariant — octagon edge = square edge = cell edge — holds). Tile
+ * centres scale proportionally, same way the slider scales them.
  */
 function applyWrap(state: PatternConfig): PatternConfig {
-  if (!state.editor || state.editor.composition || !state.editor.wrapBoundary) return state
+  if (!state.editor) return state
+  if (state.editor.composition) {
+    const c = state.editor.composition
+    const active = c.tiles.find(t => t.id === c.activeTileId)
+    if (!active || !active.patch.wrapBoundary) return state
+    const fit = fitBoundarySize(active.patch)
+    if (!Number.isFinite(fit) || fit <= 0 || fit === c.edgeLength) return state
+    const k = c.edgeLength === 0 ? 1 : fit / c.edgeLength
+    const tiles = c.tiles.map(t => ({
+      ...t,
+      center: { x: t.center.x * k, y: t.center.y * k },
+      patch: { ...t.patch, boundarySize: fit },
+    }))
+    const activeAfter = tiles.find(t => t.id === c.activeTileId) ?? tiles[0]
+    return {
+      ...state,
+      editor: {
+        version: state.editor.version,
+        ...activeAfter.patch,
+        composition: { ...c, edgeLength: fit, tiles },
+      },
+    }
+  }
+  if (!state.editor.wrapBoundary) return state
   const fit = fitBoundarySize(state.editor)
   if (!Number.isFinite(fit) || fit <= 0 || fit === state.editor.boundarySize) return state
   return { ...state, editor: { ...state.editor, boundarySize: fit } }

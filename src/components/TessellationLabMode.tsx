@@ -1241,29 +1241,30 @@ function EditorDesignControls({
         </div>
       )}
 
-      {/* Wrap boundary — design-mode boundary fitting (live). Single-shape
-          only; in composition the cell vectors drive boundary geometry. */}
-      {!editor.composition && (
-        <div style={{ marginTop: 14 }}>
-          <label style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            cursor: 'pointer',
-            fontFamily: "'EB Garamond', Georgia, serif",
-            fontSize: 13,
-            color: editor.wrapBoundary ? 'var(--text)' : 'var(--text-muted)',
-            transition: 'color 0.15s',
-          }}>
-            <input
-              type="checkbox"
-              checked={!!editor.wrapBoundary}
-              onChange={e => dispatch({ type: 'SET_EDITOR_WRAP_BOUNDARY', payload: e.target.checked })}
-            />
-            Wrap boundary
-          </label>
-        </div>
-      )}
+      {/* Wrap boundary — design-mode boundary fitting (live). In composition
+          the toggle is per-active-patch: wraps the cell to whichever boundary
+          tile the user is currently editing. The wrapper mirrors the active
+          patch's `wrapBoundary` so the checkbox state always reflects the
+          tile being edited. */}
+      <div style={{ marginTop: 14 }}>
+        <label style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          cursor: 'pointer',
+          fontFamily: "'EB Garamond', Georgia, serif",
+          fontSize: 13,
+          color: editor.wrapBoundary ? 'var(--text)' : 'var(--text-muted)',
+          transition: 'color 0.15s',
+        }}>
+          <input
+            type="checkbox"
+            checked={!!editor.wrapBoundary}
+            onChange={e => dispatch({ type: 'SET_EDITOR_WRAP_BOUNDARY', payload: e.target.checked })}
+          />
+          Wrap boundary
+        </label>
+      </div>
 
       {/* Step 17.6d — Show neighbours. Disabled while wrap is on (boundary
           edge moves under the user's feet). Triangle support added — the

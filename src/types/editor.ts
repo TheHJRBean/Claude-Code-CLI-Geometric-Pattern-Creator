@@ -82,9 +82,15 @@ export interface EditorAutoCompleteSettings {
  */
 export type SymmetryMode = 'full' | 'rotation' | 'vertical' | 'horizontal' | 'none'
 
-export interface EditorConfig {
-  /** Inner schema version. Bumped independently of the outer storage envelope. */
-  version: 1
+/**
+ * The per-patch fields shared between a single-shape `EditorConfig` and a
+ * multi-tile boundary configuration's per-tile patch (added in a later phase).
+ * Helpers that operate on "the boundary + its interior tiles" take an
+ * `EditorPatch`; the wrapper (`EditorConfig`) carries the schema `version`
+ * and (eventually) a `composition` field. `EditorConfig extends EditorPatch`,
+ * so existing call sites passing `EditorConfig` continue to type-check.
+ */
+export interface EditorPatch {
   boundaryShape: BoundaryShape
   /** Lattice cell size in world units (Q9 Option B: rescales the cell only). */
   boundarySize: number
@@ -119,4 +125,9 @@ export interface EditorConfig {
    */
   symmetryMode?: SymmetryMode
   tiles: EditorTile[]
+}
+
+export interface EditorConfig extends EditorPatch {
+  /** Inner schema version. Bumped independently of the outer storage envelope. */
+  version: 1
 }

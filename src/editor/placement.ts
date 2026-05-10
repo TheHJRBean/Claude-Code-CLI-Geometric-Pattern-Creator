@@ -1,6 +1,6 @@
 import type { Vec2 } from '../utils/math'
 import { pointInPolygon, pointsEqual } from '../utils/math'
-import type { EditorConfig, EditorRegularTile, EditorTile } from '../types/editor'
+import type { EditorPatch, EditorRegularTile, EditorTile } from '../types/editor'
 import { regularPolygonVertices } from './regularPolygon'
 import { EDITOR_EPS, tileVertices, type ExposedEdge } from './exposedEdges'
 
@@ -62,7 +62,7 @@ export function placeRegularNGonOnEdge(
 export function isPlacementViable(
   edge: ExposedEdge,
   sides: number,
-  editor: EditorConfig,
+  editor: EditorPatch,
 ): boolean {
   // Decision 14a: non-conforming edges (length ≠ origin's) are inert.
   if (!edge.conforming) return false
@@ -122,6 +122,6 @@ function interiorAngle(tile: EditorTile, verts: Vec2[], i: number): number {
 }
 
 /** Subset of `PICKER_SIDES` that pass `isPlacementViable` for the given edge. */
-export function viableSidesForEdge(edge: ExposedEdge, editor: EditorConfig): number[] {
+export function viableSidesForEdge(edge: ExposedEdge, editor: EditorPatch): number[] {
   return PICKER_SIDES.filter(n => isPlacementViable(edge, n, editor))
 }

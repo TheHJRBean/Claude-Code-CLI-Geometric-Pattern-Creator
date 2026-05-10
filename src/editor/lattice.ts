@@ -1,5 +1,5 @@
 import type { Vec2 } from '../utils/math'
-import type { BoundaryShape, EditorConfig } from '../types/editor'
+import type { BoundaryShape, EditorPatch } from '../types/editor'
 import { editorBoundaryVertices } from './buildEditorPolygons'
 import type { BoundaryVertex } from './boundary'
 
@@ -26,10 +26,10 @@ export interface LatticeStamp {
 }
 
 /** Boundary's lattice basis vectors. `null` for shapes without a v1 lattice. */
-function latticeBasis(editor: EditorConfig): { u: Vec2; v: Vec2 } | null {
-  const L = editor.boundarySize
+function latticeBasis(patch: EditorPatch): { u: Vec2; v: Vec2 } | null {
+  const L = patch.boundarySize
   let basis: { u: Vec2; v: Vec2 } | null
-  switch (editor.boundaryShape) {
+  switch (patch.boundaryShape) {
     case 'square':
       basis = { u: { x: L, y: 0 }, v: { x: 0, y: L } }
       break
@@ -41,10 +41,10 @@ function latticeBasis(editor: EditorConfig): { u: Vec2; v: Vec2 } | null {
     case 'triangle':
       return null // deferred to 17.6c
   }
-  if (editor.alternateBoundary) {
+  if (patch.alternateBoundary) {
     // Rotate basis vectors by π/n so the lattice cells track the rotated
     // boundary outline (square → diamond, hex point-up → flat-top).
-    const sides = editor.boundaryShape === 'square' ? 4 : 6
+    const sides = patch.boundaryShape === 'square' ? 4 : 6
     const a = Math.PI / sides
     const c = Math.cos(a), s = Math.sin(a)
     basis = {
@@ -73,9 +73,9 @@ interface ExpandedLattice {
   intraStamps: LatticeStamp[]
 }
 
-function expandedLattice(editor: EditorConfig): ExpandedLattice | null {
-  if (editor.boundaryShape === 'triangle') {
-    const verts = editorBoundaryVertices(editor)
+function expandedLattice(patch: EditorPatch): ExpandedLattice | null {
+  if (patch.boundaryShape === 'triangle') {
+    const verts = editorBoundaryVertices(patch)
     if (verts.length !== 3) return null
     const m = [0, 1, 2].map(i => ({
       x: (verts[i].x + verts[(i + 1) % 3].x) / 2,
@@ -92,7 +92,7 @@ function expandedLattice(editor: EditorConfig): ExpandedLattice | null {
       ],
     }
   }
-  const basis = latticeBasis(editor)
+  const basis = latticeBasis(patch)
   if (!basis) return null
   return {
     u: basis.u,
@@ -113,9 +113,9 @@ function expandedLattice(editor: EditorConfig): ExpandedLattice | null {
  *   centroid (an up-triangle's edge-neighbours are point-down). Computed
  *   directly from boundary edge midpoints so it handles `alternateBoundary`.
  */
-export function editorOneRingNeighbourStamps(editor: EditorConfig): LatticeStamp[] {
-  if (editor.boundaryShape === 'triangle') {
-    const verts = editorBoundaryVertices(editor)
+export function editorOneRingNeighbourStamps(patch: EditorPatch): LatticeStamp[] {
+  if (patch.boundaryShape === 'triangle') {
+    const verts = editorBoundaryVertices(patch)
     if (verts.length !== 3) return []
     const stamps: LatticeStamp[] = []
     for (let i = 0; i < 3; i++) {
@@ -132,9 +132,9 @@ export function editorOneRingNeighbourStamps(editor: EditorConfig): LatticeStamp
     }
     return stamps
   }
-  const basis = latticeBasis(editor)
+  const basis = latticeBasis(patch)
   if (!basis) return []
-  const offsets: Array<[number, number]> = editor.boundaryShape === 'square'
+  const offsets: Array<[number, number]> = patch.boundaryShape === 'square'
     ? [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]]
     : [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]]
   return offsets.map(([a, b]) => ({
@@ -175,11 +175,11 @@ export function applyStamp(p: Vec2, stamp: LatticeStamp): Vec2 {
  * outside; coincident copies overlay correctly when stamped).
  */
 export function neighbourCycleVertices(
-  editor: EditorConfig,
+  patch: EditorPatch,
   outerCycle: BoundaryVertex[],
 ): BoundaryVertex[][] {
   if (outerCycle.length === 0) return []
-  const stamps = editorOneRingNeighbourStamps(editor)
+  const stamps = editorOneRingNeighbourStamps(patch)
   return stamps.map((stamp, stampIdx) =>
     outerCycle.map((v, i) => ({
       p: applyStamp(v.p, stamp),
@@ -196,10 +196,10 @@ export function neighbourCycleVertices(
  * plus a one-cell margin so panning doesn't reveal seams.
  */
 export function editorLatticeStamps(
-  editor: EditorConfig,
+  patch: EditorPatch,
   viewport: { x: number; y: number; width: number; height: number },
 ): LatticeStamp[] {
-  const lat = expandedLattice(editor)
+  const lat = expandedLattice(patch)
   if (!lat) return [{ translation: { x: 0, y: 0 }, rotation: 0 }]
 
   // Map viewport corners back to lattice coords (a, b) such that

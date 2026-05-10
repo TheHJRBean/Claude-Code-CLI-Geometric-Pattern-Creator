@@ -4,9 +4,19 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
-**Last action:** 2026-05-07 — Step **17.11b** (orbit propagation
-for multi-vertex Complete) shipped + signed off (`73f5f81`).
-User confirmed orbit propagation works.
+**Last action:** 2026-05-10 — Editor v2 kicked off. Plan
+approved at `~/.claude/plans/graceful-kindling-charm.md`:
+add **4.8.8 (octagon + square)** as the first multi-tile
+boundary configuration. 8-phase rollout. **Phase 1 in flight:**
+adapter refactor (`EditorPatch` + `src/editor/active.ts`),
+no behaviour change. Subsequent phases add octagon polygon
+support, composition data + migration, reducer routing, geometry
+pipeline (compositionLattice.ts), UI (4.8.8 picker + active-tile
+tabs), history exclusion, persistence verification.
+
+**Previous milestone:** 2026-05-07 — Step **17.11b** (orbit
+propagation for multi-vertex Complete) shipped + signed off
+(`73f5f81`).
 
 New `placePolygonsOnOrbit(editor, picks, idPrefix)` in
 `src/editor/orbit.ts` mirrors `placeTilesOnOrbit`'s conventions:

@@ -1,6 +1,6 @@
 import type { Vec2 } from '../utils/math'
 import { pointsEqual } from '../utils/math'
-import type { EditorConfig } from '../types/editor'
+import type { EditorPatch } from '../types/editor'
 import { EDITOR_EPS, computeExposedEdges } from './exposedEdges'
 import { editorBoundaryVertices } from './buildEditorPolygons'
 
@@ -43,7 +43,7 @@ function cycleSignedArea(cycle: BoundaryVertex[]): number {
  * vertices become click targets so the user can fill an interior hole as a
  * single tile rather than as N chord-pair tiles.
  */
-export function computeAllCycles(editor: EditorConfig): {
+export function computeAllCycles(editor: EditorPatch): {
   outer: BoundaryVertex[]
   pockets: BoundaryVertex[][]
 } {
@@ -116,7 +116,7 @@ export function computeAllCycles(editor: EditorConfig): {
  * Thin wrapper over `computeAllCycles().outer`; preserved as a stable export
  * so 17.5 / 17.7 / 17.10 callers don't need to know about pockets.
  */
-export function computeOuterBoundary(editor: EditorConfig): BoundaryVertex[] {
+export function computeOuterBoundary(editor: EditorPatch): BoundaryVertex[] {
   return computeAllCycles(editor).outer
 }
 
@@ -130,7 +130,7 @@ export function computeOuterBoundary(editor: EditorConfig): BoundaryVertex[] {
  * sequential `vertexIndex` so they round-trip through the same pipeline as
  * patch-outer vertices.
  */
-export function computeBoundaryCycle(editor: EditorConfig): BoundaryVertex[] {
+export function computeBoundaryCycle(editor: EditorPatch): BoundaryVertex[] {
   return editorBoundaryVertices(editor).map((p, i) => ({ p, tileId: 'boundary', vertexIndex: i }))
 }
 

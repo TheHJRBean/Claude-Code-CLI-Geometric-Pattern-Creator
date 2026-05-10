@@ -1,6 +1,6 @@
 import type { Vec2 } from '../utils/math'
 import { centroid, pointInPolygon } from '../utils/math'
-import type { EditorConfig, EditorTile } from '../types/editor'
+import type { EditorPatch, EditorTile } from '../types/editor'
 import { tileVertices, EDITOR_EPS } from './exposedEdges'
 import { computeBoundaryCycle, computeOuterBoundary, type BoundaryVertex } from './boundary'
 import { editorBoundaryVertices } from './buildEditorPolygons'
@@ -27,7 +27,7 @@ function arcPath(cycle: BoundaryVertex[], indexA: number, indexB: number, dir: 1
   return out
 }
 
-function isPointInPatch(p: Vec2, editor: EditorConfig): boolean {
+function isPointInPatch(p: Vec2, editor: EditorPatch): boolean {
   for (const tile of editor.tiles) {
     if (pointInPolygon(p, tileVertices(tile))) return true
   }
@@ -58,7 +58,7 @@ export function computeGapPolygon(
   cycle: BoundaryVertex[],
   indexA: number,
   indexB: number,
-  editor: EditorConfig,
+  editor: EditorPatch,
 ): GapPolygon | null {
   const n = cycle.length
   if (n < 3 || indexA === indexB) return null
@@ -178,7 +178,7 @@ function isDegenerateTriangle(verts: Vec2[]): boolean {
  * polygon, and has a centroid exterior to every existing tile.
  */
 function computeMixedGapPolygon(
-  editor: EditorConfig,
+  editor: EditorPatch,
   patchCycle: BoundaryVertex[],
   boundaryCycle: BoundaryVertex[],
   patchIdx: number,
@@ -226,7 +226,7 @@ function computeMixedGapPolygon(
  * either cycle, chord lies entirely inside patch, etc.).
  */
 export function completeGap(
-  editor: EditorConfig,
+  editor: EditorPatch,
   pA: Vec2,
   pB: Vec2,
   newId: string,

@@ -1,6 +1,6 @@
 import type { Vec2 } from '../utils/math'
 import { centroid, pointInPolygon } from '../utils/math'
-import type { EditorConfig, EditorTile } from '../types/editor'
+import type { EditorPatch, EditorTile } from '../types/editor'
 import { tileVertices, EDITOR_EPS } from './exposedEdges'
 import { ensureCCW, tryRegularFit } from './complete'
 
@@ -64,7 +64,7 @@ function isSimplePolygon(verts: Vec2[]): boolean {
   return true
 }
 
-export function validateNGapPolygon(picks: Vec2[], editor: EditorConfig): NGapValidation {
+export function validateNGapPolygon(picks: Vec2[], editor: EditorPatch): NGapValidation {
   if (picks.length < 3) return { kind: 'too-few' }
   // Reject any duplicate vertex (consecutive or not — coincident vertices
   // produce zero-length edges that confuse downstream PIC).
@@ -82,7 +82,7 @@ export function validateNGapPolygon(picks: Vec2[], editor: EditorConfig): NGapVa
 }
 
 export function completeNGap(
-  editor: EditorConfig,
+  editor: EditorPatch,
   picks: Vec2[],
   newId: string,
 ): EditorTile | null {

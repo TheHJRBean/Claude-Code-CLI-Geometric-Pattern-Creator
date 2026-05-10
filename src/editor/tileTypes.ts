@@ -1,6 +1,6 @@
 import type { TileTypeInfo } from '../types/tiling'
 import type { FigureConfig } from '../types/pattern'
-import type { EditorConfig, EditorTile } from '../types/editor'
+import type { EditorPatch, EditorTile } from '../types/editor'
 import { tileTypeIdFor, tileTypeLabel } from './tileTypeId'
 
 /**
@@ -24,9 +24,9 @@ export const DEFAULT_EDITOR_FIGURE: FigureConfig = {
  * Irregular labels follow Q11's "Irregular A/B/C…" scheme — assigned by
  * first-seen rank within the patch's distinct irregular set.
  */
-export function editorTileTypes(editor: EditorConfig): TileTypeInfo[] {
+export function editorTileTypes(patch: EditorPatch): TileTypeInfo[] {
   const seen = new Map<string, EditorTile>()
-  for (const tile of editor.tiles) {
+  for (const tile of patch.tiles) {
     const id = tileTypeIdFor(tile)
     if (!seen.has(id)) seen.set(id, tile)
   }
@@ -51,11 +51,11 @@ export function editorTileTypes(editor: EditorConfig): TileTypeInfo[] {
  */
 export function seedFiguresForEditor(
   figures: Record<string, FigureConfig>,
-  editor: EditorConfig,
+  patch: EditorPatch,
 ): Record<string, FigureConfig> {
   let out = figures
   let changed = false
-  for (const tile of editor.tiles) {
+  for (const tile of patch.tiles) {
     const id = tileTypeIdFor(tile)
     if (id in out) continue
     if (!changed) { out = { ...figures }; changed = true }

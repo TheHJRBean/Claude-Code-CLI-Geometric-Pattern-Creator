@@ -289,6 +289,16 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     case 'EDITOR_COMPLETE_GAP': {
       if (!state.editor) return state
       const { pA, pB } = action.payload
+      if (state.editor.composition) {
+        return completeOnComposition(state, bt => {
+          const localA = inverseBoundaryTransform(pA, bt)
+          const localB = inverseBoundaryTransform(pB, bt)
+          const id = `completed-${bt.patch.tiles.length}-${Date.now()}`
+          const tile = completeGap(bt.patch, localA, localB, id)
+          if (!tile) return null
+          return { ...bt.patch, tiles: [...bt.patch.tiles, tile] }
+        })
+      }
       return updatePatch(state, patch => {
         const id = `completed-${patch.tiles.length}-${Date.now()}`
         const tile = completeGap(patch, pA, pB, id)
@@ -303,6 +313,15 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       // the same single-instance tile array as 17.11; with a non-trivial
       // subgroup, all orbit images that pass the vertex-coincidence gate
       // place atomically (or none of them do, per Decision a).
+      if (state.editor.composition) {
+        return completeOnComposition(state, bt => {
+          const localPicks = picks.map(p => inverseBoundaryTransform(p, bt))
+          const idPrefix = `completed-n-${bt.patch.tiles.length}-${Date.now()}`
+          const tiles = placePolygonsOnOrbit(bt.patch, localPicks, idPrefix)
+          if (!tiles || tiles.length === 0) return null
+          return { ...bt.patch, tiles: [...bt.patch.tiles, ...tiles] }
+        })
+      }
       return updatePatch(state, patch => {
         const idPrefix = `completed-n-${patch.tiles.length}-${Date.now()}`
         const tiles = placePolygonsOnOrbit(patch, picks, idPrefix)
@@ -424,6 +443,60 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
 function updateEditor(state: PatternConfig, patch: Partial<EditorConfig>): PatternConfig {
   if (!state.editor) return state
   return { ...state, editor: { ...state.editor, ...patch } }
+}
+
+/**
+ * Inverse of a `BoundaryTile`'s transform: takes a point in cell-local
+ * coords and returns the equivalent in the tile's patch-local coords.
+ * Used by Complete-mode handlers in composition: vertex picks come in
+ * cell-local from the canvas overlay, but completeGap / placePolygonsOnOrbit
+ * expect patch-local picks to match the patch's cycle vertices.
+ */
+function inverseBoundaryTransform(p: { x: number; y: number }, bt: { center: { x: number; y: number }; rotation: number }): { x: number; y: number } {
+  const dx = p.x - bt.center.x
+  const dy = p.y - bt.center.y
+  if (bt.rotation === 0) return { x: dx, y: dy }
+  // Inverse rotation = transpose for orthogonal matrix.
+  const c = Math.cos(bt.rotation), s = Math.sin(bt.rotation)
+  return { x: dx * c + dy * s, y: -dx * s + dy * c }
+}
+
+/**
+ * Cross-tile completion router for composition. Tries each boundary tile
+ * (active first) by handing it to the supplied factory; the factory returns
+ * the new patch for that tile or `null` if the picks don't fit. The first
+ * tile that yields a non-null patch wins; the returned `EditorConfig`
+ * has that tile's patch updated in `composition.tiles` and re-mirrors the
+ * active patch's fields up to the wrapper. Picks that match nothing in any
+ * tile leave state untouched.
+ */
+function completeOnComposition(
+  state: PatternConfig,
+  apply: (tile: NonNullable<EditorConfig['composition']>['tiles'][number]) => EditorPatch | null,
+): PatternConfig {
+  if (!state.editor || !state.editor.composition) return state
+  const c = state.editor.composition
+  const order = [
+    ...c.tiles.filter(t => t.id === c.activeTileId),
+    ...c.tiles.filter(t => t.id !== c.activeTileId),
+  ]
+  for (const bt of order) {
+    const nextPatch = apply(bt)
+    if (!nextPatch) continue
+    const nextTiles = c.tiles.map(t => (t.id === bt.id ? { ...t, patch: nextPatch } : t))
+    const nextC = { ...c, tiles: nextTiles }
+    const active = nextC.tiles.find(t => t.id === c.activeTileId) ?? nextC.tiles[0]
+    const next: PatternConfig = {
+      ...state,
+      editor: {
+        version: state.editor.version,
+        ...active.patch,
+        composition: nextC,
+      },
+    }
+    return applyWrap(seedFigures(next))
+  }
+  return state
 }
 
 /**

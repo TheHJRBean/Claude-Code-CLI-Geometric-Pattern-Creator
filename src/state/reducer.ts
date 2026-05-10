@@ -178,21 +178,24 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       // Q9 Option B (single-shape): only the boundary outline rescales —
       // tiles untouched. Manual slider drag implies the user wants a
       // specific size, so wrap turns off.
-      // Composition: the slider drives composition.edgeLength — the cell's
-      // edge that octagon and square share. Tile centers and per-patch edge
-      // lengths rescale proportionally so the cell stays well-formed.
+      // Composition: parity with single-shape — the slider only rescales
+      // the cell vectors (`composition.edgeLength`) and each boundary
+      // tile's outline (`patch.boundarySize` — used by
+      // `editorBoundaryVertices`). The origin tile and any user-placed
+      // sub-tiles keep their own size, so dragging the slider changes the
+      // cell scale without resizing what's inside, exactly as the
+      // single-shape boundary-size slider does. BoundaryTile.center stays
+      // in cell-local coords seeded at creation; if the user wants a
+      // different cell, they pick 4.8.8 again to re-seed.
       if (!state.editor) return state
       const next = action.payload
       if (next <= 0) return state
       if (state.editor.composition) {
         const c = state.editor.composition
-        const old = c.edgeLength
-        if (old === next) return state
-        const k = next / old
+        if (c.edgeLength === next) return state
         const tiles = c.tiles.map(t => ({
           ...t,
-          center: { x: t.center.x * k, y: t.center.y * k },
-          patch: rescalePatch(t.patch, k),
+          patch: { ...t.patch, boundarySize: next },
         }))
         const active = tiles.find(t => t.id === c.activeTileId) ?? tiles[0]
         return {
@@ -435,29 +438,6 @@ function seedFigures(state: PatternConfig): PatternConfig {
     figures = seedFiguresForEditor(figures, patch)
   }
   return figures === state.figures ? state : { ...state, figures }
-}
-
-/**
- * Scale every coordinate field of a patch by `k`. Used by the composition
- * boundary-size slider to rescale a boundary tile's interior (boundary
- * outline + every sub-tile) consistently with the cell's new edge length.
- */
-function rescalePatch(patch: EditorPatch, k: number): EditorPatch {
-  return {
-    ...patch,
-    boundarySize: patch.boundarySize * k,
-    edgeLength: patch.edgeLength * k,
-    tiles: patch.tiles.map(t => t.kind === 'regular'
-      ? {
-          ...t,
-          center: { x: t.center.x * k, y: t.center.y * k },
-          edgeLength: t.edgeLength * k,
-        }
-      : {
-          ...t,
-          vertices: t.vertices.map(v => ({ x: v.x * k, y: v.y * k })),
-        }),
-  }
 }
 
 /**

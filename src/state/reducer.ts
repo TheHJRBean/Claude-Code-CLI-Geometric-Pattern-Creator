@@ -221,10 +221,20 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       return updateEditor(state, { boundarySize: next, wrapBoundary: false })
     }
     case 'SET_EDITOR_ALTERNATE_BOUNDARY':
-      // Pure visual flip on single-shape patches. No-op when composition is
-      // set — the cell's orientation is fixed by the configuration.
+      // Single-shape: flips the boundary outline by π/n (Q9 Option B parity).
+      // Composition: flips just the active boundary tile's inner patch
+      // boundary. The composition's cell vectors and BoundaryTile.center +
+      // rotation are untouched so the unit cell still tiles by translation;
+      // the active tile's authored boundary outline rotates within its
+      // BoundaryTile frame.
       if (!state.editor) return state
-      if (state.editor.composition) return state
+      if (state.editor.composition) {
+        return applyWrap(updatePatch(
+          state,
+          patch => ({ ...patch, alternateBoundary: action.payload }),
+          { wrap: false, seed: false },
+        ))
+      }
       return applyWrap(updateEditor(state, { alternateBoundary: action.payload }))
     case 'SET_EDITOR_ORIGIN_SIDES': {
       if (!state.editor) return state

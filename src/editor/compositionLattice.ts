@@ -98,6 +98,30 @@ export function compositionBoundaryOutlines(composition: BoundaryComposition): V
 }
 
 /**
+ * One ring of cell-level neighbour stamps around the source cell (centre
+ * stamp excluded). 8 stamps total — orthogonal + diagonal — analogous to
+ * single-shape `editorOneRingNeighbourStamps` for square boundaries. Used by
+ * Design-mode "Show neighbours" preview in composition so the user can see
+ * how the unit cell joins its lattice neighbours.
+ *
+ * Stamps are pure translations (rotation 0) — the composition cell tiles by
+ * translation alone. Future configurations (e.g. p3, p6m) would override
+ * this with the appropriate symmetry-stamp set.
+ */
+export function compositionOneRingStamps(composition: BoundaryComposition): LatticeStamp[] {
+  const { u, v } = compositionCellBasis(composition)
+  const offsets: Array<[number, number]> = [
+    [-1, -1], [-1, 0], [-1, 1],
+    [0, -1],           [0, 1],
+    [1, -1],  [1, 0],  [1, 1],
+  ]
+  return offsets.map(([a, b]) => ({
+    translation: { x: a * u.x + b * v.x, y: a * u.y + b * v.y },
+    rotation: 0,
+  }))
+}
+
+/**
  * Generate enough cell-level stamps to cover `viewport`. The composition's
  * unit cell is treated as one merged patch (per `compositionToPolygons`), so
  * stamps are pure translations along the cell basis — no intra-cell stamps

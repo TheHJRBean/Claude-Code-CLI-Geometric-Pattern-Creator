@@ -120,9 +120,29 @@ export function TessellationLabMode({
   useEffect(() => {
     if (config.tiling.type !== 'editor' || !config.editor) setSelectedEdge(null)
   }, [config.tiling.type, config.editor])
+  // Composition: clicking an edge that belongs to a non-active boundary tile
+  // auto-switches the active tile first (pure pane swap, not undoable) so the
+  // existing place / delete flow targets the right inner patch via the
+  // reducer's activePatch routing. Single-shape: just sets the selection.
+  const handleSelectEdge = (edge: SelectedEdge | null) => {
+    if (
+      edge?.hostBoundaryTileId
+      && config.editor?.composition
+      && config.editor.composition.activeTileId !== edge.hostBoundaryTileId
+    ) {
+      dispatch({ type: 'SET_ACTIVE_BOUNDARY_TILE', payload: { tileId: edge.hostBoundaryTileId } })
+    }
+    setSelectedEdge(edge)
+  }
   const handlePlaceTile = (sides: number) => {
     if (!selectedEdge) return
-    dispatch({ type: 'EDITOR_PLACE_TILE_ON_EDGE', payload: { ...selectedEdge, sides } })
+    // EDITOR_PLACE_TILE_ON_EDGE routes through activePatch, so by this point
+    // the host tile must be the active one (handleSelectEdge guarantees it).
+    dispatch({ type: 'EDITOR_PLACE_TILE_ON_EDGE', payload: {
+      tileId: selectedEdge.tileId,
+      edgeIndex: selectedEdge.edgeIndex,
+      sides,
+    } })
   }
   const handleDeleteTile = (tileId: string) => {
     dispatch({ type: 'EDITOR_DELETE_TILE', payload: { tileId } })
@@ -661,7 +681,7 @@ export function TessellationLabMode({
         cpActive={cpActive}
         outlineWidth={outlineWidth}
         selectedEdge={selectedEdge}
-        onSelectEdge={setSelectedEdge}
+        onSelectEdge={handleSelectEdge}
         onPlaceTile={handlePlaceTile}
         onDeleteTile={handleDeleteTile}
         editorMode={editorMode}
@@ -1104,26 +1124,24 @@ function EditorDesignControls({
         </>
       )}
 
-      {!editor.composition && (
-        <label style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          marginTop: 10,
-          cursor: 'pointer',
-          fontFamily: "'EB Garamond', Georgia, serif",
-          fontSize: 13,
-          color: editor.alternateBoundary ? 'var(--text)' : 'var(--text-muted)',
-          transition: 'color 0.15s',
-        }}>
-          <input
-            type="checkbox"
-            checked={!!editor.alternateBoundary}
-            onChange={e => dispatch({ type: 'SET_EDITOR_ALTERNATE_BOUNDARY', payload: e.target.checked })}
-          />
-          Alternate orientation
-        </label>
-      )}
+      <label style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        marginTop: 10,
+        cursor: 'pointer',
+        fontFamily: "'EB Garamond', Georgia, serif",
+        fontSize: 13,
+        color: editor.alternateBoundary ? 'var(--text)' : 'var(--text-muted)',
+        transition: 'color 0.15s',
+      }}>
+        <input
+          type="checkbox"
+          checked={!!editor.alternateBoundary}
+          onChange={e => dispatch({ type: 'SET_EDITOR_ALTERNATE_BOUNDARY', payload: e.target.checked })}
+        />
+        Alternate orientation
+      </label>
 
       {!editor.composition && (
         <>

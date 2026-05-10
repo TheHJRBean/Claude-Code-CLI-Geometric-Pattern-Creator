@@ -15,28 +15,49 @@ import type { ExposedEdge } from '../editor/exposedEdges'
  * edge without pixel-perfect aim. Pointer events on edges stop propagation
  * so the SVG-level pan handler doesn't kick in.
  */
+interface EdgeKey {
+  tileId: string
+  edgeIndex: number
+  hostBoundaryTileId?: string
+}
+
 interface Props {
   edges: ExposedEdge[]
-  selected: { tileId: string; edgeIndex: number } | null
-  onSelect: (edge: { tileId: string; edgeIndex: number } | null) => void
-  hovered: { tileId: string; edgeIndex: number } | null
-  onHover: (edge: { tileId: string; edgeIndex: number } | null) => void
+  selected: EdgeKey | null
+  onSelect: (edge: EdgeKey | null) => void
+  hovered: EdgeKey | null
+  onHover: (edge: EdgeKey | null) => void
+}
+
+function sameEdge(a: EdgeKey | null | undefined, e: ExposedEdge): boolean {
+  if (!a) return false
+  return a.tileId === e.tileId
+    && a.edgeIndex === e.edgeIndex
+    && (a.hostBoundaryTileId ?? null) === (e.hostBoundaryTileId ?? null)
 }
 
 export function EditorEdgeLayer({ edges, selected, onSelect, hovered, onHover }: Props) {
   return (
     <g id="editor-edge-layer">
       {edges.map(e => {
-        const isSelected = selected?.tileId === e.tileId && selected.edgeIndex === e.edgeIndex
-        const isHovered = hovered?.tileId === e.tileId && hovered.edgeIndex === e.edgeIndex
+        const isSelected = sameEdge(selected, e)
+        const isHovered = sameEdge(hovered, e)
         const stroke = isSelected || isHovered
           ? 'var(--accent)'
           : !e.conforming
             ? 'var(--text-muted)'
             : 'transparent'
         const opacity = isSelected ? 1 : isHovered ? 0.75 : !e.conforming ? 0.55 : 1
+        const key = e.hostBoundaryTileId
+          ? `${e.hostBoundaryTileId}/${e.tileId}#${e.edgeIndex}`
+          : `${e.tileId}#${e.edgeIndex}`
+        const edgeKey: EdgeKey = {
+          tileId: e.tileId,
+          edgeIndex: e.edgeIndex,
+          hostBoundaryTileId: e.hostBoundaryTileId,
+        }
         return (
-          <g key={`${e.tileId}#${e.edgeIndex}`}>
+          <g key={key}>
             {/* Visible edge — only rendered when interesting, otherwise the polygon's
                 own outline already handles drawing. */}
             <line
@@ -59,9 +80,9 @@ export function EditorEdgeLayer({ edges, selected, onSelect, hovered, onHover }:
               style={{ cursor: 'pointer' }}
               onPointerDown={ev => {
                 ev.stopPropagation()
-                onSelect({ tileId: e.tileId, edgeIndex: e.edgeIndex })
+                onSelect(edgeKey)
               }}
-              onPointerEnter={() => onHover({ tileId: e.tileId, edgeIndex: e.edgeIndex })}
+              onPointerEnter={() => onHover(edgeKey)}
               onPointerLeave={() => onHover(null)}
             />
           </g>

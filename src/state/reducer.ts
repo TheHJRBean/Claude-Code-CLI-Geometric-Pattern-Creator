@@ -193,8 +193,17 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       if (state.editor.composition) {
         const c = state.editor.composition
         if (c.edgeLength === next) return state
+        // Cell vectors scale with `edgeLength`, so each `BoundaryTile.center`
+        // — which expresses the tile's position *within* the unit cell —
+        // must scale proportionally or boundaries drift out of place
+        // (octagon stays at (0,0), but the square's centre would lag at
+        // the old offset and the two outlines overlap as the cell grows).
+        // patch.edgeLength + the tile contents stay so the origin tile
+        // keeps its own size — single-shape parity.
+        const k = c.edgeLength === 0 ? 1 : next / c.edgeLength
         const tiles = c.tiles.map(t => ({
           ...t,
+          center: { x: t.center.x * k, y: t.center.y * k },
           patch: { ...t.patch, boundarySize: next },
         }))
         const active = tiles.find(t => t.id === c.activeTileId) ?? tiles[0]

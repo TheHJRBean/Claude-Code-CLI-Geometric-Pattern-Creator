@@ -4,15 +4,82 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
-**Last action:** 2026-05-10 — Editor v2 kicked off. Plan
-approved at `~/.claude/plans/graceful-kindling-charm.md`:
-add **4.8.8 (octagon + square)** as the first multi-tile
-boundary configuration. 8-phase rollout. **Phase 1 in flight:**
-adapter refactor (`EditorPatch` + `src/editor/active.ts`),
-no behaviour change. Subsequent phases add octagon polygon
-support, composition data + migration, reducer routing, geometry
-pipeline (compositionLattice.ts), UI (4.8.8 picker + active-tile
-tabs), history exclusion, persistence verification.
+**Last action:** 2026-05-10 — Editor v2 boundary configurations
+**4.8.8 (octagon + square)** wired end-to-end across phases 1–7
+of the plan in `~/.claude/plans/graceful-kindling-charm.md`.
+Type-check + production build pass; dev server boots clean.
+**Awaiting manual UI sign-off before phase 8 (persistence
+round-trip) is closed.**
+
+Phase log:
+- `93dcdd4` Phase 1 — `EditorPatch` + `src/editor/active.ts`
+  adapter; ~12 helper signatures migrated. No behaviour change.
+- `b3c98ee` Phase 2 — octagon polygon (`BoundaryShape += 'octagon'`,
+  `BOUNDARY_SIDES[octagon]=8`, `BOUNDARY_ROTATION[octagon]=3π/8`,
+  D8 symmetry). Octagon never assignable to a top-level
+  `boundaryShape` (migration's allow-list keeps it inside
+  `BoundaryTile.shape` only).
+- `13a6a63` Phase 3 — `BoundaryComposition` + `BoundaryTile` +
+  `EditorConfig.version: 2`. `createDefault488EditorConfig()` +
+  `migrateEditorConfig` accepts both v1 (legacy) and v2 with
+  optional composition.
+- `1d30054` Phases 4 + 7 — two new actions:
+  `SET_EDITOR_BOUNDARY_CONFIGURATION` (snapshots history) and
+  `SET_ACTIVE_BOUNDARY_TILE` (pure pane swap, excluded). Existing
+  per-patch reducer cases route via new `updatePatch` →
+  `activePatch` / `withActivePatch`.
+- `1a0a247` Phase 5 — `src/editor/compositionLattice.ts`:
+  `compositionToPolygons`, `compositionBoundaryOutlines`,
+  `compositionLatticeStamps` (4.8.8 cell vectors `(L(1+√2), 0)`
+  and `(0, L(1+√2))`). `usePattern` branches once on `composition`.
+- `d703dec` Phase 6 — picker now shows 4 entries (Triangle /
+  Square / Hexagon / 4.8.8). Active-tile sub-picker
+  ("Editing: [Octagon] [Square]") under composition. Single-shape
+  controls (Alternate orientation, Boundary size, Wrap boundary)
+  hide when composition is active. Strand panel aggregates tile
+  types via `allPatches`. Canvas transforms picker overlay to
+  cell-local while keeping validation in patch-local.
+
+**Sign-off probes for the 4.8.8 boundary configuration:**
+
+Single-shape regression (Phase 1 adapter):
+1. New patch → triangle / square / hexagon → place + delete +
+   Complete → undo / redo. Behaviour identical to pre-refactor.
+2. Save to library + reload from library — single-shape patches
+   survive.
+
+4.8.8 composition (Phases 3–6):
+3. New patch → Boundary picker shows **4.8.8** as a 4th entry.
+4. Click 4.8.8 → octagon + square outlines render at their cell
+   positions; "Editing: [Octagon] [Square]" appears under the
+   picker; alternate orientation / boundary size / wrap boundary
+   controls hide.
+5. Active = Octagon → place a tile inside the octagon → tile
+   appears at the octagon's cell position. Switch active to
+   Square → place a tile inside the square → tile appears at the
+   square's cell position. Picker overlay relocates correctly
+   between active-tile switches.
+6. Strand mode → both boundary tiles' interiors stamp across the
+   viewport on the 4.8.8 lattice. PIC strands flow naturally
+   between octagon and square at the shared edges (assuming
+   matching contact angles — the 4.8.8 magic).
+7. Strand panel → cards appear for every distinct tile type
+   across both inner patches (octagon, square, plus any
+   user-placed shapes inside either).
+8. Picking Triangle / Square / Hexagon while 4.8.8 is active →
+   exits composition with a fresh single-shape patch in the
+   chosen shape (destructive, undoable).
+9. Undo across composition switch → single-shape patch restored
+   intact. Active-tile pane swap is **not** undoable (the active
+   tile changes back via the picker, not via undo).
+
+Persistence (Phase 8 — open):
+10. Author a 4.8.8 patch (place tiles inside both octagon and
+    square). Save to Lab library + reload page → composition
+    entry round-trips. saveJSON to file → loadJSON → both inner
+    patches survive intact.
+11. Load a legacy v1 single-shape patch (saved before this
+    feature) → loads as v2 with composition absent.
 
 **Previous milestone:** 2026-05-07 — Step **17.11b** (orbit
 propagation for multi-vertex Complete) shipped + signed off

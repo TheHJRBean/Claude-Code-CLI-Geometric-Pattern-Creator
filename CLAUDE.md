@@ -64,23 +64,25 @@ Add a `TilingDefinition` entry to `tilings/index.ts` with the vertex configurati
 
 Key bits:
 
-- `types/editor.ts` — `EditorConfig` + `EditorTile` (tagged union of regular and irregular). Lives on `PatternConfig.editor` (optional). The patch is signalled by `tiling.type === 'editor'`.
-- `editor/createDefault.ts` — patch defaults; per-shape `DEFAULT_BOUNDARY_SIZE_BY_SHAPE` + `BOUNDARY_SIZE_MAX_BY_SHAPE`.
-- `editor/buildEditorPolygons.ts` — `editorTilesToPolygons` + `editorBoundaryVertices`.
-- `editor/exposedEdges.ts`, `editor/boundary.ts` — outer-boundary geometry consumed by Place / Complete UIs.
+- `types/editor.ts` — `EditorPatch` (per-patch shape) + `EditorConfig extends EditorPatch & { version: 2, composition? }` + `EditorTile` (tagged union of regular and irregular). Lives on `PatternConfig.editor` (optional). The patch is signalled by `tiling.type === 'editor'`. v2 adds `BoundaryComposition` + `BoundaryTile` for multi-tile boundary configurations (4.8.8).
+- `editor/active.ts` — adapter layer (`activePatch` / `allPatches` / `withActivePatch`) used by the reducer + Canvas to route between the wrapper `EditorConfig` and the per-patch `EditorPatch`. Composition-aware: routes to `composition.tiles[active].patch` when set.
+- `editor/createDefault.ts` — patch defaults; per-shape `DEFAULT_BOUNDARY_SIZE_BY_SHAPE` + `BOUNDARY_SIZE_MAX_BY_SHAPE`. `createDefault488EditorConfig` + `createDefault488Composition` seed a 4.8.8 cell (octagon at origin + square at offset, both with origin tiles sized to fill the boundary outline).
+- `editor/buildEditorPolygons.ts` — `editorTilesToPolygons` + `editorBoundaryVertices`. `BOUNDARY_SIDES` / `BOUNDARY_ROTATION` exported (octagon entry exists; never assignable as top-level boundaryShape — only inside a `BoundaryTile.shape`).
+- `editor/exposedEdges.ts`, `editor/boundary.ts` — outer-boundary geometry consumed by Place / Complete UIs. Take `EditorPatch` after the Phase 1 adapter refactor.
 - `editor/placement.ts` — `placeRegularNGonOnEdge` + Decision 7 / 14a single-edge viability + `viableSidesForEdge` (single-edge picker filter).
-- `editor/symmetry.ts` — `boundarySymmetries(shape, mode)` returns the picked subgroup of the boundary's dihedral group (`SymmetryMode` = `'full' | 'rotation' | 'vertical' | 'horizontal' | 'none'`). 17.4 re-enabled 2026-05-06.
-- `editor/orbit.ts` — `orbitEdges` / `placeTilesOnOrbit` / `orbitTileIds` for symmetry-aware placement + delete; also exports an orbit-aware `viableSidesForEdge` that probes the full orbit so the picker hides side counts whose orbit images would fail. Reads `editor.symmetryMode ?? 'none'` (legacy patches read as 17.3 single-edge behaviour).
-- `editor/complete.ts` — gap polygon resolution (centroid-outside-patch test) + `tryRegularFit` + irregular fallback.
+- `editor/symmetry.ts` — `boundarySymmetries(shape, mode)` returns the picked subgroup of the boundary's dihedral group (`SymmetryMode` = `'full' | 'rotation' | 'vertical' | 'horizontal' | 'none'`). D8 supported for octagon.
+- `editor/orbit.ts` — `orbitEdges` / `placeTilesOnOrbit` / `orbitTileIds` / `placePolygonsOnOrbit` for symmetry-aware placement, delete, and multi-vertex Complete; also exports an orbit-aware `viableSidesForEdge`.
+- `editor/complete.ts` + `editor/completeN.ts` — gap polygon resolution + `tryRegularFit` + irregular fallback + multi-vertex `completeNGap` validator.
 - `editor/tileTypeId.ts` — Q11 canonical-signature `tileTypeId`: `"<n>"` for regulars, `"<n>i:<8-char hex>"` for irregulars.
-- `editor/tileTypes.ts` — `editorTileTypes` for the strand panel + Q15 lazy + additive `seedFiguresForEditor`. Reducer routes editor mutations through `seedFigures`.
-- `editor/lattice.ts` — `editorLatticeStamps` for the 17.6 strand-editor lattice preview (square + hex + triangle via 2-orientation cell). `editorOneRingNeighbourStamps` for the 17.6d Design-mode "Show neighbours" preview.
+- `editor/tileTypes.ts` — `editorTileTypes` for the strand panel + Q15 lazy + additive `seedFiguresForEditor`. Reducer routes editor mutations through `seedFigures` (which walks `allPatches` for compositions).
+- `editor/lattice.ts` — single-shape `editorLatticeStamps` for the 17.6 strand-editor lattice preview (square + hex + triangle via 2-orientation cell). `editorOneRingNeighbourStamps` for the 17.6d Design-mode "Show neighbours" preview.
+- `editor/compositionLattice.ts` — composition-mode siblings: `compositionToPolygons` (origin tiles transformed by `BoundaryTile.center` + rotation), `compositionBoundaryOutlines` (visual outlines), `compositionLatticeStamps` (cell vectors at `composition.edgeLength`), `compositionCellBasis`.
 - `editor/nonTilingDetection.ts` — 17.10 patch-vs-boundary area compare for the strand-mode warning tag.
-- `editor/migrations.ts` — 17.8 load-time validation; reads `symmetryMode` if present, defaults absent (= `'none'`).
-- `editor/history.ts` + `editor/useEditorHistory.ts` — 17.9 undo/redo with `DESIGN_MODE_ACTIONS` allowlist, depth 50, 500 ms coalesce.
-- `usePattern` accepts `editorStrandMode`, `showBoundaryLattice`, `editorNeighbourPreview`, `editorNeighbourBoundaries`, `editorNeighbourStrands`. Strand mode stamps `editorTilesToPolygons` across the viewport on the boundary lattice; neighbour preview adds a one-ring ghost layer in Design mode.
+- `editor/migrations.ts` — load-time validation; switches on `r.version` (1 = legacy single-shape; 2 = single-shape OR composition with `BoundaryComposition` shape check). Octagon allowed inside `BoundaryTile.shape` only.
+- `editor/history.ts` + `editor/useEditorHistory.ts` — undo/redo with `DESIGN_MODE_ACTIONS` allowlist, depth 50, 500 ms coalesce. `SET_EDITOR_BOUNDARY_CONFIGURATION` is in the set; `SET_ACTIVE_BOUNDARY_TILE` is intentionally NOT (pure pane swap).
+- `usePattern` accepts `editorStrandMode`, `showBoundaryLattice`, `editorNeighbourPreview`, `editorNeighbourBoundaries`, `editorNeighbourStrands`. Branches once on `composition` for the editor branch — composition uses `compositionToPolygons` + `compositionLatticeStamps` + `compositionBoundaryOutlines`. Neighbour preview is single-shape only.
 
-Authoritative design context lives in `TESSELLATION_REVAMP_PLAN.md` (Step 17 section) and `SESSION_STATE.md` (resume anchor). Step 17.4 was archived 2026-05-05 then re-enabled 2026-05-06 behind the subgroup picker — `archive/editor-orbit-17.4/` is now historical only.
+Authoritative design context lives in `TESSELLATION_REVAMP_PLAN.md` (Step 17 section) and `SESSION_STATE.md` (resume anchor). 4.8.8 boundary configurations are LIVE on branch `feat/art-deco-egypt-theme-revamp`; see SESSION_STATE for sign-off probes and the open follow-up list.
 
 ### Planned stages (see plan file)
 

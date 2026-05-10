@@ -1146,7 +1146,11 @@ function EditorDesignControls({
           <input
             type="range"
             className="pattern-slider"
-            min={40}
+            // Min is the seeded composition edge — i.e. the origin tile's
+            // size. Scaling below this would pinch the boundary tile centres
+            // tighter than the (fixed-size) origin polygons can fit, making
+            // the octagon and square overlap each other.
+            min={100}
             max={400}
             step={1}
             value={editor.composition.edgeLength}

@@ -1,7 +1,10 @@
 import type {
+  BoundaryComposition,
   BoundaryShape,
+  BoundaryTile,
   EditorConfig,
   EditorIrregularTile,
+  EditorPatch,
   EditorRegularTile,
   EditorTile,
   SymmetryMode,
@@ -14,12 +17,20 @@ const SYMMETRY_MODES = new Set<SymmetryMode>(['full', 'rotation', 'vertical', 'h
  *
  * `migrateEditorConfig` takes an unvalidated value (from JSON / localStorage),
  * checks shape, and returns a clean `EditorConfig` or `null` if the input is
- * unrecoverable. Currently the only valid version is `1`, so migration is
- * shape validation only — but the central function is the intended hook for
- * future version bumps.
+ * unrecoverable. Versions:
+ *   - v1 (legacy): single-shape patches, no composition.
+ *   - v2: adds the optional `composition` field for multi-tile boundary
+ *     configurations (4.8.8 etc.). v1 patches load unchanged into v2 with
+ *     `composition` absent.
  */
 
-const BOUNDARY_SHAPES = new Set<BoundaryShape>(['triangle', 'square', 'hexagon'])
+/** Allowed top-level boundary shapes (single-shape patches). Octagon is
+ * intentionally excluded — it only appears inside a multi-tile composition. */
+const TOP_LEVEL_BOUNDARY_SHAPES = new Set<BoundaryShape>(['triangle', 'square', 'hexagon'])
+/** Boundary shapes that can appear inside a `BoundaryTile`. Octagon allowed. */
+const BOUNDARY_TILE_SHAPES = new Set<BoundaryShape>(['triangle', 'square', 'hexagon', 'octagon'])
+/** Configuration ids supported by v2. Extend when adding 3.12.12, 4.6.12, … */
+const COMPOSITION_IDS = new Set<BoundaryComposition['configurationId']>(['4.8.8'])
 
 function isVec2(v: unknown): v is { x: number; y: number } {
   return typeof v === 'object' && v !== null
@@ -72,14 +83,19 @@ function migrateTile(raw: unknown): EditorTile | null {
   return null
 }
 
-export function migrateEditorConfig(raw: unknown): EditorConfig | null {
-  if (typeof raw !== 'object' || raw === null) return null
-  const r = raw as Record<string, unknown>
-
-  // Future version bumps would dispatch here; for now only v1 is valid.
-  if (r.version !== 1) return null
-
-  if (typeof r.boundaryShape !== 'string' || !BOUNDARY_SHAPES.has(r.boundaryShape as BoundaryShape)) {
+/**
+ * Validate the per-patch fields shared by both single-shape patches and
+ * inner `BoundaryTile.patch` patches. Returns the valid patch or `null`.
+ *
+ * `allowOctagon` controls whether `'octagon'` is accepted for `boundaryShape`
+ * — true inside a composition's BoundaryTile, false at the top level.
+ */
+function migratePatchFields(
+  r: Record<string, unknown>,
+  allowOctagon: boolean,
+): EditorPatch | null {
+  const allowedShapes = allowOctagon ? BOUNDARY_TILE_SHAPES : TOP_LEVEL_BOUNDARY_SHAPES
+  if (typeof r.boundaryShape !== 'string' || !allowedShapes.has(r.boundaryShape as BoundaryShape)) {
     return null
   }
   if (typeof r.boundarySize !== 'number' || r.boundarySize <= 0) return null
@@ -88,23 +104,21 @@ export function migrateEditorConfig(raw: unknown): EditorConfig | null {
   if (!Array.isArray(r.tiles) || r.tiles.length === 0) return null
 
   const tiles: EditorTile[] = []
-  for (const raw of r.tiles) {
-    const tile = migrateTile(raw)
+  for (const rawTile of r.tiles) {
+    const tile = migrateTile(rawTile)
     if (!tile) return null
     tiles.push(tile)
   }
   // The first tile must be the auto-placed origin (Decision 6).
   if (tiles[0].origin !== 'origin') return null
 
-  const out: EditorConfig = {
-    version: 1,
+  const out: EditorPatch = {
     boundaryShape: r.boundaryShape as BoundaryShape,
     boundarySize: r.boundarySize,
     originSides: r.originSides,
     edgeLength: r.edgeLength,
     tiles,
   }
-  // Optional fields — keep when valid, drop silently otherwise.
   if (typeof r.alternateBoundary === 'boolean') out.alternateBoundary = r.alternateBoundary
   if (typeof r.wrapBoundary === 'boolean') out.wrapBoundary = r.wrapBoundary
   if (typeof r.autoComplete === 'object' && r.autoComplete !== null) {
@@ -116,8 +130,79 @@ export function migrateEditorConfig(raw: unknown): EditorConfig | null {
   if (typeof r.symmetryMode === 'string' && SYMMETRY_MODES.has(r.symmetryMode as SymmetryMode)) {
     out.symmetryMode = r.symmetryMode as SymmetryMode
   }
-  // Legacy patches without `symmetryMode` keep the field absent — readers
-  // default it to `'none'` (the 17.3 single-edge behaviour) so loading an
-  // old patch never silently propagates placements.
+  return out
+}
+
+function migrateBoundaryTile(raw: unknown): BoundaryTile | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const r = raw as Record<string, unknown>
+  if (typeof r.id !== 'string' || r.id.length === 0) return null
+  if (typeof r.shape !== 'string' || !BOUNDARY_TILE_SHAPES.has(r.shape as BoundaryShape)) return null
+  if (typeof r.center !== 'object' || r.center === null) return null
+  const c = r.center as Record<string, unknown>
+  if (typeof c.x !== 'number' || typeof c.y !== 'number') return null
+  if (typeof r.rotation !== 'number') return null
+  if (typeof r.patch !== 'object' || r.patch === null) return null
+  const patch = migratePatchFields(r.patch as Record<string, unknown>, true)
+  if (!patch) return null
+  return {
+    id: r.id,
+    shape: r.shape as BoundaryShape,
+    center: { x: c.x, y: c.y },
+    rotation: r.rotation,
+    patch,
+  }
+}
+
+function migrateBoundaryComposition(raw: unknown): BoundaryComposition | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const r = raw as Record<string, unknown>
+  if (typeof r.configurationId !== 'string'
+    || !COMPOSITION_IDS.has(r.configurationId as BoundaryComposition['configurationId'])) return null
+  if (typeof r.edgeLength !== 'number' || r.edgeLength <= 0) return null
+  if (typeof r.activeTileId !== 'string') return null
+  if (!Array.isArray(r.tiles) || r.tiles.length === 0) return null
+
+  const tiles: BoundaryTile[] = []
+  for (const rawTile of r.tiles) {
+    const t = migrateBoundaryTile(rawTile)
+    if (!t) return null
+    tiles.push(t)
+  }
+  if (!tiles.some(t => t.id === r.activeTileId)) return null
+
+  return {
+    configurationId: r.configurationId as BoundaryComposition['configurationId'],
+    edgeLength: r.edgeLength,
+    activeTileId: r.activeTileId,
+    tiles,
+  }
+}
+
+export function migrateEditorConfig(raw: unknown): EditorConfig | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const r = raw as Record<string, unknown>
+
+  // Accept legacy v1 (single-shape only, no composition) and current v2
+  // (single-shape OR multi-tile composition). Returning null for an unknown
+  // older version would silently break loads — be explicit about each case.
+  if (r.version !== 1 && r.version !== 2) return null
+
+  const patch = migratePatchFields(r, false)
+  if (!patch) return null
+
+  const out: EditorConfig = {
+    version: 2,
+    ...patch,
+  }
+
+  // Composition is v2-only. v1 patches load as single-shape (composition
+  // absent); the wrapper bumps to v2 silently.
+  if (r.version === 2 && r.composition !== undefined) {
+    const composition = migrateBoundaryComposition(r.composition)
+    if (!composition) return null
+    out.composition = composition
+  }
+
   return out
 }

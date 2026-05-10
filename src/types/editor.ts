@@ -136,5 +136,53 @@ export interface EditorPatch {
 
 export interface EditorConfig extends EditorPatch {
   /** Inner schema version. Bumped independently of the outer storage envelope. */
-  version: 1
+  version: 2
+  /**
+   * When set, this patch is a multi-tile **boundary configuration** (e.g.
+   * 4.8.8 = octagon + square). The single-tile fields above are inert in
+   * this case — every consumer reading patch shape/tiles/symmetry must go
+   * through `activePatch` / `allPatches` (see `src/editor/active.ts`).
+   * Absent on single-shape patches (the legacy and v1 default).
+   */
+  composition?: BoundaryComposition
+}
+
+/**
+ * A unit cell of a multi-tile boundary configuration. The configuration's
+ * lattice tiles by translation; rendering stamps the whole cell across the
+ * viewport via `compositionLatticeStamps`. Each `BoundaryTile` carries its
+ * own authored interior patch (`EditorPatch`).
+ *
+ * v1 ships a single configuration: `4.8.8` (truncated square: octagon at
+ * cell origin + square at cell-centre, rotated π/4). Future configurations
+ * (3.12.12, 4.6.12, 3.4.6.4, …) slot in by extending `configurationId`.
+ */
+export interface BoundaryComposition {
+  configurationId: '4.8.8'
+  /** Edge length shared by every boundary tile in the cell — the value the
+   * cell-lattice basis is computed from. Replaces the per-patch `boundarySize`
+   * for composition layouts. */
+  edgeLength: number
+  /** Which boundary tile the user is currently editing in Design mode.
+   * Strand mode renders all tiles together regardless. Switching tiles is a
+   * UI pane swap, not a design mutation — excluded from the undo stack. */
+  activeTileId: string
+  tiles: BoundaryTile[]
+}
+
+export interface BoundaryTile {
+  /** Stable identifier within the composition (e.g. `'octagon'`, `'square'`). */
+  id: string
+  /** Outline shape of this boundary tile. May include `'octagon'` etc. */
+  shape: BoundaryShape
+  /** Position of this tile's centre within the unit cell (in world units). */
+  center: Vec2
+  /** Local rotation of this tile's boundary outline within the cell. For
+   * 4.8.8: octagon rotation 0 (uses BOUNDARY_ROTATION default — flat-top);
+   * square rotation π/4 (diamond, so its edges align with the octagon's
+   * diagonal edges). */
+  rotation: number
+  /** The authored interior — an `EditorPatch` exactly like a single-shape
+   * patch, with its own tiles, symmetryMode, edgeLength, etc. */
+  patch: EditorPatch
 }

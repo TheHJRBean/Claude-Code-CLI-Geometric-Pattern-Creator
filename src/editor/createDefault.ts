@@ -1,4 +1,11 @@
-import type { BoundaryShape, EditorConfig, EditorRegularTile } from '../types/editor'
+import type {
+  BoundaryComposition,
+  BoundaryShape,
+  BoundaryTile,
+  EditorConfig,
+  EditorPatch,
+  EditorRegularTile,
+} from '../types/editor'
 
 /**
  * Defaults for a fresh editor patch. Used by `EDITOR_NEW` and as a base for
@@ -61,11 +68,108 @@ export function createDefaultEditorConfig(overrides: Partial<EditorConfig> = {})
   const originSides = overrides.originSides ?? DEFAULT_ORIGIN_SIDES
   const edgeLength = overrides.edgeLength ?? DEFAULT_EDGE_LENGTH
   return {
-    version: 1,
+    version: 2,
     boundaryShape,
     boundarySize,
     originSides,
     edgeLength,
     tiles: overrides.tiles ?? [createOriginTile(originSides, edgeLength)],
+  }
+}
+
+/**
+ * Per-boundary-tile patch defaults inside a composition. Mirrors
+ * `createDefaultEditorConfig` but produces an `EditorPatch` (no `version`,
+ * no `composition`) since these patches sit *inside* `BoundaryTile.patch`.
+ *
+ * The boundary outline of a composition tile is determined by the
+ * composition's lattice, not its individual `boundarySize` — but the field
+ * still has to be populated for legacy helpers (e.g. `editorBoundaryVertices`
+ * called inside placement / Complete flows). It's set to a value matching
+ * the tile's circumradius at the shared `edgeLength` so single-patch
+ * helpers see a coherent outline if invoked.
+ */
+function createInnerPatch(shape: BoundaryShape, edgeLength: number): EditorPatch {
+  return {
+    boundaryShape: shape,
+    boundarySize: edgeLength,
+    originSides: BOUNDARY_SIDES_FOR_DEFAULTS[shape],
+    edgeLength,
+    tiles: [
+      {
+        id: 'origin',
+        kind: 'regular',
+        sides: BOUNDARY_SIDES_FOR_DEFAULTS[shape],
+        center: { x: 0, y: 0 },
+        edgeLength,
+        rotation: 0,
+        origin: 'origin',
+      },
+    ],
+  }
+}
+
+const BOUNDARY_SIDES_FOR_DEFAULTS: Record<BoundaryShape, number> = {
+  triangle: 3,
+  square: 4,
+  hexagon: 6,
+  octagon: 8,
+}
+
+/**
+ * Build a fresh **4.8.8 boundary configuration** (truncated square: octagon
+ * + square). Cell vectors `u = (L(1+√2), 0)`, `v = (0, L(1+√2))`. Octagon
+ * sits at the cell origin in flat-top orientation; square sits at the cell
+ * centre rotated π/4 (diamond) so its edges align with the octagon's
+ * diagonal edges and strands flow naturally between them.
+ *
+ * Each boundary tile starts with its own auto-placed origin polygon (octagon
+ * for the octagon tile, square for the square tile) at the tile centre — the
+ * user can edit each independently in Design mode and see the merged
+ * composition in Strand mode.
+ */
+export function createDefault488Composition(edgeLength: number = DEFAULT_EDGE_LENGTH): BoundaryComposition {
+  const offset = (edgeLength * (1 + Math.SQRT2)) / 2
+  const tiles: BoundaryTile[] = [
+    {
+      id: 'octagon',
+      shape: 'octagon',
+      center: { x: 0, y: 0 },
+      rotation: 0,
+      patch: createInnerPatch('octagon', edgeLength),
+    },
+    {
+      id: 'square',
+      shape: 'square',
+      center: { x: offset, y: offset },
+      rotation: Math.PI / 4,
+      patch: createInnerPatch('square', edgeLength),
+    },
+  ]
+  return {
+    configurationId: '4.8.8',
+    edgeLength,
+    activeTileId: 'octagon',
+    tiles,
+  }
+}
+
+/**
+ * Build a fresh `EditorConfig` wrapping a 4.8.8 composition. The wrapper's
+ * top-level fields are inert when `composition` is set — populated with
+ * sensible no-op defaults (single-shape readers should never reach them
+ * because they go through `activePatch` / `allPatches` first).
+ */
+export function createDefault488EditorConfig(): EditorConfig {
+  const composition = createDefault488Composition(DEFAULT_EDGE_LENGTH)
+  const active = composition.tiles.find(t => t.id === composition.activeTileId)!
+  return {
+    version: 2,
+    boundaryShape: active.patch.boundaryShape,
+    boundarySize: active.patch.boundarySize,
+    originSides: active.patch.originSides,
+    edgeLength: active.patch.edgeLength,
+    tiles: active.patch.tiles,
+    composition,
   }
 }

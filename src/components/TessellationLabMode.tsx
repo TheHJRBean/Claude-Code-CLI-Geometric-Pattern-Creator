@@ -16,6 +16,7 @@ import type { BoundaryShape, SymmetryMode } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import { validateNGapPolygon } from '../editor/completeN'
 import { editorTileTypes } from '../editor/tileTypes'
+import { allPatches } from '../editor/active'
 import { useEditorHistory } from '../editor/useEditorHistory'
 import { detectPatchTilingStatus } from '../editor/nonTilingDetection'
 
@@ -234,11 +235,22 @@ export function TessellationLabMode({
   // Editor patches don't have a `TilingDefinition` — derive their tile types
   // from the patch itself so the strand panel renders one card per distinct
   // n-gon (and one per distinct irregular signature) currently on canvas.
-  const tileTypes: TileTypeInfo[] = config.tiling.type === 'editor' && config.editor
-    ? editorTileTypes(config.editor)
-    : def
+  // For multi-tile compositions (e.g. 4.8.8) aggregate across every boundary
+  // tile's interior so both octagon and square tile types get strand cards.
+  const tileTypes: TileTypeInfo[] = (() => {
+    if (config.tiling.type === 'editor' && config.editor) {
+      const seen = new Map<string, TileTypeInfo>()
+      for (const patch of allPatches(config.editor)) {
+        for (const tt of editorTileTypes(patch)) {
+          if (!seen.has(tt.id)) seen.set(tt.id, tt)
+        }
+      }
+      return Array.from(seen.values())
+    }
+    return def
       ? def.tileTypes ?? Array.from(new Set(def.vertexConfig)).map(n => ({ id: String(n), sides: n, label: `${n}-gon` }))
       : []
+  })()
 
   return (
     <div className="app-layout">
@@ -854,10 +866,15 @@ function NonTilingWarning({ editor }: { editor: NonNullable<PatternConfig['edito
 
 /* ── Editor Design controls (17.2) ─────────────────────── */
 
-const BOUNDARY_OPTIONS: { value: BoundaryShape; label: string }[] = [
-  { value: 'triangle', label: 'Triangle' },
-  { value: 'square', label: 'Square' },
-  { value: 'hexagon', label: 'Hexagon' },
+type BoundaryPickerKind =
+  | { kind: 'shape'; shape: BoundaryShape }
+  | { kind: 'configuration'; id: '4.8.8' }
+
+const BOUNDARY_OPTIONS: { value: BoundaryPickerKind; label: string }[] = [
+  { value: { kind: 'shape', shape: 'triangle' }, label: 'Triangle' },
+  { value: { kind: 'shape', shape: 'square' }, label: 'Square' },
+  { value: { kind: 'shape', shape: 'hexagon' }, label: 'Hexagon' },
+  { value: { kind: 'configuration', id: '4.8.8' }, label: '4.8.8' },
 ]
 
 interface EditorDesignControlsProps {
@@ -1013,14 +1030,25 @@ function EditorDesignControls({
       )}
 
       {!inStrand && <>
-      <FieldLabel label="Boundary shape" />
+      <FieldLabel label="Boundary" />
       <div style={{ display: 'flex', gap: 0, marginBottom: 4 }}>
         {BOUNDARY_OPTIONS.map(opt => {
-          const active = editor.boundaryShape === opt.value
+          const active = opt.value.kind === 'configuration'
+            ? editor.composition?.configurationId === opt.value.id
+            : !editor.composition && editor.boundaryShape === opt.value.shape
+          const onClick = () => {
+            if (opt.value.kind === 'configuration') {
+              dispatch({ type: 'SET_EDITOR_BOUNDARY_CONFIGURATION', payload: opt.value.id })
+            } else {
+              // Reducer handles the composition → single-shape transition by
+              // seeding a fresh patch in the requested shape.
+              dispatch({ type: 'SET_EDITOR_BOUNDARY_SHAPE', payload: opt.value.shape })
+            }
+          }
           return (
             <button
-              key={opt.value}
-              onClick={() => dispatch({ type: 'SET_EDITOR_BOUNDARY_SHAPE', payload: opt.value })}
+              key={opt.label}
+              onClick={onClick}
               style={{
                 flex: 1,
                 padding: '5px 0',
@@ -1042,35 +1070,75 @@ function EditorDesignControls({
         })}
       </div>
 
-      <label style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        marginTop: 10,
-        cursor: 'pointer',
-        fontFamily: "'EB Garamond', Georgia, serif",
-        fontSize: 13,
-        color: editor.alternateBoundary ? 'var(--text)' : 'var(--text-muted)',
-        transition: 'color 0.15s',
-      }}>
-        <input
-          type="checkbox"
-          checked={!!editor.alternateBoundary}
-          onChange={e => dispatch({ type: 'SET_EDITOR_ALTERNATE_BOUNDARY', payload: e.target.checked })}
-        />
-        Alternate orientation
-      </label>
+      {editor.composition && (
+        <>
+          <FieldLabel label="Editing" />
+          <div style={{ display: 'flex', gap: 0, marginBottom: 8 }}>
+            {editor.composition.tiles.map(t => {
+              const active = editor.composition!.activeTileId === t.id
+              const label = t.id.charAt(0).toUpperCase() + t.id.slice(1)
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => dispatch({ type: 'SET_ACTIVE_BOUNDARY_TILE', payload: { tileId: t.id } })}
+                  style={{
+                    flex: 1,
+                    padding: '5px 0',
+                    fontFamily: "'Cinzel', Georgia, serif",
+                    fontSize: 9,
+                    fontWeight: 600,
+                    letterSpacing: '0.10em',
+                    textTransform: 'uppercase',
+                    cursor: 'pointer',
+                    border: `1px solid ${active ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                    background: active ? 'var(--accent-bg)' : 'transparent',
+                    color: active ? 'var(--accent)' : 'var(--text-muted)',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+        </>
+      )}
 
-      <FieldLabel label="Boundary size" value={editor.boundarySize.toFixed(0)} unit=" u" />
-      <input
-        type="range"
-        className="pattern-slider"
-        min={80}
-        max={BOUNDARY_SIZE_MAX_BY_SHAPE[editor.boundaryShape]}
-        step={1}
-        value={editor.boundarySize}
-        onChange={e => dispatch({ type: 'SET_EDITOR_BOUNDARY_SIZE', payload: Number(e.target.value) })}
-      />
+      {!editor.composition && (
+        <label style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          marginTop: 10,
+          cursor: 'pointer',
+          fontFamily: "'EB Garamond', Georgia, serif",
+          fontSize: 13,
+          color: editor.alternateBoundary ? 'var(--text)' : 'var(--text-muted)',
+          transition: 'color 0.15s',
+        }}>
+          <input
+            type="checkbox"
+            checked={!!editor.alternateBoundary}
+            onChange={e => dispatch({ type: 'SET_EDITOR_ALTERNATE_BOUNDARY', payload: e.target.checked })}
+          />
+          Alternate orientation
+        </label>
+      )}
+
+      {!editor.composition && (
+        <>
+          <FieldLabel label="Boundary size" value={editor.boundarySize.toFixed(0)} unit=" u" />
+          <input
+            type="range"
+            className="pattern-slider"
+            min={80}
+            max={BOUNDARY_SIZE_MAX_BY_SHAPE[editor.boundaryShape]}
+            step={1}
+            value={editor.boundarySize}
+            onChange={e => dispatch({ type: 'SET_EDITOR_BOUNDARY_SIZE', payload: Number(e.target.value) })}
+          />
+        </>
+      )}
       {editor.wrapBoundary && (
         <div
           style={{
@@ -1154,26 +1222,29 @@ function EditorDesignControls({
         </div>
       )}
 
-      {/* Wrap boundary — design-mode boundary fitting (live). */}
-      <div style={{ marginTop: 14 }}>
-        <label style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          cursor: 'pointer',
-          fontFamily: "'EB Garamond', Georgia, serif",
-          fontSize: 13,
-          color: editor.wrapBoundary ? 'var(--text)' : 'var(--text-muted)',
-          transition: 'color 0.15s',
-        }}>
-          <input
-            type="checkbox"
-            checked={!!editor.wrapBoundary}
-            onChange={e => dispatch({ type: 'SET_EDITOR_WRAP_BOUNDARY', payload: e.target.checked })}
-          />
-          Wrap boundary
-        </label>
-      </div>
+      {/* Wrap boundary — design-mode boundary fitting (live). Single-shape
+          only; in composition the cell vectors drive boundary geometry. */}
+      {!editor.composition && (
+        <div style={{ marginTop: 14 }}>
+          <label style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            cursor: 'pointer',
+            fontFamily: "'EB Garamond', Georgia, serif",
+            fontSize: 13,
+            color: editor.wrapBoundary ? 'var(--text)' : 'var(--text-muted)',
+            transition: 'color 0.15s',
+          }}>
+            <input
+              type="checkbox"
+              checked={!!editor.wrapBoundary}
+              onChange={e => dispatch({ type: 'SET_EDITOR_WRAP_BOUNDARY', payload: e.target.checked })}
+            />
+            Wrap boundary
+          </label>
+        </div>
+      )}
 
       {/* Step 17.6d — Show neighbours. Disabled while wrap is on (boundary
           edge moves under the user's feet). Triangle support added — the

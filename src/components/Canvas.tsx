@@ -6,14 +6,59 @@ import { usePattern } from '../hooks/usePattern'
 import { usePanZoom, type ViewTransform } from '../hooks/usePanZoom'
 import { PatternSVG } from '../rendering/PatternSVG'
 import { RotationDial } from './RotationDial'
+import type { ExposedEdge } from '../editor/exposedEdges'
 import { computeExposedEdges } from '../editor/exposedEdges'
-import { computeAllCycles, computeBoundaryCycle } from '../editor/boundary'
+import { computeAllCycles, computeBoundaryCycle, type BoundaryVertex } from '../editor/boundary'
 import { EDITOR_EPS } from '../editor/exposedEdges'
 import { neighbourCycleVertices } from '../editor/lattice'
 import { viableSidesForEdge } from '../editor/orbit'
+import { activePatch } from '../editor/active'
 import { EditorEdgeLayer } from './EditorEdgeLayer'
 import { EditorPickerOverlay } from './EditorPickerOverlay'
 import { EditorVertexLayer } from './EditorVertexLayer'
+
+/**
+ * When a multi-tile composition is active (e.g. 4.8.8), the active boundary
+ * tile's authored patch lives in patch-local coords (origin at the tile's
+ * centre). The cell renders these patches at cell-local coords via
+ * `compositionToPolygons`. Picker overlays (edges, vertices) are computed in
+ * patch-local coords and need to be transformed to cell-local for rendering.
+ *
+ * This helper returns the active tile's transform — `null` when there's no
+ * active composition (single-shape patches need no transform).
+ */
+function activeTileTransform(config: PatternConfig): { translation: Vec2; rotation: number } | null {
+  const composition = config.editor?.composition
+  if (!composition) return null
+  const t = composition.tiles.find(t => t.id === composition.activeTileId)
+  if (!t) return null
+  return { translation: t.center, rotation: t.rotation }
+}
+
+function applyTransform(p: Vec2, tx: { translation: Vec2; rotation: number }): Vec2 {
+  if (tx.rotation === 0) {
+    return { x: p.x + tx.translation.x, y: p.y + tx.translation.y }
+  }
+  const c = Math.cos(tx.rotation), s = Math.sin(tx.rotation)
+  return {
+    x: p.x * c - p.y * s + tx.translation.x,
+    y: p.x * s + p.y * c + tx.translation.y,
+  }
+}
+
+function transformEdge(e: ExposedEdge, tx: { translation: Vec2; rotation: number }): ExposedEdge {
+  return {
+    ...e,
+    p1: applyTransform(e.p1, tx),
+    p2: applyTransform(e.p2, tx),
+    midpoint: applyTransform(e.midpoint, tx),
+    sourceCenter: applyTransform(e.sourceCenter, tx),
+  }
+}
+
+function transformBoundaryVertex(v: BoundaryVertex, tx: { translation: Vec2; rotation: number }): BoundaryVertex {
+  return { ...v, p: applyTransform(v.p, tx) }
+}
 
 export interface SelectedEdge {
   tileId: string
@@ -127,9 +172,19 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
 
   // ── Editor-mode overlay (Step 17.3) ──────────────────────
   const editorActive = config.tiling.type === 'editor' && config.editor != null
+  // Composition-mode picker geometry: edges/vertices are computed in the
+  // active boundary tile's patch-local coords; the canvas renders the cell at
+  // cell-local coords. We keep the raw (patch-local) edges as the source of
+  // truth for validation + dispatch, and transform a parallel list for
+  // rendering / picker placement.
+  const tileTx = useMemo(() => activeTileTransform(config), [config])
   const exposedEdges = useMemo(
-    () => editorActive && config.editor ? computeExposedEdges(config.editor) : [],
+    () => editorActive && config.editor ? computeExposedEdges(activePatch(config.editor)) : [],
     [editorActive, config.editor],
+  )
+  const renderedEdges = useMemo(
+    () => tileTx ? exposedEdges.map(e => transformEdge(e, tileTx)) : exposedEdges,
+    [exposedEdges, tileTx],
   )
   const [hoveredEdge, setHoveredEdge] = useState<SelectedEdge | null>(null)
   useEffect(() => { if (!editorActive) setHoveredEdge(null) }, [editorActive])
@@ -142,10 +197,19 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // computed when complete mode is active to keep the place-mode hot path
   // cheap. Pockets are 17.11.0's interior holes.
   const allCycles = useMemo(
-    () => editorActive && config.editor && editorMode === 'complete'
-      ? computeAllCycles(config.editor)
-      : { outer: [], pockets: [] },
-    [editorActive, config.editor, editorMode],
+    () => {
+      if (!editorActive || !config.editor || editorMode !== 'complete') {
+        return { outer: [] as BoundaryVertex[], pockets: [] as BoundaryVertex[][] }
+      }
+      const patch = activePatch(config.editor)
+      const raw = computeAllCycles(patch)
+      if (!tileTx) return raw
+      return {
+        outer: raw.outer.map(v => transformBoundaryVertex(v, tileTx)),
+        pockets: raw.pockets.map(cycle => cycle.map(v => transformBoundaryVertex(v, tileTx))),
+      }
+    },
+    [editorActive, config.editor, editorMode, tileTx],
   )
   const boundaryCycle = allCycles.outer
   // Pocket vertices are clickable in Complete mode. Flatten the per-pocket
@@ -159,18 +223,22 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // that coincide with patch outer-cycle vertices (would render twice).
   const boundaryCorners = useMemo(() => {
     if (!editorActive || !config.editor || editorMode !== 'complete') return []
-    const corners = computeBoundaryCycle(config.editor)
-    return corners.filter(c => !boundaryCycle.some(v =>
+    const patch = activePatch(config.editor)
+    const raw = computeBoundaryCycle(patch)
+    const transformed = tileTx ? raw.map(v => transformBoundaryVertex(v, tileTx)) : raw
+    return transformed.filter(c => !boundaryCycle.some(v =>
       Math.abs(v.p.x - c.p.x) < EDITOR_EPS && Math.abs(v.p.y - c.p.y) < EDITOR_EPS,
     ))
-  }, [editorActive, config.editor, editorMode, boundaryCycle])
+  }, [editorActive, config.editor, editorMode, tileTx, boundaryCycle])
   // Step 17.11.1 — neighbour-stamp outer-cycle vertices, exposed only when
   // "Show neighbours" is on so cross-boundary picks line up with the visible
   // ghost geometry. Flatten to a single array since variant styling already
-  // tags them as ghosts.
+  // tags them as ghosts. Single-shape only in v1 (composition has no per-tile
+  // neighbour-ring concept; the cell already shows the multi-tile context).
   const neighbourVertices = useMemo(() => {
     if (!editorActive || !config.editor || editorMode !== 'complete') return []
     if (!editorNeighbourPreview || editorStrandMode) return []
+    if (config.editor.composition) return []
     return neighbourCycleVertices(config.editor, boundaryCycle).flat()
   }, [editorActive, config.editor, editorMode, editorNeighbourPreview, editorStrandMode, boundaryCycle])
 
@@ -191,7 +259,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       )
       : onSelectEdge ? (
         <EditorEdgeLayer
-          edges={exposedEdges}
+          edges={renderedEdges}
           selected={selectedEdge ?? null}
           onSelect={onSelectEdge}
           hovered={hoveredEdge}
@@ -200,11 +268,17 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       ) : null
     : null
 
-  const pickerScreenPos = selectedEdgeData && editorMode === 'place' && !editorStrandMode
-    ? worldToScreen(selectedEdgeData.midpoint, viewTransform, size.width, size.height)
+  // Picker position uses the rendered (cell-local) midpoint so the popup
+  // tracks the visible edge. Validation uses the raw (patch-local) edge so
+  // viability runs in the active patch's coord system.
+  const pickerWorldPos = selectedEdgeData
+    ? (tileTx ? applyTransform(selectedEdgeData.midpoint, tileTx) : selectedEdgeData.midpoint)
+    : null
+  const pickerScreenPos = pickerWorldPos && editorMode === 'place' && !editorStrandMode
+    ? worldToScreen(pickerWorldPos, viewTransform, size.width, size.height)
     : null
   const pickerViable = selectedEdgeData && config.editor
-    ? viableSidesForEdge(selectedEdgeData, config.editor)
+    ? viableSidesForEdge(selectedEdgeData, activePatch(config.editor))
     : []
 
   return (

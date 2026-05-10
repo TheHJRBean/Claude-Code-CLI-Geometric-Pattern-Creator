@@ -21,6 +21,10 @@ export const DEFAULT_BOUNDARY_SIZE_BY_SHAPE: Record<BoundaryShape, number> = {
   triangle: 460,
   square: 400,
   hexagon: 200,
+  // Octagon never appears as a single-shape boundary at the top level; the
+  // entry exists so 4.8.8 / future composition tiles can read a sane default.
+  // Roughly matches the square's visual footprint at the same edge length.
+  octagon: 200,
 }
 export const DEFAULT_BOUNDARY_SIZE = DEFAULT_BOUNDARY_SIZE_BY_SHAPE[DEFAULT_BOUNDARY_SHAPE]
 /**
@@ -32,6 +36,7 @@ export const BOUNDARY_SIZE_MAX_BY_SHAPE: Record<BoundaryShape, number> = {
   triangle: 1600,
   square: 1000,
   hexagon: 800,
+  octagon: 800,
 }
 export const DEFAULT_ORIGIN_SIDES = 4
 export const DEFAULT_EDGE_LENGTH = 100

@@ -14,18 +14,24 @@ export const BOUNDARY_SIDES: Record<BoundaryShape, number> = {
   triangle: 3,
   square: 4,
   hexagon: 6,
+  octagon: 8,
 }
 
 /**
  * Default rotation per boundary shape, picked so the boundary appears in its
- * canonical screen orientation (triangle and hex point-up; square axis-aligned).
- * SVG y is flipped vs. math coords, so "math −π/2" places vertex 0 visually at
- * the top.
+ * canonical screen orientation (triangle and hex point-up; square axis-aligned;
+ * octagon flat-top — the canonical 4.8.8 orientation, edge 0 along the bottom
+ * to match the square's convention). SVG y is flipped vs. math coords, so
+ * "math −π/2" places vertex 0 visually at the top.
  */
-const BOUNDARY_ROTATION: Record<BoundaryShape, number> = {
+export const BOUNDARY_ROTATION: Record<BoundaryShape, number> = {
   triangle: -Math.PI / 2,
   square: Math.PI / 4,
   hexagon: -Math.PI / 2,
+  // 3π/8 puts vertex 0 at the bottom-right of the bottom edge, mirroring the
+  // square (vertex 0 at bottom-right, edge 0 = bottom). The result is a
+  // flat-top octagon with screen-axis-aligned edges.
+  octagon: (3 * Math.PI) / 8,
 }
 
 /**

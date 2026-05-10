@@ -8,6 +8,11 @@ import { generateTiling } from '../tilings/archimedean'
 import { generateRosettePatch } from '../tilings/rosettePatch'
 import { editorBoundaryVertices, editorTilesToPolygons } from '../editor/buildEditorPolygons'
 import { editorLatticeStamps, editorOneRingNeighbourStamps } from '../editor/lattice'
+import {
+  compositionBoundaryOutlines,
+  compositionLatticeStamps,
+  compositionToPolygons,
+} from '../editor/compositionLattice'
 import { runPIC } from '../pic/index'
 
 export interface PatternData {
@@ -67,12 +72,20 @@ export function usePattern(
     // Design mode = single patch; Strand mode = lattice-stamped across the
     // viewport so the user sees how strands flow across boundaries.
     if (config.tiling.type === 'editor' && config.editor) {
-      const basePolys = editorTilesToPolygons(config.editor)
+      const composition = config.editor.composition
+      const basePolys = composition
+        ? compositionToPolygons(composition)
+        : editorTilesToPolygons(config.editor)
       if (!editorStrandMode) {
-        const baseOutline = editorBoundaryVertices(config.editor)
+        const baseOutlines: Vec2[][] = composition
+          ? compositionBoundaryOutlines(composition)
+          : [editorBoundaryVertices(config.editor)]
         let ghostPolygons: typeof basePolys | undefined
-        let boundaryOutlines: Vec2[][] = [baseOutline]
-        if (editorNeighbourPreview) {
+        let boundaryOutlines: Vec2[][] = [...baseOutlines]
+        // Neighbour preview is single-shape only in v1 — composition's cell
+        // already contains both boundary tiles together; the user can flip
+        // to Strand mode to see the lattice-stamped composition.
+        if (editorNeighbourPreview && !composition) {
           const ringStamps = editorOneRingNeighbourStamps(config.editor)
           if (ringStamps.length > 0) {
             ghostPolygons = []
@@ -97,8 +110,9 @@ export function usePattern(
                 })
               }
               if (editorNeighbourBoundaries) {
+                // Single-shape branch: baseOutlines is exactly one entry.
                 boundaryOutlines.push(
-                  baseOutline.map(v => {
+                  baseOutlines[0].map(v => {
                     const r = rot(v)
                     return { x: r.x + t.x, y: r.y + t.y }
                   }),
@@ -116,11 +130,13 @@ export function usePattern(
         const segments = runPIC(picInput, config)
         return { polygons: basePolys, segments, boundaryOutlines, ghostPolygons }
       }
-      // Strand mode — stamp on the lattice. Triangle uses a 2-orientation
-      // lattice (source + 180°-flipped) so the stamps' rotations matter.
-      const stamps = editorLatticeStamps(config.editor, {
-        x: genX, y: genY, width: genW, height: genH,
-      })
+      // Strand mode — stamp on the lattice. Single-shape patches use the
+      // per-patch lattice (triangle has 2 intra-stamps, square/hex have 1);
+      // composition patches use the cell-level lattice (the unit cell is
+      // already merged in basePolys via compositionToPolygons).
+      const stamps = composition
+        ? compositionLatticeStamps(composition, { x: genX, y: genY, width: genW, height: genH })
+        : editorLatticeStamps(config.editor, { x: genX, y: genY, width: genW, height: genH })
       const polygons: typeof basePolys = []
       for (let s = 0; s < stamps.length; s++) {
         const stamp = stamps[s]
@@ -145,18 +161,25 @@ export function usePattern(
       }
       const segments = runPIC(polygons, config)
       // Boundary outlines are opt-in in strand mode (showBoundaryLattice).
+      // Composition emits one outline per boundary tile per stamp (octagon +
+      // square × N stamps); single-shape emits one outline per stamp.
       let boundaryOutlines: Vec2[][] | undefined
       if (showBoundaryLattice) {
-        const baseOutline = editorBoundaryVertices(config.editor)
-        boundaryOutlines = stamps.map(stamp => {
+        const baseOutlines: Vec2[][] = composition
+          ? compositionBoundaryOutlines(composition)
+          : [editorBoundaryVertices(config.editor)]
+        boundaryOutlines = []
+        for (const stamp of stamps) {
           const cos = Math.cos(stamp.rotation)
           const sin = Math.sin(stamp.rotation)
-          return baseOutline.map(v => {
-            const rx = stamp.rotation === 0 ? v.x : v.x * cos - v.y * sin
-            const ry = stamp.rotation === 0 ? v.y : v.x * sin + v.y * cos
-            return { x: rx + stamp.translation.x, y: ry + stamp.translation.y }
-          })
-        })
+          for (const outline of baseOutlines) {
+            boundaryOutlines.push(outline.map(v => {
+              const rx = stamp.rotation === 0 ? v.x : v.x * cos - v.y * sin
+              const ry = stamp.rotation === 0 ? v.y : v.x * sin + v.y * cos
+              return { x: rx + stamp.translation.x, y: ry + stamp.translation.y }
+            }))
+          }
+        }
       }
       return { polygons, segments, boundaryOutlines }
     }

@@ -1,6 +1,6 @@
 import type { Vec2 } from '../utils/math'
 import { pointsEqual } from '../utils/math'
-import type { EditorConfig, EditorTile } from '../types/editor'
+import type { EditorPatch, EditorTile } from '../types/editor'
 import { EDITOR_EPS, computeExposedEdges, tileVertices, type ExposedEdge } from './exposedEdges'
 import { applySym, boundarySymmetries } from './symmetry'
 import { isPlacementViable, placeRegularNGonOnEdge, PICKER_SIDES, viableSidesForEdge as viableSidesSingle } from './placement'
@@ -28,7 +28,7 @@ import { completeNGap } from './completeN'
  * Distinct: dedup by `(tileId, edgeIndex)` so the picked edge itself counts
  * once even when multiple group elements map to it.
  */
-export function orbitEdges(editor: EditorConfig, picked: ExposedEdge): ExposedEdge[] {
+export function orbitEdges(editor: EditorPatch, picked: ExposedEdge): ExposedEdge[] {
   const all = computeExposedEdges(editor)
   const syms = boundarySymmetries(editor.boundaryShape, editor.symmetryMode ?? 'none')
   const seen = new Map<string, ExposedEdge>()
@@ -58,7 +58,7 @@ export function orbitEdges(editor: EditorConfig, picked: ExposedEdge): ExposedEd
  * break).
  */
 export function placeTilesOnOrbit(
-  editor: EditorConfig,
+  editor: EditorPatch,
   picked: ExposedEdge,
   sides: number,
   idPrefix: string,
@@ -69,7 +69,7 @@ export function placeTilesOnOrbit(
   // Build placements one at a time against a *cumulative* state so that two
   // orbit-equivalent placements which would touch the same future vertex
   // don't both individually pass viability and then overlap each other.
-  let working: EditorConfig = editor
+  let working: EditorPatch = editor
   const placements: EditorTile[] = []
   for (let i = 0; i < edges.length; i++) {
     // Re-fetch the edge from `working` — endpoint coords are stable but the
@@ -103,7 +103,7 @@ export function placeTilesOnOrbit(
  * not provenance-based — so this also catches manually-placed tiles that
  * happen to sit at orbit-equivalent positions.
  */
-export function orbitTileIds(editor: EditorConfig, tile: EditorTile): string[] {
+export function orbitTileIds(editor: EditorPatch, tile: EditorTile): string[] {
   const center = tile.kind === 'regular' ? tile.center : centroidOf(tileVertices(tile))
   const syms = boundarySymmetries(editor.boundaryShape, editor.symmetryMode ?? 'none')
   const ids = new Set<string>([tile.id])
@@ -145,7 +145,7 @@ function centroidOf(verts: Vec2[]): Vec2 {
  *       function trivially produces the 17.11 single-instance result.
  */
 export function placePolygonsOnOrbit(
-  editor: EditorConfig,
+  editor: EditorPatch,
   picks: Vec2[],
   idPrefix: string,
 ): EditorTile[] | null {
@@ -165,7 +165,7 @@ export function placePolygonsOnOrbit(
   const syms = boundarySymmetries(editor.boundaryShape, editor.symmetryMode ?? 'none')
   const seenCentroids: Vec2[] = []
   const placements: EditorTile[] = []
-  let working: EditorConfig = editor
+  let working: EditorPatch = editor
 
   for (let i = 0; i < syms.length; i++) {
     const transformed = picks.map(p => applySym(syms[i], p))
@@ -191,7 +191,7 @@ export function placePolygonsOnOrbit(
  * `placeTilesOnOrbit` returns `null`, and the placement silently fails. The
  * orbit probe here matches the reducer's call exactly.
  */
-export function viableSidesForEdge(edge: ExposedEdge, editor: EditorConfig): number[] {
+export function viableSidesForEdge(edge: ExposedEdge, editor: EditorPatch): number[] {
   const mode = editor.symmetryMode ?? 'none'
   if (mode === 'none') return viableSidesSingle(edge, editor)
   // Orbit-aware: a side is offered only if the full orbit placement succeeds.

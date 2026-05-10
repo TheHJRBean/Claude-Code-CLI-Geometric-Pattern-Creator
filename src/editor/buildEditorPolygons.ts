@@ -1,5 +1,5 @@
 import type { Polygon } from '../types/geometry'
-import type { BoundaryShape, EditorConfig } from '../types/editor'
+import type { BoundaryShape, EditorPatch } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import { regularPolygonVertices } from './regularPolygon'
 import { centroid } from '../utils/math'
@@ -33,14 +33,14 @@ const BOUNDARY_ROTATION: Record<BoundaryShape, number> = {
  * the boundary's edge length (Q9 Option B: this *only* rescales the
  * outline — tile sizes are untouched).
  */
-export function editorBoundaryVertices(editor: EditorConfig): Vec2[] {
-  const sides = BOUNDARY_SIDES[editor.boundaryShape]
-  const rotation = BOUNDARY_ROTATION[editor.boundaryShape]
+export function editorBoundaryVertices(patch: EditorPatch): Vec2[] {
+  const sides = BOUNDARY_SIDES[patch.boundaryShape]
+  const rotation = BOUNDARY_ROTATION[patch.boundaryShape]
   // π/n flips the boundary into its alternate orientation (diamond ↔
   // axis-aligned for a square, point-up ↔ flat-top for a hexagon,
   // point-up ↔ point-down for a triangle).
-  const offset = editor.alternateBoundary ? Math.PI / sides : 0
-  return regularPolygonVertices(sides, { x: 0, y: 0 }, editor.boundarySize, rotation + offset)
+  const offset = patch.alternateBoundary ? Math.PI / sides : 0
+  return regularPolygonVertices(sides, { x: 0, y: 0 }, patch.boundarySize, rotation + offset)
 }
 
 /**
@@ -48,9 +48,9 @@ export function editorBoundaryVertices(editor: EditorConfig): Vec2[] {
  * `runPIC` and the existing render pipeline. Pure, deterministic, no
  * viewport awareness — the editor patch is finite by construction.
  */
-export function editorTilesToPolygons(editor: EditorConfig): Polygon[] {
+export function editorTilesToPolygons(patch: EditorPatch): Polygon[] {
   const polys: Polygon[] = []
-  for (const tile of editor.tiles) {
+  for (const tile of patch.tiles) {
     if (tile.kind === 'regular') {
       polys.push({
         id: tile.id,

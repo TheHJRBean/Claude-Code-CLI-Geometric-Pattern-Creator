@@ -1,4 +1,4 @@
-import type { EditorConfig, EditorTile } from '../types/editor'
+import type { EditorPatch, EditorTile } from '../types/editor'
 import { computeOuterBoundary } from './boundary'
 import { completeGap } from './complete'
 import { tileVertices } from './exposedEdges'
@@ -42,12 +42,12 @@ function findReflexVertex(cycle: { p: { x: number; y: number } }[]): number {
 }
 
 /** Outward unit-normal direction angles for each boundary edge (CCW). */
-function boundaryNormalAngles(editor: EditorConfig): number[] {
-  const sides = BOUNDARY_SIDES[editor.boundaryShape]
+function boundaryNormalAngles(patch: EditorPatch): number[] {
+  const sides = BOUNDARY_SIDES[patch.boundaryShape]
   // Match BOUNDARY_ROTATION in buildEditorPolygons.ts: triangle/hex point-up,
   // square axis-aligned. Plus the optional alternate-orientation π/n offset.
-  const baseRot = editor.boundaryShape === 'square' ? Math.PI / 4 : -Math.PI / 2
-  const offset = editor.alternateBoundary ? Math.PI / sides : 0
+  const baseRot = patch.boundaryShape === 'square' ? Math.PI / 4 : -Math.PI / 2
+  const offset = patch.alternateBoundary ? Math.PI / sides : 0
   const rot = baseRot + offset
   const out: number[] = []
   for (let k = 0; k < sides; k++) {
@@ -63,11 +63,11 @@ function boundaryNormalAngles(editor: EditorConfig): number[] {
  * each boundary-edge outward normal `n_k`, the apothem must be at least
  * `dot(v, n_k)`; take the max and convert back to edge length.
  */
-export function fitBoundarySize(editor: EditorConfig): number {
-  const angles = boundaryNormalAngles(editor)
+export function fitBoundarySize(patch: EditorPatch): number {
+  const angles = boundaryNormalAngles(patch)
   const sides = angles.length
   let maxApothem = 0
-  for (const tile of editor.tiles) {
+  for (const tile of patch.tiles) {
     for (const v of tileVertices(tile)) {
       for (const a of angles) {
         const proj = v.x * Math.cos(a) + v.y * Math.sin(a)
@@ -77,7 +77,7 @@ export function fitBoundarySize(editor: EditorConfig): number {
   }
   // edgeLength = 2 · apothem · tan(π/n)
   const L = 2 * maxApothem * Math.tan(Math.PI / sides)
-  return Math.max(L, editor.edgeLength)
+  return Math.max(L, patch.edgeLength)
 }
 
 /**
@@ -86,10 +86,10 @@ export function fitBoundarySize(editor: EditorConfig): number {
  * figures. Idempotent on already-convex patches — exits immediately when no
  * reflex vertex exists.
  */
-export function autoCompletePatch(editor: EditorConfig): AutoCompleteResult {
-  let tiles = editor.tiles
+export function autoCompletePatch(patch: EditorPatch): AutoCompleteResult {
+  let tiles = patch.tiles
   for (let pass = 0; pass < MAX_PASSES; pass++) {
-    const work: EditorConfig = { ...editor, tiles }
+    const work: EditorPatch = { ...patch, tiles }
     const cycle = computeOuterBoundary(work)
     if (cycle.length < 3) break
     const idx = findReflexVertex(cycle)

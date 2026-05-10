@@ -1,6 +1,6 @@
 import type { Vec2 } from '../utils/math'
 import { centroid, pointsEqual } from '../utils/math'
-import type { EditorConfig, EditorTile } from '../types/editor'
+import type { EditorPatch, EditorTile } from '../types/editor'
 import { regularPolygonVertices } from './regularPolygon'
 
 /**
@@ -52,8 +52,8 @@ function edgesShareEndpoints(a1: Vec2, a2: Vec2, b1: Vec2, b2: Vec2, eps = EDITO
  * Compute the exposed (= unshared) edges of an editor patch. Used by the
  * Design-mode UI to highlight edges and gate placement.
  */
-export function computeExposedEdges(editor: EditorConfig): ExposedEdge[] {
-  const tiles = editor.tiles
+export function computeExposedEdges(patch: EditorPatch): ExposedEdge[] {
+  const tiles = patch.tiles
   const vertsByTile = tiles.map(tileVertices)
   const centersByTile = tiles.map(tileCenter)
   const result: ExposedEdge[] = []
@@ -87,7 +87,7 @@ export function computeExposedEdges(editor: EditorConfig): ExposedEdge[] {
         midpoint: { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 },
         length,
         sourceCenter: centersByTile[i],
-        conforming: Math.abs(length - editor.edgeLength) < EDITOR_EPS * Math.max(1, editor.edgeLength),
+        conforming: Math.abs(length - patch.edgeLength) < EDITOR_EPS * Math.max(1, patch.edgeLength),
       })
     }
   }

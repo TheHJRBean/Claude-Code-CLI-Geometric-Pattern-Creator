@@ -1,4 +1,4 @@
-import type { EditorConfig } from '../types/editor'
+import type { EditorPatch } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import { computeOuterBoundary } from './boundary'
 import { editorBoundaryVertices } from './buildEditorPolygons'
@@ -33,15 +33,15 @@ function polygonArea(pts: Vec2[]): number {
   return Math.abs(a) / 2
 }
 
-export function detectPatchTilingStatus(editor: EditorConfig): PatchTilingStatus {
-  if (editor.tiles.length === 0) {
+export function detectPatchTilingStatus(patch: EditorPatch): PatchTilingStatus {
+  if (patch.tiles.length === 0) {
     return { kind: 'non-tiling', reason: 'empty' }
   }
-  const patchCycle = computeOuterBoundary(editor)
+  const patchCycle = computeOuterBoundary(patch)
   if (patchCycle.length === 0) {
     return { kind: 'non-tiling', reason: 'empty' }
   }
-  const boundaryPts = editorBoundaryVertices(editor)
+  const boundaryPts = editorBoundaryVertices(patch)
   const boundaryArea = polygonArea(boundaryPts)
   if (boundaryArea === 0) return { kind: 'tiling' }
   const patchArea = polygonArea(patchCycle.map(v => v.p))

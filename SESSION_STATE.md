@@ -5,11 +5,14 @@
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
 **Last action:** 2026-05-10 — Editor v2 boundary configurations
-**4.8.8 (octagon + square)** v1 signed off after a series of
-fix-ups. Cell-edge slider behaves as intended (single-shape
-parity: scales the cell + boundary outline + tile centres but
-not the origin polygons). Tile placement (picker) inside
-composition tiles is the next open item.
+**4.8.8 (octagon + square)** is the LIVE configuration. Cell-edge
+slider behaves with single-shape parity (scales cell + boundary
+outline + tile centres but not the origin polygons). Tile placement
+(picker) is live in composition. Wrap-boundary toggle works
+per-active-tile. Complete-mode vertices expose across every
+boundary tile, and completion routes to whichever tile actually
+hosts the picks. **No open follow-ups in this arc — sign-off probes
+in §"Sign-off probes" below.**
 
 Phase log:
 - `93dcdd4` Phase 1 — `EditorPatch` + `src/editor/active.ts`
@@ -61,58 +64,144 @@ Bug-fix passes after Phase 6:
   seeded edge) so dragging down can't pinch BoundaryTile centres
   past what fixed-size origin polygons can fit (the previous
   overlap symptom).
+- `2cae2ad` SESSION_STATE log of the bug-fix arc + v1 design
+  contract.
+- `d67e3a7` Re-enabled the tile placement picker in composition
+  mode (was hidden under v1 stance). Edges already computed in
+  patch-local + parallel-transformed to cell-local for rendering;
+  dispatch keys (tileId, edgeIndex) stable so EDITOR_PLACE_TILE_ON_EDGE
+  routes through updatePatch correctly. At the seeded cell edge,
+  origin = boundary so placements would land outside the cell —
+  becomes useful once the user scales past 100.
+- `34374b9` Wrap-boundary toggle for composition. Per-active-tile:
+  fits `composition.edgeLength` to the active patch via
+  `fitBoundarySize` and propagates to every BoundaryTile (boundary
+  outline + scaled centres) so the 4.8.8 invariant — octagon edge =
+  square edge = cell edge — holds. SET_EDITOR_BOUNDARY_SIZE clears
+  wrap on every patch (manual override). SET_ACTIVE_BOUNDARY_TILE
+  re-runs applyWrap after the pane swap so wrap follows the new
+  active tile.
+- `1fe08ee` Complete-mode vertex layer aggregates outer cycles +
+  pocket cycles + boundary corners across every BoundaryTile
+  (transformed via each tile's own centre + rotation). New reducer
+  helpers `inverseBoundaryTransform` + `completeOnComposition` route
+  EDITOR_COMPLETE_GAP / EDITOR_COMPLETE_N_GAP to whichever tile
+  actually hosts the picks (active first, falling back to siblings).
 
 **v1 design contract (4.8.8):**
 - `composition.edgeLength` drives cell vectors and is the slider
   target. Seeded at 100 (matches `DEFAULT_EDGE_LENGTH`).
 - Each `BoundaryTile.patch` has an origin tile sized to the seeded
   edge with `rotation = BOUNDARY_ROTATION[shape]` so origin = boundary
-  outline at default. Picker is hidden in v1 (sub-tile authoring is
-  v2 — the inner space that opens up when scaling is its surface).
+  outline at default.
 - PIC processes the origin polygons; boundary outlines are visual
-  only. At the seeded edge the strand pattern reads as 4.8.8;
-  scaling up grows the boundary frame around fixed origins (lattice
-  tiles via the boundary outlines if `showBoundaryLattice` is on).
+  only via `compositionBoundaryOutlines`. At the seeded edge the
+  strand pattern reads as 4.8.8; scaling up grows the boundary frame
+  around fixed origins (lattice tiles via the boundary outlines when
+  `showBoundaryLattice` is on).
+- Picker (`EditorEdgeLayer`) and Complete vertex layer
+  (`EditorVertexLayer`) are both live. Picker edges come from
+  `activePatch(editor)`; Complete vertex sets aggregate across every
+  boundary tile in composition.
+- Reducer routing through `activePatch` / `allPatches` /
+  `withActivePatch` (`src/editor/active.ts`) is the single seam
+  between wrapper-aware code (reducer, persistence, history,
+  Canvas overlay coords) and per-patch consumers (every geometry
+  helper). `withActivePatch` preserves composition; the wrapper
+  mirrors the active patch's per-patch fields so legacy single-shape
+  reads stay coherent.
+
+**Architectural map (4.8.8 v1):**
+- `src/types/editor.ts` — `EditorPatch` (per-patch shape) + `EditorConfig
+  extends EditorPatch & { version, composition? }` + `BoundaryComposition`
+  + `BoundaryTile`. `BoundaryShape = 'triangle'|'square'|'hexagon'|
+  'octagon'`. Octagon never assignable as a top-level boundaryShape —
+  migration's allow-list keeps it inside `BoundaryTile.shape`.
+- `src/editor/active.ts` — `activePatch` / `allPatches` /
+  `withActivePatch`. Composition-aware.
+- `src/editor/createDefault.ts` — `createDefault488EditorConfig` +
+  `createDefault488Composition`. Origin tiles seeded with
+  `rotation = BOUNDARY_ROTATION[shape]` so origin = boundary at
+  default.
+- `src/editor/compositionLattice.ts` — `compositionToPolygons` (origin
+  tiles, transformed), `compositionBoundaryOutlines` (visual outlines),
+  `compositionLatticeStamps` (cell vectors at `composition.edgeLength`),
+  `compositionCellBasis`. Triangle's intra-stamp pattern in
+  `lattice.ts` is intentionally NOT reused (different semantics).
+- `src/editor/migrations.ts` — `migrateEditorConfig` switches on
+  `r.version` (1 = legacy single-shape; 2 = single-shape OR
+  composition). v1 patches load with composition absent.
+- `src/state/reducer.ts` — wrapper-aware. New actions
+  `SET_EDITOR_BOUNDARY_CONFIGURATION` (history) +
+  `SET_ACTIVE_BOUNDARY_TILE` (excluded — pure pane swap that re-runs
+  applyWrap). Helpers `updatePatch`, `completeOnComposition`,
+  `inverseBoundaryTransform`. `applyWrap` handles per-active-patch
+  wrap fit in composition + propagates to every BoundaryTile.
+- `src/hooks/usePattern.ts` — branches once on `composition`.
+- `src/components/TessellationLabMode.tsx` — Boundary picker has
+  4 entries (Triangle / Square / Hexagon / 4.8.8). Composition
+  shows the "Editing: [Octagon] [Square]" segmented tab + a Cell
+  edge slider (min 100, max 400) wired to SET_EDITOR_BOUNDARY_SIZE.
+  Wrap toggle is shared with single-shape, scoped to active patch
+  in composition. Strand panel aggregates tile types via
+  `allPatches`.
+- `src/components/Canvas.tsx` — picker overlay computes exposed
+  edges in patch-local (active patch via `activePatch`), parallel-
+  transformed to cell-local for rendering. Complete-mode cycles +
+  boundary corners aggregate across every BoundaryTile in
+  composition.
 
 **Sign-off probes for the 4.8.8 boundary configuration:**
 
-Single-shape regression (Phase 1 adapter):
+Single-shape regression:
 1. New patch → triangle / square / hexagon → place + delete +
    Complete → undo / redo. Behaviour identical to pre-refactor.
 2. Save to library + reload from library — single-shape patches
    survive.
 
-4.8.8 composition (Phases 3–6):
+4.8.8 composition:
 3. New patch → Boundary picker shows **4.8.8** as a 4th entry.
 4. Click 4.8.8 → octagon + square outlines render at their cell
    positions; "Editing: [Octagon] [Square]" appears under the
-   picker; alternate orientation / boundary size / wrap boundary
-   controls hide.
-5. Active = Octagon → place a tile inside the octagon → tile
-   appears at the octagon's cell position. Switch active to
-   Square → place a tile inside the square → tile appears at the
-   square's cell position. Picker overlay relocates correctly
-   between active-tile switches.
-6. Strand mode → both boundary tiles' interiors stamp across the
-   viewport on the 4.8.8 lattice. PIC strands flow naturally
-   between octagon and square at the shared edges (assuming
-   matching contact angles — the 4.8.8 magic).
-7. Strand panel → cards appear for every distinct tile type
-   across both inner patches (octagon, square, plus any
-   user-placed shapes inside either).
-8. Picking Triangle / Square / Hexagon while 4.8.8 is active →
-   exits composition with a fresh single-shape patch in the
-   chosen shape (destructive, undoable).
-9. Undo across composition switch → single-shape patch restored
-   intact. Active-tile pane swap is **not** undoable (the active
-   tile changes back via the picker, not via undo).
-
-Persistence (Phase 8 — open):
-10. Author a 4.8.8 patch (place tiles inside both octagon and
-    square). Save to Lab library + reload page → composition
+   picker; alternate orientation control hides; cell-edge + wrap
+   boundary controls show, scoped to the active tile.
+5. Active = Octagon → drag cell-edge slider up → octagon and
+   square boundaries grow proportionally, origin polygon at each
+   centre stays at its seeded size (single-shape parity).
+6. Cell-edge slider min is 100; the slider can't drag below the
+   seeded edge (which would pinch boundary centres tighter than
+   the fixed-size origin polygons can fit).
+7. Active = Octagon → toggle Wrap boundary on → cell-edge fits
+   to octagon's tiles. Switch active to Square → wrap follows
+   the new active tile (cell-edge refits to square).
+8. Active = Octagon → click an exposed edge of an interior tile →
+   placement picker opens at the cell-local edge midpoint →
+   choose a polygon → tile lands inside the octagon's patch.
+   Switch to Square → same flow lands inside the square's patch.
+9. Complete mode → vertex layer shows dots from every boundary
+   tile (octagon outer-cycle vertices AND square outer-cycle
+   vertices, plus boundary corners + pockets if any). Picking
+   two vertices from the same tile completes a gap inside that
+   tile (router finds the right host tile from the picks; active
+   tile is tried first). Picks split across tiles silently no-op.
+10. Strand mode → cells stamp across the viewport via cell
+    vectors at `composition.edgeLength`. With showBoundaryLattice
+    on, octagon + square outlines tile cleanly at any cell-edge.
+    PIC strands flow at shared edges when contact angles match.
+11. Strand panel → cards appear for every distinct tile type
+    across both inner patches (octagon-8, square-4, plus any
+    user-placed shapes inside either).
+12. Picking Triangle / Square / Hexagon while 4.8.8 is active →
+    exits composition with a fresh single-shape patch in the
+    chosen shape (destructive, undoable via the design-mode
+    history stack).
+13. Undo across composition switch → single-shape patch restored
+    intact. Active-tile pane swap is **not** undoable (the active
+    tile changes back via the picker, not via undo).
+14. Save composition to Lab library + reload page → composition
     entry round-trips. saveJSON to file → loadJSON → both inner
     patches survive intact.
-11. Load a legacy v1 single-shape patch (saved before this
+15. Load a legacy v1 single-shape patch (saved before this
     feature) → loads as v2 with composition absent.
 
 **Previous milestone:** 2026-05-07 — Step **17.11b** (orbit

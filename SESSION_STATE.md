@@ -5,11 +5,11 @@
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
 **Last action:** 2026-05-10 — Editor v2 boundary configurations
-**4.8.8 (octagon + square)** wired end-to-end across phases 1–7
-of the plan in `~/.claude/plans/graceful-kindling-charm.md`.
-Type-check + production build pass; dev server boots clean.
-**Awaiting manual UI sign-off before phase 8 (persistence
-round-trip) is closed.**
+**4.8.8 (octagon + square)** v1 signed off after a series of
+fix-ups. Cell-edge slider behaves as intended (single-shape
+parity: scales the cell + boundary outline + tile centres but
+not the origin polygons). Tile placement (picker) inside
+composition tiles is the next open item.
 
 Phase log:
 - `93dcdd4` Phase 1 — `EditorPatch` + `src/editor/active.ts`
@@ -39,6 +39,40 @@ Phase log:
   hide when composition is active. Strand panel aggregates tile
   types via `allPatches`. Canvas transforms picker overlay to
   cell-local while keeping validation in patch-local.
+
+Bug-fix passes after Phase 6:
+- `21d6609` activePatch / allPatches / withActivePatch were trivial
+  passthroughs — composition mutations stripped the composition.
+  Branch on `editor.composition`. Strand panel cards now aggregate
+  both inner patches' tile types correctly.
+- `e4ed2c1` Cell-edge slider was scaling everything proportionally
+  (origin tiles too) — wrong parity. Slider now only updates
+  `composition.edgeLength` + each `patch.boundarySize`.
+- `f8ef4ac` Slider needed to also scale `BoundaryTile.center` so
+  positions track the new cell vectors (otherwise octagon and
+  square boundaries drifted apart and overlapped as the cell grew).
+- `7814b46` (REVERTED in 6e44e69) — briefly emitted boundary
+  outlines as polygons; broke single-shape parity (polygon scaled
+  with slider).
+- `6e44e69` Reverted to single-shape parity:
+  `compositionToPolygons` returns the inner patch tiles (origin
+  polygons, fixed size), boundary outlines stay visual via
+  `compositionBoundaryOutlines`. Slider min clamped to 100 (the
+  seeded edge) so dragging down can't pinch BoundaryTile centres
+  past what fixed-size origin polygons can fit (the previous
+  overlap symptom).
+
+**v1 design contract (4.8.8):**
+- `composition.edgeLength` drives cell vectors and is the slider
+  target. Seeded at 100 (matches `DEFAULT_EDGE_LENGTH`).
+- Each `BoundaryTile.patch` has an origin tile sized to the seeded
+  edge with `rotation = BOUNDARY_ROTATION[shape]` so origin = boundary
+  outline at default. Picker is hidden in v1 (sub-tile authoring is
+  v2 — the inner space that opens up when scaling is its surface).
+- PIC processes the origin polygons; boundary outlines are visual
+  only. At the seeded edge the strand pattern reads as 4.8.8;
+  scaling up grows the boundary frame around fixed origins (lattice
+  tiles via the boundary outlines if `showBoundaryLattice` is on).
 
 **Sign-off probes for the 4.8.8 boundary configuration:**
 

@@ -1,7 +1,7 @@
 import type { Polygon } from '../types/geometry'
 import type { Vec2 } from '../utils/math'
 import type { BoundaryComposition } from '../types/editor'
-import { BOUNDARY_SIDES, editorBoundaryVertices } from './buildEditorPolygons'
+import { editorBoundaryVertices, editorTilesToPolygons } from './buildEditorPolygons'
 import type { LatticeStamp } from './lattice'
 
 /**
@@ -31,6 +31,13 @@ function transformPoint(p: Vec2, translation: Vec2, rotation: number): Vec2 {
   }
 }
 
+function transformPolygon(poly: Polygon, translation: Vec2, rotation: number): Polygon {
+  return {
+    ...poly,
+    center: transformPoint(poly.center, translation, rotation),
+    vertices: poly.vertices.map(v => transformPoint(v, translation, rotation)),
+  }
+}
 
 /** Cell basis vectors `(u, v)` for a composition's translation lattice. */
 export function compositionCellBasis(composition: BoundaryComposition): { u: Vec2; v: Vec2 } {
@@ -46,33 +53,33 @@ export function compositionCellBasis(composition: BoundaryComposition): { u: Vec
 }
 
 /**
- * Build the unit-cell polygon set for PIC and rendering. v1 produces one
- * polygon per boundary tile — the boundary outline itself, sides matching
- * the tile's shape (octagon → 8, square → 4). Strands emerge from these
- * outlines, which is the canonical 4.8.8 strand pattern: octagon and
- * square share contact angles at their shared edges.
+ * Build the unit-cell polygon set for PIC and rendering. Returns each
+ * boundary tile's interior polygons (its origin tile, plus any
+ * user-placed sub-tiles in v2) transformed by the tile's centre + rotation.
  *
- * The inner patch's `tiles` array (its origin polygon) is intentionally
- * **not** projected into PIC output here — its sole role in v1 is
- * tile-type discovery via `editorTileTypes(patch)` so the strand panel
- * gets one card per shape. Including it would double-stamp polygons
- * (boundary AND a coincident origin) and produce visual artefacts when
- * the user scales the cell with the slider (origin stays at its seeded
- * size; boundary follows the slider).
+ * Single-shape parity: the polygons returned here are the patch tiles —
+ * **not** the boundary outline. The cell-edge slider rescales the
+ * boundary outline (visual only, via `compositionBoundaryOutlines`) and
+ * the cell vectors (via `compositionLatticeStamps`), but it doesn't
+ * touch the origin tile, so the polygon the user sees inside each
+ * boundary stays at its seeded size — same as the origin polygon
+ * behaviour in single-shape patches.
+ *
+ * The boundary outline therefore is *visual only*; PIC's strand
+ * pattern emerges from the origin tiles. At the seeded cell edge
+ * (`composition.edgeLength` at creation), origin = boundary so the
+ * strand pattern looks like the canonical 4.8.8. Scaling the slider up
+ * grows the boundary frame around a fixed origin, leaving inner space
+ * (eventually a v2 sub-tile authoring affordance).
  */
 export function compositionToPolygons(composition: BoundaryComposition): Polygon[] {
   const polys: Polygon[] = []
   for (const boundaryTile of composition.tiles) {
-    const sides = BOUNDARY_SIDES[boundaryTile.shape]
-    const local = editorBoundaryVertices(boundaryTile.patch)
-    const cellLocal = local.map(v => transformPoint(v, boundaryTile.center, boundaryTile.rotation))
-    polys.push({
-      id: `${boundaryTile.id}/boundary`,
-      sides,
-      tileTypeId: String(sides),
-      center: { x: boundaryTile.center.x, y: boundaryTile.center.y },
-      vertices: cellLocal,
-    })
+    const inner = editorTilesToPolygons(boundaryTile.patch)
+    for (const poly of inner) {
+      const transformed = transformPolygon(poly, boundaryTile.center, boundaryTile.rotation)
+      polys.push({ ...transformed, id: `${boundaryTile.id}/${poly.id}` })
+    }
   }
   return polys
 }

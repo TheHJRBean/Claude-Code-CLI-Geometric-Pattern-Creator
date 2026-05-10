@@ -153,15 +153,20 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     }
     case 'SET_EDITOR_BOUNDARY_SHAPE': {
       if (!state.editor) return state
-      // No-op when a multi-tile composition is active — the shape picker
-      // only governs single-shape patches; switching boundary shape inside a
-      // composition is meaningless (use SET_EDITOR_BOUNDARY_CONFIGURATION
-      // instead). The picker UI hides this control when composition is set.
-      if (state.editor.composition) return state
-      // Tiles are preserved across boundary-shape changes (single-edge
-      // placements remain valid under any boundary). Boundary size still
-      // snaps to the new shape's default so triangle/square/hexagon read at
-      // a comparable visual scale.
+      // From a composition (e.g. 4.8.8), picking a single-shape boundary
+      // exits the composition: seed a fresh patch in the requested shape.
+      // The composition's authored interiors are discarded — the user can
+      // undo to restore.
+      if (state.editor.composition) {
+        const fresh = createDefaultEditorConfig({
+          boundaryShape: action.payload,
+          boundarySize: DEFAULT_BOUNDARY_SIZE_BY_SHAPE[action.payload],
+        })
+        return seedFigures({ ...state, editor: fresh })
+      }
+      // Single-shape: tiles are preserved across boundary-shape changes
+      // (single-edge placements remain valid under any boundary). Boundary
+      // size still snaps to the new shape's default.
       const next: EditorConfig = {
         ...state.editor,
         boundaryShape: action.payload,

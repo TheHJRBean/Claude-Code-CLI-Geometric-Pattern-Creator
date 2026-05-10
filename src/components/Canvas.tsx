@@ -244,7 +244,12 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
 
   // Strand mode hides every design overlay — the canvas is the lattice
   // preview only, and strand controls in the side panel drive what changes.
-  const editorOverlay = editorActive && !editorStrandMode
+  // Composition mode also hides the picker in v1: each boundary tile's origin
+  // tile fills the boundary so PIC sees the boundary itself as the polygon
+  // (the correct 4.8.8 strand pattern). Sub-tile authoring inside a composition
+  // tile is a v2 feature.
+  const compositionActive = !!config.editor?.composition
+  const editorOverlay = editorActive && !editorStrandMode && !compositionActive
     ? editorMode === 'complete' && onPickVertex
       ? (
         <EditorVertexLayer
@@ -274,7 +279,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   const pickerWorldPos = selectedEdgeData
     ? (tileTx ? applyTransform(selectedEdgeData.midpoint, tileTx) : selectedEdgeData.midpoint)
     : null
-  const pickerScreenPos = pickerWorldPos && editorMode === 'place' && !editorStrandMode
+  const pickerScreenPos = pickerWorldPos && editorMode === 'place' && !editorStrandMode && !compositionActive
     ? worldToScreen(pickerWorldPos, viewTransform, size.width, size.height)
     : null
   const pickerViable = selectedEdgeData && config.editor

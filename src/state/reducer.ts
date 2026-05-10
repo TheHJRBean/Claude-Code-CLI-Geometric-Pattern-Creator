@@ -174,15 +174,38 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       }
       return applyWrap(seedFigures({ ...state, editor: next }))
     }
-    case 'SET_EDITOR_BOUNDARY_SIZE':
-      // Q9 Option B: only the boundary outline rescales — tiles untouched.
-      // Manual slider drag implies the user wants a specific size, so wrap
-      // turns off. No-op in composition mode (cell size is fixed by
-      // composition.edgeLength in v1; a composition-aware slider can come
-      // later).
+    case 'SET_EDITOR_BOUNDARY_SIZE': {
+      // Q9 Option B (single-shape): only the boundary outline rescales —
+      // tiles untouched. Manual slider drag implies the user wants a
+      // specific size, so wrap turns off.
+      // Composition: the slider drives composition.edgeLength — the cell's
+      // edge that octagon and square share. Tile centers and per-patch edge
+      // lengths rescale proportionally so the cell stays well-formed.
       if (!state.editor) return state
-      if (state.editor.composition) return state
-      return updateEditor(state, { boundarySize: action.payload, wrapBoundary: false })
+      const next = action.payload
+      if (next <= 0) return state
+      if (state.editor.composition) {
+        const c = state.editor.composition
+        const old = c.edgeLength
+        if (old === next) return state
+        const k = next / old
+        const tiles = c.tiles.map(t => ({
+          ...t,
+          center: { x: t.center.x * k, y: t.center.y * k },
+          patch: rescalePatch(t.patch, k),
+        }))
+        const active = tiles.find(t => t.id === c.activeTileId) ?? tiles[0]
+        return {
+          ...state,
+          editor: {
+            version: state.editor.version,
+            ...active.patch,
+            composition: { ...c, edgeLength: next, tiles },
+          },
+        }
+      }
+      return updateEditor(state, { boundarySize: next, wrapBoundary: false })
+    }
     case 'SET_EDITOR_ALTERNATE_BOUNDARY':
       // Pure visual flip on single-shape patches. No-op when composition is
       // set — the cell's orientation is fixed by the configuration.
@@ -412,6 +435,29 @@ function seedFigures(state: PatternConfig): PatternConfig {
     figures = seedFiguresForEditor(figures, patch)
   }
   return figures === state.figures ? state : { ...state, figures }
+}
+
+/**
+ * Scale every coordinate field of a patch by `k`. Used by the composition
+ * boundary-size slider to rescale a boundary tile's interior (boundary
+ * outline + every sub-tile) consistently with the cell's new edge length.
+ */
+function rescalePatch(patch: EditorPatch, k: number): EditorPatch {
+  return {
+    ...patch,
+    boundarySize: patch.boundarySize * k,
+    edgeLength: patch.edgeLength * k,
+    tiles: patch.tiles.map(t => t.kind === 'regular'
+      ? {
+          ...t,
+          center: { x: t.center.x * k, y: t.center.y * k },
+          edgeLength: t.edgeLength * k,
+        }
+      : {
+          ...t,
+          vertices: t.vertices.map(v => ({ x: v.x * k, y: v.y * k })),
+        }),
+  }
 }
 
 /**

@@ -1139,6 +1139,21 @@ function EditorDesignControls({
           />
         </>
       )}
+
+      {editor.composition && (
+        <>
+          <FieldLabel label="Cell edge" value={editor.composition.edgeLength.toFixed(0)} unit=" u" />
+          <input
+            type="range"
+            className="pattern-slider"
+            min={40}
+            max={400}
+            step={1}
+            value={editor.composition.edgeLength}
+            onChange={e => dispatch({ type: 'SET_EDITOR_BOUNDARY_SIZE', payload: Number(e.target.value) })}
+          />
+        </>
+      )}
       {editor.wrapBoundary && (
         <div
           style={{

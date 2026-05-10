@@ -6,6 +6,7 @@ import type {
   EditorPatch,
   EditorRegularTile,
 } from '../types/editor'
+import { BOUNDARY_ROTATION, BOUNDARY_SIDES } from './buildEditorPolygons'
 
 /**
  * Defaults for a fresh editor patch. Used by `EDITOR_NEW` and as a base for
@@ -90,30 +91,30 @@ export function createDefaultEditorConfig(overrides: Partial<EditorConfig> = {})
  * helpers see a coherent outline if invoked.
  */
 function createInnerPatch(shape: BoundaryShape, edgeLength: number): EditorPatch {
+  const sides = BOUNDARY_SIDES[shape]
+  // The origin tile matches the boundary outline exactly (same shape, same
+  // edge length, same rotation) so PIC sees the boundary tile itself as the
+  // polygon — strands emerge from its edges, which is the 4.8.8 strand
+  // pattern. Sub-tile authoring inside a composition tile is a v2 feature;
+  // until then origin = boundary leaves the picker overlay nothing useful
+  // to do (the picker is hidden under composition).
   return {
     boundaryShape: shape,
     boundarySize: edgeLength,
-    originSides: BOUNDARY_SIDES_FOR_DEFAULTS[shape],
+    originSides: sides,
     edgeLength,
     tiles: [
       {
         id: 'origin',
         kind: 'regular',
-        sides: BOUNDARY_SIDES_FOR_DEFAULTS[shape],
+        sides,
         center: { x: 0, y: 0 },
         edgeLength,
-        rotation: 0,
+        rotation: BOUNDARY_ROTATION[shape],
         origin: 'origin',
       },
     ],
   }
-}
-
-const BOUNDARY_SIDES_FOR_DEFAULTS: Record<BoundaryShape, number> = {
-  triangle: 3,
-  square: 4,
-  hexagon: 6,
-  octagon: 8,
 }
 
 /**

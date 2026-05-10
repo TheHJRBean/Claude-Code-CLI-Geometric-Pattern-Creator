@@ -47,3 +47,10 @@ export type Action =
   | { type: 'SET_EDITOR_SYMMETRY_MODE'; payload: SymmetryMode }
   // Step 17.9 — undo/redo restores a snapshot. `null` means "no editor".
   | { type: 'EDITOR_RESTORE_SNAPSHOT'; payload: EditorConfig | null }
+  // Boundary configurations — switch the editor between single-shape and a
+  // multi-tile composition (e.g. 4.8.8). `null` clears the composition and
+  // returns to single-shape; `'4.8.8'` seeds a fresh octagon+square cell.
+  | { type: 'SET_EDITOR_BOUNDARY_CONFIGURATION'; payload: '4.8.8' | null }
+  // Switch which boundary tile the user is editing in Design mode (composition
+  // only). Pure pane swap — does NOT push a history snapshot.
+  | { type: 'SET_ACTIVE_BOUNDARY_TILE'; payload: { tileId: string } }

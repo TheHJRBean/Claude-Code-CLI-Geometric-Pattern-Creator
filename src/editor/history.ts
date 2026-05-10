@@ -57,4 +57,8 @@ export const DESIGN_MODE_ACTIONS: ReadonlySet<string> = new Set([
   'EDITOR_RUN_AUTO_COMPLETE',
   'SET_EDITOR_WRAP_BOUNDARY',
   'SET_EDITOR_SYMMETRY_MODE',
+  // Boundary configurations — picking 4.8.8 (or returning to single-shape)
+  // discards the current patch, so it must snapshot for undo. Active-tile
+  // swaps within a composition are pure UI (excluded — never push a snapshot).
+  'SET_EDITOR_BOUNDARY_CONFIGURATION',
 ])

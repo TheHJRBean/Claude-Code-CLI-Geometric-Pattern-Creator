@@ -201,6 +201,31 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       if (!editorActive || !config.editor || editorMode !== 'complete') {
         return { outer: [] as BoundaryVertex[], pockets: [] as BoundaryVertex[][] }
       }
+      // Composition: expose every boundary tile's cycles so the user can
+      // pick vertices from any tile in Complete mode. Each cycle is in its
+      // own patch-local coords; we transform via that tile's centre +
+      // rotation to bring them into shared cell-local coords for rendering.
+      // Vertex tileIds are namespaced (e.g. `octagon/origin`) so React keys
+      // stay unique across boundary tiles — the reducer routes completion
+      // by position match, not tileId, so the rename is rendering-only.
+      if (config.editor.composition) {
+        const outer: BoundaryVertex[] = []
+        const pockets: BoundaryVertex[][] = []
+        for (const bt of config.editor.composition.tiles) {
+          const tx = { translation: bt.center, rotation: bt.rotation }
+          const cycles = computeAllCycles(bt.patch)
+          for (const v of cycles.outer) {
+            outer.push({ ...transformBoundaryVertex(v, tx), tileId: `${bt.id}/${v.tileId}` })
+          }
+          for (const cycle of cycles.pockets) {
+            pockets.push(cycle.map(v => ({
+              ...transformBoundaryVertex(v, tx),
+              tileId: `${bt.id}/${v.tileId}`,
+            })))
+          }
+        }
+        return { outer, pockets }
+      }
       const patch = activePatch(config.editor)
       const raw = computeAllCycles(patch)
       if (!tileTx) return raw
@@ -221,12 +246,25 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // Boundary-polygon corners — clickable in Complete mode so the user can
   // fill regions bounded by the boundary outline. Filtered to drop corners
   // that coincide with patch outer-cycle vertices (would render twice).
+  // Composition: aggregate corners from every boundary tile, same as cycles.
   const boundaryCorners = useMemo(() => {
     if (!editorActive || !config.editor || editorMode !== 'complete') return []
-    const patch = activePatch(config.editor)
-    const raw = computeBoundaryCycle(patch)
-    const transformed = tileTx ? raw.map(v => transformBoundaryVertex(v, tileTx)) : raw
-    return transformed.filter(c => !boundaryCycle.some(v =>
+    let collected: BoundaryVertex[]
+    if (config.editor.composition) {
+      collected = []
+      for (const bt of config.editor.composition.tiles) {
+        const tx = { translation: bt.center, rotation: bt.rotation }
+        const raw = computeBoundaryCycle(bt.patch)
+        for (const v of raw) {
+          collected.push({ ...transformBoundaryVertex(v, tx), tileId: `${bt.id}/${v.tileId}` })
+        }
+      }
+    } else {
+      const patch = activePatch(config.editor)
+      const raw = computeBoundaryCycle(patch)
+      collected = tileTx ? raw.map(v => transformBoundaryVertex(v, tileTx)) : raw
+    }
+    return collected.filter(c => !boundaryCycle.some(v =>
       Math.abs(v.p.x - c.p.x) < EDITOR_EPS && Math.abs(v.p.y - c.p.y) < EDITOR_EPS,
     ))
   }, [editorActive, config.editor, editorMode, tileTx, boundaryCycle])

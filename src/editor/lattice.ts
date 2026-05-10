@@ -40,6 +40,11 @@ function latticeBasis(patch: EditorPatch): { u: Vec2; v: Vec2 } | null {
     }
     case 'triangle':
       return null // deferred to 17.6c
+    case 'octagon':
+      // Octagon doesn't tile by translation alone — only inside a multi-tile
+      // composition (e.g. 4.8.8). Per-patch lattice helpers are inert here;
+      // the composition path uses `compositionLatticeStamps` instead.
+      return null
   }
   if (patch.alternateBoundary) {
     // Rotate basis vectors by π/n so the lattice cells track the rotated

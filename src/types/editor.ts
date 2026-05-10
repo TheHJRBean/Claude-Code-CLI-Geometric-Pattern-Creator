@@ -12,7 +12,14 @@ import type { Vec2 } from '../utils/math'
  * `lab-tessellations-v1` envelope.
  */
 
-export type BoundaryShape = 'triangle' | 'square' | 'hexagon'
+/**
+ * Shapes that can appear as a patch boundary. `'octagon'` is reserved for
+ * the multi-tile composition path (e.g. inside a 4.8.8 boundary tile) — it
+ * doesn't tile by translation alone, so the migration / picker keeps it out
+ * of single-shape patches at the top level (validated in `migrations.ts`
+ * and `TessellationLabMode.tsx`).
+ */
+export type BoundaryShape = 'triangle' | 'square' | 'hexagon' | 'octagon'
 
 /**
  * Provenance of a tile inside the patch.

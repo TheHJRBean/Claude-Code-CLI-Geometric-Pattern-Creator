@@ -2,7 +2,7 @@ import type { EditorPatch, EditorTile } from '../types/editor'
 import { computeOuterBoundary } from './boundary'
 import { completeGap } from './complete'
 import { tileVertices } from './exposedEdges'
-import { BOUNDARY_SIDES } from './buildEditorPolygons'
+import { BOUNDARY_ROTATION, BOUNDARY_SIDES } from './buildEditorPolygons'
 
 /**
  * Step 17.7 — auto-complete (Decision 11).
@@ -44,9 +44,9 @@ function findReflexVertex(cycle: { p: { x: number; y: number } }[]): number {
 /** Outward unit-normal direction angles for each boundary edge (CCW). */
 function boundaryNormalAngles(patch: EditorPatch): number[] {
   const sides = BOUNDARY_SIDES[patch.boundaryShape]
-  // Match BOUNDARY_ROTATION in buildEditorPolygons.ts: triangle/hex point-up,
-  // square axis-aligned. Plus the optional alternate-orientation π/n offset.
-  const baseRot = patch.boundaryShape === 'square' ? Math.PI / 4 : -Math.PI / 2
+  // Reuse the canonical BOUNDARY_ROTATION so additions to BoundaryShape (e.g.
+  // 'octagon') automatically stay consistent.
+  const baseRot = BOUNDARY_ROTATION[patch.boundaryShape]
   const offset = patch.alternateBoundary ? Math.PI / sides : 0
   const rot = baseRot + offset
   const out: number[] = []

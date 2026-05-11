@@ -23,7 +23,7 @@ export interface CurveConfig {
 }
 
 export interface FigureConfig {
-  type: 'star' | 'rosette' | 'infer'
+  type: 'star'
   contactAngle: number  // degrees
   /** Line length as a fraction of auto-computed length (1.0 = meet neighbours) */
   lineLength: number
@@ -31,9 +31,6 @@ export interface FigureConfig {
   autoLineLength: boolean
   /** When true, manual slider snaps to values where lines meet neighbors */
   snapLineLength?: boolean
-  /** Rosette petal shape: 0 = straight tip-to-tip, 1 = full knee at edge midpoint */
-  rosetteQ?: number
-  rosetteS?: number
   /** Whether edge-based (star-arm) lines are enabled (default true) */
   edgeLinesEnabled?: boolean
   /** Whether vertex-based lines are enabled */

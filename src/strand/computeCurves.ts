@@ -21,7 +21,7 @@ function buildAlternatingParity(segments: Segment[]): Map<number, boolean> {
   const parity = new Map<number, boolean>()
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i]
-    if (seg.kind === 'petal' || !seg.side) continue
+    if (!seg.side) continue
     // 3-gons: 3 arms meet at the centroid — an odd cycle that can't be
     // 2-coloured. Force symmetric (non-alternating) curves regardless of
     // stored config. The UI hides the alternating toggle for sides===3
@@ -35,8 +35,6 @@ function buildAlternatingParity(segments: Segment[]): Map<number, boolean> {
 /**
  * Compute Bézier control points for each edge in each strand,
  * based on the per-polygon-type CurveConfig.
- *
- * Only applies to 'star-arm' and 'vertex-line' segments; petals remain straight.
  */
 export function computeCurves(
   strandData: StrandData[],
@@ -51,11 +49,6 @@ export function computeCurves(
 
     for (let i = 0; i < segmentIndices.length; i++) {
       const seg = segments[segmentIndices[i]]
-
-      if (seg.kind === 'petal') {
-        curves.push(null)
-        continue
-      }
 
       const fig = config.figures[seg.tileTypeId]
       const curve = fig?.curve

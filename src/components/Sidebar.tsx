@@ -476,12 +476,10 @@ export function Sidebar({
           <SectionTitle open={isOpen('figures')} onToggle={() => toggleSection('figures')}>Figures</SectionTitle>
           {isOpen('figures') && (<>{tileTypes.map(tt => {
             const fig = config.figures[tt.id]
-            const figType = fig?.type ?? 'star'
             const angle = fig?.contactAngle ?? 60
             const lineLength = fig?.lineLength ?? 1.0
             const autoLen = fig?.autoLineLength ?? true
             const snapEnabled = fig?.snapLineLength ?? false
-            const rosetteQ = fig?.rosetteQ ?? 0.5
             const edgeEnabled = fig?.edgeLinesEnabled !== false
             const vertexEnabled = fig?.vertexLinesEnabled ?? false
             const vertexDecoupled = fig?.vertexLinesDecoupled ?? false
@@ -498,12 +496,10 @@ export function Sidebar({
                 tileTypeId={tt.id}
                 sides={tt.sides}
                 displayLabel={tt.label}
-                figType={figType}
                 angle={angle}
                 lineLength={lineLength}
                 autoLen={autoLen}
                 snapEnabled={snapEnabled}
-                rosetteQ={rosetteQ}
                 edgeEnabled={edgeEnabled}
                 vertexEnabled={vertexEnabled}
                 vertexDecoupled={vertexDecoupled}

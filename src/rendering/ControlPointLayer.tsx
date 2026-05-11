@@ -45,7 +45,6 @@ function computeSegmentCPs(seg: Segment, curve: CurveConfig): Vec2[] {
   const altActive =
     !!curve.alternating &&
     seg.polygonSides !== 3 &&
-    seg.kind !== 'petal' &&
     seg.side === 'plus'
   const altSign = altActive ? -1 : 1
   const sign = dirSign * altSign
@@ -61,7 +60,6 @@ export function ControlPointLayer({ segments, config, visible, active, zoom }: P
     const out: Marker[] = []
     for (const seg of segments) {
       if (!visible[seg.tileTypeId]) continue
-      if (seg.kind === 'petal') continue
       const fig = config.figures[seg.tileTypeId]
       const curve = fig?.curve
       if (!curve?.enabled || !curve.points.length) continue

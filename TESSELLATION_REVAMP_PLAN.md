@@ -229,6 +229,7 @@ cross-references to the resolutions table.
 | **17.10**| Non-tiling patch detection + UI tag.             | S    | 2         | —            |
 | **17.11**| Multi-vertex Complete (cross-boundary + enclosed pocket). ✅ shipped 2026-05-07; user signed off on enclosed-pocket + chord-regression + UI guidance. Open follow-ups: chord-mode + neighbour-vertex picks silently no-op (auto-promote-to-multi or explicit modifier-required UX TBD); neighbour-click selection awaits browser confirmation that the layer-order fix landed. | M | 9, 10, 12 | — |
 | **17.11b**| Orbit propagation for multi-vertex Complete. ✅ shipped + signed off 2026-05-07. | S | 8 | — |
+| **17.12**| Boundary-inward authoring mode (single-shape v1). 🚧 In flight — sub-step A shipped 2026-05-11 (`8c935a2`); B (reducer) and C (UI) pending. | M | 14, 14a | — |
 
 **Sub-step detail.**
 
@@ -589,6 +590,60 @@ cross-references to the resolutions table.
      silently dropped via the vertex-coincidence gate.
   5. Cross-boundary case — square + `'full'` + Ctrl-pick spanning
      the boundary edge → 4 corner-meet tiles, one per stamp corner.
+
+- **17.12 — Boundary-inward authoring mode.** 🚧 In flight on
+  `feat/art-deco-egypt-theme-revamp`. Sub-step A shipped 2026-05-11
+  (`8c935a2`); B + C pending. Tracking memo
+  `project_editor_boundary_inward_mode_idea.md`.
+
+  **Goal.** Alternative authoring flow where the user builds the patch
+  from the **boundary inward** instead of the centre out: click a
+  highlighted section of the boundary edge → a regular n-gon places
+  flush against that section with edge length equal to the section
+  length. That first boundary-anchored tile then dictates the patch's
+  edge length, and the existing Place / Complete flow takes over.
+
+  **Locked design (this conversation, 2026-05-11):**
+
+  | # | Question                          | Resolution |
+  |---|-----------------------------------|-----------|
+  | a | Origin tile interaction           | **Keep both.** Origin tile + its exposed edges stay clickable. Boundary-section highlights are *additional* click targets, not a replacement. |
+  | b | Composition scope                 | **Single-shape only in v1** (triangle / square / hexagon). Composition (4.8.8) deferred to a later arc. |
+  | c | Section schedule                  | Linear: fraction = 0.30 at boundarySize ≤ 80 → 0.10 at boundarySize ≥ 800; clamped outside. Section count = `round(1 / fraction)`, so each boundary edge divides evenly. |
+  | d | First-tile shape                  | Reuse the existing picker shape list (`PICKER_SIDES = [3,4,5,6,7,8,9,10,12]`). Regular only (Decision 14). |
+  | e | Symmetry orbit                    | Route through the existing `placeTilesOnOrbit` helper so `symmetryMode` behaves consistently with edge placement. `'none'` produces single-section behaviour by default. |
+  | f | `patch.edgeLength` conflict       | First boundary-section placement **resets `patch.edgeLength`** to the section length. The pre-existing origin tile's exposed edges become non-conforming (Decision 14a) and inert in the picker — same gating that already covers irregular-Complete edges. |
+
+  **Sub-step breakdown.**
+  - **17.12a — Foundation.** ✅ Shipped 2026-05-11 (`8c935a2`). New
+    `src/editor/boundaryInward.ts` with `BoundarySection`,
+    `computeBoundarySections`, `placeRegularNGonOnBoundarySection`, plus
+    the size-→-fraction schedule. `EditorPatch.boundaryInward?: boolean`
+    field added; migration plumbing updated. No reducer / UI yet.
+  - **17.12b — Reducer + first-tile placement.** New action
+    `EDITOR_PLACE_TILE_ON_BOUNDARY_SECTION` payload `{ sectionIndex,
+    edgeIndex, sides }`. Validates viability against existing tiles
+    (origin tile is in the centre, so the first boundary placement
+    always passes by construction). Routes through `placeTilesOnOrbit`
+    when `symmetryMode !== 'none'`. Resets `patch.edgeLength` to the
+    section length and re-seeds figures + `applyWrap` envelope. Member
+    of `DESIGN_MODE_ACTIONS` so undo/redo covers it.
+  - **17.12c — UI.** New `EditorBoundaryInwardLayer` SVG layer renders
+    section highlights as click targets when `patch.boundaryInward` is
+    on and the editor mode is `'place'`. Checkbox "Boundary-inward
+    placement" in `EditorDesignControls`. Click a section → reuses the
+    existing `EditorPickerOverlay` at the section midpoint → dispatch.
+    Standard exposed-edge highlights remain visible in parallel (per
+    decision a — additive).
+
+  **Out of scope for 17.12 (parked):**
+  - Composition (4.8.8) support — see decision b.
+  - Sub-100 cell-edge composition support — separate arc.
+  - The vertex-placement idea
+    (`project_editor_vertex_placement_idea.md`, captured 2026-05-11)
+    is a sibling rather than a 17.12 sub-step; it adds corner-anchored
+    placement with a two-page picker and composes with boundary-inward
+    once both ship.
 
 ### Reusable bits already on hand
 

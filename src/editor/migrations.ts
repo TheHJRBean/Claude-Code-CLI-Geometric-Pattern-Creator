@@ -130,6 +130,7 @@ function migratePatchFields(
   if (typeof r.symmetryMode === 'string' && SYMMETRY_MODES.has(r.symmetryMode as SymmetryMode)) {
     out.symmetryMode = r.symmetryMode as SymmetryMode
   }
+  if (typeof r.boundaryInward === 'boolean') out.boundaryInward = r.boundaryInward
   return out
 }
 

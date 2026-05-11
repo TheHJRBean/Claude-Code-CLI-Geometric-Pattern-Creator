@@ -131,6 +131,14 @@ export interface EditorPatch {
    * behaviour) on read of legacy patches.
    */
   symmetryMode?: SymmetryMode
+  /**
+   * When true, the editor surfaces boundary-section click targets in addition
+   * to the standard exposed-edge picker — see `editor/boundaryInward.ts` and
+   * the idea memo `project_editor_boundary_inward_mode_idea.md`. Additive: the
+   * origin tile and its exposed edges remain clickable in parallel. Optional
+   * for back-compat; absent / `false` keeps the legacy centre-out flow.
+   */
+  boundaryInward?: boolean
   tiles: EditorTile[]
 }
 

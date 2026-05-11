@@ -4,8 +4,35 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
-**Last action:** 2026-05-10 — Editor v2 4.8.8 composition feature parity
-with single-shape patches. Three tools added in one pass:
+**Last action:** 2026-05-11 — Rosette figure type removed (`f7f812d`).
+Single-arc cleanup PR per the `/idea` memo. Star is now the only
+strand figure type; the rosette-patch tessellations (pentagonal /
+heptagonal / nonagonal / decagonal / hendecagonal / hexadecagonal)
+and Taprats rosette presets are untouched per user scope decision.
+
+- `FigureConfig.type` narrowed to `'star'`; `rosetteQ` / `rosetteS`
+  fields dropped.
+- `SegmentKind` no longer includes `'petal'`; the petal-emission
+  block in `pic/index.ts` and the petal guards in
+  `strand/computeCurves.ts` + `rendering/ControlPointLayer.tsx`
+  are gone.
+- `SET_ROSETTE_Q` and `SET_FIGURE_TYPE` actions deleted (no more
+  button bar between star/rosette in Lab or Main).
+- `FigureControls.tsx` lost `figType` / `rosetteQ` props and the
+  Petal shape (q) slider. `Sidebar.tsx` + `TessellationLabMode.tsx`
+  no longer plumb them.
+- `loadPatternConfig` coerces legacy `type: 'rosette'` to `'star'`
+  and strips `rosetteQ` / `rosetteS` so existing saved configs
+  (file or localStorage) still load and render as plain stars.
+- Memory: `project_remove_rosette_idea.md` deleted on delivery;
+  `project_rosette_deprecated.md` also deleted (superseded — the
+  feature is gone, no need to track "don't invest"). MEMORY.md
+  index updated.
+
+`npx tsc --noEmit` green, `npm run build` green, all 135 tests pass.
+
+**Previous action:** 2026-05-10 — Editor v2 4.8.8 composition feature
+parity with single-shape patches. Three tools added in one pass:
 
 1. **Alternate orientation per active tile** — `SET_EDITOR_ALTERNATE_BOUNDARY`
    now routes through `updatePatch`, flipping just the active boundary

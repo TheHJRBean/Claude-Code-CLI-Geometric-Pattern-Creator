@@ -2,7 +2,7 @@ import type { Polygon, Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
 import { computeContactRays, computeVertexRays, type ContactRay, type VertexRay } from './stellation'
 import { rayRayIntersect, type IntersectResult } from './intersect'
-import { EPSILON, dist, lerp, midpoint, pointInPolygon, isConvexPolygon, type Vec2 } from '../utils/math'
+import { EPSILON, dist, midpoint, pointInPolygon, isConvexPolygon, type Vec2 } from '../utils/math'
 
 /**
  * For a given vertex (shared by prevEdge and currEdge), find the correct
@@ -216,15 +216,8 @@ function emitVertexArms(
 }
 
 /**
- * Run the full PIC pipeline for all polygons.
- *
- * For 'star' figures: rays from adjacent edges sharing a vertex meet at
- * a star tip (Kaplan's PIC construction).
- *
- * For 'rosette' figures: same star arms plus petal connections between
- * adjacent star tips. The rosetteQ parameter (0–1) controls petal shape:
- *   q=0 → straight tip-to-tip connections
- *   q=1 → full knee through edge midpoint
+ * Run the full PIC pipeline for all polygons. Rays from adjacent edges
+ * sharing a vertex meet at a star tip (Kaplan's PIC construction).
  */
 /** Build a set of edge-midpoint keys that are shared by 2+ polygons (internal edges). */
 function buildInternalEdgeSet(polygons: Polygon[]): Set<string> {
@@ -301,73 +294,6 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
       starTips.push(pair.result.point)
       if (edgeEnabled) {
         emitStarArms(pair, fig.autoLineLength, fig.lineLength, inradius, poly.id, poly.tileTypeId, poly.center, n, segments)
-      }
-    }
-
-    // Rosette: add petal connections between adjacent star tips
-    if (edgeEnabled && fig.type === 'rosette') {
-      const q = fig.rosetteQ ?? 0.5
-      for (let k = 0; k < n; k++) {
-        const tipA = starTips[k]
-        const tipB = starTips[(k + 1) % n]
-        if (!tipA || !tipB) continue
-
-        // Edge midpoint for edge k (between vertex k and vertex k+1)
-        const edgeMid = rays[k * 2].origin
-
-        if (Math.abs(q) < EPSILON) {
-          // Direct connection between tips
-          segments.push({
-            from: tipA,
-            to: tipB,
-            edgeMidpoint: edgeMid,
-            polygonCenter: poly.center,
-            polygonSides: poly.sides,
-            polygonId: poly.id,
-            tileTypeId: poly.tileTypeId,
-            kind: 'petal',
-          })
-        } else {
-          // Kneed connection: two knee points displaced toward edge midpoint
-          // K1 = lerp(tipA, edgeMid, q), K2 = lerp(tipB, edgeMid, q)
-          // Creates a trapezoidal petal: narrow at tips, wide near edge
-          const knee1 = lerp(tipA, edgeMid, q)
-          const knee2 = lerp(tipB, edgeMid, q)
-
-          segments.push({
-            from: tipA,
-            to: knee1,
-            edgeMidpoint: edgeMid,
-            polygonCenter: poly.center,
-            polygonSides: poly.sides,
-            polygonId: poly.id,
-            tileTypeId: poly.tileTypeId,
-            kind: 'petal',
-          })
-          // Only add middle segment if knees aren't coincident
-          if (dist(knee1, knee2) > EPSILON) {
-            segments.push({
-              from: knee1,
-              to: knee2,
-              edgeMidpoint: edgeMid,
-              polygonCenter: poly.center,
-              polygonSides: poly.sides,
-              polygonId: poly.id,
-              tileTypeId: poly.tileTypeId,
-              kind: 'petal',
-            })
-          }
-          segments.push({
-            from: knee2,
-            to: tipB,
-            edgeMidpoint: edgeMid,
-            polygonCenter: poly.center,
-            polygonSides: poly.sides,
-            polygonId: poly.id,
-            tileTypeId: poly.tileTypeId,
-            kind: 'petal',
-          })
-        }
       }
     }
 

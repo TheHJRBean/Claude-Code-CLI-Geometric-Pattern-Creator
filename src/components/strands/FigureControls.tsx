@@ -13,12 +13,10 @@ interface FigureControlsProps {
   tileTypeId: string
   sides: number
   displayLabel: string
-  figType: 'star' | 'rosette' | 'infer'
   angle: number
   lineLength: number
   autoLen: boolean
   snapEnabled: boolean
-  rosetteQ: number
   edgeEnabled: boolean
   vertexEnabled: boolean
   vertexDecoupled: boolean
@@ -38,7 +36,7 @@ interface FigureControlsProps {
 }
 
 export function FigureControls({
-  tileTypeId, sides, displayLabel, figType, angle, lineLength, autoLen, snapEnabled, rosetteQ,
+  tileTypeId, sides, displayLabel, angle, lineLength, autoLen, snapEnabled,
   edgeEnabled, vertexEnabled, vertexDecoupled, vertexAngle, vertexLineLength, vertexAutoLen,
   curveEnabled, curvePoints, curveAlternating, curveDirection,
   cpShown, onToggleCpShown,
@@ -69,30 +67,6 @@ export function FigureControls({
   return (
     <div style={{ marginBottom: 16 }}>
       <FieldLabel label={`${displayLabel} · figure`} />
-      <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
-        {(['star', 'rosette'] as const).map(ft => (
-          <button
-            key={ft}
-            onClick={() => dispatch({ type: 'SET_FIGURE_TYPE', payload: { tileTypeId, figureType: ft } })}
-            style={{
-              flex: 1,
-              padding: '6px 0',
-              fontFamily: "'Cinzel', Georgia, serif",
-              fontSize: 9,
-              fontWeight: 600,
-              letterSpacing: '0.10em',
-              textTransform: 'uppercase' as const,
-              cursor: 'pointer',
-              border: `1px solid ${figType === ft ? 'var(--accent)' : 'var(--border)'}`,
-              background: figType === ft ? 'var(--accent-bg)' : 'transparent',
-              color: figType === ft ? 'var(--accent)' : 'var(--text-muted)',
-              transition: 'all 0.15s',
-            }}
-          >
-            {ft}
-          </button>
-        ))}
-      </div>
 
       <FieldLabel label="Contact angle" value={angle.toFixed(1)} unit="°" />
       <input
@@ -102,19 +76,6 @@ export function FigureControls({
         value={angle}
         onChange={e => dispatch({ type: 'SET_CONTACT_ANGLE', payload: { tileTypeId, angle: Number(e.target.value) } })}
       />
-
-      {figType === 'rosette' && (
-        <>
-          <FieldLabel label="Petal shape (q)" value={rosetteQ.toFixed(2)} />
-          <input
-            type="range"
-            className="pattern-slider"
-            min={0} max={100} step={1}
-            value={rosetteQ * 100}
-            onChange={e => dispatch({ type: 'SET_ROSETTE_Q', payload: { tileTypeId, q: Number(e.target.value) / 100 } })}
-          />
-        </>
-      )}
 
       <div style={{ marginTop: 8, marginBottom: 8 }}>
         <Toggle

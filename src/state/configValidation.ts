@@ -35,6 +35,21 @@ function isFiguresMap(v: unknown): v is Record<string, FigureConfig> {
   )
 }
 
+/**
+ * Coerce legacy rosette figure entries to star. The rosette figure type was
+ * removed in 2026-05-11; old saved configs may still carry `type: 'rosette'`
+ * along with `rosetteQ` / `rosetteS` fields. Drop the petal fields and force
+ * `type` back to 'star' so PIC renders them as plain stars.
+ */
+function coerceLegacyFigures(figures: Record<string, FigureConfig>): Record<string, FigureConfig> {
+  const out: Record<string, FigureConfig> = {}
+  for (const [key, fig] of Object.entries(figures)) {
+    const { rosetteQ: _q, rosetteS: _s, ...rest } = fig as FigureConfig & { rosetteQ?: number; rosetteS?: number }
+    out[key] = { ...rest, type: 'star' }
+  }
+  return out
+}
+
 function isLacingConfig(v: unknown): v is LacingConfig {
   if (typeof v !== 'object' || v === null) return false
   const l = v as Record<string, unknown>
@@ -77,7 +92,7 @@ export function loadPatternConfig(raw: unknown): PatternConfig {
 
   const out: PatternConfig = {
     tiling: r.tiling,
-    figures: r.figures,
+    figures: coerceLegacyFigures(r.figures),
     lacing: r.lacing,
   }
   if (r.edgeAngles && typeof r.edgeAngles === 'object') {

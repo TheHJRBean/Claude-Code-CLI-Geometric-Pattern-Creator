@@ -57,10 +57,6 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       return updateFigure(state, action.payload.tileTypeId, { autoLineLength: action.payload.auto })
     case 'SET_SNAP_LINE_LENGTH':
       return updateFigure(state, action.payload.tileTypeId, { snapLineLength: action.payload.snap })
-    case 'SET_FIGURE_TYPE':
-      return updateFigure(state, action.payload.tileTypeId, { type: action.payload.figureType })
-    case 'SET_ROSETTE_Q':
-      return updateFigure(state, action.payload.tileTypeId, { rosetteQ: action.payload.q })
     case 'SET_LACING':
       return { ...state, lacing: { ...state.lacing, ...action.payload } }
     case 'SET_EDGE_LINES_ENABLED': {

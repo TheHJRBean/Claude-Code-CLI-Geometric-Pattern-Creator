@@ -9,7 +9,7 @@ export interface Polygon {
   center: Vec2
 }
 
-export type SegmentKind = 'star-arm' | 'petal' | 'vertex-line'
+export type SegmentKind = 'star-arm' | 'vertex-line'
 
 export type RaySide = 'plus' | 'minus'
 
@@ -27,6 +27,6 @@ export interface Segment {
   tileTypeId: string
   /** what kind of segment this is — for selective curve application */
   kind: SegmentKind
-  /** which ±α ray this segment originated from. Stable across regenerations; used for alternating-curve parity even when cross-product heuristic is degenerate (e.g. triangles at θ=60°). Petals don't have a side. */
+  /** which ±α ray this segment originated from. Stable across regenerations; used for alternating-curve parity even when cross-product heuristic is degenerate (e.g. triangles at θ=60°). */
   side?: RaySide
 }

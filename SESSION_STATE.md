@@ -4,7 +4,132 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
-**Last action:** 2026-05-11 — Rosette figure type removed (`f7f812d`).
+**Last action:** 2026-05-11 — Step **17.12 boundary-inward authoring
+mode** kicked off; **sub-step A (foundation) shipped** in `8c935a2`.
+B (reducer + first-tile placement) and C (UI / section highlights +
+mode toggle) are queued for next session — **start there.**
+
+### What's in 17.12a (`8c935a2`)
+- New `src/editor/boundaryInward.ts`:
+  - `BoundarySection` interface (`edgeIndex`, `sectionIndex`, `p1`,
+    `p2`, `midpoint`, `sectionLength`).
+  - `SECTION_FRACTION_AT_MIN_SIZE = 0.30` /
+    `SECTION_FRACTION_AT_MAX_SIZE = 0.10`, linearly interpolated over
+    boundary size [80, 800] and clamped outside.
+  - `sectionFractionForBoundarySize` + `sectionCountForBoundarySize`
+    (count = `round(1 / fraction)` so each boundary edge divides
+    evenly).
+  - `computeBoundarySections(patch)` walks `editorBoundaryVertices`
+    (honours `alternateBoundary`) and emits sections CCW.
+  - `placeRegularNGonOnBoundarySection(sides, section, id)` builds a
+    regular n-gon flush against the section on the interior side,
+    with edge length = section length. CCW convention matches
+    `placeRegularNGonOnEdge` (vertex 0 = `section.p2`, vertex 1 =
+    `section.p1`).
+- `EditorPatch.boundaryInward?: boolean` field added; migration in
+  `src/editor/migrations.ts` accepts it so saved patches round-trip.
+- **No reducer or UI yet** — strictly geometry + data model. App
+  behaviour is unchanged on `main`-equivalent paths.
+
+### Locked design decisions (this conversation, 2026-05-11)
+| # | Question                       | Resolution |
+|---|--------------------------------|-----------|
+| a | Origin tile interaction        | **Keep both.** Origin tile and its exposed edges stay clickable. Boundary-section highlights are *additional* targets, not a replacement. |
+| b | Composition scope              | **Single-shape only in v1** (triangle / square / hexagon). Composition (4.8.8) follows in a later arc. |
+| c | Section schedule               | Linear: fraction 0.30 at boundarySize ≤ 80 → 0.10 at boundarySize ≥ 800, clamped. Section count = `round(1 / fraction)`. |
+| d | First-tile shape               | Reuse `PICKER_SIDES = [3,4,5,6,7,8,9,10,12]`. Regular n-gons only. |
+| e | Symmetry orbit                 | Route via `placeTilesOnOrbit` so `symmetryMode` behaves consistently with edge placement. `'none'` ⇒ single-section. |
+| f | `patch.edgeLength` conflict    | **First boundary-section placement resets `patch.edgeLength`** to the section length. The pre-existing origin tile's exposed edges then become non-conforming (Decision 14a) and inert in the picker. |
+
+### Sub-step plan (pick up here)
+- **17.12b — Reducer.** New action `EDITOR_PLACE_TILE_ON_BOUNDARY_SECTION`
+  payload `{ sectionIndex: number; edgeIndex: number; sides: number }`.
+  Implementation outline:
+  - Resolve the `BoundarySection` from the payload via
+    `computeBoundarySections(activePatch)` and the `(edgeIndex,
+    sectionIndex)` pair.
+  - Build a tile via `placeRegularNGonOnBoundarySection`.
+  - If `editor.symmetryMode && editor.symmetryMode !== 'none'`, route
+    through `placeTilesOnOrbit` — needs a small extension since
+    `placeTilesOnOrbit` currently takes an edge, not a section.
+    Cleanest path: write a `placeTilesOnBoundarySectionOrbit` sibling
+    that transforms the section under each symmetry element, builds
+    the tile, and gates by overlap.
+  - **Reset `patch.edgeLength = section.sectionLength`** before
+    appending the tile so subsequent Place flow inherits the new
+    edge length (decision f).
+  - Re-seed figures via `seedFigures` + run `applyWrap` envelope (the
+    standard tile-mutating envelope from the existing
+    `EDITOR_PLACE_TILE_ON_EDGE` path).
+  - Add action to `DESIGN_MODE_ACTIONS` for undo/redo coverage.
+- **17.12c — UI.**
+  - New `src/components/editor/EditorBoundaryInwardLayer.tsx`
+    rendering the section highlights as clickable overlays inside
+    `PatternSVG`'s `editorOverlay` slot. Mirror `EditorEdgeLayer`'s
+    pointer-event pattern (invisible thick hit-area, stop pan).
+  - Show this layer when `patch.boundaryInward && editorMode === 'place'`.
+    Standard exposed-edge layer stays visible in parallel (decision a).
+  - Checkbox **"Boundary-inward placement"** in
+    `EditorDesignControls` — gates the new layer + persists with the
+    patch. Disabled when composition is active (decision b).
+  - Click a section → open the existing `EditorPickerOverlay` at the
+    section midpoint → user picks an n-gon → dispatch
+    `EDITOR_PLACE_TILE_ON_BOUNDARY_SECTION`. After commit, the picker
+    closes.
+  - When `patch.edgeLength` has been reset by a boundary placement
+    (decision f), the origin tile's exposed-edge picker should
+    render those edges dashed/inert — the existing `conforming` flag
+    on `ExposedEdge` already handles this; no new code needed if
+    `editor.edgeLength` is the comparison source of truth.
+
+### Sign-off probes for 17.12 (run after C)
+1. Square boundary at default size (400) + "Boundary-inward
+   placement" off → no section highlights, behaviour identical to
+   pre-17.12 (regression check).
+2. Toggle Boundary-inward on with no tiles placed yet → boundary
+   edges show ~10 section highlights (square edge 400 / section
+   ~50). Hovering highlights one, click opens picker at midpoint.
+3. Pick a 4-gon → square tile lands flush against the section on
+   the interior side. Origin tile (the default centred square)
+   remains. `patch.edgeLength` is now the section length.
+4. Origin tile's exposed edges should now appear dashed/inert
+   because their length no longer matches `patch.edgeLength`.
+   Boundary tile's free edges expose normally.
+5. Triangle boundary at min size (80) → ~3 sections per edge
+   (fraction ≈ 0.30); hex boundary at large size (800) → ~10
+   sections per edge (fraction ≈ 0.10). Visual count should
+   match.
+6. `symmetryMode = 'full'` + Boundary-inward + click one section →
+   tile propagates to all orbit-equivalent sections. `'none'` +
+   click one section → only that section fills.
+7. Save / load patch with `boundaryInward: true` set →
+   round-trips through `loadPatternConfig` and re-renders with the
+   flag intact.
+8. Undo after a boundary-section placement → tile removed,
+   `patch.edgeLength` restored to its prior value (verifying the
+   snapshot captures the edge-length reset).
+9. Composition (4.8.8) → checkbox is disabled and section
+   highlights don't render (decision b).
+
+### Captured this session
+- `/idea` — vertex placement with direction picker
+  (`project_editor_vertex_placement_idea.md`). Sibling to 17.12.
+  Tiles can be placed on a single vertex; picker gains a second
+  page where the user picks the new tile's rotation around the
+  shared vertex.
+
+### Roadmap sync (2026-05-11)
+- `project_editor_custom_boundary_idea.md` — promoted
+  `LIVE 2026-05-10` → `DELIVERED 2026-05-10`.
+- `project_editor_per_edge_placement_idea.md` — corrected RAW →
+  `DELIVERED 2026-05-06` (already shipped at 17.4 re-enable via
+  `symmetryMode='none'` default).
+- `MEMORY.md` index reorganised into `## Delivered` and `## Ideas /
+  Future` sections; duplicate framing/decoration entries removed.
+
+---
+
+**Earlier 2026-05-11 — Rosette figure type removed (`f7f812d`).**
 Single-arc cleanup PR per the `/idea` memo. Star is now the only
 strand figure type; the rosette-patch tessellations (pentagonal /
 heptagonal / nonagonal / decagonal / hendecagonal / hexadecagonal)
@@ -31,7 +156,7 @@ and Taprats rosette presets are untouched per user scope decision.
 
 `npx tsc --noEmit` green, `npm run build` green, all 135 tests pass.
 
-**Previous action:** 2026-05-10 — Editor v2 4.8.8 composition feature
+**Earlier 2026-05-10 — Editor v2 4.8.8 composition feature
 parity with single-shape patches. Three tools added in one pass:
 
 1. **Alternate orientation per active tile** — `SET_EDITOR_ALTERNATE_BOUNDARY`

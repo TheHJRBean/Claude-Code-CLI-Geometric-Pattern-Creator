@@ -76,13 +76,14 @@ Key bits:
 - `editor/tileTypeId.ts` — Q11 canonical-signature `tileTypeId`: `"<n>"` for regulars, `"<n>i:<8-char hex>"` for irregulars.
 - `editor/tileTypes.ts` — `editorTileTypes` for the strand panel + Q15 lazy + additive `seedFiguresForEditor`. Reducer routes editor mutations through `seedFigures` (which walks `allPatches` for compositions).
 - `editor/lattice.ts` — single-shape `editorLatticeStamps` for the 17.6 strand-editor lattice preview (square + hex + triangle via 2-orientation cell). `editorOneRingNeighbourStamps` for the 17.6d Design-mode "Show neighbours" preview.
+- `editor/boundaryInward.ts` — Step 17.12 (in flight; **sub-step A only** so far). Boundary-section geometry for the boundary-inward authoring mode. Exports `BoundarySection`, `computeBoundarySections(patch)`, `placeRegularNGonOnBoundarySection`, plus the size-→-fraction schedule (`sectionFractionForBoundarySize`, 0.30 at boundary 80 → 0.10 at boundary 800). `EditorPatch.boundaryInward?: boolean` gates the new UI. **No reducer or UI wiring yet** — sub-steps B and C pending.
 - `editor/compositionLattice.ts` — composition-mode siblings: `compositionToPolygons` (origin tiles transformed by `BoundaryTile.center` + rotation), `compositionBoundaryOutlines` (visual outlines), `compositionLatticeStamps` (cell vectors at `composition.edgeLength`), `compositionCellBasis`.
 - `editor/nonTilingDetection.ts` — 17.10 patch-vs-boundary area compare for the strand-mode warning tag.
 - `editor/migrations.ts` — load-time validation; switches on `r.version` (1 = legacy single-shape; 2 = single-shape OR composition with `BoundaryComposition` shape check). Octagon allowed inside `BoundaryTile.shape` only.
 - `editor/history.ts` + `editor/useEditorHistory.ts` — undo/redo with `DESIGN_MODE_ACTIONS` allowlist, depth 50, 500 ms coalesce. `SET_EDITOR_BOUNDARY_CONFIGURATION` is in the set; `SET_ACTIVE_BOUNDARY_TILE` is intentionally NOT (pure pane swap).
 - `usePattern` accepts `editorStrandMode`, `showBoundaryLattice`, `editorNeighbourPreview`, `editorNeighbourBoundaries`, `editorNeighbourStrands`. Branches once on `composition` for the editor branch — composition uses `compositionToPolygons` + `compositionLatticeStamps` + `compositionBoundaryOutlines`. Neighbour preview is single-shape only.
 
-Authoritative design context lives in `TESSELLATION_REVAMP_PLAN.md` (Step 17 section) and `SESSION_STATE.md` (resume anchor). 4.8.8 boundary configurations are LIVE on branch `feat/art-deco-egypt-theme-revamp`; see SESSION_STATE for sign-off probes and the open follow-up list.
+Authoritative design context lives in `TESSELLATION_REVAMP_PLAN.md` (Step 17 section) and `SESSION_STATE.md` (resume anchor). 4.8.8 boundary configurations are LIVE on branch `feat/art-deco-egypt-theme-revamp`. Step 17.12 (boundary-inward authoring) is in flight on the same branch — sub-step A only; see SESSION_STATE for the sub-step plan and the locked design decisions.
 
 ### Planned stages (see plan file)
 

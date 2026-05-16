@@ -551,7 +551,7 @@ export function Sidebar({
           )}
         </div>
 
-        {/* Line thickness — always visible since strands render regardless of lacing */}
+        {/* Strand thickness — stroke width applied to every rendered Strand. */}
         <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
           <LotusDivider />
           <SectionTitle
@@ -563,7 +563,7 @@ export function Sidebar({
             <>
               <FieldLabel
                 label="Strand width"
-                value={config.lacing.strandWidth.toFixed(1)}
+                value={config.strand.width.toFixed(1)}
                 unit=" px"
                 tooltip="Stroke width applied to every Strand in the rendered pattern."
               />
@@ -571,42 +571,9 @@ export function Sidebar({
                 type="range"
                 className="pattern-slider"
                 min={1} max={20} step={0.5}
-                value={config.lacing.strandWidth}
-                onChange={e => dispatch({ type: 'SET_LACING', payload: { strandWidth: Number(e.target.value) } })}
+                value={config.strand.width}
+                onChange={e => dispatch({ type: 'SET_STRAND_STYLE', payload: { width: Number(e.target.value) } })}
               />
-              <div style={{ marginBottom: 4 }} />
-            </>
-          )}
-        </div>
-
-        {/* Lacing */}
-        <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
-          <LotusDivider />
-          <SectionTitle
-            open={isOpen('lacing')}
-            onToggle={() => toggleSection('lacing')}
-            tooltip="Lacing — the over/under interlace effect on Strands. The current implementation is non-functional and is being removed; lacing returns in the future Decoration Phase."
-          >Lacing</SectionTitle>
-          {isOpen('lacing') && (
-            <>
-              <Toggle
-                checked={config.lacing.enabled}
-                onChange={v => dispatch({ type: 'SET_LACING', payload: { enabled: v } })}
-                label="Enable strand weaving"
-              />
-
-              {config.lacing.enabled && (
-                <div style={{ marginTop: 4 }}>
-                  <FieldLabel label="Gap width" value={config.lacing.gapWidth.toFixed(1)} unit=" px" />
-                  <input
-                    type="range"
-                    className="pattern-slider"
-                    min={1} max={12} step={0.5}
-                    value={config.lacing.gapWidth}
-                    onChange={e => dispatch({ type: 'SET_LACING', payload: { gapWidth: Number(e.target.value) } })}
-                  />
-                </div>
-              )}
               <div style={{ marginBottom: 4 }} />
             </>
           )}

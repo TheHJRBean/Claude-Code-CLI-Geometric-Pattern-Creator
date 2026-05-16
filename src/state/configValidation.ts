@@ -1,4 +1,4 @@
-import type { FigureConfig, LacingConfig, PatternConfig, TilingConfig } from '../types/pattern'
+import type { FigureConfig, PatternConfig, StrandStyle, TilingConfig } from '../types/pattern'
 import { migrateEditorConfig } from '../editor/migrations'
 
 /**
@@ -50,14 +50,41 @@ function coerceLegacyFigures(figures: Record<string, FigureConfig>): Record<stri
   return out
 }
 
-function isLacingConfig(v: unknown): v is LacingConfig {
-  if (typeof v !== 'object' || v === null) return false
-  const l = v as Record<string, unknown>
-  return typeof l.enabled === 'boolean'
-    && typeof l.strandWidth === 'number'
-    && typeof l.gapWidth === 'number'
-    && typeof l.strandColor === 'string'
-    && typeof l.gapColor === 'string'
+/**
+ * Read a `StrandStyle` from raw JSON.
+ *
+ * Accepts two shapes:
+ *   - Current: `{ width, color, background }` keyed under `strand`.
+ *   - Legacy `lacing`: `{ strandWidth, strandColor, gapColor, … }` —
+ *     migrated to `{ width, color, background }`. Other lacing fields
+ *     (`enabled`, `gapWidth`) are dropped silently; the Lacing render
+ *     path was removed in Phase 6 of the context refactor (see
+ *     `project_decoration_stage_idea.md`).
+ *
+ * Returns `null` if neither shape parses.
+ */
+function readStrandStyle(r: Record<string, unknown>): StrandStyle | null {
+  const direct = r.strand as Record<string, unknown> | undefined
+  if (direct && typeof direct === 'object') {
+    if (typeof direct.width === 'number'
+      && typeof direct.color === 'string'
+      && typeof direct.background === 'string') {
+      return { width: direct.width, color: direct.color, background: direct.background }
+    }
+  }
+  const legacy = r.lacing as Record<string, unknown> | undefined
+  if (legacy && typeof legacy === 'object') {
+    if (typeof legacy.strandWidth === 'number'
+      && typeof legacy.strandColor === 'string'
+      && typeof legacy.gapColor === 'string') {
+      return {
+        width: legacy.strandWidth,
+        color: legacy.strandColor,
+        background: legacy.gapColor,
+      }
+    }
+  }
+  return null
 }
 
 /**
@@ -86,14 +113,15 @@ export function loadPatternConfig(raw: unknown): PatternConfig {
   if (!isFiguresMap(r.figures)) {
     throw new ConfigValidationError('Missing or malformed `figures` map.')
   }
-  if (!isLacingConfig(r.lacing)) {
-    throw new ConfigValidationError('Missing or malformed `lacing` config.')
+  const strand = readStrandStyle(r)
+  if (!strand) {
+    throw new ConfigValidationError('Missing or malformed `strand` (or legacy `lacing`) style.')
   }
 
   const out: PatternConfig = {
     tiling: r.tiling,
     figures: coerceLegacyFigures(r.figures),
-    lacing: r.lacing,
+    strand,
   }
   if (r.edgeAngles && typeof r.edgeAngles === 'object') {
     out.edgeAngles = r.edgeAngles as Record<string, number>

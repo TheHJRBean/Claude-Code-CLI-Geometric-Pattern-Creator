@@ -9,7 +9,7 @@ import type { EditorConfig } from '../types/editor'
  * `HISTORY_DEPTH` to bound memory.
  *
  * Composition-Phase mutations (figure-level: contact angle, line length,
- * lacing, curves, etc.) are explicitly out of scope — only
+ * Strand style, curves, etc.) are explicitly out of scope — only
  * `DESIGN_MODE_ACTIONS` push to the stack. History is preserved across
  * Design ↔ Composition phase-switches.
  *

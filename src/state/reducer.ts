@@ -57,8 +57,8 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       return updateFigure(state, action.payload.tileTypeId, { autoLineLength: action.payload.auto })
     case 'SET_SNAP_LINE_LENGTH':
       return updateFigure(state, action.payload.tileTypeId, { snapLineLength: action.payload.snap })
-    case 'SET_LACING':
-      return { ...state, lacing: { ...state.lacing, ...action.payload } }
+    case 'SET_STRAND_STYLE':
+      return { ...state, strand: { ...state.strand, ...action.payload } }
     case 'SET_EDGE_LINES_ENABLED': {
       const patch: Partial<FigureConfig> = { edgeLinesEnabled: action.payload.enabled }
       if (!action.payload.enabled) patch.vertexLinesEnabled = true

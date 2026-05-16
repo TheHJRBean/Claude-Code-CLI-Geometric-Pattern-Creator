@@ -360,14 +360,14 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     }
     case 'SET_ACTIVE_CELL': {
       if (!state.editor) return state
-      const { tileId } = action.payload
-      if (!state.editor.cells.some(c => c.id === tileId)) return state
+      const { cellId } = action.payload
+      if (!state.editor.cells.some(c => c.id === cellId)) return state
       // Pure UI pane swap — excluded from the undo stack (see
       // history.ts DESIGN_MODE_ACTIONS). If the new active Cell has wrap on,
       // refit so the lattice tracks the user's selection.
       const swapped: PatternConfig = {
         ...state,
-        editor: { ...state.editor, activeCellId: tileId },
+        editor: { ...state.editor, activeCellId: cellId },
       }
       return applyWrap(swapped)
     }

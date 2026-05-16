@@ -75,13 +75,25 @@ after this Phase 2 commit:
 along with the rest of the comment sweep so the rename + sweep stay
 mechanical.
 
-**Phase-5 action items** (queued):
-- Comment sweep: replace "strand mode" → "Composition Phase",
+**Phase 5 comment sweep + payload rename — DONE.** Landed in the
+commit after Phase 4. Build green.
+
+- Code-comment vocabulary swept across Canvas.tsx, TessellationLabMode.tsx,
+  PatternSVG.tsx, customTessellations.ts, mainConfigs.ts, editor/history.ts,
+  editor/useEditorHistory.ts: "strand mode" → "Composition Phase",
   "design mode" → "Design Phase", "main mode" → "Gallery", "boundary
-  tile" → "Cell" in code comments. Also rename `SET_ACTIVE_CELL` payload
-  key `tileId` → `cellId` while you're sweeping.
+  tile" → "Cell", "strand-editor mode" → "Composition Phase".
+- `migrations.ts` / `types/editor.ts` `BoundaryTile` mentions left as-is
+  — those refer to the actual v2 legacy type names the migrator reads.
+- `SET_ACTIVE_CELL` payload key renamed `tileId` → `cellId`
+  (actions.ts + reducer.ts + 2 call sites in TessellationLabMode.tsx).
+
+**Outstanding items** (deferred — not blocking):
+- Identifier-level naming still uses some legacy terms (`editorStrandMode`
+  prop, `editorPhase: 'design' | 'strand'` state). Strict SESSION_STATE
+  scope was comments only; identifier renames can land later.
 - Lacing removal (per `feedback_lacing.md`) — currently broken; slated
-  for reintroduction under Decoration Phase. Independent of the above.
+  for reintroduction under Decoration Phase. Independent track.
 
 ---
 

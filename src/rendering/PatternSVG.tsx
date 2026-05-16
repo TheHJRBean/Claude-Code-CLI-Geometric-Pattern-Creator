@@ -22,14 +22,14 @@ interface Props {
   cpActive: Record<string, number>
   outlineWidth?: number
   /**
-   * Editor-mode patch boundary outlines (Step 17.2+). Drawn as dashed
-   * outlines below tiles. One in design mode; one per lattice stamp in
-   * strand mode when the boundary-lattice toggle is on.
+   * Builder Patch Boundary outlines (Step 17.2+). Drawn as dashed outlines
+   * below Tiles. One per Cell in the Design Phase; one per Cell per lattice
+   * stamp in the Composition Phase when the boundary-lattice toggle is on.
    */
   boundaryOutlines?: Vec2[][]
   /**
-   * Editor-mode neighbour-preview ghost polygons (Step 17.6d). Drawn at
-   * low opacity below the main tile layer; non-interactive.
+   * Builder neighbour-preview ghost polygons (Step 17.6d). Drawn at low
+   * opacity below the main Tile layer; non-interactive.
    */
   ghostPolygons?: Polygon[]
   /** Editor-mode interactive overlay (Step 17.3+). Rendered above the tile layer. */

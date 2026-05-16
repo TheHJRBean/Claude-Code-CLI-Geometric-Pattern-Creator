@@ -92,15 +92,15 @@ interface Props {
    * accent-vs-danger tint of the preview polygon.
    */
   previewValid?: boolean | null
-  /** Step 17.6 — when true, the editor patch is stamped on the boundary's translation lattice. Hides design overlays. */
+  /** Step 17.6 — when true, the Builder Patch is stamped on the Boundary's translation lattice (Composition Phase). Hides Design-Phase overlays. */
   editorStrandMode?: boolean
-  /** Step 17.6 — when true in strand mode, draw the patch boundary outline at every lattice stamp. */
+  /** Step 17.6 — when true in the Composition Phase, draw the Patch Boundary outline at every lattice stamp. */
   showBoundaryLattice?: boolean
-  /** Step 17.6d — Design-mode neighbour preview. Ignored in strand mode. */
+  /** Step 17.6d — Design-Phase neighbour preview. Ignored in the Composition Phase. */
   editorNeighbourPreview?: boolean
-  /** Step 17.6d — Design-mode neighbour preview: also draw boundary outlines at each neighbour stamp. */
+  /** Step 17.6d — Design-Phase neighbour preview: also draw Boundary outlines at each neighbour stamp. */
   editorNeighbourBoundaries?: boolean
-  /** Step 17.6d — Design-mode neighbour preview: include ghosts in PIC so strands flow across boundaries. */
+  /** Step 17.6d — Design-Phase neighbour preview: include ghosts in PIC so Strands flow across boundaries. */
   editorNeighbourStrands?: boolean
 }
 
@@ -252,9 +252,9 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     [allCycles.pockets],
   )
   // Boundary-polygon corners — clickable in Complete mode so the user can
-  // fill regions bounded by the boundary outline. Filtered to drop corners
-  // that coincide with patch outer-cycle vertices (would render twice).
-  // Composition: aggregate corners from every boundary tile, same as cycles.
+  // fill regions bounded by the Boundary outline. Filtered to drop corners
+  // that coincide with Cell outer-cycle vertices (would render twice).
+  // Aggregate corners from every Cell, same as cycles.
   const boundaryCorners = useMemo(() => {
     if (!editorActive || !config.editor || editorMode !== 'complete') return []
     const collected: BoundaryVertex[] = []
@@ -273,10 +273,10 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // "Show neighbours" is on so cross-boundary picks line up with the visible
   // ghost geometry. Flatten to a single array since variant styling already
   // tags them as ghosts.
-  // Composition: each cell-level neighbour stamp brings every boundary tile's
+  // Multi-cell: each lattice-cell-level neighbour stamp brings every Cell's
   // outer cycle along (1 octagon + 1 square per stamp for 4.8.8). We compute
-  // each tile's outer cycle in patch-local, lift to cell-local via the
-  // BoundaryTile transform, then translate by the neighbour stamp.
+  // each Cell's outer cycle in Cell-local, lift to Patch-local via the
+  // Cell transform, then translate by the neighbour stamp.
   const neighbourVertices = useMemo(() => {
     if (!editorActive || !config.editor || editorMode !== 'complete') return []
     if (!editorNeighbourPreview || editorStrandMode) return []
@@ -308,14 +308,15 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     return out
   }, [editorActive, config.editor, editorMode, editorNeighbourPreview, editorStrandMode])
 
-  // Strand mode hides every design overlay — the canvas is the lattice
-  // preview only, and strand controls in the side panel drive what changes.
-  // Composition mode keeps the picker live: edges are computed in the active
-  // boundary tile's patch-local coords and parallel-transformed via tileTx
-  // for rendering, so clicks place sub-tiles inside the active tile via the
-  // reducer's updatePatch routing. Useful once the cell-edge slider has been
-  // dragged past the seeded edge — at the seed, origin = boundary so any
-  // placement would land outside the cell.
+  // Composition Phase hides every Design-Phase overlay — the canvas is the
+  // lattice preview only, and Strand controls in the side panel drive what
+  // changes. Multi-Cell Design Phase keeps the picker live: edges are
+  // computed in each Cell's local coords and parallel-transformed via the
+  // Cell's transform for rendering, so clicks place Tiles inside the active
+  // Cell via the reducer's updateActiveCell routing. Useful once the
+  // lattice-edge slider has been dragged past the seeded edge — at the seed,
+  // the Seed Tile fills the Boundary exactly so any placement would land
+  // outside the Cell.
   const editorOverlay = editorActive && !editorStrandMode
     ? editorMode === 'complete' && onPickVertex
       ? (

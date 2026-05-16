@@ -126,12 +126,12 @@ export function TessellationLabMode({
   // reducer's activePatch routing. Single-shape: just sets the selection.
   const handleSelectEdge = (edge: SelectedEdge | null) => {
     if (
-      edge?.hostBoundaryTileId
+      edge?.hostCellId
       && config.editor
       && config.editor.cells.length > 1
-      && config.editor.activeCellId !== edge.hostBoundaryTileId
+      && config.editor.activeCellId !== edge.hostCellId
     ) {
-      dispatch({ type: 'SET_ACTIVE_BOUNDARY_TILE', payload: { tileId: edge.hostBoundaryTileId } })
+      dispatch({ type: 'SET_ACTIVE_CELL', payload: { tileId: edge.hostCellId } })
     }
     setSelectedEdge(edge)
   }
@@ -1056,11 +1056,11 @@ function EditorDesignControls({
             : !multiCell && cell.shape === opt.value.shape
           const onClick = () => {
             if (opt.value.kind === 'configuration') {
-              dispatch({ type: 'SET_EDITOR_BOUNDARY_CONFIGURATION', payload: opt.value.id })
+              dispatch({ type: 'SET_BUILDER_CONFIGURATION', payload: opt.value.id })
             } else {
               // Reducer handles the composition → single-shape transition by
               // seeding a fresh patch in the requested shape.
-              dispatch({ type: 'SET_EDITOR_BOUNDARY_SHAPE', payload: opt.value.shape })
+              dispatch({ type: 'SET_CELL_SHAPE', payload: opt.value.shape })
             }
           }
           return (
@@ -1101,7 +1101,7 @@ function EditorDesignControls({
               return (
                 <button
                   key={t.id}
-                  onClick={() => dispatch({ type: 'SET_ACTIVE_BOUNDARY_TILE', payload: { tileId: t.id } })}
+                  onClick={() => dispatch({ type: 'SET_ACTIVE_CELL', payload: { tileId: t.id } })}
                   style={{
                     flex: 1,
                     padding: '5px 0',
@@ -1159,7 +1159,7 @@ function EditorDesignControls({
             max={BOUNDARY_SIZE_MAX_BY_SHAPE[cell.shape]}
             step={1}
             value={cell.boundarySize}
-            onChange={e => dispatch({ type: 'SET_EDITOR_BOUNDARY_SIZE', payload: Number(e.target.value) })}
+            onChange={e => dispatch({ type: 'SET_CELL_BOUNDARY_SIZE', payload: Number(e.target.value) })}
           />
         </>
       )}
@@ -1183,7 +1183,7 @@ function EditorDesignControls({
             max={400}
             step={1}
             value={editor.edgeLength}
-            onChange={e => dispatch({ type: 'SET_EDITOR_BOUNDARY_SIZE', payload: Number(e.target.value) })}
+            onChange={e => dispatch({ type: 'SET_CELL_BOUNDARY_SIZE', payload: Number(e.target.value) })}
           />
         </>
       )}
@@ -1218,7 +1218,7 @@ function EditorDesignControls({
         step={1}
         value={cell.seedSides}
         disabled={originLocked}
-        onChange={e => dispatch({ type: 'SET_EDITOR_ORIGIN_SIDES', payload: Number(e.target.value) })}
+        onChange={e => dispatch({ type: 'SET_CELL_SEED_SIDES', payload: Number(e.target.value) })}
         style={originLocked ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
       />
       {originLocked && (

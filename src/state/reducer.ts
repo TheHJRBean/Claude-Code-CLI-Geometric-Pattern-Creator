@@ -147,7 +147,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       void _drop
       return { ...rest, tiling: { ...state.tiling, type: '' } }
     }
-    case 'SET_EDITOR_BOUNDARY_SHAPE': {
+    case 'SET_CELL_SHAPE': {
       if (!state.editor) return state
       // From a multi-cell **Configuration** (e.g. 4.8.8), picking a single
       // boundary shape exits the Configuration: seed a fresh single-cell
@@ -169,7 +169,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         boundarySize: DEFAULT_BOUNDARY_SIZE_BY_SHAPE[action.payload],
       }))))
     }
-    case 'SET_EDITOR_BOUNDARY_SIZE': {
+    case 'SET_CELL_BOUNDARY_SIZE': {
       // Q9 Option B: the slider rescales the Cell's Boundary outline — Tiles
       // untouched. Manual slider drag implies the user wants a specific size,
       // so wrap turns off on the touched Cells.
@@ -212,7 +212,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         ...cell,
         alternateBoundary: action.payload,
       })))
-    case 'SET_EDITOR_ORIGIN_SIDES': {
+    case 'SET_CELL_SEED_SIDES': {
       if (!state.editor) return state
       const sides = Math.max(3, Math.floor(action.payload))
       // Changing Seed sides invalidates any placed/completed Tiles built on
@@ -338,7 +338,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         return { ...cell, symmetryMode: mode }
       })
     }
-    case 'SET_EDITOR_BOUNDARY_CONFIGURATION': {
+    case 'SET_BUILDER_CONFIGURATION': {
       // Switch the Patch between single-cell and a multi-cell Configuration.
       // Destructive — discards the current Cells (single → multi-cell seeds
       // fresh; multi-cell → single returns to defaults).
@@ -358,7 +358,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         editor: next,
       })
     }
-    case 'SET_ACTIVE_BOUNDARY_TILE': {
+    case 'SET_ACTIVE_CELL': {
       if (!state.editor) return state
       const { tileId } = action.payload
       if (!state.editor.cells.some(c => c.id === tileId)) return state

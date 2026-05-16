@@ -28,12 +28,13 @@ export interface ExposedEdge {
    */
   conforming: boolean
   /**
-   * Composition mode only — the BoundaryTile id this edge originates from.
-   * Used to disambiguate edges with identical (tileId, edgeIndex) across the
-   * cell's boundary tiles (e.g. both 'octagon' and 'square' have an inner
-   * Seed Tile with edge 0). Absent on single-shape patches.
+   * The Cell id this edge originates from — used to disambiguate edges with
+   * identical (tileId, edgeIndex) across the Cells of a multi-Cell Patch
+   * (e.g. both 'octagon' and 'square' Cells have an inner Seed Tile with
+   * edge 0). Always populated when an edge comes from `Canvas`'s per-Cell
+   * aggregation; left optional so non-aggregating callers can omit it.
    */
-  hostBoundaryTileId?: string
+  hostCellId?: string
 }
 
 /** Vertices of an editor tile — regular tiles are derived; irregular tiles are stored. */

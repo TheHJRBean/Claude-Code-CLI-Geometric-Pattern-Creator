@@ -63,7 +63,7 @@ export interface SelectedEdge {
    * when the user clicks an edge inside an inactive Cell. Always populated
    * in v3; the field stays optional so legacy persisted picks don't crash.
    */
-  hostBoundaryTileId?: string
+  hostCellId?: string
 }
 
 interface Props {
@@ -186,7 +186,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     const out: ExposedEdge[] = []
     for (const cell of config.editor.cells) {
       for (const e of computeExposedEdges(cell, config.editor.edgeLength)) {
-        out.push({ ...e, hostBoundaryTileId: cell.id })
+        out.push({ ...e, hostCellId: cell.id })
       }
     }
     return out
@@ -198,7 +198,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       txByHost.set(cell.id, cellTransform(cell))
     }
     return exposedEdges.map(e => {
-      const tx = e.hostBoundaryTileId ? txByHost.get(e.hostBoundaryTileId) : undefined
+      const tx = e.hostCellId ? txByHost.get(e.hostCellId) : undefined
       return tx ? transformEdge(e, tx) : e
     })
   }, [exposedEdges, editorActive, config.editor])
@@ -208,7 +208,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   const selectedEdgeData = selectedEdge && exposedEdges.find(
     e => e.tileId === selectedEdge.tileId
       && e.edgeIndex === selectedEdge.edgeIndex
-      && (selectedEdge.hostBoundaryTileId ?? null) === (e.hostBoundaryTileId ?? null),
+      && (selectedEdge.hostCellId ?? null) === (e.hostCellId ?? null),
   )
 
   // Step 17.5 / 17.11 — outer + pocket cycles for the vertex picker, only
@@ -344,7 +344,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // tracks the visible edge. Validation uses the raw (Cell-local) edge so
   // viability runs in the host Cell's coord system.
   const selectedHostCell = selectedEdgeData && config.editor
-    ? config.editor.cells.find(c => c.id === selectedEdgeData.hostBoundaryTileId)
+    ? config.editor.cells.find(c => c.id === selectedEdgeData.hostCellId)
       ?? config.editor.cells.find(c => c.id === config.editor!.activeCellId)
       ?? config.editor.cells[0]
     : null

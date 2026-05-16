@@ -59,17 +59,27 @@ returns v3, so persisted Lab patches round-trip transparently.
 staged for one commit (`feat(editor): Phase 2 v3 schema migration — build
 green`).
 
-**Phase-4 / Phase-5 action items** (queued, untouched by this session):
-- Rename reducer actions: `SET_EDITOR_BOUNDARY_CONFIGURATION` →
-  `SET_BUILDER_CONFIGURATION`; `SET_ACTIVE_BOUNDARY_TILE` →
-  `SET_ACTIVE_CELL`; `SET_EDITOR_BOUNDARY_SHAPE` → `SET_CELL_SHAPE`;
-  `SET_EDITOR_BOUNDARY_SIZE` → `SET_CELL_BOUNDARY_SIZE`;
-  `SET_EDITOR_ORIGIN_SIDES` → `SET_CELL_SEED_SIDES`. Update
-  `DESIGN_MODE_ACTIONS` allowlist + `hostBoundaryTileId` field name on
-  `SelectedEdge` (now always a Cell id).
+**Phase 4 action renames — DONE.** Build green; landed in the commit
+after this Phase 2 commit:
+- `SET_EDITOR_BOUNDARY_CONFIGURATION` → `SET_BUILDER_CONFIGURATION`
+- `SET_ACTIVE_BOUNDARY_TILE` → `SET_ACTIVE_CELL`
+- `SET_EDITOR_BOUNDARY_SHAPE` → `SET_CELL_SHAPE`
+- `SET_EDITOR_BOUNDARY_SIZE` → `SET_CELL_BOUNDARY_SIZE`
+- `SET_EDITOR_ORIGIN_SIDES` → `SET_CELL_SEED_SIDES`
+- `DESIGN_MODE_ACTIONS` allowlist updated.
+- `SelectedEdge.hostBoundaryTileId` (and `ExposedEdge.hostBoundaryTileId`)
+  renamed to `hostCellId` across Canvas / EditorEdgeLayer /
+  TessellationLabMode / exposedEdges.
+
+`SET_ACTIVE_CELL` still uses payload key `tileId` (legacy) — deferred
+along with the rest of the comment sweep so the rename + sweep stay
+mechanical.
+
+**Phase-5 action items** (queued):
 - Comment sweep: replace "strand mode" → "Composition Phase",
   "design mode" → "Design Phase", "main mode" → "Gallery", "boundary
-  tile" → "Cell" in code comments.
+  tile" → "Cell" in code comments. Also rename `SET_ACTIVE_CELL` payload
+  key `tileId` → `cellId` while you're sweeping.
 - Lacing removal (per `feedback_lacing.md`) — currently broken; slated
   for reintroduction under Decoration Phase. Independent of the above.
 

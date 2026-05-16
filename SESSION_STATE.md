@@ -6,10 +6,53 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
-**Last action:** 2026-05-11 — Step **17.12 boundary-inward authoring
-mode** kicked off; **sub-step A (foundation) shipped** in `8c935a2`.
-B (reducer + first-tile placement) and C (UI / section highlights +
-mode toggle) are queued for next session — **start there.**
+**Last action:** 2026-05-16 — **Vocabulary alignment session** completed
+via `grill-with-docs`. Shipped:
+- `CONTEXT.md` — canonical glossary (Lab / Builder / Gallery, Patch /
+  Cell / Boundary / Tile, Phase / Phase-switch, Ray / Strand / Figure,
+  Tiling / Composition / Configuration, Seed Tile / Tile source).
+- `docs/adr/0001` — Patch always has Cells (recursive shape, requires
+  v2 → v3 schema migration).
+- `docs/adr/0002` — Complete (not Fill) — Fill reserved for Decoration
+  colour-fill.
+- `docs/adr/0003` — Phase sequence Design → Composition → Framing →
+  Decoration (last two reserved).
+- `CLAUDE.md` — rewritten against the new vocabulary.
+- `TESSELLATION_REVAMP_PLAN.md` + `RESEARCH-TILING-CONFIGURATIONS.md`
+  + this file — vocabulary-mapping headers added (full-prose sweep deferred).
+- UI labels — `TessellationLabMode.tsx`, `Sidebar.tsx`,
+  `FigureControls.tsx`: Builder header, Gallery toggle, Ray length,
+  Seed sides, Composition phase button, plus tooltips on Phase,
+  Boundary, Editing Cell, Boundary size, Lattice edge, Complete,
+  Strands, Lacing, Contact angle.
+
+Commits: `a099e10` (docs + ADRs + CONTEXT.md), `f24cde2` (UI labels).
+
+**Queued for next session — code-internal alignment** (deferred from this
+session because it changes runtime behaviour / type shape and deserves
+its own focused pass):
+1. **Schema migration v2 → v3** per ADR-0001 — every `EditorPatch`
+   carries `cells: EditorCell[]`; legacy `tiles[]` wraps into one Cell.
+2. **Type renames**: `BoundaryTile` → `EditorCell` (or `Cell`),
+   `BoundaryComposition` collapses into `EditorPatch.cells`,
+   `EditorTileOrigin` value `'origin'` → `'seed'`, field
+   `EditorTile.origin` → `EditorTile.source`, `originSides` →
+   `seedSides`.
+3. **Reducer action renames**: `SET_EDITOR_BOUNDARY_CONFIGURATION` →
+   `SET_BUILDER_CONFIGURATION`, `SET_ACTIVE_BOUNDARY_TILE` →
+   `SET_ACTIVE_CELL`, etc.
+4. **Sweep code-internal comments** that still say "strand mode",
+   "design mode", "main mode" (CLAUDE.md is the only doc that's been
+   fully rewritten — large planning docs carry mapping headers only).
+5. **Lacing removal** (per `feedback_lacing.md`) — currently broken;
+   slated for reintroduction under Decoration Phase. Could happen
+   independently.
+
+**Prior in-flight work** (still pending — does not block the above):
+Step **17.12 boundary-inward authoring mode** — sub-step A (foundation)
+shipped in `8c935a2`. B (reducer + first-tile placement) and C (UI /
+section highlights + mode toggle) are queued. The boundary-inward UI
+copy should land in the new vocabulary from the start.
 
 ### What's in 17.12a (`8c935a2`)
 - New `src/editor/boundaryInward.ts`:

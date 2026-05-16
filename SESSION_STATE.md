@@ -1,5 +1,7 @@
 # SESSION_STATE.md
 
+> **Vocabulary note (2026-05-16):** the canonical glossary is `CONTEXT.md`. This file predates the vocabulary alignment and uses legacy terms (`Tessellation Lab` → **Builder**, `main mode` → **Gallery**, `BoundaryTile` → **Cell**, `strand editor` / `Strand mode` → **Composition** Phase, `Design mode` → **Design** Phase, `origin tile` → **Seed Tile**, `line` → **Ray**). When updating this file, prefer the new terms. See `CONTEXT.md` and `docs/adr/0001`–`0003` for the locked decisions.
+
 ## ▶ RESUME HERE
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.

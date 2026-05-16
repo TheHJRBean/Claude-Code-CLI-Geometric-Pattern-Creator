@@ -17,22 +17,26 @@
 
 ---
 
-## Terminology (locked)
+## Terminology
 
-- **Tessellation** — the underlying polygon tiling. Pure geometry, no decoration.
-- **Strand** — a line in the decorative pattern produced by Kaplan's
-  Polygons-in-Contact (PIC) algorithm running over a tessellation.
-  Strands are an optional overlay on top of a tessellation.
-- **Patch** *(Step 17)* — the finite arrangement of polygons the user
-  builds inside a boundary in the editor. Becomes the wallpaper
-  fundamental domain at preview / strand-editor time.
-- **Boundary** *(Step 17)* — the lattice cell of the wallpaper repeat.
-  In v1, restricted to {triangle, square, hexagon}.
-- **Repeat** *(Step 17)* — one stamping of the patch on the lattice in
-  strand-editor mode.
+> **Superseded 2026-05-16.** The canonical glossary moved to `CONTEXT.md` after a full vocabulary-alignment session. The old "Terminology (locked)" table that lived here used **Tessellation** for what is now **Tiling**, **Boundary** for what is now **Cell** (the polygon — `Boundary` is now reserved for the closed perimeter of a Cell), and **Repeat** for one stamping of the Patch via the **Lattice**. Use the new terms going forward. Key locked decisions are captured in `docs/adr/0001` (Patch always has Cells), `docs/adr/0002` (Complete, not Fill), and `docs/adr/0003` (Phase sequence).
 
-Internal code identifiers may still use older words (`TILINGS`,
-`lineLength`, etc.); those are deferred refactors and not user-visible.
+For reference, the legacy → new mapping for this doc's vocabulary:
+
+| Legacy in this plan | New (CONTEXT.md) |
+|--|--|
+| Tessellation (the polygon layer) | **Tiling** |
+| Boundary (the lattice cell) | **Cell** (the cell's perimeter is the **Boundary**) |
+| Patch | **Patch** (now always holds Cells; single-cell patches included) |
+| Repeat (one stamping) | one stamp via the **Lattice** |
+| Strand editor / strand-editor mode | **Composition** Phase |
+| Design mode | **Design** Phase |
+| Main mode | **Gallery** |
+| Tessellation Lab | **Builder** (inside the **Lab**) |
+| Origin tile | **Seed Tile** |
+| Line (in strand controls) | **Ray** |
+
+Internal code identifiers (e.g. `EditorPatch`, `BoundaryTile`, `lineLength`, `originSides`) still use legacy names; structural renames are queued behind the migration in ADR-0001.
 
 ---
 

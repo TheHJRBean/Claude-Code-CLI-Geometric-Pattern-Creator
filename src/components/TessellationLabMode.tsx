@@ -83,7 +83,7 @@ export function TessellationLabMode({
   const [cpActive] = useState<Record<string, number>>({})
   const [showAdvanced, setShowAdvanced] = useState(false)
 
-  // Step 17.9 — wrap dispatch so design-mode editor mutations push undo
+  // Step 17.9 — wrap dispatch so Design-Phase Builder mutations push undo
   // snapshots. All Lab-side dispatches must use this `dispatch`; bypassing
   // it skips history. `LOAD_CONFIG` clears the stack inside the hook (Q12).
   const { dispatch, undo, redo, canUndo, canRedo } = useEditorHistory(
@@ -120,10 +120,10 @@ export function TessellationLabMode({
   useEffect(() => {
     if (config.tiling.type !== 'editor' || !config.editor) setSelectedEdge(null)
   }, [config.tiling.type, config.editor])
-  // Composition: clicking an edge that belongs to a non-active boundary tile
-  // auto-switches the active tile first (pure pane swap, not undoable) so the
-  // existing place / delete flow targets the right inner patch via the
-  // reducer's activePatch routing. Single-shape: just sets the selection.
+  // Multi-cell: clicking an edge that belongs to a non-active Cell
+  // auto-switches the active Cell first (pure pane swap, not undoable) so the
+  // existing place / delete flow targets the right Cell via the reducer's
+  // updateActiveCell routing. Single-cell: just sets the selection.
   const handleSelectEdge = (edge: SelectedEdge | null) => {
     if (
       edge?.hostCellId
@@ -131,14 +131,14 @@ export function TessellationLabMode({
       && config.editor.cells.length > 1
       && config.editor.activeCellId !== edge.hostCellId
     ) {
-      dispatch({ type: 'SET_ACTIVE_CELL', payload: { tileId: edge.hostCellId } })
+      dispatch({ type: 'SET_ACTIVE_CELL', payload: { cellId: edge.hostCellId } })
     }
     setSelectedEdge(edge)
   }
   const handlePlaceTile = (sides: number) => {
     if (!selectedEdge) return
-    // EDITOR_PLACE_TILE_ON_EDGE routes through activePatch, so by this point
-    // the host tile must be the active one (handleSelectEdge guarantees it).
+    // EDITOR_PLACE_TILE_ON_EDGE routes through the active Cell, so by this
+    // point the host Cell must be the active one (handleSelectEdge guarantees).
     dispatch({ type: 'EDITOR_PLACE_TILE_ON_EDGE', payload: {
       tileId: selectedEdge.tileId,
       edgeIndex: selectedEdge.edgeIndex,
@@ -157,20 +157,20 @@ export function TessellationLabMode({
   // second vertex commits an `EDITOR_COMPLETE_GAP` exactly as before.
   const [picks, setPicks] = useState<Vec2[]>([])
   const [multiMode, setMultiMode] = useState(false)
-  // Step 17.6 — Design vs Strand-editor mode flip (Decision 15). Local UI
-  // state — not persisted; figures persist independently per Q15.
+  // Step 17.6 — Design Phase vs Composition Phase phase-switch (Decision 15).
+  // Local UI state — not persisted; figures persist independently per Q15.
   const [editorPhase, setEditorPhase] = useState<'design' | 'strand'>('design')
-  // Step 17.6 — strand mode: show the patch boundary stamped on the lattice.
+  // Step 17.6 — Composition Phase: show the Patch Boundary stamped on the lattice.
   const [showBoundaryLattice, setShowBoundaryLattice] = useState(false)
-  // Step 17.6d — Design mode: low-opacity ghost copies of the patch at the
-  // one-ring lattice neighbours so the user can preview how their patch
-  // joins the surrounding stamps before flipping to Strand mode.
+  // Step 17.6d — Design Phase: low-opacity ghost copies of the Patch at the
+  // one-ring lattice neighbours so the user can preview how their Patch
+  // joins the surrounding stamps before phase-switching to Composition.
   const [showNeighbours, setShowNeighbours] = useState(false)
   const [showNeighbourBoundaries, setShowNeighbourBoundaries] = useState(false)
   const [showNeighbourStrands, setShowNeighbourStrands] = useState(false)
-  // Mirror Main-mode's tile-visibility toggle.
+  // Mirror Gallery's tile-visibility toggle.
   const [showTiles, setShowTiles] = useState(true)
-  // Drop strand mode if the patch goes away.
+  // Drop Composition Phase if the Patch goes away.
   useEffect(() => {
     if (config.tiling.type !== 'editor' || !config.editor) setEditorPhase('design')
   }, [config.tiling.type, config.editor])
@@ -236,7 +236,7 @@ export function TessellationLabMode({
   // Sample) can reset it via the controlled prop on `ConfigLibraryPanel`.
   const [activeSavedId, setActiveSavedId] = useState<string>('')
 
-  // ── Section collapse (matches Main mode pattern) ───────
+  // ── Section collapse (matches Gallery pattern) ─────────
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
     try {
       const saved = localStorage.getItem('lab-sidebar-collapsed-sections')
@@ -312,10 +312,10 @@ export function TessellationLabMode({
 
         {/* ── Sections ────────────────────────────────────── */}
         <div className="sidebar-sections">
-          {/* Editor — Step 17. 17.2 ships the Design-mode shell: when a patch
-              is active, expose boundary shape + size + origin sides. The
-              origin polygon auto-places at the patch centre per Decision 6;
-              boundary size only rescales the lattice cell (Q9 Option B). */}
+          {/* Editor — Step 17. 17.2 ships the Design-Phase shell: when a Patch
+              is active, expose Cell shape + size + Seed sides. The Seed Tile
+              auto-places at the Cell centre per Decision 6; boundary size
+              only rescales the lattice cell (Q9 Option B). */}
           <div style={{ paddingTop: 20 }}>
             <SectionTitle open={isOpen('editor')} onToggle={() => toggleSection('editor')}>Editor</SectionTitle>
             {isOpen('editor') && (config.tiling.type === 'editor' && config.editor ? (
@@ -337,9 +337,9 @@ export function TessellationLabMode({
                 onCancelComplete={resetPicks}
                 editorPhase={editorPhase}
                 onSetEditorPhase={p => {
-                  // Step 17.7 — fire auto-complete on the Design→Strand
-                  // transition when the user opted in. Reducer is idempotent
-                  // on already-convex patches, so re-flips are safe.
+                  // Step 17.7 — fire auto-complete on the Design→Composition
+                  // phase-switch when the user opted in. Reducer is idempotent
+                  // on already-convex Cells, so re-switches are safe.
                   if (
                     p === 'strand'
                     && editorPhase === 'design'
@@ -348,7 +348,7 @@ export function TessellationLabMode({
                     dispatch({ type: 'EDITOR_RUN_AUTO_COMPLETE' })
                   }
                   setEditorPhase(p)
-                  // Clear in-flight design picks when entering strand mode.
+                  // Clear in-flight Design-Phase picks when entering Composition Phase.
                   if (p === 'strand') {
                     setSelectedEdge(null)
                     resetPicks()
@@ -1101,7 +1101,7 @@ function EditorDesignControls({
               return (
                 <button
                   key={t.id}
-                  onClick={() => dispatch({ type: 'SET_ACTIVE_CELL', payload: { tileId: t.id } })}
+                  onClick={() => dispatch({ type: 'SET_ACTIVE_CELL', payload: { cellId: t.id } })}
                   style={{
                     flex: 1,
                     padding: '5px 0',
@@ -1274,11 +1274,11 @@ function EditorDesignControls({
         </div>
       )}
 
-      {/* Wrap boundary — design-mode boundary fitting (live). In composition
-          the toggle is per-active-patch: wraps the cell to whichever boundary
-          tile the user is currently editing. The wrapper mirrors the active
-          patch's `wrapBoundary` so the checkbox state always reflects the
-          tile being edited. */}
+      {/* Wrap boundary — Design-Phase Boundary fitting (live). In a multi-Cell
+          Patch the toggle is per-active-Cell: wraps the lattice cell to
+          whichever Cell the user is currently editing. The reducer's
+          applyWrap propagates the fit to sibling Cells so the 4.8.8
+          invariant — every Cell's Boundary edge = lattice edge — holds. */}
       <div style={{ marginTop: 14 }}>
         <label style={{
           display: 'flex',

@@ -52,4 +52,4 @@ export type Action =
   | { type: 'SET_BUILDER_CONFIGURATION'; payload: '4.8.8' | null }
   // Switch which Cell the user is editing in Design Phase (multi-Cell only).
   // Pure pane swap — does NOT push a history snapshot.
-  | { type: 'SET_ACTIVE_CELL'; payload: { tileId: string } }
+  | { type: 'SET_ACTIVE_CELL'; payload: { cellId: string } }

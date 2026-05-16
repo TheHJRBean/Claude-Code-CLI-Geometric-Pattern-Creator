@@ -12,7 +12,7 @@ import {
  * under `lab-tessellations-v1`. Implementation lives in `configLibrary.ts`;
  * this module is the Lab-keyed wrapper.
  *
- * Main mode has its own parallel wrapper in `mainConfigs.ts`, keyed
+ * Gallery has its own parallel wrapper in `mainConfigs.ts`, keyed
  * separately so the two libraries don't pollute each other.
  */
 

@@ -8,17 +8,17 @@ import {
 } from './history'
 
 /**
- * Step 17.9 — undo/redo hook. Wraps a base `dispatch` so that design-mode
- * editor mutations push snapshots to a local history stack.
+ * Step 17.9 — undo/redo hook. Wraps a base `dispatch` so that Design-Phase
+ * Builder mutations push snapshots to a local history stack.
  *
  * Returns a wrapped `dispatch` that consumers should use *instead of* the
  * base dispatch — bypassing it skips history. Also returns `undo` / `redo`
  * functions and `canUndo` / `canRedo` flags driven by the live stack
  * state, so toolbar buttons can reflect availability.
  *
- * The wrapped dispatch coalesces consecutive same-type design actions
- * fired within `HISTORY_COALESCE_MS` so a slider drag is one history
- * entry rather than dozens.
+ * The wrapped dispatch coalesces consecutive same-type Design-Phase actions
+ * fired within `HISTORY_COALESCE_MS` so a slider drag is one history entry
+ * rather than dozens.
  */
 export function useEditorHistory(
   editor: EditorConfig | null | undefined,
@@ -69,7 +69,7 @@ export function useEditorHistory(
     const prev = past.current.pop()!
     future.current.push(editorRef.current)
     if (future.current.length > HISTORY_DEPTH) future.current.shift()
-    // Break coalescing — the next design action should start a fresh
+    // Break coalescing — the next Design-Phase action should start a fresh
     // history entry rather than merge into the action we just undid.
     lastAction.current = null
     bump()

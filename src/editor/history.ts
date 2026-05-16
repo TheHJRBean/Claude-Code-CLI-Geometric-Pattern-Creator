@@ -1,22 +1,23 @@
 import type { EditorConfig } from '../types/editor'
 
 /**
- * Step 17.9 — undo/redo for the editor (Q12 resolution).
+ * Step 17.9 — undo/redo for the Builder (Q12 resolution).
  *
- * Design-mode mutations push the prior `EditorConfig` snapshot to a `past`
+ * Design-Phase mutations push the prior `EditorConfig` snapshot to a `past`
  * stack. Undo pops the past, replaces the live editor, and pushes the
  * current editor onto `future`. Redo is symmetric. Stacks are capped at
  * `HISTORY_DEPTH` to bound memory.
  *
- * Strand-mode mutations (figure-level: contact angle, line length, lacing,
- * curves, etc.) are explicitly out of scope — only `DESIGN_MODE_ACTIONS`
- * push to the stack. History is preserved across Design ↔ Strand flips.
+ * Composition-Phase mutations (figure-level: contact angle, line length,
+ * lacing, curves, etc.) are explicitly out of scope — only
+ * `DESIGN_MODE_ACTIONS` push to the stack. History is preserved across
+ * Design ↔ Composition phase-switches.
  *
  * `LOAD_CONFIG` (library load) clears the entire stack per Q12.
  */
 
 export interface EditorHistory {
-  /** Snapshots prior to each design-mode mutation. Most recent at the end. */
+  /** Snapshots prior to each Design-Phase mutation. Most recent at the end. */
   past: (EditorConfig | null)[]
   /** Snapshots from undone mutations, ready to redo. Most recent at the end. */
   future: (EditorConfig | null)[]

@@ -274,13 +274,13 @@ export function completeGap(
       center: reg.center,
       edgeLength: reg.edgeLength,
       rotation: reg.rotation,
-      origin: 'completed',
+      source: 'completed',
     }
   }
   return {
     id: newId,
     kind: 'irregular',
     vertices: gap.vertices,
-    origin: 'completed',
+    source: 'completed',
   }
 }

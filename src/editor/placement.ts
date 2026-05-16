@@ -46,7 +46,7 @@ export function placeRegularNGonOnEdge(
     center,
     edgeLength,
     rotation,
-    origin: 'placed',
+    source: 'placed',
   }
 }
 

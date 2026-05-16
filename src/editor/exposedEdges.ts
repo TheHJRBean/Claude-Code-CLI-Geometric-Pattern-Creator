@@ -31,7 +31,7 @@ export interface ExposedEdge {
    * Composition mode only — the BoundaryTile id this edge originates from.
    * Used to disambiguate edges with identical (tileId, edgeIndex) across the
    * cell's boundary tiles (e.g. both 'octagon' and 'square' have an inner
-   * 'origin' tile with edge 0). Absent on single-shape patches.
+   * Seed Tile with edge 0). Absent on single-shape patches.
    */
   hostBoundaryTileId?: string
 }

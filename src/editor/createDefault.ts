@@ -46,35 +46,35 @@ export const BOUNDARY_SIZE_MAX_BY_SHAPE: Record<BoundaryShape, number> = {
   hexagon: 800,
   octagon: 800,
 }
-export const DEFAULT_ORIGIN_SIDES = 4
+export const DEFAULT_SEED_SIDES = 4
 export const DEFAULT_EDGE_LENGTH = 100
 
-/** Build the auto-placed origin tile (Decision 6) at the patch centre. */
-export function createOriginTile(originSides: number, edgeLength: number): EditorRegularTile {
+/** Build the auto-placed Seed Tile (Decision 6) at the Cell centre. */
+export function createSeedTile(seedSides: number, edgeLength: number): EditorRegularTile {
   return {
-    id: 'origin',
+    id: 'seed',
     kind: 'regular',
-    sides: originSides,
+    sides: seedSides,
     center: { x: 0, y: 0 },
     edgeLength,
     rotation: 0,
-    origin: 'origin',
+    source: 'seed',
   }
 }
 
-/** Build a fresh `EditorConfig` with defaults and a single auto-placed origin tile. */
+/** Build a fresh `EditorConfig` with defaults and a single auto-placed Seed Tile. */
 export function createDefaultEditorConfig(overrides: Partial<EditorConfig> = {}): EditorConfig {
   const boundaryShape = overrides.boundaryShape ?? DEFAULT_BOUNDARY_SHAPE
   const boundarySize = overrides.boundarySize ?? DEFAULT_BOUNDARY_SIZE
-  const originSides = overrides.originSides ?? DEFAULT_ORIGIN_SIDES
+  const seedSides = overrides.seedSides ?? DEFAULT_SEED_SIDES
   const edgeLength = overrides.edgeLength ?? DEFAULT_EDGE_LENGTH
   return {
     version: 2,
     boundaryShape,
     boundarySize,
-    originSides,
+    seedSides,
     edgeLength,
-    tiles: overrides.tiles ?? [createOriginTile(originSides, edgeLength)],
+    tiles: overrides.tiles ?? [createSeedTile(seedSides, edgeLength)],
   }
 }
 
@@ -101,17 +101,17 @@ function createInnerPatch(shape: BoundaryShape, edgeLength: number): EditorPatch
   return {
     boundaryShape: shape,
     boundarySize: edgeLength,
-    originSides: sides,
+    seedSides: sides,
     edgeLength,
     tiles: [
       {
-        id: 'origin',
+        id: 'seed',
         kind: 'regular',
         sides,
         center: { x: 0, y: 0 },
         edgeLength,
         rotation: BOUNDARY_ROTATION[shape],
-        origin: 'origin',
+        source: 'seed',
       },
     ],
   }
@@ -168,7 +168,7 @@ export function createDefault488EditorConfig(): EditorConfig {
     version: 2,
     boundaryShape: active.patch.boundaryShape,
     boundarySize: active.patch.boundarySize,
-    originSides: active.patch.originSides,
+    seedSides: active.patch.seedSides,
     edgeLength: active.patch.edgeLength,
     tiles: active.patch.tiles,
     composition,

@@ -298,7 +298,7 @@ export function TessellationLabMode({
             marginTop: 48,
             marginBottom: 5,
           }}>
-            Tessellation Lab
+            Builder
           </h1>
 
           <p style={{
@@ -309,7 +309,7 @@ export function TessellationLabMode({
             letterSpacing: '0.06em',
             marginBottom: 12,
           }}>
-            Editor workspace
+            Exploratory Workspace
           </p>
         </div>
 
@@ -456,7 +456,7 @@ export function TessellationLabMode({
               (17.6a — the strand panel's tile cards now reflect the patch). */}
           {showStrands && (def || (config.tiling.type === 'editor' && config.editor)) && (
             <div style={{ paddingTop: 22 }}>
-              <SectionTitle open={isOpen('strands')} onToggle={() => toggleSection('strands')}>Strands</SectionTitle>
+              <SectionTitle open={isOpen('strands')} onToggle={() => toggleSection('strands')} tooltip="Per-Tile-type controls for the Figure rendered in each polygon. A Strand is a chain of Rays across polygons; most sliders here actually adjust individual Rays — the Strand emerges from them.">Strands</SectionTitle>
               {isOpen('strands') && (<>
               {tileTypes.map(tt => {
                 const fig = config.figures[tt.id]
@@ -512,15 +512,16 @@ export function TessellationLabMode({
                           payload: { tileTypeId: tt.id, auto: e.target.checked },
                         })}
                       />
-                      Auto strand length
+                      Auto Ray length
                     </label>
 
                     {!fig.autoLineLength && (
                       <>
                         <FieldLabel
-                          label="Strand length"
+                          label="Ray length"
                           value={(fig.lineLength * 100).toFixed(0)}
                           unit="%"
+                          tooltip="Length of each Ray (the atomic line piece inside a polygon's Figure), as a fraction of the auto length where Rays meet their neighbours. Rays chain across polygons to form Strands."
                         />
                         <input
                           type="range"
@@ -570,9 +571,9 @@ export function TessellationLabMode({
                   color: 'var(--text-muted)',
                   lineHeight: 1.4,
                 }}>
-                  Advanced controls (vertex strands, curves, snap, decoupled
-                  vertex angle) are available in Main mode. Surfacing them
-                  in Lab is parked — switch to Main if you need them.
+                  Advanced controls (vertex Rays, curves, snap, decoupled
+                  vertex angle) are available in Gallery. Surfacing them
+                  in the Lab is parked — switch to Gallery if you need them.
                 </p>
               )}
               </>)}
@@ -682,8 +683,8 @@ function ModeToggleButton({ mode, onToggleMode }: { mode: 'main' | 'lab'; onTogg
   return (
     <button
       onClick={onToggleMode}
-      aria-label={inMain ? 'Open Tessellation Lab' : 'Return to Main mode'}
-      title={inMain ? 'Open Tessellation Lab' : 'Return to Main mode'}
+      aria-label={inMain ? 'Open Lab' : 'Return to Gallery'}
+      title={inMain ? 'Open Lab — Exploratory Workspace' : 'Return to Gallery'}
       style={{
         position: 'absolute',
         top: 14,
@@ -702,7 +703,7 @@ function ModeToggleButton({ mode, onToggleMode }: { mode: 'main' | 'lab'; onTogg
         zIndex: 5,
       }}
     >
-      {inMain ? 'Lab' : '← Main'}
+      {inMain ? 'Lab' : '← Gallery'}
     </button>
   )
 }
@@ -727,10 +728,11 @@ function SectionChevron({ open }: { open: boolean }) {
   )
 }
 
-function SectionTitle({ children, open, onToggle }: {
+function SectionTitle({ children, open, onToggle, tooltip }: {
   children: React.ReactNode
   open?: boolean
   onToggle?: () => void
+  tooltip?: string
 }) {
   const interactive = typeof onToggle === 'function'
   const isOpen = open ?? true
@@ -743,6 +745,8 @@ function SectionTitle({ children, open, onToggle }: {
         color: 'var(--accent)',
         letterSpacing: '0.20em',
         textTransform: 'uppercase' as const,
+        textDecoration: tooltip ? 'underline dotted var(--text-muted)' : 'none',
+        textUnderlineOffset: 4,
       }}>
         {children}
       </span>
@@ -752,12 +756,16 @@ function SectionTitle({ children, open, onToggle }: {
   )
   if (!interactive) {
     return (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 7,
-        marginBottom: 14,
-      }}>
+      <div
+        title={tooltip}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 7,
+          marginBottom: 14,
+          cursor: tooltip ? 'help' : 'default',
+        }}
+      >
         {inner}
       </div>
     )
@@ -767,6 +775,7 @@ function SectionTitle({ children, open, onToggle }: {
       type="button"
       onClick={onToggle}
       aria-expanded={isOpen}
+      title={tooltip}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -786,7 +795,7 @@ function SectionTitle({ children, open, onToggle }: {
   )
 }
 
-function FieldLabel({ label, value, unit }: { label: string; value?: string; unit?: string }) {
+function FieldLabel({ label, value, unit, tooltip }: { label: string; value?: string; unit?: string; tooltip?: string }) {
   return (
     <div style={{
       display: 'flex',
@@ -795,12 +804,18 @@ function FieldLabel({ label, value, unit }: { label: string; value?: string; uni
       marginBottom: 7,
       marginTop: 12,
     }}>
-      <span style={{
-        fontFamily: "'EB Garamond', Georgia, serif",
-        fontSize: 13.5,
-        color: 'var(--text-secondary)',
-        letterSpacing: '0.02em',
-      }}>
+      <span
+        title={tooltip}
+        style={{
+          fontFamily: "'EB Garamond', Georgia, serif",
+          fontSize: 13.5,
+          color: 'var(--text-secondary)',
+          letterSpacing: '0.02em',
+          cursor: tooltip ? 'help' : 'default',
+          textDecoration: tooltip ? 'underline dotted var(--text-muted)' : 'none',
+          textUnderlineOffset: 3,
+        }}
+      >
         {label}
       </span>
       {value !== undefined && (
@@ -957,8 +972,11 @@ function EditorDesignControls({
         ))}
       </div>
 
-      {/* Step 17.6 — Design / Strand-editor phase flip (Decision 15). */}
-      <FieldLabel label="Phase" />
+      {/* Step 17.6 — Design / Composition phase-switch (Decision 15). */}
+      <FieldLabel
+        label="Phase"
+        tooltip="Build workflow stage. Design = author Tiles into Cells of a Patch. Composition = see the Patch composed across the canvas with Strands rendered by PIC. Future Phases: Framing, Decoration."
+      />
       <div style={{ display: 'flex', gap: 0, marginBottom: inStrand ? 4 : 12 }}>
         {(['design', 'strand'] as const).map(p => {
           const active = editorPhase === p
@@ -981,7 +999,7 @@ function EditorDesignControls({
                 transition: 'all 0.15s',
               }}
             >
-              {p === 'design' ? 'Design' : 'Strand editor'}
+              {p === 'design' ? 'Design' : 'Composition'}
             </button>
           )
         })}
@@ -1021,7 +1039,10 @@ function EditorDesignControls({
       )}
 
       {!inStrand && <>
-      <FieldLabel label="Boundary" />
+      <FieldLabel
+        label="Boundary"
+        tooltip="Cell shape (or multi-cell Configuration) the Patch is built into. Single-cell options like Square/Hex/Triangle give one Cell; Configurations like 4.8.8 give a multi-cell Patch."
+      />
       <div style={{ display: 'flex', gap: 0, marginBottom: 4 }}>
         {BOUNDARY_OPTIONS.map(opt => {
           const active = opt.value.kind === 'configuration'
@@ -1063,7 +1084,10 @@ function EditorDesignControls({
 
       {editor.composition && (
         <>
-          <FieldLabel label="Editing" />
+          <FieldLabel
+            label="Editing Cell"
+            tooltip="Which Cell of the multi-cell Patch you're authoring Tiles into. Composition Phase renders all Cells together; Design Phase lets you author them one at a time."
+          />
           <div style={{ display: 'flex', gap: 0, marginBottom: 8 }}>
             {editor.composition.tiles.map(t => {
               const active = editor.composition!.activeTileId === t.id
@@ -1116,7 +1140,12 @@ function EditorDesignControls({
 
       {!editor.composition && (
         <>
-          <FieldLabel label="Boundary size" value={editor.boundarySize.toFixed(0)} unit=" u" />
+          <FieldLabel
+            label="Boundary size"
+            value={editor.boundarySize.toFixed(0)}
+            unit=" u"
+            tooltip="Diameter of the Cell's Boundary polygon in world units. Scales the Cell uniformly."
+          />
           <input
             type="range"
             className="pattern-slider"
@@ -1131,7 +1160,12 @@ function EditorDesignControls({
 
       {editor.composition && (
         <>
-          <FieldLabel label="Cell edge" value={editor.composition.edgeLength.toFixed(0)} unit=" u" />
+          <FieldLabel
+            label="Lattice edge"
+            value={editor.composition.edgeLength.toFixed(0)}
+            unit=" u"
+            tooltip="Edge length shared by every Cell in this multi-cell Patch — drives the Lattice basis that stamps the Patch across the canvas in Composition Phase."
+          />
           <input
             type="range"
             className="pattern-slider"
@@ -1165,7 +1199,11 @@ function EditorDesignControls({
         </div>
       )}
 
-      <FieldLabel label="Origin sides" value={String(editor.originSides)} />
+      <FieldLabel
+        label="Seed sides"
+        value={String(editor.originSides)}
+        tooltip="Side count of the auto-placed Seed Tile — the starter polygon the Builder drops into a Cell so you have something to build from. Field name in code is still `originSides` pending rename."
+      />
       <input
         type="range"
         className="pattern-slider"
@@ -1341,16 +1379,23 @@ function EditorDesignControls({
         )
       })()}
 
-      {/* Step 17.5 — Mode toggle: Place edge tiles vs. Complete gap tiles. */}
+      {/* Step 17.5 — Tool toggle: Place edge Tiles vs. Complete gap Tiles. */}
       <div style={{ marginTop: 14 }}>
-        <FieldLabel label="Mode" />
+        <FieldLabel
+          label="Tool"
+          tooltip="Design-Phase tool. Place adds a single Tile on a clicked edge. Complete fills the gaps around your placed Tiles with regular polygons (or irregular fallbacks)."
+        />
         <div style={{ display: 'flex', gap: 0 }}>
           {(['place', 'complete'] as const).map(m => {
             const active = editorMode === m
+            const tooltip = m === 'place'
+              ? 'Click a Cell edge to place a single Tile on that side.'
+              : 'Fill the gaps around your placed Tiles with regular polygons (or irregular fallbacks). Fills with Tiles, not colour — colour-fill arrives later under the Decoration Phase.'
             return (
               <button
                 key={m}
                 onClick={() => onSetEditorMode(m)}
+                title={tooltip}
                 style={{
                   flex: 1,
                   padding: '5px 0',
@@ -1392,7 +1437,7 @@ function EditorDesignControls({
                 checked={!!editor.autoComplete?.enabled}
                 onChange={e => dispatch({ type: 'SET_EDITOR_AUTO_COMPLETE_ENABLED', payload: e.target.checked })}
               />
-              Auto-complete on entering Strand editor
+              Auto-complete on phase-switch to Composition
             </label>
             <div style={{
               marginTop: 8,

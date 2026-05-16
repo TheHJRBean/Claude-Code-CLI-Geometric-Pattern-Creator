@@ -66,9 +66,17 @@ export function FigureControls({
 
   return (
     <div style={{ marginBottom: 16 }}>
-      <FieldLabel label={`${displayLabel} · figure`} />
+      <FieldLabel
+        label={`${displayLabel} · figure`}
+        tooltip="Figure recipe for this Tile type — drives the per-polygon star/motif rendered by PIC. Every Tile of this type uses the same recipe."
+      />
 
-      <FieldLabel label="Contact angle" value={angle.toFixed(1)} unit="°" />
+      <FieldLabel
+        label="Contact angle"
+        value={angle.toFixed(1)}
+        unit="°"
+        tooltip="PIC contact angle θ — controls how pointy each Ray is at its polygon edge. 67.5° on a square Tiling produces classic 8-pointed Islamic stars."
+      />
       <input
         type="range"
         className="pattern-slider"
@@ -81,15 +89,16 @@ export function FigureControls({
         <Toggle
           checked={autoLen}
           onChange={v => dispatch({ type: 'SET_AUTO_LINE_LENGTH', payload: { tileTypeId, auto: v } })}
-          label="Auto strand length"
+          label="Auto Ray length"
         />
       </div>
       {!autoLen && (
         <>
           <FieldLabel
-            label="Strand length"
+            label="Ray length"
             value={(lineLength * 100).toFixed(0)}
             unit={snappedTo !== undefined ? '% (snapped)' : '%'}
+            tooltip="Length of each Ray (the atomic line piece inside one polygon's Figure), as a fraction of the auto length where Rays meet their neighbours. Rays chain across polygons to form Strands."
           />
           <div style={{ position: 'relative', paddingTop: snapEnabled ? 8 : 0 }}>
             {snapEnabled && (
@@ -348,7 +357,7 @@ export function FigureControls({
   )
 }
 
-function FieldLabel({ label, value, unit }: { label: string; value?: string; unit?: string }) {
+function FieldLabel({ label, value, unit, tooltip }: { label: string; value?: string; unit?: string; tooltip?: string }) {
   return (
     <div style={{
       display: 'flex',
@@ -357,12 +366,18 @@ function FieldLabel({ label, value, unit }: { label: string; value?: string; uni
       marginBottom: 7,
       marginTop: 12,
     }}>
-      <span style={{
-        fontFamily: "'EB Garamond', Georgia, serif",
-        fontSize: 13.5,
-        color: 'var(--text-secondary)',
-        letterSpacing: '0.02em',
-      }}>
+      <span
+        title={tooltip}
+        style={{
+          fontFamily: "'EB Garamond', Georgia, serif",
+          fontSize: 13.5,
+          color: 'var(--text-secondary)',
+          letterSpacing: '0.02em',
+          cursor: tooltip ? 'help' : 'default',
+          textDecoration: tooltip ? 'underline dotted var(--text-muted)' : 'none',
+          textUnderlineOffset: 3,
+        }}
+      >
         {label}
       </span>
       {value !== undefined && (

@@ -1201,8 +1201,8 @@ function EditorDesignControls({
 
       <FieldLabel
         label="Seed sides"
-        value={String(editor.originSides)}
-        tooltip="Side count of the auto-placed Seed Tile — the starter polygon the Builder drops into a Cell so you have something to build from. Field name in code is still `originSides` pending rename."
+        value={String(editor.seedSides)}
+        tooltip="Side count of the auto-placed Seed Tile — the starter polygon the Builder drops into a Cell so you have something to build from."
       />
       <input
         type="range"
@@ -1210,7 +1210,7 @@ function EditorDesignControls({
         min={3}
         max={12}
         step={1}
-        value={editor.originSides}
+        value={editor.seedSides}
         disabled={originLocked}
         onChange={e => dispatch({ type: 'SET_EDITOR_ORIGIN_SIDES', payload: Number(e.target.value) })}
         style={originLocked ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}

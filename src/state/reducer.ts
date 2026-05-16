@@ -6,7 +6,7 @@ import { DEFAULT_CONFIG } from './defaults'
 import {
   createDefault488EditorConfig,
   createDefaultEditorConfig,
-  createOriginTile,
+  createSeedTile,
   DEFAULT_BOUNDARY_SIZE_BY_SHAPE,
 } from '../editor/createDefault'
 import { computeExposedEdges } from '../editor/exposedEdges'
@@ -235,14 +235,14 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     case 'SET_EDITOR_ORIGIN_SIDES': {
       if (!state.editor) return state
       const sides = Math.max(3, Math.floor(action.payload))
-      // Changing origin sides invalidates any placed/completed tiles built on
-      // the previous origin's edges. Reset to the new origin tile only.
+      // Changing Seed sides invalidates any placed/completed Tiles built on
+      // the previous Seed Tile's edges. Reset to the new Seed Tile only.
       // Routes via activePatch so composition's active boundary tile is the
       // mutation target.
       return updatePatch(state, patch => ({
         ...patch,
-        originSides: sides,
-        tiles: [createOriginTile(sides, patch.edgeLength)],
+        seedSides: sides,
+        tiles: [createSeedTile(sides, patch.edgeLength)],
       }), { wrap: true, seed: true })
     }
     case 'EDITOR_PLACE_TILE_ON_EDGE': {
@@ -273,18 +273,18 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       const { tileId } = action.payload
       return updatePatch(state, patch => {
         const target = patch.tiles.find(t => t.id === tileId)
-        // The auto-placed origin can't be deleted — it anchors the patch.
-        if (!target || target.origin === 'origin') return null
+        // The auto-placed Seed Tile can't be deleted — it anchors the Cell.
+        if (!target || target.source === 'seed') return null
         const mode = patch.symmetryMode ?? 'none'
-        // Orbit-aware delete: removing one propagated tile takes its orbit
-        // siblings with it, otherwise the patch's symmetry would silently
-        // break. None mode = single-tile delete (17.3 behaviour). The origin
-        // tile is filtered out of the orbit set defensively.
+        // Orbit-aware delete: removing one propagated Tile takes its orbit
+        // siblings with it, otherwise the Cell's symmetry would silently
+        // break. None mode = single-Tile delete (17.3 behaviour). The Seed
+        // Tile is filtered out of the orbit set defensively.
         const ids = mode === 'none'
           ? new Set([tileId])
           : new Set(orbitTileIds(patch, target).filter(id => {
               const t = patch.tiles.find(t => t.id === id)
-              return t && t.origin !== 'origin'
+              return t && t.source !== 'seed'
             }))
         // Q15: orphaned figures are retained on tile removal so re-placing
         // the same shape restores the user's tuning. We only ever add to

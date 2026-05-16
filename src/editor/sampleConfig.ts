@@ -43,7 +43,7 @@ function trianglesAroundSquare(half: number, edge: number): EditorRegularTile[] 
     },
     edgeLength: edge,
     rotation: normalAngle,
-    origin: 'placed' as const,
+    source: 'placed' as const,
   }))
 }
 
@@ -51,17 +51,17 @@ export const SAMPLE_EDITOR_CONFIG: EditorConfig = {
   version: 2,
   boundaryShape: 'square',
   boundarySize: 240,
-  originSides: 4,
+  seedSides: 4,
   edgeLength: EDGE,
   tiles: [
     {
-      id: 'origin',
+      id: 'seed',
       kind: 'regular',
       sides: 4,
       center: { x: 0, y: 0 },
       edgeLength: EDGE,
       rotation: Math.PI / 4,
-      origin: 'origin',
+      source: 'seed',
     },
     ...trianglesAroundSquare(HALF, EDGE),
   ],

@@ -440,11 +440,11 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   )
 }
 
-/** True iff the tile is non-origin (Decision 6 — origin can't be deleted). */
+/** True iff the Tile is not the Seed Tile (Decision 6 — Seed can't be deleted). */
 function isDeletableTile(editor: PatternConfig['editor'], tileId: string): boolean {
   if (!editor) return false
   const t = editor.tiles.find(t => t.id === tileId)
-  return !!t && t.origin !== 'origin'
+  return !!t && t.source !== 'seed'
 }
 
 /**

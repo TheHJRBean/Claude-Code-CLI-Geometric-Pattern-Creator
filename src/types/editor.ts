@@ -22,15 +22,16 @@ import type { Vec2 } from '../utils/math'
 export type BoundaryShape = 'triangle' | 'square' | 'hexagon' | 'octagon'
 
 /**
- * Provenance of a tile inside the patch.
+ * Source of a Tile inside the Patch (CONTEXT.md: "Tile source").
  *
- * Decision 12 says completed tiles are first-class polygons with the same
- * data model as user-placed tiles, so we keep them in a single array and
- * track origin as a discriminator. `'origin'` marks the auto-placed centre
- * polygon (Decision 6); `'placed'` is a manual user placement; `'completed'`
- * came from the Complete operation (Decisions 9–12).
+ * Decision 12 says completed Tiles are first-class polygons with the same
+ * data model as user-placed Tiles, so we keep them in a single array and
+ * track source as a discriminator. `'seed'` marks the auto-placed Seed
+ * Tile that the Builder drops into a Cell so the user has something to
+ * start from (Decision 6); `'placed'` is a manual user placement;
+ * `'completed'` came from the Complete operation (Decisions 9–12).
  */
-export type EditorTileOrigin = 'origin' | 'placed' | 'completed'
+export type TileSource = 'seed' | 'placed' | 'completed'
 
 export interface EditorRegularTile {
   id: string
@@ -43,18 +44,18 @@ export interface EditorRegularTile {
   edgeLength: number
   /** Rotation in radians; with rotation 0, vertex 0 lies on the +x axis. */
   rotation: number
-  origin: EditorTileOrigin
+  source: TileSource
 }
 
 /**
- * Irregular tile (bowtie, kite, etc.) produced by Complete when no regular
+ * Irregular Tile (bowtie, kite, etc.) produced by Complete when no regular
  * polygon fits the gap (Decision 10). Vertices in CCW order.
  */
 export interface EditorIrregularTile {
   id: string
   kind: 'irregular'
   vertices: Vec2[]
-  origin: 'completed'
+  source: 'completed'
 }
 
 export type EditorTile = EditorRegularTile | EditorIrregularTile
@@ -101,8 +102,8 @@ export interface EditorPatch {
   boundaryShape: BoundaryShape
   /** Lattice cell size in world units (Q9 Option B: rescales the cell only). */
   boundarySize: number
-  /** Side count of the auto-placed origin polygon (Decision 6). */
-  originSides: number
+  /** Side count of the auto-placed Seed Tile (Decision 6). */
+  seedSides: number
   /** Global edge length for all regular placements (Decision 14, locked at origin time). */
   edgeLength: number
   /**

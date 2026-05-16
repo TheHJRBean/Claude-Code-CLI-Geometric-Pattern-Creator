@@ -128,6 +128,6 @@ export function placeRegularNGonOnBoundarySection(
     center,
     edgeLength: sectionLength,
     rotation,
-    origin: 'placed',
+    source: 'placed',
   }
 }

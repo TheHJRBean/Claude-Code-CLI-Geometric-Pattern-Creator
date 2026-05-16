@@ -97,13 +97,13 @@ export function completeNGap(
       center: reg.center,
       edgeLength: reg.edgeLength,
       rotation: reg.rotation,
-      origin: 'completed',
+      source: 'completed',
     }
   }
   return {
     id: newId,
     kind: 'irregular',
     vertices: verts,
-    origin: 'completed',
+    source: 'completed',
   }
 }

@@ -38,26 +38,45 @@ function isVec2(v: unknown): v is { x: number; y: number } {
     && typeof (v as { y?: unknown }).y === 'number'
 }
 
+/**
+ * Read the Tile source. Accepts legacy `origin` field (with `'origin'`
+ * value) and current `source` field (with `'seed'` value), so saved data
+ * from before the 2026-05-16 vocabulary alignment still loads cleanly.
+ */
+function readTileSource(t: Record<string, unknown>): 'seed' | 'placed' | 'completed' | null {
+  const raw = t.source !== undefined ? t.source : t.origin
+  if (raw === 'seed' || raw === 'origin') return 'seed'
+  if (raw === 'placed') return 'placed'
+  if (raw === 'completed') return 'completed'
+  return null
+}
+
+/** Tile ids are user-opaque. Normalise the legacy id 'origin' to 'seed' so
+ * id comparisons match the new vocabulary. */
+function normaliseTileId(id: string): string {
+  return id === 'origin' ? 'seed' : id
+}
+
 function migrateRegularTile(t: Record<string, unknown>): EditorRegularTile | null {
   const sides = t.sides
   const center = t.center
   const edgeLength = t.edgeLength
   const rotation = t.rotation
-  const origin = t.origin
+  const source = readTileSource(t)
   if (typeof t.id !== 'string') return null
   if (typeof sides !== 'number' || sides < 3) return null
   if (!isVec2(center)) return null
   if (typeof edgeLength !== 'number' || edgeLength <= 0) return null
   if (typeof rotation !== 'number') return null
-  if (origin !== 'origin' && origin !== 'placed' && origin !== 'completed') return null
+  if (source === null) return null
   return {
-    id: t.id,
+    id: normaliseTileId(t.id),
     kind: 'regular',
     sides,
     center,
     edgeLength,
     rotation,
-    origin,
+    source,
   }
 }
 
@@ -66,12 +85,13 @@ function migrateIrregularTile(t: Record<string, unknown>): EditorIrregularTile |
   if (!Array.isArray(t.vertices) || t.vertices.length < 3) return null
   const vertices = t.vertices.filter(isVec2)
   if (vertices.length !== t.vertices.length) return null
-  if (t.origin !== 'completed') return null
+  const source = readTileSource(t)
+  if (source !== 'completed') return null
   return {
-    id: t.id,
+    id: normaliseTileId(t.id),
     kind: 'irregular',
     vertices,
-    origin: 'completed',
+    source: 'completed',
   }
 }
 
@@ -99,7 +119,9 @@ function migratePatchFields(
     return null
   }
   if (typeof r.boundarySize !== 'number' || r.boundarySize <= 0) return null
-  if (typeof r.originSides !== 'number' || r.originSides < 3) return null
+  // Accept legacy `originSides` and current `seedSides`.
+  const seedSidesRaw = (r.seedSides !== undefined ? r.seedSides : r.originSides)
+  if (typeof seedSidesRaw !== 'number' || seedSidesRaw < 3) return null
   if (typeof r.edgeLength !== 'number' || r.edgeLength <= 0) return null
   if (!Array.isArray(r.tiles) || r.tiles.length === 0) return null
 
@@ -109,13 +131,13 @@ function migratePatchFields(
     if (!tile) return null
     tiles.push(tile)
   }
-  // The first tile must be the auto-placed origin (Decision 6).
-  if (tiles[0].origin !== 'origin') return null
+  // The first tile must be the auto-placed Seed Tile (Decision 6).
+  if (tiles[0].source !== 'seed') return null
 
   const out: EditorPatch = {
     boundaryShape: r.boundaryShape as BoundaryShape,
     boundarySize: r.boundarySize,
-    originSides: r.originSides,
+    seedSides: seedSidesRaw,
     edgeLength: r.edgeLength,
     tiles,
   }

@@ -6,8 +6,127 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
-**Last action:** 2026-05-16 — **Vocabulary alignment session** completed
-via `grill-with-docs`. Shipped:
+**Last action:** 2026-05-16 — Phase 2 (introduce `EditorCell` + schema v3)
+**STARTED but BUILD BROKEN — see "Phase 2 resume plan" below.** Phase 1
+(field renames `origin → source`, `originSides → seedSides`) is complete
+in `deca2c9`.
+
+---
+
+### ⚠ Phase 2 resume plan (build currently broken — 210 tsc errors)
+
+**Branch state on resume:** the WIP commit (next session: look at the
+most recent commit on this branch tagged `wip:`) introduces the v3 type
+design in `types/editor.ts` and updates four helpers. The remaining ~20
+files still reference v2 fields and fail to compile.
+
+**What's already done** (committed as WIP — DO NOT push to main):
+- `types/editor.ts` rewritten to v3 shape:
+  - New `EditorCell` (id, shape, center, rotation, boundarySize,
+    seedSides, tiles, alternateBoundary?, symmetryMode?,
+    boundaryInward?, wrapBoundary?).
+  - New `EditorPatch` (cells: EditorCell[], activeCellId, edgeLength,
+    configuration?, autoComplete?).
+  - `EditorConfig = EditorPatch & { version: 3 }`.
+  - Legacy `BoundaryComposition`, `BoundaryTile`, `V2InnerPatch` kept
+    as `@deprecated` types — read by migrator only.
+  - `CellShape` is the canonical name; `BoundaryShape` is an alias for
+    migration.
+- `editor/active.ts` rewritten to v3 adapter:
+  - `activeCell(patch)`, `allCells(patch)`, `withActiveCell(patch, cell)`,
+    `withCellById(patch, id, cell)`. Replaces `activePatch` / `allPatches`
+    / `withActivePatch`.
+- `editor/buildEditorPolygons.ts` retargeted: `editorBoundaryVertices`
+  and `editorTilesToPolygons` now take `EditorCell`.
+- `editor/boundary.ts` retargeted: `computeAllCycles`,
+  `computeOuterBoundary`, `computeBoundaryCycle` take `EditorCell`.
+- `editor/exposedEdges.ts` retargeted: `computeExposedEdges(cell,
+  edgeLength?)` takes `EditorCell` plus the optional Patch edgeLength
+  for the conforming check.
+
+**What's NOT done** (resume here, in this order):
+1. `editor/placement.ts` — `isPlacementViable`, `placeRegularNGonOnEdge`,
+   `viableSidesForEdge` take Cell input.
+2. `editor/symmetry.ts` — already takes CellShape via `boundarySymmetries`;
+   verify call sites pass cell.shape.
+3. `editor/orbit.ts` — `orbitEdges`, `placeTilesOnOrbit`, `orbitTileIds`,
+   `placePolygonsOnOrbit`, orbit-aware `viableSidesForEdge` take Cell.
+4. `editor/complete.ts` + `editor/completeN.ts` — gap-fill operations
+   take Cell; may also need Patch for cross-Cell context.
+5. `editor/autoComplete.ts` — `autoCompletePatch` becomes
+   `autoCompleteCell`; `fitBoundarySize` takes Cell.
+6. `editor/boundaryInward.ts` — `computeBoundarySections(cell)`,
+   `placeRegularNGonOnBoundarySection`.
+7. `editor/lattice.ts` — `editorLatticeStamps` takes Cell;
+   `editorOneRingNeighbourStamps` takes Cell.
+8. `editor/compositionLattice.ts` — collapses substantially: under v3
+   the multi-cell layout is just `patch.cells`. Functions become Patch
+   walkers: `compositionToPolygons(patch)` iterates cells and stamps.
+9. `editor/nonTilingDetection.ts` — Patch-vs-Cell-Boundary area compare.
+10. `editor/tileTypes.ts` — `editorTileTypes(patch)` walks `patch.cells`;
+    `seedFiguresForEditor` likewise.
+11. `editor/createDefault.ts`:
+    - `createDefaultEditorConfig` produces v3 single-cell shape.
+    - `createDefault488Composition` / `createDefault488EditorConfig`
+      collapse into one `createDefault488EditorConfig` producing v3
+      multi-cell shape with `cells: [...]` directly.
+12. `editor/sampleConfig.ts` — produce v3 shape.
+13. `editor/migrations.ts` — rewrite to migrate v1 / v2 → v3:
+    - v1 / v2 single-shape: wrap fields into one Cell (id: `'main'`);
+      patch holds `cells: [cell]`, `activeCellId: 'main'`, `edgeLength`,
+      `autoComplete`.
+    - v2 composition: each `BoundaryTile` → `EditorCell`; collapse
+      `BoundaryComposition.{configurationId, activeTileId, edgeLength}`
+      onto `EditorPatch.{configuration, activeCellId, edgeLength}`.
+    - Map legacy `BoundaryShape` octagon allowance: octagon now allowed
+      on any Cell in a multi-cell Patch; single-cell Patches keep the
+      triangle/square/hexagon restriction at the picker (not the type).
+14. `state/reducer.ts` — every `updatePatch(state, p => ...)` becomes
+    `updateCell(state, c => ...)` operating on `activeCell(patch)`.
+    Action handlers that mutate Cell-level fields (boundaryShape →
+    cell.shape, boundarySize → cell.boundarySize, seedSides → cell.seedSides,
+    symmetryMode → cell.symmetryMode, alternateBoundary →
+    cell.alternateBoundary, wrapBoundary → cell.wrapBoundary,
+    boundaryInward → cell.boundaryInward) route via `withActiveCell`.
+    Patch-level fields (edgeLength, configuration, autoComplete) update
+    the Patch directly.
+15. `state/labDefaults.ts` — initial state uses v3 shape.
+16. `hooks/usePattern.ts` — branches once on `patch.cells.length > 1`
+    rather than on `composition`; iterates `patch.cells` for multi-cell.
+17. `rendering/PatternSVG.tsx` — boundary outline list comes from
+    `patch.cells` rather than `composition.tiles`.
+18. `components/Canvas.tsx` — `editor.cells.find(...)` lookups; remove
+    `editor.composition` branches.
+19. `components/EditorEdgeLayer.tsx`, `EditorPickerOverlay.tsx`,
+    `EditorVertexLayer.tsx` — same shape navigation.
+20. `components/TessellationLabMode.tsx` — heavy: navigate `patch.cells`,
+    use `activeCell(patch)` for Cell-level field reads, route writes
+    through reducer actions (most stay the same except for action
+    renames in Phase 4).
+
+**Strategy for the resume:** work bottom-up — fix helpers first
+(steps 1–13), then reducer (step 14), then UI (steps 15–20). Each batch
+should drop tsc errors monotonically. Commit when tsc passes; do not
+push to remote until the build is green.
+
+**Phase-4 / Phase-5 action items** (queued behind Phase 2):
+- Rename reducer actions: `SET_EDITOR_BOUNDARY_CONFIGURATION` →
+  `SET_BUILDER_CONFIGURATION`; `SET_ACTIVE_BOUNDARY_TILE` →
+  `SET_ACTIVE_CELL`; `SET_EDITOR_BOUNDARY_SHAPE` → `SET_CELL_SHAPE`;
+  `SET_EDITOR_BOUNDARY_SIZE` → `SET_CELL_BOUNDARY_SIZE`;
+  `SET_EDITOR_ORIGIN_SIDES` → `SET_CELL_SEED_SIDES`. Update
+  `DESIGN_MODE_ACTIONS` allowlist.
+- Comment sweep: replace "strand mode" → "Composition Phase",
+  "design mode" → "Design Phase", "main mode" → "Gallery", "boundary
+  tile" → "Cell" in code comments.
+- Lacing removal (per `feedback_lacing.md`) — currently broken; slated
+  for reintroduction under Decoration Phase. Independent of the above.
+
+---
+
+### Vocabulary alignment session — what shipped
+
+Shipped:
 - `CONTEXT.md` — canonical glossary (Lab / Builder / Gallery, Patch /
   Cell / Boundary / Tile, Phase / Phase-switch, Ray / Strand / Figure,
   Tiling / Composition / Configuration, Seed Tile / Tile source).

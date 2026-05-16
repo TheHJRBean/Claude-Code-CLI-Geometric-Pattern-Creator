@@ -89,10 +89,11 @@ function SectionChevron({ open }: { open: boolean }) {
   )
 }
 
-function SectionTitle({ children, open, onToggle }: {
+function SectionTitle({ children, open, onToggle, tooltip }: {
   children: React.ReactNode
   open?: boolean
   onToggle?: () => void
+  tooltip?: string
 }) {
   const interactive = typeof onToggle === 'function'
   const isOpen = open ?? true
@@ -106,6 +107,8 @@ function SectionTitle({ children, open, onToggle }: {
         color: 'var(--accent)',
         letterSpacing: '0.20em',
         textTransform: 'uppercase' as const,
+        textDecoration: tooltip ? 'underline dotted var(--text-muted)' : 'none',
+        textUnderlineOffset: 4,
       }}>
         {children}
       </span>
@@ -115,12 +118,16 @@ function SectionTitle({ children, open, onToggle }: {
   )
   if (!interactive) {
     return (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 7,
-        marginBottom: 14,
-      }}>
+      <div
+        title={tooltip}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 7,
+          marginBottom: 14,
+          cursor: tooltip ? 'help' : 'default',
+        }}
+      >
         {inner}
       </div>
     )
@@ -130,6 +137,7 @@ function SectionTitle({ children, open, onToggle }: {
       type="button"
       onClick={onToggle}
       aria-expanded={isOpen}
+      title={tooltip}
       className="section-title-button"
       style={{
         display: 'flex',
@@ -150,7 +158,7 @@ function SectionTitle({ children, open, onToggle }: {
   )
 }
 
-function FieldLabel({ label, value, unit }: { label: string; value?: string; unit?: string }) {
+function FieldLabel({ label, value, unit, tooltip }: { label: string; value?: string; unit?: string; tooltip?: string }) {
   return (
     <div style={{
       display: 'flex',
@@ -159,12 +167,18 @@ function FieldLabel({ label, value, unit }: { label: string; value?: string; uni
       marginBottom: 7,
       marginTop: 12,
     }}>
-      <span style={{
-        fontFamily: "'EB Garamond', Georgia, serif",
-        fontSize: 13.5,
-        color: 'var(--text-secondary)',
-        letterSpacing: '0.02em',
-      }}>
+      <span
+        title={tooltip}
+        style={{
+          fontFamily: "'EB Garamond', Georgia, serif",
+          fontSize: 13.5,
+          color: 'var(--text-secondary)',
+          letterSpacing: '0.02em',
+          cursor: tooltip ? 'help' : 'default',
+          textDecoration: tooltip ? 'underline dotted var(--text-muted)' : 'none',
+          textUnderlineOffset: 3,
+        }}
+      >
         {label}
       </span>
       {value !== undefined && (
@@ -353,11 +367,11 @@ export function Sidebar({
           {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
         </button>
 
-        {/* Mode toggle (Main ↔ Lab) — sits to the right of the collapse button (which is at left:12, w:30) */}
+        {/* Workspace toggle (Gallery ↔ Lab) — sits to the right of the collapse button (which is at left:12, w:30) */}
         <button
           onClick={onToggleMode}
-          aria-label={mode === 'main' ? 'Open Tessellation Lab' : 'Return to Main mode'}
-          title={mode === 'main' ? 'Open Tessellation Lab' : 'Return to Main mode'}
+          aria-label={mode === 'main' ? 'Open Lab' : 'Return to Gallery'}
+          title={mode === 'main' ? 'Open Lab — Exploratory Workspace' : 'Return to Gallery'}
           style={{
             position: 'absolute',
             top: 14,
@@ -376,7 +390,7 @@ export function Sidebar({
             zIndex: 5,
           }}
         >
-          {mode === 'main' ? 'Lab' : '← Main'}
+          {mode === 'main' ? 'Lab' : '← Gallery'}
         </button>
 
         {/* Art Deco fan motif */}
@@ -540,10 +554,19 @@ export function Sidebar({
         {/* Line thickness — always visible since strands render regardless of lacing */}
         <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
           <LotusDivider />
-          <SectionTitle open={isOpen('lineThickness')} onToggle={() => toggleSection('lineThickness')}>Strand Thickness</SectionTitle>
+          <SectionTitle
+            open={isOpen('lineThickness')}
+            onToggle={() => toggleSection('lineThickness')}
+            tooltip="Stroke width of rendered Strands. Strand-level (not Ray-level)."
+          >Strand Thickness</SectionTitle>
           {isOpen('lineThickness') && (
             <>
-              <FieldLabel label="Strand width" value={config.lacing.strandWidth.toFixed(1)} unit=" px" />
+              <FieldLabel
+                label="Strand width"
+                value={config.lacing.strandWidth.toFixed(1)}
+                unit=" px"
+                tooltip="Stroke width applied to every Strand in the rendered pattern."
+              />
               <input
                 type="range"
                 className="pattern-slider"
@@ -559,7 +582,11 @@ export function Sidebar({
         {/* Lacing */}
         <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
           <LotusDivider />
-          <SectionTitle open={isOpen('lacing')} onToggle={() => toggleSection('lacing')}>Lacing</SectionTitle>
+          <SectionTitle
+            open={isOpen('lacing')}
+            onToggle={() => toggleSection('lacing')}
+            tooltip="Lacing — the over/under interlace effect on Strands. The current implementation is non-functional and is being removed; lacing returns in the future Decoration Phase."
+          >Lacing</SectionTitle>
           {isOpen('lacing') && (
             <>
               <Toggle

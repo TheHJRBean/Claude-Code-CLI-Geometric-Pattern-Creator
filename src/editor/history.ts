@@ -27,8 +27,8 @@ export const EMPTY_HISTORY: EditorHistory = { past: [], future: [] }
 export const HISTORY_DEPTH = 50
 
 /**
- * Coalesce window for consecutive same-type design actions. A slider drag
- * fires many `SET_EDITOR_BOUNDARY_SIZE` actions per second; without
+ * Coalesce window for consecutive same-type Design-Phase actions. A slider
+ * drag fires many `SET_CELL_BOUNDARY_SIZE` actions per second; without
  * coalescing the stack would fill with intermediate values. Within this
  * window, repeats of the same action type don't push another snapshot —
  * the original "before drag" state already sits at the top of `past`.
@@ -36,8 +36,8 @@ export const HISTORY_DEPTH = 50
 export const HISTORY_COALESCE_MS = 500
 
 /**
- * Action types that snapshot to the design-mode undo stack. Any other
- * editor or non-editor action passes through without history impact.
+ * Action types that snapshot to the Design-Phase undo stack. Any other
+ * Builder or non-Builder action passes through without history impact.
  *
  * NB: `EDITOR_RESTORE_SNAPSHOT` is the action used by undo/redo itself —
  * it must NOT push a snapshot or the stacks would feedback.
@@ -45,10 +45,10 @@ export const HISTORY_COALESCE_MS = 500
 export const DESIGN_MODE_ACTIONS: ReadonlySet<string> = new Set([
   'EDITOR_NEW',
   'EDITOR_CLEAR',
-  'SET_EDITOR_BOUNDARY_SHAPE',
-  'SET_EDITOR_BOUNDARY_SIZE',
+  'SET_CELL_SHAPE',
+  'SET_CELL_BOUNDARY_SIZE',
   'SET_EDITOR_ALTERNATE_BOUNDARY',
-  'SET_EDITOR_ORIGIN_SIDES',
+  'SET_CELL_SEED_SIDES',
   'EDITOR_PLACE_TILE_ON_EDGE',
   'EDITOR_DELETE_TILE',
   'EDITOR_COMPLETE_GAP',
@@ -57,8 +57,9 @@ export const DESIGN_MODE_ACTIONS: ReadonlySet<string> = new Set([
   'EDITOR_RUN_AUTO_COMPLETE',
   'SET_EDITOR_WRAP_BOUNDARY',
   'SET_EDITOR_SYMMETRY_MODE',
-  // Boundary configurations — picking 4.8.8 (or returning to single-shape)
-  // discards the current patch, so it must snapshot for undo. Active-tile
-  // swaps within a composition are pure UI (excluded — never push a snapshot).
-  'SET_EDITOR_BOUNDARY_CONFIGURATION',
+  // **Configuration** picker — picking 4.8.8 (or returning to single-Cell)
+  // discards the current Patch, so it must snapshot for undo. Active-Cell
+  // swaps within a multi-Cell Patch are pure UI (excluded — never push a
+  // snapshot).
+  'SET_BUILDER_CONFIGURATION',
 ])

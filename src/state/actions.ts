@@ -23,32 +23,33 @@ export type Action =
   | { type: 'SET_CURVE_DIRECTION'; payload: { tileTypeId: string; direction: 'left' | 'right' } }
   | { type: 'SET_SMOOTH_TRANSITIONS'; payload: boolean }
   | { type: 'LOAD_CONFIG'; payload: PatternConfig }
-  // Step 17 — editor (Design-mode shell, sub-step 17.2)
+  // Step 17 — Builder (Design Phase shell, sub-step 17.2)
   | { type: 'EDITOR_NEW' }
   | { type: 'EDITOR_CLEAR' }
-  | { type: 'SET_EDITOR_BOUNDARY_SHAPE'; payload: BoundaryShape }
-  | { type: 'SET_EDITOR_BOUNDARY_SIZE'; payload: number }
+  // Active Cell mutations (ADR-0001 vocabulary).
+  | { type: 'SET_CELL_SHAPE'; payload: BoundaryShape }
+  | { type: 'SET_CELL_BOUNDARY_SIZE'; payload: number }
   | { type: 'SET_EDITOR_ALTERNATE_BOUNDARY'; payload: boolean }
-  | { type: 'SET_EDITOR_ORIGIN_SIDES'; payload: number }
+  | { type: 'SET_CELL_SEED_SIDES'; payload: number }
   | { type: 'EDITOR_PLACE_TILE_ON_EDGE'; payload: { tileId: string; edgeIndex: number; sides: number } }
   | { type: 'EDITOR_DELETE_TILE'; payload: { tileId: string } }
   // Step 17.5 — Complete operation (manual, 2-vertex chord)
   | { type: 'EDITOR_COMPLETE_GAP'; payload: { pA: Vec2; pB: Vec2 } }
   // Step 17.11 — Complete operation (multi-vertex polygon pick)
   | { type: 'EDITOR_COMPLETE_N_GAP'; payload: { picks: Vec2[] } }
-  // Step 17.7 — Auto-complete on flip (Decision 11)
+  // Step 17.7 — Auto-complete on phase-switch (Decision 11)
   | { type: 'SET_EDITOR_AUTO_COMPLETE_ENABLED'; payload: boolean }
   | { type: 'EDITOR_RUN_AUTO_COMPLETE' }
-  // Wrap boundary — design-mode boundary fitting (formerly match-boundary flavour)
+  // Wrap boundary — Design-Phase Boundary fitting (formerly match-boundary).
   | { type: 'SET_EDITOR_WRAP_BOUNDARY'; payload: boolean }
   // Step 17.4 (re-enabled) — orbit propagation subgroup picker.
   | { type: 'SET_EDITOR_SYMMETRY_MODE'; payload: SymmetryMode }
   // Step 17.9 — undo/redo restores a snapshot. `null` means "no editor".
   | { type: 'EDITOR_RESTORE_SNAPSHOT'; payload: EditorConfig | null }
-  // Boundary configurations — switch the editor between single-shape and a
-  // multi-tile composition (e.g. 4.8.8). `null` clears the composition and
-  // returns to single-shape; `'4.8.8'` seeds a fresh octagon+square cell.
-  | { type: 'SET_EDITOR_BOUNDARY_CONFIGURATION'; payload: '4.8.8' | null }
-  // Switch which boundary tile the user is editing in Design mode (composition
-  // only). Pure pane swap — does NOT push a history snapshot.
-  | { type: 'SET_ACTIVE_BOUNDARY_TILE'; payload: { tileId: string } }
+  // Switch the Patch between single-Cell and a multi-Cell **Configuration**
+  // (e.g. 4.8.8). `null` returns to a single-Cell Patch; `'4.8.8'` seeds a
+  // fresh octagon+square Cell pair.
+  | { type: 'SET_BUILDER_CONFIGURATION'; payload: '4.8.8' | null }
+  // Switch which Cell the user is editing in Design Phase (multi-Cell only).
+  // Pure pane swap — does NOT push a history snapshot.
+  | { type: 'SET_ACTIVE_CELL'; payload: { tileId: string } }

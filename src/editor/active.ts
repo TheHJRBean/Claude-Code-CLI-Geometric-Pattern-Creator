@@ -1,53 +1,51 @@
-import type { EditorConfig, EditorPatch } from '../types/editor'
+import type { EditorCell, EditorPatch } from '../types/editor'
 
 /**
- * Adapter layer between the wrapper `EditorConfig` and the per-patch
- * `EditorPatch` that geometry helpers (boundary cycles, exposed edges,
- * placement, complete, autoComplete, orbit, lattice, tileTypes, etc.)
- * actually operate on.
+ * Adapter helpers for selecting the active **Cell** inside a **Patch**.
  *
- * Today the wrapper is a single patch — `activePatch` returns the editor
- * itself. When boundary configurations land (the 4.8.8 work in flight),
- * `EditorConfig` will gain an optional `composition` field whose active
- * `BoundaryTile.patch` is the editing target. Callers that go through this
- * module never read inert top-level fields when composition is set; callers
- * that bypass it will silently operate on the wrong patch. Treat
- * `activePatch` / `allPatches` / `withActivePatch` as the authoritative
- * surface for patch-shaped reads and writes.
+ * Most editor geometry helpers (boundary cycles, exposed edges, placement,
+ * Complete, autoComplete, orbit, lattice, tileTypes, etc.) operate on a
+ * single Cell at a time — they take an `EditorCell` directly. The reducer
+ * routes Design-Phase mutations through these helpers so the right Cell is
+ * the mutation target.
+ *
+ * Replaces the v2-era `activePatch` / `allPatches` / `withActivePatch`
+ * helpers, which routed between a wrapper `EditorConfig` and per-patch
+ * shapes. v3 collapses that distinction: every Patch always carries
+ * `cells: EditorCell[]` (see ADR-0001).
  */
 
-export function activePatch(editor: EditorConfig): EditorPatch {
-  if (editor.composition) {
-    const c = editor.composition
-    const t = c.tiles.find(t => t.id === c.activeTileId)
-    if (t) return t.patch
-  }
-  return editor
+export function activeCell(patch: EditorPatch): EditorCell {
+  const cell = patch.cells.find(c => c.id === patch.activeCellId)
+  if (cell) return cell
+  // Defensive: if `activeCellId` is stale, fall back to the first Cell so
+  // callers always get something rather than crashing.
+  return patch.cells[0]
 }
 
-export function allPatches(editor: EditorConfig): EditorPatch[] {
-  if (editor.composition) return editor.composition.tiles.map(t => t.patch)
-  return [editor]
+export function allCells(patch: EditorPatch): EditorCell[] {
+  return patch.cells
 }
 
 /**
- * Immutable update: replace the editor's active patch with `patch`. Routes
- * the new patch into `composition.tiles[active].patch` when composition is
- * set; otherwise it's a flat top-level merge. The wrapper's per-patch
- * fields (boundaryShape, tiles, etc.) mirror the active patch so legacy
- * single-shape readers stay coherent.
+ * Immutable update: replace the Patch's active Cell with `cell`. Returns a
+ * fresh Patch with the rest of the cells array preserved.
  */
-export function withActivePatch(editor: EditorConfig, patch: EditorPatch): EditorConfig {
-  if (editor.composition) {
-    const c = editor.composition
-    const nextTiles = c.tiles.map(t =>
-      t.id === c.activeTileId ? { ...t, patch } : t,
-    )
-    return {
-      version: editor.version,
-      ...patch,
-      composition: { ...c, tiles: nextTiles },
-    }
+export function withActiveCell(patch: EditorPatch, cell: EditorCell): EditorPatch {
+  return {
+    ...patch,
+    cells: patch.cells.map(c => c.id === patch.activeCellId ? cell : c),
   }
-  return { ...patch, version: editor.version }
+}
+
+/**
+ * Multi-cell convenience: replace a specific Cell by id. Used by Complete
+ * flows that touch every Cell of a Configuration rather than just the
+ * active one.
+ */
+export function withCellById(patch: EditorPatch, id: string, cell: EditorCell): EditorPatch {
+  return {
+    ...patch,
+    cells: patch.cells.map(c => c.id === id ? cell : c),
+  }
 }

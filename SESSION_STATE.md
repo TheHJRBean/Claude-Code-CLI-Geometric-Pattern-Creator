@@ -7,13 +7,75 @@
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
 **Last action:** 2026-05-16 — Phase 2 (introduce `EditorCell` + schema v3)
-**STARTED but BUILD BROKEN — see "Phase 2 resume plan" below.** Phase 1
-(field renames `origin → source`, `originSides → seedSides`) is complete
-in `deca2c9`.
+**BUILD GREEN — all 210 tsc errors resolved.** Every helper, the reducer,
+and every UI component now operates on the v3 `EditorPatch.cells[]` shape
+described in ADR-0001. `migrateEditorConfig` reads v1 / v2 / v3 and always
+returns v3, so persisted Lab patches round-trip transparently.
+
+**What changed since the WIP commit:**
+- Helpers retargeted to `EditorCell` and given the Patch-shared `edgeLength`
+  where they need it: `placement.ts`, `orbit.ts`, `complete.ts`,
+  `completeN.ts`, `boundaryInward.ts`, `lattice.ts`, `autoComplete.ts`
+  (`autoCompletePatch` → `autoCompleteCell`, `fitBoundarySize` takes
+  `edgeLengthFloor`).
+- `compositionLattice.ts` collapsed to a Patch walker
+  (`compositionToPolygons` / `compositionBoundaryOutlines` /
+  `compositionLatticeStamps` / `compositionOneRingStamps` iterate
+  `patch.cells`).
+- `nonTilingDetection.ts` is now per-Cell (`detectCellTilingStatus`); the
+  Lab UI aggregates across `patch.cells` and surfaces the first non-tiling
+  Cell as the Patch-level warning.
+- `tileTypes.ts` walks `patch.cells` itself (single-Cell and multi-Cell
+  Patches share one path).
+- `createDefault.ts`: `createDefaultEditorConfig` produces v3 single-Cell
+  shape; `createDefault488EditorConfig` produces v3 multi-Cell shape
+  directly (no more separate `createDefault488Composition`).
+- `migrations.ts` rewritten: v1 / v2 single-shape → one `EditorCell` with
+  id `'main'`; v2 composition → each `BoundaryTile` becomes one
+  `EditorCell`, lifting `configurationId` / `edgeLength` / `activeTileId`
+  onto the Patch. Legacy `origin` / `originSides` field aliases preserved.
+- `state/reducer.ts` rewritten: `updatePatch(...)` → `updateActiveCell(...)`
+  routing through `withActiveCell`. All per-Cell field reads / writes
+  (`shape`, `boundarySize`, `seedSides`, `alternateBoundary`,
+  `symmetryMode`, `wrapBoundary`, `boundaryInward`) go through the active
+  Cell. Patch-level fields (`edgeLength`, `configuration`, `autoComplete`)
+  update the Patch directly. `SET_EDITOR_BOUNDARY_SIZE` multi-cell scales
+  every Cell's centre + `boundarySize` + `patch.edgeLength` in lockstep
+  (preserves the v2 4.8.8 invariant — Cell edge = lattice edge).
+- `state/labDefaults.ts` `loadLabState` pipes any persisted `config.editor`
+  through `migrateEditorConfig`; missing / invalid editor patches drop
+  silently and the tiling type resets to `''`.
+- `hooks/usePattern.ts` branches on `patch.cells.length > 1` instead of on
+  `composition`; iterates `patch.cells` for multi-Cell.
+- `components/Canvas.tsx` aggregates exposed edges / cycles / boundary
+  corners / neighbour vertices from every Cell, transforming each via the
+  Cell's `center` + `rotation` into Patch-local coords for rendering.
+  Selected-edge viability uses the host Cell + `patch.edgeLength`.
+- `components/TessellationLabMode.tsx` UI controls read from
+  `activeCell(editor)` for Cell-level fields and `editor.configuration` /
+  `editor.cells.length > 1` for multi-Cell branching.
+
+**Commits to land:** the working tree has the full Phase 2 conversion
+staged for one commit (`feat(editor): Phase 2 v3 schema migration — build
+green`).
+
+**Phase-4 / Phase-5 action items** (queued, untouched by this session):
+- Rename reducer actions: `SET_EDITOR_BOUNDARY_CONFIGURATION` →
+  `SET_BUILDER_CONFIGURATION`; `SET_ACTIVE_BOUNDARY_TILE` →
+  `SET_ACTIVE_CELL`; `SET_EDITOR_BOUNDARY_SHAPE` → `SET_CELL_SHAPE`;
+  `SET_EDITOR_BOUNDARY_SIZE` → `SET_CELL_BOUNDARY_SIZE`;
+  `SET_EDITOR_ORIGIN_SIDES` → `SET_CELL_SEED_SIDES`. Update
+  `DESIGN_MODE_ACTIONS` allowlist + `hostBoundaryTileId` field name on
+  `SelectedEdge` (now always a Cell id).
+- Comment sweep: replace "strand mode" → "Composition Phase",
+  "design mode" → "Design Phase", "main mode" → "Gallery", "boundary
+  tile" → "Cell" in code comments.
+- Lacing removal (per `feedback_lacing.md`) — currently broken; slated
+  for reintroduction under Decoration Phase. Independent of the above.
 
 ---
 
-### ⚠ Phase 2 resume plan (build currently broken — 210 tsc errors)
+### ⚠ Phase 2 resume plan (FULLY COMPLETED — kept for reference)
 
 **Branch state on resume:** the WIP commit (next session: look at the
 most recent commit on this branch tagged `wip:`) introduces the v3 type

@@ -1,6 +1,6 @@
 import type { Vec2 } from '../utils/math'
 import { centroid, pointInPolygon } from '../utils/math'
-import type { EditorPatch, EditorTile } from '../types/editor'
+import type { EditorCell, EditorTile } from '../types/editor'
 import { tileVertices, EDITOR_EPS } from './exposedEdges'
 import { ensureCCW, tryRegularFit } from './complete'
 
@@ -10,15 +10,15 @@ import { ensureCCW, tryRegularFit } from './complete'
  * Click order = polygon order: the user takes responsibility for picking
  * vertices in a sequence that forms a simple closed polygon. We defensively
  * reject self-intersections and picks whose centroid lands inside an
- * existing tile.
+ * existing Tile.
  *
  * The output is a regular `EditorTile` if the picks happen to form a regular
  * n-gon (Decision 10), otherwise an irregular `EditorTile` (Decision 12).
- * Both inherit `origin: 'completed'` so they remain editable / deletable.
+ * Both inherit `source: 'completed'` so they remain editable / deletable.
  *
  * Cross-boundary case: when the user picks neighbour-stamp vertices, the
- * resulting tile has vertices that straddle the boundary edge. Decision 5
- * (tiles can poke outside, neighbour stamps overlap) covers this — no new
+ * resulting Tile has vertices that straddle the Boundary edge. Decision 5
+ * (Tiles can poke outside, neighbour stamps overlap) covers this — no new
  * tile kind needed.
  */
 
@@ -64,7 +64,7 @@ function isSimplePolygon(verts: Vec2[]): boolean {
   return true
 }
 
-export function validateNGapPolygon(picks: Vec2[], editor: EditorPatch): NGapValidation {
+export function validateNGapPolygon(picks: Vec2[], cell: EditorCell): NGapValidation {
   if (picks.length < 3) return { kind: 'too-few' }
   // Reject any duplicate vertex (consecutive or not — coincident vertices
   // produce zero-length edges that confuse downstream PIC).
@@ -75,18 +75,18 @@ export function validateNGapPolygon(picks: Vec2[], editor: EditorPatch): NGapVal
   }
   if (!isSimplePolygon(picks)) return { kind: 'self-intersecting' }
   const c = centroid(picks)
-  for (const tile of editor.tiles) {
+  for (const tile of cell.tiles) {
     if (pointInPolygon(c, tileVertices(tile))) return { kind: 'inside-tile' }
   }
   return { kind: 'valid' }
 }
 
 export function completeNGap(
-  editor: EditorPatch,
+  cell: EditorCell,
   picks: Vec2[],
   newId: string,
 ): EditorTile | null {
-  if (validateNGapPolygon(picks, editor).kind !== 'valid') return null
+  if (validateNGapPolygon(picks, cell).kind !== 'valid') return null
   const verts = ensureCCW([...picks])
   const reg = tryRegularFit({ vertices: verts })
   if (reg) {

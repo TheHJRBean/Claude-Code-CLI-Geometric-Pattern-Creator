@@ -1,6 +1,6 @@
 import type { Vec2 } from '../utils/math'
 import { centroid, pointInPolygon } from '../utils/math'
-import type { EditorPatch, EditorTile } from '../types/editor'
+import type { EditorCell, EditorTile } from '../types/editor'
 import { tileVertices, EDITOR_EPS } from './exposedEdges'
 import { computeBoundaryCycle, computeOuterBoundary, type BoundaryVertex } from './boundary'
 import { editorBoundaryVertices } from './buildEditorPolygons'
@@ -10,7 +10,7 @@ import { editorBoundaryVertices } from './buildEditorPolygons'
  *
  * `vertices` are in CCW order. The last edge (`vertices[n-1] → vertices[0]`)
  * is the closing chord between the two user-selected vertices; the rest are
- * existing outer-boundary edges that the new tile will share with the patch.
+ * existing outer-boundary edges that the new tile will share with the Cell.
  */
 export interface GapPolygon {
   vertices: Vec2[]
@@ -27,8 +27,8 @@ function arcPath(cycle: BoundaryVertex[], indexA: number, indexB: number, dir: 1
   return out
 }
 
-function isPointInPatch(p: Vec2, editor: EditorPatch): boolean {
-  for (const tile of editor.tiles) {
+function isPointInPatch(p: Vec2, cell: EditorCell): boolean {
+  for (const tile of cell.tiles) {
     if (pointInPolygon(p, tileVertices(tile))) return true
   }
   return false
@@ -44,21 +44,21 @@ export function ensureCCW(verts: Vec2[]): Vec2[] {
 }
 
 /**
- * Pick the arc between A and B (CCW or CW around the patch) whose
+ * Pick the arc between A and B (CCW or CW around the Cell) whose
  * chord-and-arc polygon encloses an *exterior* region — that's the gap to
- * fill. The chord splits the plane: one side is patch-interior, the other
+ * fill. The chord splits the plane: one side is Cell-interior, the other
  * is the gap. We disambiguate by testing the candidate polygon's centroid
- * against every existing tile.
+ * against every existing Tile.
  *
  * Returns `null` if either arc is degenerate (A and B are adjacent on the
  * cycle so no fillable region exists), or if the chord doesn't enclose an
- * exterior region (e.g. a chord across a convex patch).
+ * exterior region (e.g. a chord across a convex Cell).
  */
 export function computeGapPolygon(
   cycle: BoundaryVertex[],
   indexA: number,
   indexB: number,
-  editor: EditorPatch,
+  cell: EditorCell,
 ): GapPolygon | null {
   const n = cycle.length
   if (n < 3 || indexA === indexB) return null
@@ -71,7 +71,7 @@ export function computeGapPolygon(
 
   for (const cand of cands) {
     const c = centroid(cand)
-    if (!isPointInPatch(c, editor)) return { vertices: ensureCCW(cand) }
+    if (!isPointInPatch(c, cell)) return { vertices: ensureCCW(cand) }
   }
   return null
 }
@@ -133,10 +133,10 @@ export function findCycleIndexByPoint(cycle: BoundaryVertex[], p: Vec2): number 
 
 /**
  * Like `computeGapPolygon` but disambiguates by excluding the arc whose
- * polygon contains the patch centre. Used when both picks land on the
- * boundary outline rather than the patch's outer cycle — there both arcs are
- * outside any tile, so the existing `isPointInPatch` test can't tell them
- * apart. A patch is always centred on the boundary's origin, so the arc
+ * polygon contains the Cell centre. Used when both picks land on the
+ * Boundary outline rather than the Cell's outer cycle — there both arcs are
+ * outside any Tile, so the existing `isPointInPatch` test can't tell them
+ * apart. A Cell is always centred on the Boundary's origin, so the arc
  * whose polygon does NOT contain `(0, 0)` is the gap to fill.
  */
 function computeBoundaryGapPolygon(
@@ -151,8 +151,8 @@ function computeBoundaryGapPolygon(
   const cands: Vec2[][] = []
   if (fwd.length >= 3) cands.push(fwd)
   if (bwd.length >= 3) cands.push(bwd)
-  // Patch is centred on origin by construction; the arc whose polygon does
-  // not enclose origin is the exterior-to-patch side.
+  // Cell is centred on origin by construction; the arc whose polygon does
+  // not enclose origin is the exterior-to-Cell side.
   for (const cand of cands) {
     if (!pointInPolygon({ x: 0, y: 0 }, cand)) return { vertices: ensureCCW(cand) }
   }
@@ -167,18 +167,18 @@ function isDegenerateTriangle(verts: Vec2[]): boolean {
 }
 
 /**
- * Mixed-pick gap: one endpoint is on the patch's outer cycle, the other on
- * the boundary polygon's corners. A single chord across the patch+boundary
+ * Mixed-pick gap: one endpoint is on the Cell's outer cycle, the other on
+ * the Boundary polygon's corners. A single chord across the Cell+Boundary
  * annulus is topologically under-specified (it doesn't split the annulus),
  * so we close the gap with a one-step neighbour from one of the cycles —
  * yielding a triangle with the chord as one edge.
  *
  * Try the four candidates (prev/next on patch, prev/next on boundary) and
- * return the first triangle that's non-degenerate, lies inside the boundary
- * polygon, and has a centroid exterior to every existing tile.
+ * return the first triangle that's non-degenerate, lies inside the Boundary
+ * polygon, and has a centroid exterior to every existing Tile.
  */
 function computeMixedGapPolygon(
-  editor: EditorPatch,
+  cell: EditorCell,
   patchCycle: BoundaryVertex[],
   boundaryCycle: BoundaryVertex[],
   patchIdx: number,
@@ -194,7 +194,7 @@ function computeMixedGapPolygon(
   const boundNext = boundaryCycle[(boundaryIdx + 1) % nb].p
   const boundPrev = boundaryCycle[(boundaryIdx - 1 + nb) % nb].p
 
-  const boundaryPoly = editorBoundaryVertices(editor)
+  const boundaryPoly = editorBoundaryVertices(cell)
   const candidates: Vec2[][] = [
     [pP, patchNext, pB],
     [pP, patchPrev, pB],
@@ -205,7 +205,7 @@ function computeMixedGapPolygon(
   for (const cand of candidates) {
     if (isDegenerateTriangle(cand)) continue
     const c = centroid(cand)
-    if (isPointInPatch(c, editor)) continue
+    if (isPointInPatch(c, cell)) continue
     if (!pointInPolygon(c, boundaryPoly)) continue
     return { vertices: ensureCCW(cand) }
   }
@@ -213,53 +213,53 @@ function computeMixedGapPolygon(
 }
 
 /**
- * Compute the tile that completes the gap defined by the two picked vertex
+ * Compute the Tile that completes the gap defined by the two picked vertex
  * positions, preferring a regular fit (Decision 10) and falling back to an
  * irregular tile (Decision 12 — first-class polygon, same data model).
  *
  * Picks may be on either cycle:
- *   - both on the patch's outer cycle (17.5 behaviour),
- *   - both on the boundary polygon's corners (boundary-arc fill),
+ *   - both on the Cell's outer cycle (17.5 behaviour),
+ *   - both on the Boundary polygon's corners (boundary-arc fill),
  *   - one of each (mixed: triangle from chord + one neighbour edge).
  *
  * Returns `null` if no gap can be computed (degenerate pick, vertex not on
- * either cycle, chord lies entirely inside patch, etc.).
+ * either cycle, chord lies entirely inside Cell, etc.).
  */
 export function completeGap(
-  editor: EditorPatch,
+  cell: EditorCell,
   pA: Vec2,
   pB: Vec2,
   newId: string,
 ): EditorTile | null {
   let gap: GapPolygon | null = null
 
-  const patchCycle = computeOuterBoundary(editor)
-  const boundaryCycle = computeBoundaryCycle(editor)
+  const patchCycle = computeOuterBoundary(cell)
+  const boundaryCycle = computeBoundaryCycle(cell)
 
-  // 1) Both picks on the patch outer cycle (the common 17.5 case).
+  // 1) Both picks on the Cell's outer cycle (the common 17.5 case).
   if (patchCycle.length >= 3) {
     const ia = findCycleIndexByPoint(patchCycle, pA)
     const ib = findCycleIndexByPoint(patchCycle, pB)
-    if (ia >= 0 && ib >= 0) gap = computeGapPolygon(patchCycle, ia, ib, editor)
+    if (ia >= 0 && ib >= 0) gap = computeGapPolygon(patchCycle, ia, ib, cell)
   }
 
-  // 2) Both picks on the boundary polygon's corners.
+  // 2) Both picks on the Boundary polygon's corners.
   if (!gap) {
     const ia = findCycleIndexByPoint(boundaryCycle, pA)
     const ib = findCycleIndexByPoint(boundaryCycle, pB)
     if (ia >= 0 && ib >= 0) gap = computeBoundaryGapPolygon(boundaryCycle, ia, ib)
   }
 
-  // 3) Mixed: one patch vertex + one boundary corner.
+  // 3) Mixed: one Cell vertex + one Boundary corner.
   if (!gap) {
     const patchIdxA = findCycleIndexByPoint(patchCycle, pA)
     const patchIdxB = findCycleIndexByPoint(patchCycle, pB)
     const boundIdxA = findCycleIndexByPoint(boundaryCycle, pA)
     const boundIdxB = findCycleIndexByPoint(boundaryCycle, pB)
     if (patchIdxA >= 0 && boundIdxB >= 0) {
-      gap = computeMixedGapPolygon(editor, patchCycle, boundaryCycle, patchIdxA, boundIdxB)
+      gap = computeMixedGapPolygon(cell, patchCycle, boundaryCycle, patchIdxA, boundIdxB)
     } else if (patchIdxB >= 0 && boundIdxA >= 0) {
-      gap = computeMixedGapPolygon(editor, patchCycle, boundaryCycle, patchIdxB, boundIdxA)
+      gap = computeMixedGapPolygon(cell, patchCycle, boundaryCycle, patchIdxB, boundIdxA)
     }
   }
 

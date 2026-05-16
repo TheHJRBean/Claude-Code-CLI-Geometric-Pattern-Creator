@@ -1,5 +1,6 @@
 import type { CurvePoint, FigureConfig, PatternConfig } from '../types/pattern'
-import type { EditorConfig, EditorPatch } from '../types/editor'
+import type { EditorCell } from '../types/editor'
+import type { Vec2 } from '../utils/math'
 import type { Action } from './actions'
 import { TILINGS } from '../tilings/index'
 import { DEFAULT_CONFIG } from './defaults'
@@ -11,12 +12,11 @@ import {
 } from '../editor/createDefault'
 import { computeExposedEdges } from '../editor/exposedEdges'
 import { isPlacementViable, placeRegularNGonOnEdge } from '../editor/placement'
-import { orbitTileIds, placeTilesOnOrbit } from '../editor/orbit'
+import { orbitTileIds, placeTilesOnOrbit, placePolygonsOnOrbit } from '../editor/orbit'
 import { completeGap } from '../editor/complete'
-import { placePolygonsOnOrbit } from '../editor/orbit'
-import { autoCompletePatch, fitBoundarySize } from '../editor/autoComplete'
+import { autoCompleteCell, fitBoundarySize } from '../editor/autoComplete'
 import { seedFiguresForEditor } from '../editor/tileTypes'
-import { activePatch, allPatches, withActivePatch } from '../editor/active'
+import { activeCell, allCells, withActiveCell } from '../editor/active'
 
 const FALLBACK_FIGURE: FigureConfig = { type: 'star', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
 
@@ -149,168 +149,144 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     }
     case 'SET_EDITOR_BOUNDARY_SHAPE': {
       if (!state.editor) return state
-      // From a composition (e.g. 4.8.8), picking a single-shape boundary
-      // exits the composition: seed a fresh patch in the requested shape.
-      // The composition's authored interiors are discarded — the user can
-      // undo to restore.
-      if (state.editor.composition) {
+      // From a multi-cell **Configuration** (e.g. 4.8.8), picking a single
+      // boundary shape exits the Configuration: seed a fresh single-cell
+      // Patch in the requested shape. The Configuration's authored Cells are
+      // discarded — the user can undo to restore.
+      if (state.editor.cells.length > 1) {
         const fresh = createDefaultEditorConfig({
-          boundaryShape: action.payload,
+          shape: action.payload,
           boundarySize: DEFAULT_BOUNDARY_SIZE_BY_SHAPE[action.payload],
         })
         return seedFigures({ ...state, editor: fresh })
       }
-      // Single-shape: tiles are preserved across boundary-shape changes
-      // (single-edge placements remain valid under any boundary). Boundary
-      // size still snaps to the new shape's default.
-      const next: EditorConfig = {
-        ...state.editor,
-        boundaryShape: action.payload,
+      // Single-cell: Tiles are preserved across boundary-shape changes
+      // (single-edge placements remain valid under any Boundary). The Cell's
+      // boundarySize snaps to the new shape's default.
+      return applyWrap(seedFigures(updateActiveCell(state, cell => ({
+        ...cell,
+        shape: action.payload,
         boundarySize: DEFAULT_BOUNDARY_SIZE_BY_SHAPE[action.payload],
-      }
-      return applyWrap(seedFigures({ ...state, editor: next }))
+      }))))
     }
     case 'SET_EDITOR_BOUNDARY_SIZE': {
-      // Q9 Option B (single-shape): only the boundary outline rescales —
-      // tiles untouched. Manual slider drag implies the user wants a
-      // specific size, so wrap turns off.
-      // Composition: parity with single-shape — the slider only rescales
-      // the cell vectors (`composition.edgeLength`) and each boundary
-      // tile's outline (`patch.boundarySize` — used by
-      // `editorBoundaryVertices`). The origin tile and any user-placed
-      // sub-tiles keep their own size, so dragging the slider changes the
-      // cell scale without resizing what's inside, exactly as the
-      // single-shape boundary-size slider does. BoundaryTile.center stays
-      // in cell-local coords seeded at creation; if the user wants a
-      // different cell, they pick 4.8.8 again to re-seed.
+      // Q9 Option B: the slider rescales the Cell's Boundary outline — Tiles
+      // untouched. Manual slider drag implies the user wants a specific size,
+      // so wrap turns off on the touched Cells.
+      //
+      // Multi-cell: the slider scales the whole lattice. All Cell centres
+      // scale proportionally, every Cell's boundarySize updates, and
+      // `patch.edgeLength` (which drives `compositionCellBasis`) follows so
+      // the 4.8.8 invariant — octagon edge = square edge = lattice edge —
+      // holds. Seed Tile sizes stay so the inside of each Cell keeps its
+      // authored polygon (single-shape parity).
       if (!state.editor) return state
       const next = action.payload
       if (next <= 0) return state
-      if (state.editor.composition) {
-        const c = state.editor.composition
-        if (c.edgeLength === next) return state
-        // Cell vectors scale with `edgeLength`, so each `BoundaryTile.center`
-        // — which expresses the tile's position *within* the unit cell —
-        // must scale proportionally or boundaries drift out of place
-        // (octagon stays at (0,0), but the square's centre would lag at
-        // the old offset and the two outlines overlap as the cell grows).
-        // patch.edgeLength + the tile contents stay so the origin tile
-        // keeps its own size — single-shape parity.
-        // Manual slider drag clears wrap on every patch (single-shape
-        // parity — explicit override of the auto-fit).
-        const k = c.edgeLength === 0 ? 1 : next / c.edgeLength
-        const tiles = c.tiles.map(t => ({
-          ...t,
-          center: { x: t.center.x * k, y: t.center.y * k },
-          patch: { ...t.patch, boundarySize: next, wrapBoundary: false },
+      if (state.editor.cells.length > 1) {
+        if (state.editor.edgeLength === next) return state
+        const k = state.editor.edgeLength === 0 ? 1 : next / state.editor.edgeLength
+        const cells = state.editor.cells.map(c => ({
+          ...c,
+          center: { x: c.center.x * k, y: c.center.y * k },
+          boundarySize: next,
+          wrapBoundary: false,
         }))
-        const active = tiles.find(t => t.id === c.activeTileId) ?? tiles[0]
         return {
           ...state,
-          editor: {
-            version: state.editor.version,
-            ...active.patch,
-            composition: { ...c, edgeLength: next, tiles },
-          },
+          editor: { ...state.editor, cells, edgeLength: next },
         }
       }
-      return updateEditor(state, { boundarySize: next, wrapBoundary: false })
+      return updateActiveCell(state, cell => ({
+        ...cell,
+        boundarySize: next,
+        wrapBoundary: false,
+      }))
     }
     case 'SET_EDITOR_ALTERNATE_BOUNDARY':
-      // Single-shape: flips the boundary outline by π/n (Q9 Option B parity).
-      // Composition: flips just the active boundary tile's inner patch
-      // boundary. The composition's cell vectors and BoundaryTile.center +
-      // rotation are untouched so the unit cell still tiles by translation;
-      // the active tile's authored boundary outline rotates within its
-      // BoundaryTile frame.
+      // Flips just the active Cell's Boundary outline by π/n. Sibling Cells in
+      // a multi-cell Patch are untouched — the unit cell still tiles by
+      // translation because each Cell's `center` + `rotation` is preserved.
       if (!state.editor) return state
-      if (state.editor.composition) {
-        return applyWrap(updatePatch(
-          state,
-          patch => ({ ...patch, alternateBoundary: action.payload }),
-          { wrap: false, seed: false },
-        ))
-      }
-      return applyWrap(updateEditor(state, { alternateBoundary: action.payload }))
+      return applyWrap(updateActiveCell(state, cell => ({
+        ...cell,
+        alternateBoundary: action.payload,
+      })))
     case 'SET_EDITOR_ORIGIN_SIDES': {
       if (!state.editor) return state
       const sides = Math.max(3, Math.floor(action.payload))
       // Changing Seed sides invalidates any placed/completed Tiles built on
-      // the previous Seed Tile's edges. Reset to the new Seed Tile only.
-      // Routes via activePatch so composition's active boundary tile is the
-      // mutation target.
-      return updatePatch(state, patch => ({
-        ...patch,
+      // the previous Seed Tile's edges. Reset the active Cell to the new
+      // Seed Tile only.
+      const edgeLength = state.editor.edgeLength
+      return applyWrap(seedFigures(updateActiveCell(state, cell => ({
+        ...cell,
         seedSides: sides,
-        tiles: [createSeedTile(sides, patch.edgeLength)],
-      }), { wrap: true, seed: true })
+        tiles: [createSeedTile(sides, edgeLength)],
+      }))))
     }
     case 'EDITOR_PLACE_TILE_ON_EDGE': {
       if (!state.editor) return state
       const { tileId, edgeIndex, sides } = action.payload
-      return updatePatch(state, patch => {
-        const edges = computeExposedEdges(patch)
+      const edgeLength = state.editor.edgeLength
+      return applyWrap(seedFigures(updateActiveCell(state, cell => {
+        const edges = computeExposedEdges(cell, edgeLength)
         const edge = edges.find(e => e.tileId === tileId && e.edgeIndex === edgeIndex)
-        if (!edge) return null
-        const mode = patch.symmetryMode ?? 'none'
+        if (!edge) return cell
+        const mode = cell.symmetryMode ?? 'none'
         // Subgroup picker — `'none'` keeps the 17.3 single-edge behaviour.
         // Other subgroups propagate the placement under the chosen orbit;
         // any orbit image that fails viability fails the whole placement.
         if (mode === 'none') {
-          if (!isPlacementViable(edge, sides, patch)) return null
-          const id = `placed-${patch.tiles.length}-${Date.now()}`
-          const tile = placeRegularNGonOnEdge(sides, patch.edgeLength, edge.p1, edge.p2, edge.sourceCenter, id)
-          return { ...patch, tiles: [...patch.tiles, tile] }
+          if (!isPlacementViable(edge, sides, cell, edgeLength)) return cell
+          const id = `placed-${cell.tiles.length}-${Date.now()}`
+          const tile = placeRegularNGonOnEdge(sides, edgeLength, edge.p1, edge.p2, edge.sourceCenter, id)
+          return { ...cell, tiles: [...cell.tiles, tile] }
         }
-        const idPrefix = `placed-${patch.tiles.length}-${Date.now()}`
-        const placements = placeTilesOnOrbit(patch, edge, sides, idPrefix)
-        if (!placements) return null
-        return { ...patch, tiles: [...patch.tiles, ...placements] }
-      }, { wrap: true, seed: true })
+        const idPrefix = `placed-${cell.tiles.length}-${Date.now()}`
+        const placements = placeTilesOnOrbit(cell, edgeLength, edge, sides, idPrefix)
+        if (!placements) return cell
+        return { ...cell, tiles: [...cell.tiles, ...placements] }
+      })))
     }
     case 'EDITOR_DELETE_TILE': {
       if (!state.editor) return state
       const { tileId } = action.payload
-      return updatePatch(state, patch => {
-        const target = patch.tiles.find(t => t.id === tileId)
+      return applyWrap(updateActiveCell(state, cell => {
+        const target = cell.tiles.find(t => t.id === tileId)
         // The auto-placed Seed Tile can't be deleted — it anchors the Cell.
-        if (!target || target.source === 'seed') return null
-        const mode = patch.symmetryMode ?? 'none'
+        if (!target || target.source === 'seed') return cell
+        const mode = cell.symmetryMode ?? 'none'
         // Orbit-aware delete: removing one propagated Tile takes its orbit
         // siblings with it, otherwise the Cell's symmetry would silently
         // break. None mode = single-Tile delete (17.3 behaviour). The Seed
         // Tile is filtered out of the orbit set defensively.
         const ids = mode === 'none'
           ? new Set([tileId])
-          : new Set(orbitTileIds(patch, target).filter(id => {
-              const t = patch.tiles.find(t => t.id === id)
+          : new Set(orbitTileIds(cell, target).filter(id => {
+              const t = cell.tiles.find(t => t.id === id)
               return t && t.source !== 'seed'
             }))
         // Q15: orphaned figures are retained on tile removal so re-placing
         // the same shape restores the user's tuning. We only ever add to
         // figures.
-        return { ...patch, tiles: patch.tiles.filter(t => !ids.has(t.id)) }
-      }, { wrap: true, seed: false })
+        return { ...cell, tiles: cell.tiles.filter(t => !ids.has(t.id)) }
+      }))
     }
     case 'EDITOR_COMPLETE_GAP': {
       if (!state.editor) return state
       const { pA, pB } = action.payload
-      if (state.editor.composition) {
-        return completeOnComposition(state, bt => {
-          const localA = inverseBoundaryTransform(pA, bt)
-          const localB = inverseBoundaryTransform(pB, bt)
-          const id = `completed-${bt.patch.tiles.length}-${Date.now()}`
-          const tile = completeGap(bt.patch, localA, localB, id)
-          if (!tile) return null
-          return { ...bt.patch, tiles: [...bt.patch.tiles, tile] }
-        })
-      }
-      return updatePatch(state, patch => {
-        const id = `completed-${patch.tiles.length}-${Date.now()}`
-        const tile = completeGap(patch, pA, pB, id)
+      // Cross-Cell completion: try the active Cell first, then each sibling.
+      // Picks come from the canvas in Patch-local coords; transform into each
+      // Cell's local frame before handing to `completeGap`.
+      return completeAcrossCells(state, cell => {
+        const localA = inverseCellTransform(pA, cell)
+        const localB = inverseCellTransform(pB, cell)
+        const id = `completed-${cell.tiles.length}-${Date.now()}`
+        const tile = completeGap(cell, localA, localB, id)
         if (!tile) return null
-        return { ...patch, tiles: [...patch.tiles, tile] }
-      }, { wrap: true, seed: true })
+        return { ...cell, tiles: [...cell.tiles, tile] }
+      })
     }
     case 'EDITOR_COMPLETE_N_GAP': {
       if (!state.editor) return state
@@ -319,71 +295,53 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       // the same single-instance tile array as 17.11; with a non-trivial
       // subgroup, all orbit images that pass the vertex-coincidence gate
       // place atomically (or none of them do, per Decision a).
-      if (state.editor.composition) {
-        return completeOnComposition(state, bt => {
-          const localPicks = picks.map(p => inverseBoundaryTransform(p, bt))
-          const idPrefix = `completed-n-${bt.patch.tiles.length}-${Date.now()}`
-          const tiles = placePolygonsOnOrbit(bt.patch, localPicks, idPrefix)
-          if (!tiles || tiles.length === 0) return null
-          return { ...bt.patch, tiles: [...bt.patch.tiles, ...tiles] }
-        })
-      }
-      return updatePatch(state, patch => {
-        const idPrefix = `completed-n-${patch.tiles.length}-${Date.now()}`
-        const tiles = placePolygonsOnOrbit(patch, picks, idPrefix)
+      return completeAcrossCells(state, cell => {
+        const localPicks = picks.map(p => inverseCellTransform(p, cell))
+        const idPrefix = `completed-n-${cell.tiles.length}-${Date.now()}`
+        const tiles = placePolygonsOnOrbit(cell, localPicks, idPrefix)
         if (!tiles || tiles.length === 0) return null
-        return { ...patch, tiles: [...patch.tiles, ...tiles] }
-      }, { wrap: true, seed: true })
+        return { ...cell, tiles: [...cell.tiles, ...tiles] }
+      })
     }
     case 'SET_EDITOR_AUTO_COMPLETE_ENABLED': {
       if (!state.editor) return state
-      return updatePatch(state, patch => {
-        const prev = patch.autoComplete ?? { enabled: false }
-        return { ...patch, autoComplete: { ...prev, enabled: action.payload } }
-      }, { wrap: false, seed: false })
+      const prev = state.editor.autoComplete ?? { enabled: false }
+      return {
+        ...state,
+        editor: { ...state.editor, autoComplete: { ...prev, enabled: action.payload } },
+      }
     }
     case 'EDITOR_RUN_AUTO_COMPLETE': {
       if (!state.editor) return state
-      return updatePatch(state, patch => {
-        const { tiles } = autoCompletePatch(patch)
-        // Idempotent on already-convex patches: reference-equal tiles → no
+      return applyWrap(seedFigures(updateActiveCell(state, cell => {
+        const { tiles } = autoCompleteCell(cell)
+        // Idempotent on already-convex Cells: reference-equal tiles → no
         // state churn, no figure re-seed.
-        if (tiles === patch.tiles) return null
-        return { ...patch, tiles }
-      }, { wrap: true, seed: true })
+        if (tiles === cell.tiles) return cell
+        return { ...cell, tiles }
+      })))
     }
     case 'SET_EDITOR_WRAP_BOUNDARY': {
       if (!state.editor) return state
-      // Composition: the toggle is per-active-patch — wrap fits the cell
-      // edge to whichever boundary tile the user is currently editing.
-      // Single-shape: same behaviour as before.
-      if (state.editor.composition) {
-        const next = updatePatch(
-          state,
-          patch => ({ ...patch, wrapBoundary: action.payload }),
-          { wrap: false, seed: false },
-        )
-        return action.payload ? applyWrap(next) : next
-      }
-      const next = updateEditor(state, { wrapBoundary: action.payload })
-      // Toggling on must take effect immediately — otherwise the toggle does
-      // nothing visible until the next tile mutation.
+      // Per-active-Cell wrap. Toggling on must take effect immediately —
+      // otherwise the toggle does nothing visible until the next mutation.
+      const next = updateActiveCell(state, cell => ({ ...cell, wrapBoundary: action.payload }))
       return action.payload ? applyWrap(next) : next
     }
     case 'SET_EDITOR_SYMMETRY_MODE': {
       if (!state.editor) return state
-      return updatePatch(state, patch => {
+      return updateActiveCell(state, cell => {
         // Triangle has no horizontal mirror — coerce the request defensively.
-        const mode = action.payload === 'horizontal' && patch.boundaryShape === 'triangle'
+        const mode = action.payload === 'horizontal' && cell.shape === 'triangle'
           ? 'none'
           : action.payload
-        return { ...patch, symmetryMode: mode }
-      }, { wrap: false, seed: false })
+        return { ...cell, symmetryMode: mode }
+      })
     }
     case 'SET_EDITOR_BOUNDARY_CONFIGURATION': {
-      // Switch the wrapper between single-shape and a multi-tile composition.
-      // Destructive — discards the current patch (single → composition seeds
-      // fresh inner patches; composition → single returns to defaults).
+      // Switch the Patch between single-cell and a multi-cell Configuration.
+      // Destructive — discards the current Cells (single → multi-cell seeds
+      // fresh; multi-cell → single returns to defaults).
       if (action.payload === '4.8.8') {
         const next = createDefault488EditorConfig()
         return seedFigures({
@@ -392,7 +350,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
           editor: next,
         })
       }
-      // payload === null → leave composition, fresh single-shape patch.
+      // payload === null → leave Configuration, fresh single-cell Patch.
       const next = createDefaultEditorConfig()
       return seedFigures({
         ...state,
@@ -401,33 +359,23 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       })
     }
     case 'SET_ACTIVE_BOUNDARY_TILE': {
-      if (!state.editor || !state.editor.composition) return state
+      if (!state.editor) return state
       const { tileId } = action.payload
-      const composition = state.editor.composition
-      if (!composition.tiles.some(t => t.id === tileId)) return state
-      // Pure UI pane swap. Mirror the new active tile's per-patch fields up
-      // to the wrapper so legacy single-shape readers (that haven't migrated
-      // through activePatch yet) see the active tile's view. Excluded from
-      // the undo stack — see history.ts DESIGN_MODE_ACTIONS. If the new
-      // active patch has wrap on, refit the cell to it (wrap follows the
-      // selected boundary tile per the v1 contract).
-      const nextComposition = { ...composition, activeTileId: tileId }
-      const active = nextComposition.tiles.find(t => t.id === tileId)!
+      if (!state.editor.cells.some(c => c.id === tileId)) return state
+      // Pure UI pane swap — excluded from the undo stack (see
+      // history.ts DESIGN_MODE_ACTIONS). If the new active Cell has wrap on,
+      // refit so the lattice tracks the user's selection.
       const swapped: PatternConfig = {
         ...state,
-        editor: {
-          version: 2,
-          ...active.patch,
-          composition: nextComposition,
-        },
+        editor: { ...state.editor, activeCellId: tileId },
       }
       return applyWrap(swapped)
     }
     case 'EDITOR_RESTORE_SNAPSHOT': {
-      // Step 17.9 — undo/redo. Snapshot already has its own boundarySize, so
-      // we don't run applyWrap (the snapshot represents the post-wrap state
-      // at the time it was captured). seedFigures keeps figure-map coverage
-      // consistent with the restored tile types.
+      // Step 17.9 — undo/redo. Snapshot already has its own per-Cell
+      // boundarySizes, so we don't run applyWrap (the snapshot represents
+      // the post-wrap state at the time it was captured). seedFigures keeps
+      // figure-map coverage consistent with the restored Tile types.
       const snapshot = action.payload
       if (snapshot === null) {
         const { editor: _drop, ...rest } = state
@@ -445,141 +393,112 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
   }
 }
 
-/** Patch `EditorConfig` if active; no-op otherwise. */
-function updateEditor(state: PatternConfig, patch: Partial<EditorConfig>): PatternConfig {
-  if (!state.editor) return state
-  return { ...state, editor: { ...state.editor, ...patch } }
-}
-
 /**
- * Inverse of a `BoundaryTile`'s transform: takes a point in cell-local
- * coords and returns the equivalent in the tile's patch-local coords.
- * Used by Complete-mode handlers in composition: vertex picks come in
- * cell-local from the canvas overlay, but completeGap / placePolygonsOnOrbit
- * expect patch-local picks to match the patch's cycle vertices.
+ * Immutable update: replace the active Cell via `fn(currentCell)`. If `fn`
+ * returns the same Cell (reference equality), state is unchanged. Otherwise
+ * returns a fresh `PatternConfig` with the updated Cell in place.
  */
-function inverseBoundaryTransform(p: { x: number; y: number }, bt: { center: { x: number; y: number }; rotation: number }): { x: number; y: number } {
-  const dx = p.x - bt.center.x
-  const dy = p.y - bt.center.y
-  if (bt.rotation === 0) return { x: dx, y: dy }
-  // Inverse rotation = transpose for orthogonal matrix.
-  const c = Math.cos(bt.rotation), s = Math.sin(bt.rotation)
-  return { x: dx * c + dy * s, y: -dx * s + dy * c }
-}
-
-/**
- * Cross-tile completion router for composition. Tries each boundary tile
- * (active first) by handing it to the supplied factory; the factory returns
- * the new patch for that tile or `null` if the picks don't fit. The first
- * tile that yields a non-null patch wins; the returned `EditorConfig`
- * has that tile's patch updated in `composition.tiles` and re-mirrors the
- * active patch's fields up to the wrapper. Picks that match nothing in any
- * tile leave state untouched.
- */
-function completeOnComposition(
+function updateActiveCell(
   state: PatternConfig,
-  apply: (tile: NonNullable<EditorConfig['composition']>['tiles'][number]) => EditorPatch | null,
+  fn: (cell: EditorCell) => EditorCell,
 ): PatternConfig {
-  if (!state.editor || !state.editor.composition) return state
-  const c = state.editor.composition
+  if (!state.editor) return state
+  const current = activeCell(state.editor)
+  const next = fn(current)
+  if (next === current) return state
+  return { ...state, editor: { ...withActiveCell(state.editor, next), version: state.editor.version } }
+}
+
+/**
+ * Cross-Cell completion router. Tries each Cell (active first) by handing it
+ * to the supplied factory; the factory returns the new Cell or `null` if the
+ * picks don't fit. The first Cell that yields a non-null result wins; the
+ * returned `PatternConfig` has that Cell updated in `state.editor.cells`.
+ * Picks that match nothing in any Cell leave state untouched.
+ */
+function completeAcrossCells(
+  state: PatternConfig,
+  apply: (cell: EditorCell) => EditorCell | null,
+): PatternConfig {
+  if (!state.editor) return state
   const order = [
-    ...c.tiles.filter(t => t.id === c.activeTileId),
-    ...c.tiles.filter(t => t.id !== c.activeTileId),
+    ...state.editor.cells.filter(c => c.id === state.editor!.activeCellId),
+    ...state.editor.cells.filter(c => c.id !== state.editor!.activeCellId),
   ]
-  for (const bt of order) {
-    const nextPatch = apply(bt)
-    if (!nextPatch) continue
-    const nextTiles = c.tiles.map(t => (t.id === bt.id ? { ...t, patch: nextPatch } : t))
-    const nextC = { ...c, tiles: nextTiles }
-    const active = nextC.tiles.find(t => t.id === c.activeTileId) ?? nextC.tiles[0]
-    const next: PatternConfig = {
+  for (const cell of order) {
+    const nextCell = apply(cell)
+    if (!nextCell || nextCell === cell) continue
+    const cells = state.editor.cells.map(c => (c.id === cell.id ? nextCell : c))
+    const after: PatternConfig = {
       ...state,
-      editor: {
-        version: state.editor.version,
-        ...active.patch,
-        composition: nextC,
-      },
+      editor: { ...state.editor, cells },
     }
-    return applyWrap(seedFigures(next))
+    return applyWrap(seedFigures(after))
   }
   return state
 }
 
 /**
- * Route a per-patch mutation through the active-patch adapter so single-shape
- * and composition-active editors share one code path. The mutation function
- * receives the active `EditorPatch`, returns either the next patch or `null`
- * to signal "no change". Optionally runs `applyWrap` and `seedFigures` after.
+ * Inverse of a Cell's transform: takes a point in Patch-local coords and
+ * returns the equivalent in the Cell's local coords. Used by Complete-mode
+ * handlers in multi-cell Configurations: vertex picks come in Patch-local
+ * from the canvas overlay, but `completeGap` / `placePolygonsOnOrbit` expect
+ * Cell-local picks to match the Cell's cycle vertices.
  */
-function updatePatch(
-  state: PatternConfig,
-  fn: (patch: EditorPatch) => EditorPatch | null,
-  opts: { wrap: boolean; seed: boolean },
-): PatternConfig {
-  if (!state.editor) return state
-  const current = activePatch(state.editor)
-  const next = fn(current)
-  if (!next || next === current) return state
-  let after: PatternConfig = { ...state, editor: withActivePatch(state.editor, next) }
-  if (opts.seed) after = seedFigures(after)
-  if (opts.wrap) after = applyWrap(after)
-  return after
+function inverseCellTransform(p: Vec2, cell: EditorCell): Vec2 {
+  const dx = p.x - cell.center.x
+  const dy = p.y - cell.center.y
+  if (cell.rotation === 0) return { x: dx, y: dy }
+  // Inverse rotation = transpose for orthogonal matrix.
+  const c = Math.cos(cell.rotation), s = Math.sin(cell.rotation)
+  return { x: dx * c + dy * s, y: -dx * s + dy * c }
 }
 
 /**
- * Q15 — after any editor mutation, ensure every distinct `tileTypeId` in the
- * patch has a `figures` entry. Walks all patches under composition so each
- * boundary tile's interior tile types get seed figures (octagon AND square
- * inner-tile types both get strand cards).
+ * Q15 — after any editor mutation, ensure every distinct `tileTypeId` across
+ * every Cell of the Patch has a `figures` entry. `seedFiguresForEditor`
+ * already walks `patch.cells` itself, so this is just a thin wrapper that
+ * skips the noop case.
  */
 function seedFigures(state: PatternConfig): PatternConfig {
   if (!state.editor) return state
-  let figures = state.figures
-  for (const patch of allPatches(state.editor)) {
-    figures = seedFiguresForEditor(figures, patch)
-  }
+  void allCells // imported for parity with the v2 reducer; the walker lives inside seedFiguresForEditor now
+  const figures = seedFiguresForEditor(state.figures, state.editor)
   return figures === state.figures ? state : { ...state, figures }
 }
 
 /**
- * If `wrapBoundary` is on, recompute `boundarySize` so the boundary polygon
- * hugs the patch. No-op otherwise. Called after every tile-mutating action so
- * the boundary stays fitted as the user builds.
+ * If the active Cell's `wrapBoundary` is on, recompute its boundarySize so
+ * the Boundary polygon hugs its Tiles. No-op otherwise. Called after every
+ * Tile-mutating action so the Boundary stays fitted as the user builds.
  *
- * Composition: per-active-patch wrap. When the active boundary tile's
- * `patch.wrapBoundary` is on, fit `composition.edgeLength` to the active
- * patch's tile contents and propagate to the sibling tile (so the 4.8.8
- * invariant — octagon edge = square edge = cell edge — holds). Tile
- * centres scale proportionally, same way the slider scales them.
+ * Multi-cell: when the active Cell's wrap fires, propagate the new size to
+ * every sibling Cell (and to `patch.edgeLength`), with all Cell centres
+ * scaling proportionally. This preserves the v2 4.8.8 invariant — every
+ * Cell's Boundary edge matches the lattice edge.
  */
 function applyWrap(state: PatternConfig): PatternConfig {
   if (!state.editor) return state
-  if (state.editor.composition) {
-    const c = state.editor.composition
-    const active = c.tiles.find(t => t.id === c.activeTileId)
-    if (!active || !active.patch.wrapBoundary) return state
-    const fit = fitBoundarySize(active.patch)
-    if (!Number.isFinite(fit) || fit <= 0 || fit === c.edgeLength) return state
-    const k = c.edgeLength === 0 ? 1 : fit / c.edgeLength
-    const tiles = c.tiles.map(t => ({
-      ...t,
-      center: { x: t.center.x * k, y: t.center.y * k },
-      patch: { ...t.patch, boundarySize: fit },
+  const cell = activeCell(state.editor)
+  if (!cell.wrapBoundary) return state
+  const fit = fitBoundarySize(cell, state.editor.edgeLength)
+  if (!Number.isFinite(fit) || fit <= 0) return state
+
+  if (state.editor.cells.length > 1) {
+    if (fit === state.editor.edgeLength) return state
+    const k = state.editor.edgeLength === 0 ? 1 : fit / state.editor.edgeLength
+    const cells = state.editor.cells.map(c => ({
+      ...c,
+      center: { x: c.center.x * k, y: c.center.y * k },
+      boundarySize: fit,
     }))
-    const activeAfter = tiles.find(t => t.id === c.activeTileId) ?? tiles[0]
     return {
       ...state,
-      editor: {
-        version: state.editor.version,
-        ...activeAfter.patch,
-        composition: { ...c, edgeLength: fit, tiles },
-      },
+      editor: { ...state.editor, cells, edgeLength: fit },
     }
   }
-  if (!state.editor.wrapBoundary) return state
-  const fit = fitBoundarySize(state.editor)
-  if (!Number.isFinite(fit) || fit <= 0 || fit === state.editor.boundarySize) return state
-  return { ...state, editor: { ...state.editor, boundarySize: fit } }
+  if (fit === cell.boundarySize) return state
+  return updateActiveCell(state, c => ({ ...c, boundarySize: fit }))
 }
 
 export { DEFAULT_CONFIG }

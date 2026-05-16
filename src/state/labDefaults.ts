@@ -1,4 +1,5 @@
 import type { PatternConfig } from '../types/pattern'
+import { migrateEditorConfig } from '../editor/migrations'
 
 /**
  * Lab starts with no tessellation selected. Strands are off by default
@@ -50,6 +51,21 @@ export function loadLabState(): LabPersistedState {
     // the config — strip them silently.
     delete (config as Record<string, unknown>).mandala
     delete (config as Record<string, unknown>).composition
+    // v3 schema migration (ADR-0001): persisted Editor patches may be v1 / v2;
+    // run them through the migrator so the reducer always sees v3. Drop the
+    // editor and tiling type if migration fails so the Lab boots to a blank
+    // state instead of crashing.
+    if (config.editor) {
+      const migrated = migrateEditorConfig(config.editor)
+      if (migrated) {
+        config.editor = migrated
+      } else {
+        delete (config as Record<string, unknown>).editor
+        if (config.tiling.type === 'editor') {
+          config.tiling = { ...config.tiling, type: '' }
+        }
+      }
+    }
     return {
       config,
       showStrands: typeof parsed.showStrands === 'boolean' ? parsed.showStrands : LAB_DEFAULT_PERSISTED.showStrands,

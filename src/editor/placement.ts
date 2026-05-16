@@ -1,6 +1,6 @@
 import type { Vec2 } from '../utils/math'
 import { pointInPolygon, pointsEqual } from '../utils/math'
-import type { EditorPatch, EditorRegularTile, EditorTile } from '../types/editor'
+import type { EditorCell, EditorRegularTile, EditorTile } from '../types/editor'
 import { regularPolygonVertices } from './regularPolygon'
 import { EDITOR_EPS, tileVertices, type ExposedEdge } from './exposedEdges'
 
@@ -51,35 +51,39 @@ export function placeRegularNGonOnEdge(
 }
 
 /**
- * Decision 7 viability check: at every vertex shared with existing tiles, the
- * sum of interior angles across all incident tiles (existing + the candidate)
+ * Decision 7 viability check: at every vertex shared with existing Tiles, the
+ * sum of interior angles across all incident Tiles (existing + the candidate)
  * must be ≤ 2π. Equivalent to "the new polygon doesn't overlap any existing
- * tile around shared vertices".
+ * Tile around shared vertices".
  *
  * For 17.3 only the two endpoints of the source edge are shared by
  * construction. Future steps may extend to all candidate vertices.
+ *
+ * `edgeLength` is the Patch's shared edge length (Decision 14) — used to size
+ * the candidate polygon for the stronger overlap probe.
  */
 export function isPlacementViable(
   edge: ExposedEdge,
   sides: number,
-  editor: EditorPatch,
+  cell: EditorCell,
+  edgeLength: number,
 ): boolean {
   // Decision 14a: non-conforming edges (length ≠ origin's) are inert.
   if (!edge.conforming) return false
   if (sides < 3) return false
 
   const newAngle = ((sides - 2) * Math.PI) / sides
-  if (!checkAngleSum(edge.p1, newAngle, editor.tiles)) return false
-  if (!checkAngleSum(edge.p2, newAngle, editor.tiles)) return false
+  if (!checkAngleSum(edge.p1, newAngle, cell.tiles)) return false
+  if (!checkAngleSum(edge.p2, newAngle, cell.tiles)) return false
 
   // Stronger overlap guard for cases the angle-sum test misses (large
   // candidate n-gons that wrap past non-adjacent existing tiles, where no
   // vertex coincides with the new tile). Build the candidate's vertices and
   // check it doesn't contain any existing centre, and no existing tile
   // contains the candidate's centre.
-  const candidate = placeRegularNGonOnEdge(sides, editor.edgeLength, edge.p1, edge.p2, edge.sourceCenter, '__probe__')
+  const candidate = placeRegularNGonOnEdge(sides, edgeLength, edge.p1, edge.p2, edge.sourceCenter, '__probe__')
   const candidateVerts = regularPolygonVertices(candidate.sides, candidate.center, candidate.edgeLength, candidate.rotation)
-  for (const tile of editor.tiles) {
+  for (const tile of cell.tiles) {
     const tv = tileVertices(tile)
     const tc = tile.kind === 'regular' ? tile.center : avgCenter(tv)
     if (pointInPolygon(tc, candidateVerts)) return false
@@ -122,6 +126,6 @@ function interiorAngle(tile: EditorTile, verts: Vec2[], i: number): number {
 }
 
 /** Subset of `PICKER_SIDES` that pass `isPlacementViable` for the given edge. */
-export function viableSidesForEdge(edge: ExposedEdge, editor: EditorPatch): number[] {
-  return PICKER_SIDES.filter(n => isPlacementViable(edge, n, editor))
+export function viableSidesForEdge(edge: ExposedEdge, cell: EditorCell, edgeLength: number): number[] {
+  return PICKER_SIDES.filter(n => isPlacementViable(edge, n, cell, edgeLength))
 }

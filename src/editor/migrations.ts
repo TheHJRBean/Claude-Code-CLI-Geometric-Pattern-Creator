@@ -1,10 +1,10 @@
 import type {
-  BoundaryComposition,
-  BoundaryShape,
-  BoundaryTile,
+  CellShape,
+  ConfigurationId,
+  EditorAutoCompleteSettings,
+  EditorCell,
   EditorConfig,
   EditorIrregularTile,
-  EditorPatch,
   EditorRegularTile,
   EditorTile,
   SymmetryMode,
@@ -13,24 +13,28 @@ import type {
 const SYMMETRY_MODES = new Set<SymmetryMode>(['full', 'rotation', 'vertical', 'horizontal', 'none'])
 
 /**
- * Step 17.8 — load-time validation + migration scaffold for `EditorConfig`.
+ * Step 17.8 — load-time validation + migration for `EditorConfig`.
  *
  * `migrateEditorConfig` takes an unvalidated value (from JSON / localStorage),
- * checks shape, and returns a clean `EditorConfig` or `null` if the input is
- * unrecoverable. Versions:
- *   - v1 (legacy): single-shape patches, no composition.
- *   - v2: adds the optional `composition` field for multi-tile boundary
- *     configurations (4.8.8 etc.). v1 patches load unchanged into v2 with
- *     `composition` absent.
+ * validates shape, and returns a clean v3 `EditorConfig` or `null` if the
+ * input is unrecoverable. Versions handled:
+ *
+ *   - v1 (legacy): single-shape Patches with `tiles[]` directly on the
+ *     Patch. Wraps into a single Cell with id `'main'`.
+ *   - v2 (legacy): adds optional `composition` field with `BoundaryTile[]`.
+ *     Single-shape v2 patches wrap like v1. Multi-shape v2 patches collapse
+ *     each `BoundaryTile` into one `EditorCell`, lifting the composition's
+ *     `configurationId` / `edgeLength` / `activeTileId` onto the Patch.
+ *   - v3 (current, ADR-0001): every Patch carries `cells: EditorCell[]`.
+ *     Validated and returned as-is.
  */
 
-/** Allowed top-level boundary shapes (single-shape patches). Octagon is
- * intentionally excluded — it only appears inside a multi-tile composition. */
-const TOP_LEVEL_BOUNDARY_SHAPES = new Set<BoundaryShape>(['triangle', 'square', 'hexagon'])
-/** Boundary shapes that can appear inside a `BoundaryTile`. Octagon allowed. */
-const BOUNDARY_TILE_SHAPES = new Set<BoundaryShape>(['triangle', 'square', 'hexagon', 'octagon'])
-/** Configuration ids supported by v2. Extend when adding 3.12.12, 4.6.12, … */
-const COMPOSITION_IDS = new Set<BoundaryComposition['configurationId']>(['4.8.8'])
+/** Cell shapes that can appear in a single-cell Patch (excludes octagon). */
+const SINGLE_CELL_SHAPES = new Set<CellShape>(['triangle', 'square', 'hexagon'])
+/** Cell shapes allowed in any Cell of a multi-cell Patch (octagon included). */
+const ANY_CELL_SHAPES = new Set<CellShape>(['triangle', 'square', 'hexagon', 'octagon'])
+/** Configuration ids supported. Extend when adding 3.12.12, 4.6.12, … */
+const CONFIGURATION_IDS = new Set<ConfigurationId>(['4.8.8'])
 
 function isVec2(v: unknown): v is { x: number; y: number } {
   return typeof v === 'object' && v !== null
@@ -103,26 +107,28 @@ function migrateTile(raw: unknown): EditorTile | null {
   return null
 }
 
+function migrateAutoComplete(raw: unknown): EditorAutoCompleteSettings | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined
+  const ac = raw as Record<string, unknown>
+  if (typeof ac.enabled !== 'boolean') return undefined
+  return { enabled: ac.enabled }
+}
+
 /**
- * Validate the per-patch fields shared by both single-shape patches and
- * inner `BoundaryTile.patch` patches. Returns the valid patch or `null`.
- *
- * `allowOctagon` controls whether `'octagon'` is accepted for `boundaryShape`
- * — true inside a composition's BoundaryTile, false at the top level.
+ * v3 Cell validator. Used both for top-level v3 patches (where
+ * `allowOctagon` follows whether the Patch is multi-cell) and for v2-tile →
+ * Cell collapse during migration.
  */
-function migratePatchFields(
-  r: Record<string, unknown>,
-  allowOctagon: boolean,
-): EditorPatch | null {
-  const allowedShapes = allowOctagon ? BOUNDARY_TILE_SHAPES : TOP_LEVEL_BOUNDARY_SHAPES
-  if (typeof r.boundaryShape !== 'string' || !allowedShapes.has(r.boundaryShape as BoundaryShape)) {
-    return null
-  }
+function migrateCell(raw: unknown, allowOctagon: boolean): EditorCell | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const r = raw as Record<string, unknown>
+  const allowedShapes = allowOctagon ? ANY_CELL_SHAPES : SINGLE_CELL_SHAPES
+  if (typeof r.id !== 'string' || r.id.length === 0) return null
+  if (typeof r.shape !== 'string' || !allowedShapes.has(r.shape as CellShape)) return null
+  if (!isVec2(r.center)) return null
+  if (typeof r.rotation !== 'number') return null
   if (typeof r.boundarySize !== 'number' || r.boundarySize <= 0) return null
-  // Accept legacy `originSides` and current `seedSides`.
-  const seedSidesRaw = (r.seedSides !== undefined ? r.seedSides : r.originSides)
-  if (typeof seedSidesRaw !== 'number' || seedSidesRaw < 3) return null
-  if (typeof r.edgeLength !== 'number' || r.edgeLength <= 0) return null
+  if (typeof r.seedSides !== 'number' || r.seedSides < 3) return null
   if (!Array.isArray(r.tiles) || r.tiles.length === 0) return null
 
   const tiles: EditorTile[] = []
@@ -134,98 +140,178 @@ function migratePatchFields(
   // The first tile must be the auto-placed Seed Tile (Decision 6).
   if (tiles[0].source !== 'seed') return null
 
-  const out: EditorPatch = {
-    boundaryShape: r.boundaryShape as BoundaryShape,
+  const cell: EditorCell = {
+    id: r.id,
+    shape: r.shape as CellShape,
+    center: { x: (r.center as { x: number; y: number }).x, y: (r.center as { x: number; y: number }).y },
+    rotation: r.rotation,
     boundarySize: r.boundarySize,
-    seedSides: seedSidesRaw,
-    edgeLength: r.edgeLength,
+    seedSides: r.seedSides,
     tiles,
   }
-  if (typeof r.alternateBoundary === 'boolean') out.alternateBoundary = r.alternateBoundary
-  if (typeof r.wrapBoundary === 'boolean') out.wrapBoundary = r.wrapBoundary
-  if (typeof r.autoComplete === 'object' && r.autoComplete !== null) {
-    const ac = r.autoComplete as Record<string, unknown>
-    if (typeof ac.enabled === 'boolean') {
-      out.autoComplete = { enabled: ac.enabled }
-    }
-  }
+  if (typeof r.alternateBoundary === 'boolean') cell.alternateBoundary = r.alternateBoundary
+  if (typeof r.wrapBoundary === 'boolean') cell.wrapBoundary = r.wrapBoundary
   if (typeof r.symmetryMode === 'string' && SYMMETRY_MODES.has(r.symmetryMode as SymmetryMode)) {
-    out.symmetryMode = r.symmetryMode as SymmetryMode
+    cell.symmetryMode = r.symmetryMode as SymmetryMode
   }
-  if (typeof r.boundaryInward === 'boolean') out.boundaryInward = r.boundaryInward
-  return out
+  if (typeof r.boundaryInward === 'boolean') cell.boundaryInward = r.boundaryInward
+  return cell
 }
 
-function migrateBoundaryTile(raw: unknown): BoundaryTile | null {
+/**
+ * Build an `EditorCell` from a v1 / v2 single-shape Patch's flat field set.
+ * Legacy field names are honoured: `boundaryShape`, `boundarySize`,
+ * `seedSides` (or `originSides`), `alternateBoundary`, `wrapBoundary`,
+ * `symmetryMode`, `boundaryInward`. The Cell sits at the Patch origin with
+ * rotation 0 and id `'main'`.
+ */
+function legacyPatchFieldsToCell(r: Record<string, unknown>, allowOctagon: boolean): EditorCell | null {
+  const allowedShapes = allowOctagon ? ANY_CELL_SHAPES : SINGLE_CELL_SHAPES
+  if (typeof r.boundaryShape !== 'string' || !allowedShapes.has(r.boundaryShape as CellShape)) return null
+  if (typeof r.boundarySize !== 'number' || r.boundarySize <= 0) return null
+  const seedSidesRaw = r.seedSides !== undefined ? r.seedSides : r.originSides
+  if (typeof seedSidesRaw !== 'number' || seedSidesRaw < 3) return null
+  if (!Array.isArray(r.tiles) || r.tiles.length === 0) return null
+
+  const tiles: EditorTile[] = []
+  for (const rawTile of r.tiles) {
+    const tile = migrateTile(rawTile)
+    if (!tile) return null
+    tiles.push(tile)
+  }
+  if (tiles[0].source !== 'seed') return null
+
+  const cell: EditorCell = {
+    id: 'main',
+    shape: r.boundaryShape as CellShape,
+    center: { x: 0, y: 0 },
+    rotation: 0,
+    boundarySize: r.boundarySize,
+    seedSides: seedSidesRaw,
+    tiles,
+  }
+  if (typeof r.alternateBoundary === 'boolean') cell.alternateBoundary = r.alternateBoundary
+  if (typeof r.wrapBoundary === 'boolean') cell.wrapBoundary = r.wrapBoundary
+  if (typeof r.symmetryMode === 'string' && SYMMETRY_MODES.has(r.symmetryMode as SymmetryMode)) {
+    cell.symmetryMode = r.symmetryMode as SymmetryMode
+  }
+  if (typeof r.boundaryInward === 'boolean') cell.boundaryInward = r.boundaryInward
+  return cell
+}
+
+/**
+ * Build an `EditorCell` from a v2 `BoundaryTile` (one entry in
+ * `composition.tiles`). Reuses the inner patch's legacy field set, but the
+ * Cell adopts the BoundaryTile's `id`, `center`, `rotation`, and shape.
+ */
+function v2BoundaryTileToCell(raw: unknown): EditorCell | null {
   if (typeof raw !== 'object' || raw === null) return null
   const r = raw as Record<string, unknown>
   if (typeof r.id !== 'string' || r.id.length === 0) return null
-  if (typeof r.shape !== 'string' || !BOUNDARY_TILE_SHAPES.has(r.shape as BoundaryShape)) return null
-  if (typeof r.center !== 'object' || r.center === null) return null
-  const c = r.center as Record<string, unknown>
-  if (typeof c.x !== 'number' || typeof c.y !== 'number') return null
+  if (typeof r.shape !== 'string' || !ANY_CELL_SHAPES.has(r.shape as CellShape)) return null
+  if (!isVec2(r.center)) return null
   if (typeof r.rotation !== 'number') return null
   if (typeof r.patch !== 'object' || r.patch === null) return null
-  const patch = migratePatchFields(r.patch as Record<string, unknown>, true)
-  if (!patch) return null
+
+  const innerCell = legacyPatchFieldsToCell(r.patch as Record<string, unknown>, true)
+  if (!innerCell) return null
+
+  // Override the synthesised default fields with the BoundaryTile's own
+  // identity / placement; the inner patch's `boundaryShape` is irrelevant
+  // (the BoundaryTile's `shape` is authoritative).
   return {
+    ...innerCell,
     id: r.id,
-    shape: r.shape as BoundaryShape,
-    center: { x: c.x, y: c.y },
+    shape: r.shape as CellShape,
+    center: { x: (r.center as { x: number; y: number }).x, y: (r.center as { x: number; y: number }).y },
     rotation: r.rotation,
-    patch,
   }
 }
 
-function migrateBoundaryComposition(raw: unknown): BoundaryComposition | null {
-  if (typeof raw !== 'object' || raw === null) return null
-  const r = raw as Record<string, unknown>
-  if (typeof r.configurationId !== 'string'
-    || !COMPOSITION_IDS.has(r.configurationId as BoundaryComposition['configurationId'])) return null
+function isConfigurationId(s: unknown): s is ConfigurationId {
+  return typeof s === 'string' && CONFIGURATION_IDS.has(s as ConfigurationId)
+}
+
+function migrateV3(r: Record<string, unknown>): EditorConfig | null {
+  if (!Array.isArray(r.cells) || r.cells.length === 0) return null
+  if (typeof r.activeCellId !== 'string') return null
   if (typeof r.edgeLength !== 'number' || r.edgeLength <= 0) return null
-  if (typeof r.activeTileId !== 'string') return null
-  if (!Array.isArray(r.tiles) || r.tiles.length === 0) return null
 
-  const tiles: BoundaryTile[] = []
-  for (const rawTile of r.tiles) {
-    const t = migrateBoundaryTile(rawTile)
-    if (!t) return null
-    tiles.push(t)
+  const allowOctagon = r.cells.length > 1
+  const cells: EditorCell[] = []
+  for (const rawCell of r.cells) {
+    const cell = migrateCell(rawCell, allowOctagon)
+    if (!cell) return null
+    cells.push(cell)
   }
-  if (!tiles.some(t => t.id === r.activeTileId)) return null
+  if (!cells.some(c => c.id === r.activeCellId)) return null
 
-  return {
-    configurationId: r.configurationId as BoundaryComposition['configurationId'],
+  const out: EditorConfig = {
+    version: 3,
+    cells,
+    activeCellId: r.activeCellId,
     edgeLength: r.edgeLength,
-    activeTileId: r.activeTileId,
-    tiles,
   }
+  if (isConfigurationId(r.configuration)) out.configuration = r.configuration
+  const ac = migrateAutoComplete(r.autoComplete)
+  if (ac) out.autoComplete = ac
+  return out
+}
+
+function migrateV2Composition(r: Record<string, unknown>): EditorConfig | null {
+  const composition = r.composition as Record<string, unknown>
+  if (!isConfigurationId(composition.configurationId)) return null
+  if (typeof composition.edgeLength !== 'number' || composition.edgeLength <= 0) return null
+  if (typeof composition.activeTileId !== 'string') return null
+  if (!Array.isArray(composition.tiles) || composition.tiles.length === 0) return null
+
+  const cells: EditorCell[] = []
+  for (const rawTile of composition.tiles) {
+    const cell = v2BoundaryTileToCell(rawTile)
+    if (!cell) return null
+    cells.push(cell)
+  }
+  if (!cells.some(c => c.id === composition.activeTileId)) return null
+
+  const out: EditorConfig = {
+    version: 3,
+    cells,
+    activeCellId: composition.activeTileId,
+    edgeLength: composition.edgeLength,
+    configuration: composition.configurationId,
+  }
+  // v2 carried autoComplete on the wrapper / inner patches; if the wrapper
+  // had it, lift to Patch-level (the new home in v3).
+  const ac = migrateAutoComplete(r.autoComplete)
+  if (ac) out.autoComplete = ac
+  return out
+}
+
+function migrateV1V2Single(r: Record<string, unknown>): EditorConfig | null {
+  const cell = legacyPatchFieldsToCell(r, false)
+  if (!cell) return null
+  if (typeof r.edgeLength !== 'number' || r.edgeLength <= 0) return null
+  const out: EditorConfig = {
+    version: 3,
+    cells: [cell],
+    activeCellId: 'main',
+    edgeLength: r.edgeLength,
+  }
+  const ac = migrateAutoComplete(r.autoComplete)
+  if (ac) out.autoComplete = ac
+  return out
 }
 
 export function migrateEditorConfig(raw: unknown): EditorConfig | null {
   if (typeof raw !== 'object' || raw === null) return null
   const r = raw as Record<string, unknown>
 
-  // Accept legacy v1 (single-shape only, no composition) and current v2
-  // (single-shape OR multi-tile composition). Returning null for an unknown
-  // older version would silently break loads — be explicit about each case.
-  if (r.version !== 1 && r.version !== 2) return null
-
-  const patch = migratePatchFields(r, false)
-  if (!patch) return null
-
-  const out: EditorConfig = {
-    version: 2,
-    ...patch,
+  if (r.version === 3) return migrateV3(r)
+  if (r.version === 2) {
+    if (r.composition !== undefined && r.composition !== null) return migrateV2Composition(r)
+    return migrateV1V2Single(r)
   }
-
-  // Composition is v2-only. v1 patches load as single-shape (composition
-  // absent); the wrapper bumps to v2 silently.
-  if (r.version === 2 && r.composition !== undefined) {
-    const composition = migrateBoundaryComposition(r.composition)
-    if (!composition) return null
-    out.composition = composition
-  }
-
-  return out
+  if (r.version === 1) return migrateV1V2Single(r)
+  return null
 }
+

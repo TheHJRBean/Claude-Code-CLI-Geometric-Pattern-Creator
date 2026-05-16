@@ -14,22 +14,24 @@ import {
   compositionOneRingStamps,
   compositionToPolygons,
 } from '../editor/compositionLattice'
+import { activeCell } from '../editor/active'
 import { runPIC } from '../pic/index'
 
 export interface PatternData {
   polygons: Polygon[]
   segments: Segment[]
   /**
-   * Editor-mode patch boundary outlines (Step 17.2+).
-   * - Design mode: a single outline (the patch boundary).
-   * - Strand mode + `showBoundaryLattice`: one outline per lattice stamp.
+   * Builder Patch Boundary outlines (Step 17.2+).
+   * - Design Phase: a single outline per Cell.
+   * - Composition Phase + `showBoundaryLattice`: one outline per Cell per
+   *   lattice stamp.
    * - Otherwise: undefined.
    */
   boundaryOutlines?: Vec2[][]
   /**
-   * Step 17.6d — Design-mode neighbour preview. Polygons stamped at the
-   * one-ring lattice offsets around the patch, drawn at low opacity so the
-   * user can see how their patch joins its neighbours. Excluded from PIC.
+   * Step 17.6d — Design-Phase neighbour preview. Polygons stamped at the
+   * one-ring lattice offsets around the Patch, drawn at low opacity so the
+   * user can see how their Patch joins its neighbours. Excluded from PIC.
    */
   ghostPolygons?: Polygon[]
 }
@@ -39,15 +41,15 @@ export function usePattern(
   viewTransform: ViewTransform,
   containerWidth: number,
   containerHeight: number,
-  /** Step 17.6 — when true and an editor patch is active, stamp the patch on the boundary's translation lattice across the viewport. */
+  /** Step 17.6 — when true and a Builder Patch is active, stamp the Patch on the Boundary's translation lattice across the viewport. */
   editorStrandMode = false,
-  /** Step 17.6 — when true in strand mode, also draw the patch boundary outline at every lattice stamp. */
+  /** Step 17.6 — when true in Composition Phase, also draw the Patch Boundary outline at every lattice stamp. */
   showBoundaryLattice = false,
-  /** Step 17.6d — Design-mode neighbour preview. Ignored in strand mode. */
+  /** Step 17.6d — Design-Phase neighbour preview. Ignored in Composition Phase. */
   editorNeighbourPreview = false,
-  /** Step 17.6d — Design-mode neighbour preview: also draw the boundary outline at each neighbour stamp. */
+  /** Step 17.6d — Design-Phase neighbour preview: also draw the Boundary outline at each neighbour stamp. */
   editorNeighbourBoundaries = false,
-  /** Step 17.6d — Design-mode neighbour preview: include ghosts in the PIC input so strands flow across boundaries. */
+  /** Step 17.6d — Design-Phase neighbour preview: include ghosts in the PIC input so Strands flow across boundaries. */
   editorNeighbourStrands = false,
 ): PatternData {
   // Visible viewport in world coordinates
@@ -69,29 +71,30 @@ export function usePattern(
   const genH = vh * (1 + 2 * pad)
 
   return useMemo(() => {
-    // Step 17 editor: when the patch is active, render its tiles directly.
-    // Design mode = single patch; Strand mode = lattice-stamped across the
-    // viewport so the user sees how strands flow across boundaries.
+    // Step 17 Builder: when a Patch is active, render its Tiles directly.
+    // Design Phase = single Patch; Composition Phase = lattice-stamped across
+    // the viewport so the user sees how Strands flow across boundaries.
     if (config.tiling.type === 'editor' && config.editor) {
-      const composition = config.editor.composition
-      const basePolys = composition
-        ? compositionToPolygons(composition)
-        : editorTilesToPolygons(config.editor)
+      const patch = config.editor
+      const multiCell = patch.cells.length > 1
+      const cell = activeCell(patch)
+      const basePolys = multiCell
+        ? compositionToPolygons(patch)
+        : editorTilesToPolygons(cell)
       if (!editorStrandMode) {
-        const baseOutlines: Vec2[][] = composition
-          ? compositionBoundaryOutlines(composition)
-          : [editorBoundaryVertices(config.editor)]
+        const baseOutlines: Vec2[][] = multiCell
+          ? compositionBoundaryOutlines(patch)
+          : [editorBoundaryVertices(cell)]
         let ghostPolygons: typeof basePolys | undefined
         let boundaryOutlines: Vec2[][] = [...baseOutlines]
-        // Neighbour preview: single-shape uses the per-patch one-ring;
-        // composition uses the cell-level one-ring (8 surrounding cells via
-        // the composition's translation basis, each carrying every boundary
-        // tile in the cell — so for 4.8.8, every neighbour stamp brings 1
-        // octagon + 1 square along).
+        // Neighbour preview: single-Cell uses the per-Cell one-ring;
+        // multi-cell uses the Configuration one-ring (8 surrounding cells via
+        // the Configuration's translation basis, each carrying every Cell —
+        // so for 4.8.8, every neighbour stamp brings 1 octagon + 1 square).
         if (editorNeighbourPreview) {
-          const ringStamps = composition
-            ? compositionOneRingStamps(composition)
-            : editorOneRingNeighbourStamps(config.editor)
+          const ringStamps = multiCell
+            ? compositionOneRingStamps(patch)
+            : editorOneRingNeighbourStamps(cell)
           if (ringStamps.length > 0) {
             ghostPolygons = []
             for (let s = 0; s < ringStamps.length; s++) {
@@ -115,8 +118,8 @@ export function usePattern(
                 })
               }
               if (editorNeighbourBoundaries) {
-                // Composition emits one outline per boundary tile per stamp
-                // (octagon + square × N); single-shape emits one per stamp.
+                // Multi-cell emits one outline per Cell per stamp (octagon +
+                // square × N); single-cell emits one per stamp.
                 for (const outline of baseOutlines) {
                   boundaryOutlines.push(outline.map(v => {
                     const r = rot(v)
@@ -136,13 +139,13 @@ export function usePattern(
         const segments = runPIC(picInput, config)
         return { polygons: basePolys, segments, boundaryOutlines, ghostPolygons }
       }
-      // Strand mode — stamp on the lattice. Single-shape patches use the
-      // per-patch lattice (triangle has 2 intra-stamps, square/hex have 1);
-      // composition patches use the cell-level lattice (the unit cell is
+      // Composition Phase — stamp on the lattice. Single-cell Patches use the
+      // per-Cell lattice (triangle has 2 intra-stamps, square/hex have 1);
+      // multi-cell Patches use the Configuration lattice (the unit cell is
       // already merged in basePolys via compositionToPolygons).
-      const stamps = composition
-        ? compositionLatticeStamps(composition, { x: genX, y: genY, width: genW, height: genH })
-        : editorLatticeStamps(config.editor, { x: genX, y: genY, width: genW, height: genH })
+      const stamps = multiCell
+        ? compositionLatticeStamps(patch, { x: genX, y: genY, width: genW, height: genH })
+        : editorLatticeStamps(cell, { x: genX, y: genY, width: genW, height: genH })
       const polygons: typeof basePolys = []
       for (let s = 0; s < stamps.length; s++) {
         const stamp = stamps[s]
@@ -166,14 +169,14 @@ export function usePattern(
         }
       }
       const segments = runPIC(polygons, config)
-      // Boundary outlines are opt-in in strand mode (showBoundaryLattice).
-      // Composition emits one outline per boundary tile per stamp (octagon +
-      // square × N stamps); single-shape emits one outline per stamp.
+      // Boundary outlines are opt-in in Composition Phase (showBoundaryLattice).
+      // Multi-cell emits one outline per Cell per stamp (octagon + square × N
+      // stamps); single-cell emits one outline per stamp.
       let boundaryOutlines: Vec2[][] | undefined
       if (showBoundaryLattice) {
-        const baseOutlines: Vec2[][] = composition
-          ? compositionBoundaryOutlines(composition)
-          : [editorBoundaryVertices(config.editor)]
+        const baseOutlines: Vec2[][] = multiCell
+          ? compositionBoundaryOutlines(patch)
+          : [editorBoundaryVertices(cell)]
         boundaryOutlines = []
         for (const stamp of stamps) {
           const cos = Math.cos(stamp.rotation)

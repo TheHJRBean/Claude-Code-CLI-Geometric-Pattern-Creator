@@ -1,35 +1,35 @@
 import type { Vec2 } from '../utils/math'
-import type { BoundaryShape, EditorPatch } from '../types/editor'
+import type { CellShape, EditorCell } from '../types/editor'
 import { editorBoundaryVertices } from './buildEditorPolygons'
 import type { BoundaryVertex } from './boundary'
 
 /**
- * Step 17.6 — strand-editor mode lattice preview.
+ * Step 17.6 — Composition-Phase lattice preview.
  *
- * Stamp the patch across the viewport on the boundary's translation lattice
- * so the user can see how strands flow across boundaries (Decision 17).
+ * Stamp the Cell across the viewport on the Boundary's translation lattice
+ * so the user can see how Strands flow across boundaries (Decision 17).
  *
- * Lattice bases (centred on the boundary centre = patch origin):
+ * Lattice bases (centred on the Boundary centre = Cell origin):
  *   - Square (edge L): u = (L, 0), v = (0, L). One orientation per stamp.
  *   - Hexagon (edge L): u = (√3·L, 0), v = (√3·L/2, 1.5·L). One orientation
  *     per stamp (point-up hexes tile under the same rotation).
- *   - Triangle (edge L): single-cell preview in v1. Equilateral triangles
- *     need a 2-orientation lattice (up + 180°-rotated down) which is
- *     deferred to a 17.6c follow-up; until then the user sees one stamp
- *     with the strand controls applied.
+ *   - Triangle (edge L): equilateral triangles need a 2-orientation lattice
+ *     (up + 180°-rotated down) — exposed via `intraStamps`.
+ *   - Octagon: doesn't tile by translation alone; handled by the multi-cell
+ *     **Configuration** path (`compositionLatticeStamps`).
  */
 export interface LatticeStamp {
-  /** Translation applied to every patch tile in this stamp. */
+  /** Translation applied to every Cell tile in this stamp. */
   translation: Vec2
-  /** Rotation applied (about the patch centre) before translation. 0 in v1. */
+  /** Rotation applied (about the Cell centre) before translation. 0 in v1. */
   rotation: number
 }
 
-/** Boundary's lattice basis vectors. `null` for shapes without a v1 lattice. */
-function latticeBasis(patch: EditorPatch): { u: Vec2; v: Vec2 } | null {
-  const L = patch.boundarySize
-  let basis: { u: Vec2; v: Vec2 } | null
-  switch (patch.boundaryShape) {
+/** Cell's lattice basis vectors. `null` for shapes without a v1 lattice. */
+function latticeBasis(cell: EditorCell): { u: Vec2; v: Vec2 } | null {
+  const L = cell.boundarySize
+  let basis: { u: Vec2; v: Vec2 }
+  switch (cell.shape) {
     case 'square':
       basis = { u: { x: L, y: 0 }, v: { x: 0, y: L } }
       break
@@ -39,17 +39,17 @@ function latticeBasis(patch: EditorPatch): { u: Vec2; v: Vec2 } | null {
       break
     }
     case 'triangle':
-      return null // deferred to 17.6c
+      return null // handled via expandedLattice's intra-cell stamps
     case 'octagon':
-      // Octagon doesn't tile by translation alone — only inside a multi-tile
-      // composition (e.g. 4.8.8). Per-patch lattice helpers are inert here;
-      // the composition path uses `compositionLatticeStamps` instead.
+      // Octagon doesn't tile by translation alone — only inside a multi-cell
+      // Configuration (e.g. 4.8.8). Per-Cell lattice helpers are inert here;
+      // the Configuration path uses `compositionLatticeStamps` instead.
       return null
   }
-  if (patch.alternateBoundary) {
+  if (cell.alternateBoundary) {
     // Rotate basis vectors by π/n so the lattice cells track the rotated
     // boundary outline (square → diamond, hex point-up → flat-top).
-    const sides = patch.boundaryShape === 'square' ? 4 : 6
+    const sides = cell.shape === 'square' ? 4 : 6
     const a = Math.PI / sides
     const c = Math.cos(a), s = Math.sin(a)
     basis = {
@@ -60,8 +60,8 @@ function latticeBasis(patch: EditorPatch): { u: Vec2; v: Vec2 } | null {
   return basis
 }
 
-/** True iff the boundary supports a lattice preview in this version. */
-export function supportsLatticePreview(_shape: BoundaryShape): boolean {
+/** True iff the Cell shape supports a lattice preview in this version. */
+export function supportsLatticePreview(_shape: CellShape): boolean {
   return true
 }
 
@@ -78,9 +78,9 @@ interface ExpandedLattice {
   intraStamps: LatticeStamp[]
 }
 
-function expandedLattice(patch: EditorPatch): ExpandedLattice | null {
-  if (patch.boundaryShape === 'triangle') {
-    const verts = editorBoundaryVertices(patch)
+function expandedLattice(cell: EditorCell): ExpandedLattice | null {
+  if (cell.shape === 'triangle') {
+    const verts = editorBoundaryVertices(cell)
     if (verts.length !== 3) return null
     const m = [0, 1, 2].map(i => ({
       x: (verts[i].x + verts[(i + 1) % 3].x) / 2,
@@ -97,7 +97,7 @@ function expandedLattice(patch: EditorPatch): ExpandedLattice | null {
       ],
     }
   }
-  const basis = latticeBasis(patch)
+  const basis = latticeBasis(cell)
   if (!basis) return null
   return {
     u: basis.u,
@@ -107,20 +107,20 @@ function expandedLattice(patch: EditorPatch): ExpandedLattice | null {
 }
 
 /**
- * Step 17.6d — one ring of neighbour stamps around the patch (centre stamp
- * excluded). Used by Design-mode "Show neighbours" preview so the user can
- * see how the patch joins its lattice neighbours before flipping to Strand
- * mode.
+ * Step 17.6d — one ring of neighbour stamps around the Cell (centre stamp
+ * excluded). Used by Design-Phase "Show neighbours" preview so the user can
+ * see how the Cell joins its lattice neighbours before flipping to Composition
+ * Phase.
  *
  * - Square: 8 neighbours (orthogonal + diagonal); rotation 0.
  * - Hexagon: 6 axial neighbours; rotation 0.
- * - Triangle: 3 edge-shared neighbours, each flipped 180° around the patch
+ * - Triangle: 3 edge-shared neighbours, each flipped 180° around the Cell
  *   centroid (an up-triangle's edge-neighbours are point-down). Computed
  *   directly from boundary edge midpoints so it handles `alternateBoundary`.
  */
-export function editorOneRingNeighbourStamps(patch: EditorPatch): LatticeStamp[] {
-  if (patch.boundaryShape === 'triangle') {
-    const verts = editorBoundaryVertices(patch)
+export function editorOneRingNeighbourStamps(cell: EditorCell): LatticeStamp[] {
+  if (cell.shape === 'triangle') {
+    const verts = editorBoundaryVertices(cell)
     if (verts.length !== 3) return []
     const stamps: LatticeStamp[] = []
     for (let i = 0; i < 3; i++) {
@@ -128,7 +128,7 @@ export function editorOneRingNeighbourStamps(patch: EditorPatch): LatticeStamp[]
       const b = verts[(i + 1) % 3]
       // Edge midpoint M; the reflected (down-)triangle's centroid sits at
       // 2·M since the source centroid is at the origin. Stamp = translate
-      // by 2·M, rotate 180° about the patch centre.
+      // by 2·M, rotate 180° about the Cell centre.
       const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
       stamps.push({
         translation: { x: 2 * m.x, y: 2 * m.y },
@@ -137,9 +137,9 @@ export function editorOneRingNeighbourStamps(patch: EditorPatch): LatticeStamp[]
     }
     return stamps
   }
-  const basis = latticeBasis(patch)
+  const basis = latticeBasis(cell)
   if (!basis) return []
-  const offsets: Array<[number, number]> = patch.boundaryShape === 'square'
+  const offsets: Array<[number, number]> = cell.shape === 'square'
     ? [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]]
     : [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]]
   return offsets.map(([a, b]) => ({
@@ -153,7 +153,7 @@ export function editorOneRingNeighbourStamps(patch: EditorPatch): LatticeStamp[]
 
 /**
  * Apply a lattice stamp (rotation about origin → translation) to a point.
- * Mirrors the inline transform in `usePattern`'s strand-mode stamping.
+ * Mirrors the inline transform in `usePattern`'s Composition-Phase stamping.
  */
 export function applyStamp(p: Vec2, stamp: LatticeStamp): Vec2 {
   if (stamp.rotation === 0) {
@@ -170,21 +170,21 @@ export function applyStamp(p: Vec2, stamp: LatticeStamp): Vec2 {
 /**
  * Step 17.11.1 — neighbour-stamp outer-cycle vertices, exposed as click
  * targets in Complete mode when "Show neighbours" is on. Each entry is a
- * full transformed copy of the patch's outer cycle, tagged with a synthetic
+ * full transformed copy of the Cell's outer cycle, tagged with a synthetic
  * `tileId === 'neighbour-{stampIdx}'` so it round-trips through the same
- * `BoundaryVertex` pipeline as patch / boundary / pocket vertices.
+ * `BoundaryVertex` pipeline as Cell / boundary / pocket vertices.
  *
  * Picking a neighbour vertex resolves to the transformed world `Vec2`, which
- * is exactly what `completeNGap` needs — the resulting irregular tile's
- * vertices straddle the boundary edge per Decision 5 (tiles can poke
+ * is exactly what `completeNGap` needs — the resulting irregular Tile's
+ * vertices straddle the Boundary edge per Decision 5 (Tiles can poke
  * outside; coincident copies overlay correctly when stamped).
  */
 export function neighbourCycleVertices(
-  patch: EditorPatch,
+  cell: EditorCell,
   outerCycle: BoundaryVertex[],
 ): BoundaryVertex[][] {
   if (outerCycle.length === 0) return []
-  const stamps = editorOneRingNeighbourStamps(patch)
+  const stamps = editorOneRingNeighbourStamps(cell)
   return stamps.map((stamp, stampIdx) =>
     outerCycle.map((v, i) => ({
       p: applyStamp(v.p, stamp),
@@ -196,15 +196,15 @@ export function neighbourCycleVertices(
 
 /**
  * Generate enough lattice stamps to cover the given viewport (world coords).
- * The patch always renders at lattice point (0,0); additional stamps are
+ * The Cell always renders at lattice point (0,0); additional stamps are
  * added in a square envelope of the basis sufficient to fill the viewport
  * plus a one-cell margin so panning doesn't reveal seams.
  */
 export function editorLatticeStamps(
-  patch: EditorPatch,
+  cell: EditorCell,
   viewport: { x: number; y: number; width: number; height: number },
 ): LatticeStamp[] {
-  const lat = expandedLattice(patch)
+  const lat = expandedLattice(cell)
   if (!lat) return [{ translation: { x: 0, y: 0 }, rotation: 0 }]
 
   // Map viewport corners back to lattice coords (a, b) such that

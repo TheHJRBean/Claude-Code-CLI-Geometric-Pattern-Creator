@@ -3,17 +3,18 @@ import type { EditorConfig, EditorRegularTile } from '../types/editor'
 /**
  * 17.1 acceptance fixture.
  *
- * A square boundary with a square origin polygon at the centre and four
- * equilateral triangles flush against each side of the square. Chosen
- * because it exercises:
- *   - boundary shape + size (square / 240)
- *   - origin auto-placement (Decision 6)
+ * A square Cell with a square Seed Tile at the centre and four equilateral
+ * triangle Tiles flush against each side of the square. Chosen because it
+ * exercises:
+ *   - Cell-Boundary shape + size (square / 240)
+ *   - Seed Tile auto-placement (Decision 6)
  *   - regular n-gon tiles with non-trivial rotation (4-gon at π/4, 3-gons
  *     rotated to face outward)
- *   - the global-edge-length invariant (Decision 14): every tile shares
- *     the same edge length, so triangle bases sit flush with square sides
+ *   - the Patch-shared edge-length invariant (Decision 14): every Tile
+ *     shares the same edge length, so triangle bases sit flush with square
+ *     sides
  *
- * Replaced by user-built configs once the design-mode UI lands at 17.2+.
+ * Replaced by user-built configs once the Design-Phase UI lands at 17.2+.
  */
 const EDGE = 100
 const HALF = EDGE / 2
@@ -48,21 +49,29 @@ function trianglesAroundSquare(half: number, edge: number): EditorRegularTile[] 
 }
 
 export const SAMPLE_EDITOR_CONFIG: EditorConfig = {
-  version: 2,
-  boundaryShape: 'square',
-  boundarySize: 240,
-  seedSides: 4,
-  edgeLength: EDGE,
-  tiles: [
+  version: 3,
+  cells: [
     {
-      id: 'seed',
-      kind: 'regular',
-      sides: 4,
+      id: 'main',
+      shape: 'square',
       center: { x: 0, y: 0 },
-      edgeLength: EDGE,
-      rotation: Math.PI / 4,
-      source: 'seed',
+      rotation: 0,
+      boundarySize: 240,
+      seedSides: 4,
+      tiles: [
+        {
+          id: 'seed',
+          kind: 'regular',
+          sides: 4,
+          center: { x: 0, y: 0 },
+          edgeLength: EDGE,
+          rotation: Math.PI / 4,
+          source: 'seed',
+        },
+        ...trianglesAroundSquare(HALF, EDGE),
+      ],
     },
-    ...trianglesAroundSquare(HALF, EDGE),
   ],
+  activeCellId: 'main',
+  edgeLength: EDGE,
 }

@@ -1,24 +1,25 @@
-import type { EditorPatch } from '../types/editor'
+import type { EditorCell } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import { computeOuterBoundary } from './boundary'
 import { editorBoundaryVertices } from './buildEditorPolygons'
 
 /**
- * Step 17.10 — non-tiling patch detection.
+ * Step 17.10 — non-tiling Cell detection.
  *
- * The strand-editor stamps the patch on a translation lattice keyed by the
- * boundary polygon. That stamping only produces a clean tessellation if the
- * patch fills the boundary exactly. When tiles leave gaps inside the
- * boundary (underfill) or spill past it (overflow), the stamped copies
- * won't line up and the user sees seams.
+ * The Composition-Phase preview stamps the Patch on a translation lattice
+ * keyed by the Boundary polygon. That stamping only produces a clean
+ * tessellation if every Cell fills its Boundary exactly. When Tiles leave
+ * gaps inside the Boundary (underfill) or spill past it (overflow), the
+ * stamped copies won't line up and the user sees seams.
  *
- * Detection here is intentionally lightweight: shoelace areas of the patch
- * outer cycle vs. the boundary polygon, with a 1% relative tolerance. It's
+ * Detection here is intentionally lightweight: shoelace areas of the Cell's
+ * outer cycle vs. its Boundary polygon, with a 1% relative tolerance. It's
  * a diagnostic, not a fix — surfaced as a tag so the user knows why the
- * preview looks broken.
+ * preview looks broken. The caller is responsible for aggregating across
+ * Cells in multi-cell Configurations.
  */
 
-export type PatchTilingStatus =
+export type CellTilingStatus =
   | { kind: 'tiling' }
   | { kind: 'non-tiling'; reason: 'underfills' | 'overflows' | 'empty' }
 
@@ -33,15 +34,15 @@ function polygonArea(pts: Vec2[]): number {
   return Math.abs(a) / 2
 }
 
-export function detectPatchTilingStatus(patch: EditorPatch): PatchTilingStatus {
-  if (patch.tiles.length === 0) {
+export function detectCellTilingStatus(cell: EditorCell): CellTilingStatus {
+  if (cell.tiles.length === 0) {
     return { kind: 'non-tiling', reason: 'empty' }
   }
-  const patchCycle = computeOuterBoundary(patch)
+  const patchCycle = computeOuterBoundary(cell)
   if (patchCycle.length === 0) {
     return { kind: 'non-tiling', reason: 'empty' }
   }
-  const boundaryPts = editorBoundaryVertices(patch)
+  const boundaryPts = editorBoundaryVertices(cell)
   const boundaryArea = polygonArea(boundaryPts)
   if (boundaryArea === 0) return { kind: 'tiling' }
   const patchArea = polygonArea(patchCycle.map(v => v.p))

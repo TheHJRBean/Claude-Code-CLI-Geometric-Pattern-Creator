@@ -1,4 +1,4 @@
-import type { EditorPatch, EditorRegularTile } from '../types/editor'
+import type { EditorCell, EditorRegularTile } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import { editorBoundaryVertices } from './buildEditorPolygons'
 
@@ -6,13 +6,13 @@ import { editorBoundaryVertices } from './buildEditorPolygons'
  * Boundary-inward authoring mode — Step 17 v2 (idea memo
  * `project_editor_boundary_inward_mode_idea.md`).
  *
- * Divides each boundary edge into highlighted sections; clicking a section
+ * Divides each Boundary edge into highlighted sections; clicking a section
  * places a regular n-gon flush against that segment with edge length equal
- * to the section length. The first boundary-anchored tile then dictates the
- * patch's edge length for subsequent placements (the conflict with the
- * existing origin tile is resolved in the reducer — sub-step B).
+ * to the section length. The first boundary-anchored Tile then dictates the
+ * Patch's edge length for subsequent placements (the conflict with the
+ * existing Seed Tile is resolved in the reducer — sub-step B).
  *
- * Section length is a fraction of the boundary edge length, scaled inversely
+ * Section length is a fraction of the Boundary edge length, scaled inversely
  * with boundary size (smaller boundary → fewer, larger targets; larger
  * boundary → more, smaller targets). Section count per edge is the integer
  * closest to `1 / fraction` so each edge is divided evenly.
@@ -66,15 +66,15 @@ export function sectionCountForBoundarySize(boundarySize: number): number {
 }
 
 /**
- * Compute the boundary-section click targets for a patch. Honours
+ * Compute the Boundary-section click targets for a Cell. Honours
  * `alternateBoundary` via `editorBoundaryVertices`.
  */
-export function computeBoundarySections(patch: EditorPatch): BoundarySection[] {
-  const verts = editorBoundaryVertices(patch)
+export function computeBoundarySections(cell: EditorCell): BoundarySection[] {
+  const verts = editorBoundaryVertices(cell)
   const n = verts.length
   if (n < 3) return []
-  const sectionCount = sectionCountForBoundarySize(patch.boundarySize)
-  const sectionLength = patch.boundarySize / sectionCount
+  const sectionCount = sectionCountForBoundarySize(cell.boundarySize)
+  const sectionLength = cell.boundarySize / sectionCount
 
   const out: BoundarySection[] = []
   for (let edgeIndex = 0; edgeIndex < n; edgeIndex++) {
@@ -111,7 +111,7 @@ export function placeRegularNGonOnBoundarySection(
   const midX = (p1.x + p2.x) / 2
   const midY = (p1.y + p2.y) / 2
   // Interior direction: from section midpoint toward the boundary centre at
-  // the origin. The boundary is always centred on (0, 0) in patch-local coords
+  // the origin. The boundary is always centred on (0, 0) in cell-local coords
   // (see `editorBoundaryVertices`), so the interior is `-midpoint` normalised.
   const ix = -midX
   const iy = -midY

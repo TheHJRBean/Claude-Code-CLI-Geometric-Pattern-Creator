@@ -1,4 +1,4 @@
-import type { PatternConfig, LacingConfig } from '../types/pattern'
+import type { PatternConfig, StrandStyle } from '../types/pattern'
 import type { BoundaryShape, EditorConfig, SymmetryMode } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 
@@ -9,7 +9,7 @@ export type Action =
   | { type: 'SET_LINE_LENGTH'; payload: { tileTypeId: string; lineLength: number } }
   | { type: 'SET_AUTO_LINE_LENGTH'; payload: { tileTypeId: string; auto: boolean } }
   | { type: 'SET_SNAP_LINE_LENGTH'; payload: { tileTypeId: string; snap: boolean } }
-  | { type: 'SET_LACING'; payload: Partial<LacingConfig> }
+  | { type: 'SET_STRAND_STYLE'; payload: Partial<StrandStyle> }
   | { type: 'SET_EDGE_LINES_ENABLED'; payload: { tileTypeId: string; enabled: boolean } }
   | { type: 'SET_VERTEX_LINES_ENABLED'; payload: { tileTypeId: string; enabled: boolean } }
   | { type: 'SET_VERTEX_LINES_DECOUPLED'; payload: { tileTypeId: string; decoupled: boolean } }

@@ -88,12 +88,27 @@ commit after Phase 4. Build green.
 - `SET_ACTIVE_CELL` payload key renamed `tileId` → `cellId`
   (actions.ts + reducer.ts + 2 call sites in TessellationLabMode.tsx).
 
+**Phase 6 — Lacing removal — DONE.** Landed in the commit after Phase 5.
+Build green; bundle gzip dropped ~1.5kb.
+
+- `PatternConfig.lacing` → `PatternConfig.strand: StrandStyle`
+  (`{ width, color, background }`). `background` carries what
+  `lacing.gapColor` had been doing as the canvas background.
+- Action `SET_LACING` → `SET_STRAND_STYLE`.
+- `StrandLayer.tsx` lost the over/under crossing detection, gap
+  splitting, and two-pass render — now a single `<path>` per Strand.
+- Sidebar Lacing collapsible section deleted; the Strand Thickness
+  slider stays and dispatches the new action.
+- Legacy `lacing` shape migrates to `strand` on load: file imports
+  (`configValidation.ts:readStrandStyle`) + lab-state-v1 localStorage
+  (`labDefaults.ts:loadLabState`).
+- `feedback_lacing.md` memory deleted; `project_lacing_removal.md`
+  captures the new state.
+
 **Outstanding items** (deferred — not blocking):
 - Identifier-level naming still uses some legacy terms (`editorStrandMode`
   prop, `editorPhase: 'design' | 'strand'` state). Strict SESSION_STATE
   scope was comments only; identifier renames can land later.
-- Lacing removal (per `feedback_lacing.md`) — currently broken; slated
-  for reintroduction under Decoration Phase. Independent track.
 
 ---
 

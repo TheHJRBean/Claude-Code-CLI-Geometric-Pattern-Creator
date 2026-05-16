@@ -22,8 +22,8 @@ export function exportSVG(svgEl: SVGSVGElement) {
   downloadBlob(blob, 'islamic-pattern.svg')
 }
 
-/** Export clean editable SVG — one <path> per strand with nodes at every vertex.
- *  No lacing, no thick strokes — just the raw geometry for Inkscape editing. */
+/** Export clean editable SVG — one <path> per Strand with nodes at every vertex.
+ *  Thin strokes for Inkscape editing. */
 export function exportUnwovenSVG(segments: Segment[], viewBox: string, width: number, height: number) {
   const strandData = buildStrands(segments)
 

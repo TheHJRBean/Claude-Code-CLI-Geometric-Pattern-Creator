@@ -47,12 +47,23 @@ export interface FigureConfig {
   curve?: CurveConfig
 }
 
-export interface LacingConfig {
-  enabled: boolean
-  strandWidth: number
-  gapWidth: number
-  strandColor: string
-  gapColor: string
+/**
+ * Strand rendering style.
+ *
+ * Replaces the v2 `LacingConfig`. The over/under interlace (the "Lacing"
+ * effect) was non-functional and removed in Phase 6 of the context refactor
+ * — slated for reintroduction under the Decoration Phase
+ * (`project_decoration_stage_idea.md`). `background` keeps the canvas
+ * background colour that the legacy `lacing.gapColor` field was carrying.
+ */
+export interface StrandStyle {
+  /** Stroke width of each Strand (px). */
+  width: number
+  /** Stroke colour of each Strand. */
+  color: string
+  /** Canvas background colour. Persisted with the Strand style since the
+   * pair is what defines the pattern's "look". */
+  background: string
 }
 
 export interface PatternConfig {
@@ -60,7 +71,7 @@ export interface PatternConfig {
   /** keyed by tile type ID (e.g. "6", "6.1", "6.2") */
   figures: Record<string, FigureConfig>
   edgeAngles?: Record<string, number>
-  lacing: LacingConfig
+  strand: StrandStyle
   /** When true, adjacent Bézier curves' control points are adjusted to share a tangent at interior join points (G1 continuity) */
   smoothTransitions?: boolean
   /**

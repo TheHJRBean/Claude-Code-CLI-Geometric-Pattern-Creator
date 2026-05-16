@@ -8,12 +8,10 @@ import { migrateEditorConfig } from '../editor/migrations'
 export const LAB_DEFAULT_CONFIG: PatternConfig = {
   tiling: { type: '', scale: 100 },
   figures: {},
-  lacing: {
-    enabled: false,
-    strandWidth: 4,
-    gapWidth: 3,
-    strandColor: '#1a1a2e',
-    gapColor: '#f5f0e8',
+  strand: {
+    width: 4,
+    color: '#1a1a2e',
+    background: '#f5f0e8',
   },
 }
 
@@ -66,6 +64,23 @@ export function loadLabState(): LabPersistedState {
         }
       }
     }
+    // Phase 6: persisted Lab state may still carry the legacy `lacing`
+    // block. Migrate to `strand` (the over/under interlace render path was
+    // removed; the canvas background colour formerly on `lacing.gapColor`
+    // moves to `strand.background`).
+    const legacyConfig = config as unknown as { lacing?: { strandWidth?: number; strandColor?: string; gapColor?: string }; strand?: PatternConfig['strand'] }
+    if (!legacyConfig.strand && legacyConfig.lacing) {
+      const l = legacyConfig.lacing
+      if (typeof l.strandWidth === 'number' && typeof l.strandColor === 'string' && typeof l.gapColor === 'string') {
+        config.strand = { width: l.strandWidth, color: l.strandColor, background: l.gapColor }
+      } else {
+        config.strand = LAB_DEFAULT_CONFIG.strand
+      }
+    }
+    if (!config.strand) {
+      config.strand = LAB_DEFAULT_CONFIG.strand
+    }
+    delete (config as Record<string, unknown>).lacing
     return {
       config,
       showStrands: typeof parsed.showStrands === 'boolean' ? parsed.showStrands : LAB_DEFAULT_PERSISTED.showStrands,

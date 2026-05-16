@@ -2,8 +2,9 @@
 
 **Started:** 2026-04-25
 **Branch:** `feat/art-deco-egypt-theme-revamp`
-**Purpose:** Survey tile configurations, complex radial symmetry, periodic and quasi-periodic
-(Penrose) tilings, with an eye toward extending the project's PIC pipeline.
+**Purpose:** Survey **Configurations** (vertex configurations in literature), complex radial symmetry, periodic and quasi-periodic (Penrose) **Tilings**, with an eye toward extending the project's PIC pipeline.
+
+> **Vocabulary note (2026-05-16):** see `CONTEXT.md` for the canonical glossary. This research doc was started before the alignment session — "tile configuration" in the title and prose refers to what is now called **Configuration** (the named tessellation family identified by its vertex notation, e.g. `"4.8.8"`).
 
 This file is built up incrementally so a future session can resume mid-research. Each
 section is dated; partial notes are explicitly marked.

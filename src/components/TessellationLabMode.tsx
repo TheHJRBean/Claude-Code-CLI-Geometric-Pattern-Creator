@@ -16,9 +16,9 @@ import type { BoundaryShape, SymmetryMode } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import { validateNGapPolygon } from '../editor/completeN'
 import { editorTileTypes } from '../editor/tileTypes'
-import { allPatches } from '../editor/active'
+import { activeCell } from '../editor/active'
 import { useEditorHistory } from '../editor/useEditorHistory'
-import { detectPatchTilingStatus } from '../editor/nonTilingDetection'
+import { detectCellTilingStatus } from '../editor/nonTilingDetection'
 
 const labLibrary = createConfigLibrary('lab-tessellations-v1')
 
@@ -127,8 +127,9 @@ export function TessellationLabMode({
   const handleSelectEdge = (edge: SelectedEdge | null) => {
     if (
       edge?.hostBoundaryTileId
-      && config.editor?.composition
-      && config.editor.composition.activeTileId !== edge.hostBoundaryTileId
+      && config.editor
+      && config.editor.cells.length > 1
+      && config.editor.activeCellId !== edge.hostBoundaryTileId
     ) {
       dispatch({ type: 'SET_ACTIVE_BOUNDARY_TILE', payload: { tileId: edge.hostBoundaryTileId } })
     }
@@ -259,13 +260,9 @@ export function TessellationLabMode({
   // tile's interior so both octagon and square tile types get strand cards.
   const tileTypes: TileTypeInfo[] = (() => {
     if (config.tiling.type === 'editor' && config.editor) {
-      const seen = new Map<string, TileTypeInfo>()
-      for (const patch of allPatches(config.editor)) {
-        for (const tt of editorTileTypes(patch)) {
-          if (!seen.has(tt.id)) seen.set(tt.id, tt)
-        }
-      }
-      return Array.from(seen.values())
+      // `editorTileTypes` already walks `patch.cells`, deduping by tileTypeId
+      // — single-Cell and multi-Cell Patches share the same walker.
+      return editorTileTypes(config.editor)
     }
     return def
       ? def.tileTypes ?? Array.from(new Set(def.vertexConfig)).map(n => ({ id: String(n), sides: n, label: `${n}-gon` }))
@@ -663,12 +660,12 @@ export function TessellationLabMode({
           // 17.11.4 — preview only validates in multi mode with ≥3 picks; the
           // chord branch never has more than 1 pick so it stays untouched.
           multiMode && picks.length >= 3 && config.editor
-            ? validateNGapPolygon(picks, config.editor).kind === 'valid'
+            ? validateNGapPolygon(picks, activeCell(config.editor)).kind === 'valid'
             : null
         }
         editorStrandMode={editorPhase === 'strand'}
         showBoundaryLattice={showBoundaryLattice}
-        editorNeighbourPreview={editorPhase === 'design' && showNeighbours && !config.editor?.wrapBoundary}
+        editorNeighbourPreview={editorPhase === 'design' && showNeighbours && !(config.editor && activeCell(config.editor).wrapBoundary)}
         editorNeighbourBoundaries={showNeighbourBoundaries}
         editorNeighbourStrands={showNeighbourStrands}
       />
@@ -837,8 +834,15 @@ export { ModeToggleButton }
 /* ── Step 17.10 — non-tiling patch warning ─────────────── */
 
 function NonTilingWarning({ editor }: { editor: NonNullable<PatternConfig['editor']> }) {
-  const status = detectPatchTilingStatus(editor)
-  if (status.kind === 'tiling') return null
+  // Aggregate across every Cell: if any Cell is non-tiling, surface that as
+  // the Patch-level warning. Multi-cell Configurations are non-tiling as soon
+  // as a single Cell is — the lattice stamps depend on all Cells fitting.
+  let status: ReturnType<typeof detectCellTilingStatus> | null = null
+  for (const cell of editor.cells) {
+    const s = detectCellTilingStatus(cell)
+    if (s.kind === 'non-tiling') { status = s; break }
+  }
+  if (!status) return null
   const message = status.reason === 'overflows'
     ? "Patch extends past the boundary — stamped copies will overlap."
     : status.reason === 'empty'
@@ -932,10 +936,12 @@ function EditorDesignControls({
   canUndo,
   canRedo,
 }: EditorDesignControlsProps) {
-  // Once the user has placed (or completed) any tile beyond the auto-placed
-  // origin, changing origin sides would wipe their work — Decision: lock the
-  // slider until the patch is cleared rather than risk an accidental drag.
-  const originLocked = editor.tiles.length > 1
+  // Once the user has placed (or completed) any Tile in the active Cell
+  // beyond the auto-placed Seed, changing Seed sides would wipe their work —
+  // Decision: lock the slider until the Cell is cleared.
+  const cell = activeCell(editor)
+  const multiCell = editor.cells.length > 1
+  const originLocked = cell.tiles.length > 1
   const inStrand = editorPhase === 'strand'
   return (
     <>
@@ -1046,8 +1052,8 @@ function EditorDesignControls({
       <div style={{ display: 'flex', gap: 0, marginBottom: 4 }}>
         {BOUNDARY_OPTIONS.map(opt => {
           const active = opt.value.kind === 'configuration'
-            ? editor.composition?.configurationId === opt.value.id
-            : !editor.composition && editor.boundaryShape === opt.value.shape
+            ? editor.configuration === opt.value.id
+            : !multiCell && cell.shape === opt.value.shape
           const onClick = () => {
             if (opt.value.kind === 'configuration') {
               dispatch({ type: 'SET_EDITOR_BOUNDARY_CONFIGURATION', payload: opt.value.id })
@@ -1082,15 +1088,15 @@ function EditorDesignControls({
         })}
       </div>
 
-      {editor.composition && (
+      {multiCell && (
         <>
           <FieldLabel
             label="Editing Cell"
             tooltip="Which Cell of the multi-cell Patch you're authoring Tiles into. Composition Phase renders all Cells together; Design Phase lets you author them one at a time."
           />
           <div style={{ display: 'flex', gap: 0, marginBottom: 8 }}>
-            {editor.composition.tiles.map(t => {
-              const active = editor.composition!.activeTileId === t.id
+            {editor.cells.map(t => {
+              const active = editor.activeCellId === t.id
               const label = t.id.charAt(0).toUpperCase() + t.id.slice(1)
               return (
                 <button
@@ -1127,22 +1133,22 @@ function EditorDesignControls({
         cursor: 'pointer',
         fontFamily: "'EB Garamond', Georgia, serif",
         fontSize: 13,
-        color: editor.alternateBoundary ? 'var(--text)' : 'var(--text-muted)',
+        color: cell.alternateBoundary ? 'var(--text)' : 'var(--text-muted)',
         transition: 'color 0.15s',
       }}>
         <input
           type="checkbox"
-          checked={!!editor.alternateBoundary}
+          checked={!!cell.alternateBoundary}
           onChange={e => dispatch({ type: 'SET_EDITOR_ALTERNATE_BOUNDARY', payload: e.target.checked })}
         />
         Alternate orientation
       </label>
 
-      {!editor.composition && (
+      {!multiCell && (
         <>
           <FieldLabel
             label="Boundary size"
-            value={editor.boundarySize.toFixed(0)}
+            value={cell.boundarySize.toFixed(0)}
             unit=" u"
             tooltip="Diameter of the Cell's Boundary polygon in world units. Scales the Cell uniformly."
           />
@@ -1150,38 +1156,38 @@ function EditorDesignControls({
             type="range"
             className="pattern-slider"
             min={80}
-            max={BOUNDARY_SIZE_MAX_BY_SHAPE[editor.boundaryShape]}
+            max={BOUNDARY_SIZE_MAX_BY_SHAPE[cell.shape]}
             step={1}
-            value={editor.boundarySize}
+            value={cell.boundarySize}
             onChange={e => dispatch({ type: 'SET_EDITOR_BOUNDARY_SIZE', payload: Number(e.target.value) })}
           />
         </>
       )}
 
-      {editor.composition && (
+      {multiCell && (
         <>
           <FieldLabel
             label="Lattice edge"
-            value={editor.composition.edgeLength.toFixed(0)}
+            value={editor.edgeLength.toFixed(0)}
             unit=" u"
             tooltip="Edge length shared by every Cell in this multi-cell Patch — drives the Lattice basis that stamps the Patch across the canvas in Composition Phase."
           />
           <input
             type="range"
             className="pattern-slider"
-            // Min is the seeded composition edge — i.e. the origin tile's
-            // size. Scaling below this would pinch the boundary tile centres
-            // tighter than the (fixed-size) origin polygons can fit, making
-            // the octagon and square overlap each other.
+            // Min is the seeded lattice edge — i.e. the Seed Tile's size.
+            // Scaling below this would pinch the Cell centres tighter than
+            // the (fixed-size) Seed polygons can fit, making sibling Cells
+            // overlap each other.
             min={100}
             max={400}
             step={1}
-            value={editor.composition.edgeLength}
+            value={editor.edgeLength}
             onChange={e => dispatch({ type: 'SET_EDITOR_BOUNDARY_SIZE', payload: Number(e.target.value) })}
           />
         </>
       )}
-      {editor.wrapBoundary && (
+      {cell.wrapBoundary && (
         <div
           style={{
             fontFamily: "'Cinzel', Georgia, serif",
@@ -1201,7 +1207,7 @@ function EditorDesignControls({
 
       <FieldLabel
         label="Seed sides"
-        value={String(editor.seedSides)}
+        value={String(cell.seedSides)}
         tooltip="Side count of the auto-placed Seed Tile — the starter polygon the Builder drops into a Cell so you have something to build from."
       />
       <input
@@ -1210,7 +1216,7 @@ function EditorDesignControls({
         min={3}
         max={12}
         step={1}
-        value={editor.seedSides}
+        value={cell.seedSides}
         disabled={originLocked}
         onChange={e => dispatch({ type: 'SET_EDITOR_ORIGIN_SIDES', payload: Number(e.target.value) })}
         style={originLocked ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
@@ -1241,18 +1247,18 @@ function EditorDesignControls({
       <FieldLabel label="Symmetry" />
       <select
         className="pattern-select"
-        value={editor.symmetryMode ?? 'none'}
+        value={cell.symmetryMode ?? 'none'}
         onChange={e => dispatch({ type: 'SET_EDITOR_SYMMETRY_MODE', payload: e.target.value as SymmetryMode })}
       >
         <option value="none">None — single edge</option>
         <option value="full">Full — all rotations + mirrors</option>
         <option value="rotation">Rotation only</option>
         <option value="vertical">Vertical mirror only</option>
-        {editor.boundaryShape !== 'triangle' && (
+        {cell.shape !== 'triangle' && (
           <option value="horizontal">Horizontal mirror only</option>
         )}
       </select>
-      {(editor.symmetryMode ?? 'none') !== 'none' && (
+      {(cell.symmetryMode ?? 'none') !== 'none' && (
         <div style={{
           fontFamily: "'Cinzel', Georgia, serif",
           fontSize: 9,
@@ -1281,12 +1287,12 @@ function EditorDesignControls({
           cursor: 'pointer',
           fontFamily: "'EB Garamond', Georgia, serif",
           fontSize: 13,
-          color: editor.wrapBoundary ? 'var(--text)' : 'var(--text-muted)',
+          color: cell.wrapBoundary ? 'var(--text)' : 'var(--text-muted)',
           transition: 'color 0.15s',
         }}>
           <input
             type="checkbox"
-            checked={!!editor.wrapBoundary}
+            checked={!!cell.wrapBoundary}
             onChange={e => dispatch({ type: 'SET_EDITOR_WRAP_BOUNDARY', payload: e.target.checked })}
           />
           Wrap boundary
@@ -1298,7 +1304,7 @@ function EditorDesignControls({
           three edge-shared down-triangles are computed directly from the
           boundary vertices. */}
       {(() => {
-        const wrapOn = !!editor.wrapBoundary
+        const wrapOn = !!cell.wrapBoundary
         const disabled = wrapOn
         const active = showNeighbours && !disabled
         return (

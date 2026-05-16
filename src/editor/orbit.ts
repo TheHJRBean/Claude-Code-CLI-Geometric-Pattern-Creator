@@ -1,6 +1,6 @@
 import type { Vec2 } from '../utils/math'
 import { pointsEqual } from '../utils/math'
-import type { EditorPatch, EditorTile } from '../types/editor'
+import type { EditorCell, EditorTile } from '../types/editor'
 import { EDITOR_EPS, computeExposedEdges, tileVertices, type ExposedEdge } from './exposedEdges'
 import { applySym, boundarySymmetries } from './symmetry'
 import { isPlacementViable, placeRegularNGonOnEdge, PICKER_SIDES, viableSidesForEdge as viableSidesSingle } from './placement'
@@ -10,9 +10,9 @@ import { completeNGap } from './completeN'
 
 /**
  * Step 17.4 (re-enabled) — orbit-symmetric edge resolution and placement
- * under a user-selectable subgroup of the boundary's dihedral group.
+ * under a user-selectable subgroup of the Cell-Boundary's dihedral group.
  *
- * Subgroup is read from `editor.symmetryMode` (default `'none'` =
+ * Subgroup is read from `cell.symmetryMode` (default `'none'` =
  * single-edge behaviour). When the subgroup is identity-only these helpers
  * collapse to the 17.3 behaviour: one edge clicked → one tile placed; one
  * tile deleted → that tile only.
@@ -20,17 +20,17 @@ import { completeNGap } from './completeN'
 
 /**
  * Given a clicked edge, return the set of distinct exposed edges it maps to
- * under the subgroup picked by `editor.symmetryMode`. An orbit element is
+ * under the subgroup picked by `cell.symmetryMode`. An orbit element is
  * included only if the transformed endpoints match an existing exposed edge
- * (within `EDITOR_EPS`). Asymmetric setups (e.g. triangle origin in a square
- * boundary) silently drop orbit images that don't land on a real edge.
+ * (within `EDITOR_EPS`). Asymmetric setups (e.g. triangle Seed Tile in a
+ * square Boundary) silently drop orbit images that don't land on a real edge.
  *
  * Distinct: dedup by `(tileId, edgeIndex)` so the picked edge itself counts
  * once even when multiple group elements map to it.
  */
-export function orbitEdges(editor: EditorPatch, picked: ExposedEdge): ExposedEdge[] {
-  const all = computeExposedEdges(editor)
-  const syms = boundarySymmetries(editor.boundaryShape, editor.symmetryMode ?? 'none')
+export function orbitEdges(cell: EditorCell, edgeLength: number, picked: ExposedEdge): ExposedEdge[] {
+  const all = computeExposedEdges(cell, edgeLength)
+  const syms = boundarySymmetries(cell.shape, cell.symmetryMode ?? 'none')
   const seen = new Map<string, ExposedEdge>()
 
   for (const s of syms) {
@@ -58,31 +58,32 @@ export function orbitEdges(editor: EditorPatch, picked: ExposedEdge): ExposedEdg
  * break).
  */
 export function placeTilesOnOrbit(
-  editor: EditorPatch,
+  cell: EditorCell,
+  edgeLength: number,
   picked: ExposedEdge,
   sides: number,
   idPrefix: string,
 ): EditorTile[] | null {
-  const edges = orbitEdges(editor, picked)
+  const edges = orbitEdges(cell, edgeLength, picked)
   if (edges.length === 0) return null
 
   // Build placements one at a time against a *cumulative* state so that two
   // orbit-equivalent placements which would touch the same future vertex
   // don't both individually pass viability and then overlap each other.
-  let working: EditorPatch = editor
+  let working: EditorCell = cell
   const placements: EditorTile[] = []
   for (let i = 0; i < edges.length; i++) {
     // Re-fetch the edge from `working` — endpoint coords are stable but the
     // edge's identity moves as new tiles appear; refresh by endpoint match.
-    const fresh = computeExposedEdges(working).find(
+    const fresh = computeExposedEdges(working, edgeLength).find(
       e => (pointsEqual(e.p1, edges[i].p1, EDITOR_EPS) && pointsEqual(e.p2, edges[i].p2, EDITOR_EPS))
         || (pointsEqual(e.p1, edges[i].p2, EDITOR_EPS) && pointsEqual(e.p2, edges[i].p1, EDITOR_EPS)),
     )
     if (!fresh) return null
-    if (!isPlacementViable(fresh, sides, working)) return null
+    if (!isPlacementViable(fresh, sides, working, edgeLength)) return null
     const tile = placeRegularNGonOnEdge(
       sides,
-      working.edgeLength,
+      edgeLength,
       fresh.p1,
       fresh.p2,
       fresh.sourceCenter,
@@ -96,21 +97,21 @@ export function placeTilesOnOrbit(
 
 /**
  * Identify all tile ids that are orbit-equivalent to `tile` under the
- * boundary's chosen subgroup. Used by orbit-aware delete: removing one
+ * Cell-Boundary's chosen subgroup. Used by orbit-aware delete: removing one
  * propagated tile should remove every sibling that came in with it.
  *
  * Equivalence is geometric (centre matches under some subgroup element),
  * not provenance-based — so this also catches manually-placed tiles that
  * happen to sit at orbit-equivalent positions.
  */
-export function orbitTileIds(editor: EditorPatch, tile: EditorTile): string[] {
+export function orbitTileIds(cell: EditorCell, tile: EditorTile): string[] {
   const center = tile.kind === 'regular' ? tile.center : centroidOf(tileVertices(tile))
-  const syms = boundarySymmetries(editor.boundaryShape, editor.symmetryMode ?? 'none')
+  const syms = boundarySymmetries(cell.shape, cell.symmetryMode ?? 'none')
   const ids = new Set<string>([tile.id])
 
   for (const s of syms) {
     const q = applySym(s, center)
-    for (const other of editor.tiles) {
+    for (const other of cell.tiles) {
       const oc = other.kind === 'regular' ? other.center : centroidOf(tileVertices(other))
       if (pointsEqual(q, oc, EDITOR_EPS)) ids.add(other.id)
     }
@@ -134,9 +135,9 @@ function centroidOf(verts: Vec2[]): Vec2 {
  *       `completeNGap` against the cumulative working state, return `null`
  *       — symmetry must never partially break.
  *   (b) Vertex-coincidence gate. Each transformed pick must coincide with
- *       a real selectable vertex from the *initial* editor (patch outer /
- *       boundary corners / pocket cycles / neighbour cycles). Orbit
- *       images that fail this are silently dropped (asymmetric-patch case
+ *       a real selectable vertex from the *initial* Cell (Cell outer /
+ *       Boundary corners / pocket cycles / neighbour cycles). Orbit
+ *       images that fail this are silently dropped (asymmetric-Cell case
  *       — the gap doesn't exist on that orbit branch).
  *   (c) Centroid dedup. Symmetry transforms whose orbit image coincides
  *       with an earlier one (picks on a fixed axis, etc.) collapse to one
@@ -145,27 +146,27 @@ function centroidOf(verts: Vec2[]): Vec2 {
  *       function trivially produces the 17.11 single-instance result.
  */
 export function placePolygonsOnOrbit(
-  editor: EditorPatch,
+  cell: EditorCell,
   picks: Vec2[],
   idPrefix: string,
 ): EditorTile[] | null {
-  // Snapshot the selectable vertex set against the *initial* editor. Vertex
+  // Snapshot the selectable vertex set against the *initial* Cell. Vertex
   // positions don't move when sibling tiles get added later in the loop, so
   // this set stays valid across the cumulative build.
-  const cycles = computeAllCycles(editor)
+  const cycles = computeAllCycles(cell)
   const selectable: Vec2[] = [
     ...cycles.outer.map(v => v.p),
     ...cycles.pockets.flat().map(v => v.p),
-    ...computeBoundaryCycle(editor).map(v => v.p),
-    ...neighbourCycleVertices(editor, cycles.outer).flat().map(v => v.p),
+    ...computeBoundaryCycle(cell).map(v => v.p),
+    ...neighbourCycleVertices(cell, cycles.outer).flat().map(v => v.p),
   ]
   const inSelectable = (p: Vec2) =>
     selectable.some(q => pointsEqual(p, q, EDITOR_EPS))
 
-  const syms = boundarySymmetries(editor.boundaryShape, editor.symmetryMode ?? 'none')
+  const syms = boundarySymmetries(cell.shape, cell.symmetryMode ?? 'none')
   const seenCentroids: Vec2[] = []
   const placements: EditorTile[] = []
-  let working: EditorPatch = editor
+  let working: EditorCell = cell
 
   for (let i = 0; i < syms.length; i++) {
     const transformed = picks.map(p => applySym(syms[i], p))
@@ -191,14 +192,14 @@ export function placePolygonsOnOrbit(
  * `placeTilesOnOrbit` returns `null`, and the placement silently fails. The
  * orbit probe here matches the reducer's call exactly.
  */
-export function viableSidesForEdge(edge: ExposedEdge, editor: EditorPatch): number[] {
-  const mode = editor.symmetryMode ?? 'none'
-  if (mode === 'none') return viableSidesSingle(edge, editor)
+export function viableSidesForEdge(edge: ExposedEdge, cell: EditorCell, edgeLength: number): number[] {
+  const mode = cell.symmetryMode ?? 'none'
+  if (mode === 'none') return viableSidesSingle(edge, cell, edgeLength)
   // Orbit-aware: a side is offered only if the full orbit placement succeeds.
   // Single-edge viability is a necessary condition, so prefilter to keep the
   // probe count small.
   return PICKER_SIDES.filter(n =>
-    isPlacementViable(edge, n, editor)
-    && placeTilesOnOrbit(editor, edge, n, '__probe__') !== null,
+    isPlacementViable(edge, n, cell, edgeLength)
+    && placeTilesOnOrbit(cell, edgeLength, edge, n, '__probe__') !== null,
   )
 }

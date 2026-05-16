@@ -1,4 +1,4 @@
-import type { EditorPatch, EditorTile } from '../types/editor'
+import type { EditorCell, EditorTile } from '../types/editor'
 import { computeOuterBoundary } from './boundary'
 import { completeGap } from './complete'
 import { tileVertices } from './exposedEdges'
@@ -7,11 +7,12 @@ import { BOUNDARY_ROTATION, BOUNDARY_SIDES } from './buildEditorPolygons'
 /**
  * Step 17.7 — auto-complete (Decision 11).
  *
- * Fills concave (reflex) dents on the patch's outer boundary until the cycle
- * is convex. Auto-completed tiles are first-class `'completed'` polygons
- * emitted by `completeGap`; on flip-back to Design they're editable like any
- * other completed tile (Decision 16). Boundary size is untouched — the
- * separate `wrapBoundary` mode handles boundary fitting in Design mode.
+ * Fills concave (reflex) dents on a **Cell**'s outer boundary until the cycle
+ * is convex. Auto-completed Tiles are first-class `'completed'` polygons
+ * emitted by `completeGap`; on phase-switch back to Design they're editable
+ * like any other completed Tile (Decision 16). The Cell's `boundarySize` is
+ * untouched — the separate `wrapBoundary` mode handles boundary fitting in
+ * Design Phase.
  */
 
 /** Hard cap on fill iterations to guarantee termination on pathological input. */
@@ -42,12 +43,10 @@ function findReflexVertex(cycle: { p: { x: number; y: number } }[]): number {
 }
 
 /** Outward unit-normal direction angles for each boundary edge (CCW). */
-function boundaryNormalAngles(patch: EditorPatch): number[] {
-  const sides = BOUNDARY_SIDES[patch.boundaryShape]
-  // Reuse the canonical BOUNDARY_ROTATION so additions to BoundaryShape (e.g.
-  // 'octagon') automatically stay consistent.
-  const baseRot = BOUNDARY_ROTATION[patch.boundaryShape]
-  const offset = patch.alternateBoundary ? Math.PI / sides : 0
+function boundaryNormalAngles(cell: EditorCell): number[] {
+  const sides = BOUNDARY_SIDES[cell.shape]
+  const baseRot = BOUNDARY_ROTATION[cell.shape]
+  const offset = cell.alternateBoundary ? Math.PI / sides : 0
   const rot = baseRot + offset
   const out: number[] = []
   for (let k = 0; k < sides; k++) {
@@ -57,17 +56,16 @@ function boundaryNormalAngles(patch: EditorPatch): number[] {
 }
 
 /**
- * Smallest `boundarySize` (regular-polygon edge length) such that the boundary
- * polygon, centred at the origin with the patch's existing rotation, contains
- * every tile vertex. Derived from the apothem: for each tile vertex `v` and
- * each boundary-edge outward normal `n_k`, the apothem must be at least
- * `dot(v, n_k)`; take the max and convert back to edge length.
+ * Smallest `boundarySize` (regular-polygon edge length) such that the Cell's
+ * Boundary polygon, centred at the cell origin with its rotation, contains
+ * every Tile vertex. Caller passes the Patch's shared `edgeLength` as the
+ * lower bound — the Boundary never shrinks below one Tile edge.
  */
-export function fitBoundarySize(patch: EditorPatch): number {
-  const angles = boundaryNormalAngles(patch)
+export function fitBoundarySize(cell: EditorCell, edgeLengthFloor: number): number {
+  const angles = boundaryNormalAngles(cell)
   const sides = angles.length
   let maxApothem = 0
-  for (const tile of patch.tiles) {
+  for (const tile of cell.tiles) {
     for (const v of tileVertices(tile)) {
       for (const a of angles) {
         const proj = v.x * Math.cos(a) + v.y * Math.sin(a)
@@ -75,21 +73,20 @@ export function fitBoundarySize(patch: EditorPatch): number {
       }
     }
   }
-  // edgeLength = 2 · apothem · tan(π/n)
   const L = 2 * maxApothem * Math.tan(Math.PI / sides)
-  return Math.max(L, patch.edgeLength)
+  return Math.max(L, edgeLengthFloor)
 }
 
 /**
- * Pure helper: runs auto-complete on `editor` and returns the new tiles list.
+ * Pure helper: runs auto-complete on a Cell and returns the new tiles list.
  * The reducer is responsible for swapping the result onto state and re-seeding
- * figures. Idempotent on already-convex patches — exits immediately when no
+ * figures. Idempotent on already-convex Cells — exits immediately when no
  * reflex vertex exists.
  */
-export function autoCompletePatch(patch: EditorPatch): AutoCompleteResult {
-  let tiles = patch.tiles
+export function autoCompleteCell(cell: EditorCell): AutoCompleteResult {
+  let tiles = cell.tiles
   for (let pass = 0; pass < MAX_PASSES; pass++) {
-    const work: EditorPatch = { ...patch, tiles }
+    const work: EditorCell = { ...cell, tiles }
     const cycle = computeOuterBoundary(work)
     if (cycle.length < 3) break
     const idx = findReflexVertex(cycle)

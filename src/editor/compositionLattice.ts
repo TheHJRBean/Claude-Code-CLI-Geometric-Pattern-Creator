@@ -1,22 +1,23 @@
 import type { Polygon } from '../types/geometry'
 import type { Vec2 } from '../utils/math'
-import type { BoundaryComposition } from '../types/editor'
+import type { EditorPatch } from '../types/editor'
 import { editorBoundaryVertices, editorTilesToPolygons } from './buildEditorPolygons'
 import type { LatticeStamp } from './lattice'
 
 /**
- * Geometry helpers for multi-tile boundary configurations (e.g. 4.8.8).
+ * Geometry helpers for multi-cell **Configurations** (e.g. 4.8.8).
  *
- * The single-shape lattice machinery in `lattice.ts` operates per-patch:
- * each cell contains one transformed copy of the same patch. A composition
- * cell already contains multiple boundary tiles (each with its own authored
- * patch) — `compositionToPolygons` builds the merged unit cell once and the
- * rest of the rendering pipeline just stamps that across the viewport.
+ * The single-Cell lattice machinery in `lattice.ts` operates per-Cell: each
+ * lattice cell contains one transformed copy of the same Cell. A multi-cell
+ * Configuration already contains multiple **Cells** in its Patch —
+ * `compositionToPolygons` builds the merged unit cell once (by walking
+ * `patch.cells`) and the rest of the rendering pipeline just stamps that
+ * across the viewport.
  *
- * Today we ship 4.8.8 (truncated square: octagon at the cell origin in
- * flat-top orientation + square at the cell centre rotated π/4 / diamond).
- * Future configurations will expand `cellBasis` and `compositionToPolygons`'s
- * per-tile transforms.
+ * Today we ship 4.8.8 (truncated square: octagon Cell at the patch origin in
+ * flat-top orientation + square Cell at the lattice-cell centre rotated π/4 /
+ * diamond). Future Configurations will expand `cellBasis` and
+ * `compositionToPolygons`'s per-Cell transforms.
  */
 
 /** Transform a `Vec2` by a rotation about origin then a translation. */
@@ -39,77 +40,74 @@ function transformPolygon(poly: Polygon, translation: Vec2, rotation: number): P
   }
 }
 
-/** Cell basis vectors `(u, v)` for a composition's translation lattice. */
-export function compositionCellBasis(composition: BoundaryComposition): { u: Vec2; v: Vec2 } {
-  const L = composition.edgeLength
-  switch (composition.configurationId) {
+/** Lattice basis vectors `(u, v)` for a Configuration's translation lattice. */
+export function compositionCellBasis(patch: EditorPatch): { u: Vec2; v: Vec2 } {
+  const L = patch.edgeLength
+  switch (patch.configuration) {
     case '4.8.8': {
       // Truncated square: cell vectors L(1+√2) on both axes (the octagon's
       // width plus one square edge in either direction).
       const period = L * (1 + Math.SQRT2)
       return { u: { x: period, y: 0 }, v: { x: 0, y: period } }
     }
+    default:
+      // Single-Cell Patches don't have a Configuration; the per-Cell lattice
+      // helper handles them. Treat as a square unit so callers don't crash.
+      return { u: { x: L, y: 0 }, v: { x: 0, y: L } }
   }
 }
 
 /**
- * Build the unit-cell polygon set for PIC and rendering. Returns each
- * boundary tile's interior polygons (its origin tile, plus any
- * user-placed sub-tiles in v2) transformed by the tile's centre + rotation.
+ * Build the unit-cell polygon set for PIC and rendering. Walks each Cell in
+ * the Patch, projects its Tiles into Patch-local coords via the Cell's
+ * `center` + `rotation`, and tags every polygon with `cellId/tileId` so the
+ * UI can map a click back to a specific Cell.
  *
- * Single-shape parity: the polygons returned here are the patch tiles —
- * **not** the boundary outline. The cell-edge slider rescales the
- * boundary outline (visual only, via `compositionBoundaryOutlines`) and
- * the cell vectors (via `compositionLatticeStamps`), but it doesn't
- * touch the origin tile, so the polygon the user sees inside each
- * boundary stays at its seeded size — same as the origin polygon
- * behaviour in single-shape patches.
- *
- * The boundary outline therefore is *visual only*; PIC's strand
- * pattern emerges from the origin tiles. At the seeded cell edge
- * (`composition.edgeLength` at creation), origin = boundary so the
- * strand pattern looks like the canonical 4.8.8. Scaling the slider up
- * grows the boundary frame around a fixed origin, leaving inner space
- * (eventually a v2 sub-tile authoring affordance).
+ * Single-Cell parity: the polygons returned here are the user's Tiles —
+ * **not** the Boundary outline. The Cell-Boundary slider rescales the
+ * Boundary outline (visual only, via `compositionBoundaryOutlines`) and the
+ * lattice cell vectors (via `compositionLatticeStamps`), but it doesn't
+ * touch the Seed Tile, so the polygon the user sees inside each Cell stays
+ * at its seeded size — same behaviour as the Seed Tile in single-Cell
+ * Patches.
  */
-export function compositionToPolygons(composition: BoundaryComposition): Polygon[] {
+export function compositionToPolygons(patch: EditorPatch): Polygon[] {
   const polys: Polygon[] = []
-  for (const boundaryTile of composition.tiles) {
-    const inner = editorTilesToPolygons(boundaryTile.patch)
+  for (const cell of patch.cells) {
+    const inner = editorTilesToPolygons(cell)
     for (const poly of inner) {
-      const transformed = transformPolygon(poly, boundaryTile.center, boundaryTile.rotation)
-      polys.push({ ...transformed, id: `${boundaryTile.id}/${poly.id}` })
+      const transformed = transformPolygon(poly, cell.center, cell.rotation)
+      polys.push({ ...transformed, id: `${cell.id}/${poly.id}` })
     }
   }
   return polys
 }
 
 /**
- * One outline polygon per boundary tile in the unit cell, transformed into
- * cell-local coords. Used for rendering the dimmed-ghost outlines of
- * inactive tiles in Design mode and for the lattice-preview boundaries in
- * Strand mode.
+ * One outline polygon per Cell in the unit cell, transformed into Patch-local
+ * coords. Used for rendering the dimmed-ghost outlines of inactive Cells in
+ * Design Phase and for the lattice-preview boundaries in Composition Phase.
  */
-export function compositionBoundaryOutlines(composition: BoundaryComposition): Vec2[][] {
-  return composition.tiles.map(boundaryTile => {
-    const local = editorBoundaryVertices(boundaryTile.patch)
-    return local.map(v => transformPoint(v, boundaryTile.center, boundaryTile.rotation))
+export function compositionBoundaryOutlines(patch: EditorPatch): Vec2[][] {
+  return patch.cells.map(cell => {
+    const local = editorBoundaryVertices(cell)
+    return local.map(v => transformPoint(v, cell.center, cell.rotation))
   })
 }
 
 /**
- * One ring of cell-level neighbour stamps around the source cell (centre
+ * One ring of lattice-cell neighbour stamps around the source cell (centre
  * stamp excluded). 8 stamps total — orthogonal + diagonal — analogous to
- * single-shape `editorOneRingNeighbourStamps` for square boundaries. Used by
- * Design-mode "Show neighbours" preview in composition so the user can see
- * how the unit cell joins its lattice neighbours.
+ * single-Cell `editorOneRingNeighbourStamps` for square boundaries. Used by
+ * Design-Phase "Show neighbours" preview in multi-cell Configurations so the
+ * user can see how the unit cell joins its lattice neighbours.
  *
- * Stamps are pure translations (rotation 0) — the composition cell tiles by
- * translation alone. Future configurations (e.g. p3, p6m) would override
+ * Stamps are pure translations (rotation 0) — the unit cell tiles by
+ * translation alone. Future Configurations (e.g. p3, p6m) would override
  * this with the appropriate symmetry-stamp set.
  */
-export function compositionOneRingStamps(composition: BoundaryComposition): LatticeStamp[] {
-  const { u, v } = compositionCellBasis(composition)
+export function compositionOneRingStamps(patch: EditorPatch): LatticeStamp[] {
+  const { u, v } = compositionCellBasis(patch)
   const offsets: Array<[number, number]> = [
     [-1, -1], [-1, 0], [-1, 1],
     [0, -1],           [0, 1],
@@ -122,16 +120,16 @@ export function compositionOneRingStamps(composition: BoundaryComposition): Latt
 }
 
 /**
- * Generate enough cell-level stamps to cover `viewport`. The composition's
- * unit cell is treated as one merged patch (per `compositionToPolygons`), so
- * stamps are pure translations along the cell basis — no intra-cell stamps
- * needed (those are baked into `compositionToPolygons`).
+ * Generate enough lattice-cell stamps to cover `viewport`. The unit cell is
+ * treated as one merged Patch (per `compositionToPolygons`), so stamps are
+ * pure translations along the lattice basis — no intra-cell stamps needed
+ * (those are baked into `compositionToPolygons`).
  */
 export function compositionLatticeStamps(
-  composition: BoundaryComposition,
+  patch: EditorPatch,
   viewport: { x: number; y: number; width: number; height: number },
 ): LatticeStamp[] {
-  const { u, v } = compositionCellBasis(composition)
+  const { u, v } = compositionCellBasis(patch)
   const det = u.x * v.y - u.y * v.x
   if (Math.abs(det) < 1e-9) return [{ translation: { x: 0, y: 0 }, rotation: 0 }]
   const inv = {

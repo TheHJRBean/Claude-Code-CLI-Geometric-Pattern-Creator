@@ -117,7 +117,7 @@ export function computeAllCycles(cell: EditorCell): {
  * so 17.5 / 17.7 / 17.10 callers don't need to know about pockets.
  */
 export function computeOuterBoundary(cell: EditorCell): BoundaryVertex[] {
-  return computeAllCycles(editor).outer
+  return computeAllCycles(cell).outer
 }
 
 /**

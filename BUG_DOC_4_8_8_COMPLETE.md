@@ -188,7 +188,7 @@ This is a classic robust-geometry pitfall — strict orient predicates need eith
 
 **Fix:** new `shareEndpoint(a1, a2, b1, b2)` predicate using `pointsEqual` with `EDITOR_EPS`. In `overlapsExistingDetail`'s rule 3 loop, skip any pair where `shareEndpoint` returns true. Rules 1 and 2 already handle the shared-vertex cases via `onVerts`.
 
-**Verification:** user to repeat the 3-pick-on-attached-square scenario; should now place. If a NEW false positive surfaces (rule 1 or 2), the in-canvas rejection label (Bug 12) names it.
+**Verification:** ✓ Confirmed by user 2026-05-17 — 3-pick completion on adjacent vertices of an attached square now places. Next probe: cross-stamp picks via Show Neighbours.
 
 ---
 

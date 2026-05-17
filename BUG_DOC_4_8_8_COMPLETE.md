@@ -35,13 +35,13 @@ Compact tracker for the Builder Complete-mode work on `feat/art-deco-egypt-theme
 - `src/editor/patchSelectable.ts` — `patchSelectableVertices`, `validateMultiPick`, `multiPickValidityLabel`, `retargetTile`, `existingTilesInHostFrame`, transform helpers.
 - `src/editor/tileOverlap.ts` — `overlapsExistingDetail` (returns `OverlapDetail` with sub-rule), `sharesEdgeWithExisting`, `shareEndpoint`.
 - `src/editor/placement.ts` — `isPlacementViable` (uses `edge.length`, no conforming gate).
-- `src/state/reducer.ts` — `chordCompleteAcrossPatch`, `multiPickCompleteAcrossPatch`, `EDITOR_PLACE_TILE_ON_EDGE`. Diagnostic `[multiPick]` logs still on as of `9377c64`; remove once stable.
+- `src/state/reducer.ts` — `chordCompleteAcrossPatch`, `multiPickCompleteAcrossPatch`, `EDITOR_PLACE_TILE_ON_EDGE`.
 - `src/components/EditorVertexLayer.tsx` — preview polygon + `previewMessage` pill label.
 - `src/components/Canvas.tsx` / `src/components/TessellationLabMode.tsx` — prop plumbing.
 
 ## Reopen checklist (if Complete-mode regresses)
 
-1. Reproduce in dev server. Capture the `[multiPick]` console line + `tileVerts` / `candidateVerts` arrays (still on in `multiPickCompleteAcrossPatch`).
+1. Reproduce in dev server. If needed, re-add `[multiPick]` console logs at each gate in `multiPickCompleteAcrossPatch` (selectable / real-vertex / orbit-selectable / centroid-dedup / completeNGap-null / overlap) — see commit `cbe5b1c` for the previous instrumentation as a template.
 2. Note which validity kind / overlap rule fires (visible as red pill on canvas).
 3. Match against the table above — if the symptom looks like a previously fixed bug, check the relevant commit hasn't been reverted.
 4. If the rejection rule is a genuine false positive: precision in `segmentsStrictlyCross` (Bug 13 territory) and the strict `pointInPolygon` boundary handling are the usual suspects.

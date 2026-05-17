@@ -28,7 +28,7 @@ import {
   patchSelectableVertices,
   retargetTile,
 } from '../editor/patchSelectable'
-import { overlapsExisting, sharesEdgeWithExisting } from '../editor/tileOverlap'
+import { overlapsExisting } from '../editor/tileOverlap'
 import { tileVertices } from '../editor/exposedEdges'
 import type { LatticeStamp } from '../editor/lattice'
 import { pointsEqual } from '../utils/math'
@@ -471,6 +471,12 @@ function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[]): Patt
   const active = activeCell(patch)
   const selectable = patchSelectableVertices(patch, true)
   if (!picks.every(p => isSelectable(p, selectable))) return state
+  // Non-floating rule: at least one pick must be on a vertex from the user's
+  // actual Patch (no neighbour stamps). Rejects polygons built entirely on
+  // ghost-stamp vertices that would otherwise touch real Tiles only by edge
+  // coincidence at the unit-cell seam.
+  const realVerts = patchSelectableVertices(patch, false)
+  if (!picks.some(p => isSelectable(p, realVerts))) return state
 
   const localPicks = picks.map(p => inverseCellTransform(p, active))
   const syms = boundarySymmetries(active.shape, active.symmetryMode ?? 'none')
@@ -494,16 +500,13 @@ function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[]): Patt
     seenCentroids.push(c)
     const tile = completeNGap(working, transformed, `${idPrefix}-${i}`)
     if (!tile) return state
-    // First-layer adjacency + overlap guards. Picks form a free-floating
-    // polygon under multi-pick mode (no cycle arc constrains them), so the
-    // result must (a) share an edge with the user's pre-existing Tiles and
-    // (b) not strictly overlap any of them. Sibling orbit placements are
-    // intentionally excluded from the overlap check — under non-trivial
-    // symmetry modes (full / rotation / vertical / horizontal) the orbit
-    // images often touch or overlap one another at the symmetry axis, and
-    // the user's intent is that all of them place atomically.
+    // Overlap guard against the user's pre-existing Tiles. Sibling orbit
+    // placements are intentionally excluded — under non-trivial symmetry
+    // modes the orbit images often touch one another at the symmetry axis
+    // and the user's intent is that all of them place atomically.
+    // Adjacency is enforced earlier via the "at least one pick on a real
+    // Cell vertex" precondition.
     const candidate = tileVertices(tile)
-    if (!sharesEdgeWithExisting(candidate, userTiles)) return state
     if (overlapsExisting(candidate, userTiles)) return state
     placements.push(tile)
     working = { ...working, tiles: [...working.tiles, tile] }

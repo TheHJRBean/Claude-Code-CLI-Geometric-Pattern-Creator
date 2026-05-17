@@ -6,6 +6,8 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
+**2026-05-17 — Builder Complete-mode bug sweep in flight.** Detailed tracker at `BUG_DOC_4_8_8_COMPLETE.md` (root). Read that FIRST before any Complete-mode work; it has the full chronology, fixes (commits `39ff3d4`, `55af253`, `75d7995`, and one pending), open Bug 6 with a concrete re-test repro, and the file index. The summary below is preserved for the prior Phase 2/4/5/6 schema work.
+
 **Last action:** 2026-05-16 — Phase 2 (introduce `EditorCell` + schema v3)
 **BUILD GREEN — all 210 tsc errors resolved.** Every helper, the reducer,
 and every UI component now operates on the v3 `EditorPatch.cells[]` shape

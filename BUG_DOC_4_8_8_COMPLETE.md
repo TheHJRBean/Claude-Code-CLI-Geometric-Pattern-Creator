@@ -109,86 +109,82 @@ This doc is a session-continuity anchor — every bug seen, status, root cause, 
 
 ### Bug 8 — Multi-pick overlap rule rejected symmetric orbit placements
 
-**Status:** FIXED · commit pending
+**Status:** FIXED · commit `75d7995`
 **Symptom (from console log):** Single-cell square with symmetryMode != 'none', user Ctrl-clicks 6 vertices + Enter. Console:
 ```
 [multiPick] orbit 0 completeNGap → tile.kind=irregular, adjacency=true, overlap=false  ✓
 [multiPick] orbit 1 completeNGap → tile.kind=irregular, adjacency=true, overlap=true   ✗
 ```
-Orbit 1 (a symmetry image of orbit 0) overlaps orbit 0 → the atomic rule kicks in → whole completion returns state unchanged. No tile placed.
+Orbit 1 (a symmetry image of orbit 0) overlaps orbit 0 → atomic rule kicks in → whole completion returns state unchanged. No tile placed.
 
 **Root cause:** Bug 3's overlap check included sibling orbit placements (`[...userTiles, ...placementVerts]`). Under non-trivial symmetry modes (full / rotation / vertical / horizontal), orbit images often touch or overlap each other at the symmetry axis. The user's intent is "all symmetric placements land atomically" — overlap between siblings should NOT abort.
 
-**Fix:** Overlap check now only compares against the user's pre-existing tiles (`userTiles`), not against in-flight sibling orbit placements. Adjacency rule unchanged (still vs userTiles only). Chord mode already only checks vs user tiles, so no change there.
+**Fix:** Overlap check now only compares against the user's pre-existing tiles (`userTiles`), not against in-flight sibling orbit placements. Adjacency rule (at that point) still required shared EDGES — see Bug 9.
 
-**Verification:** User to re-test single-cell symmetric Complete and multi-cell cross-Cell Complete.
+---
+
+### Bug 9 — Adjacency rule too strict; rejected all non-edge-coincident multi-picks
+
+**Status:** FIXED · commit pending
+**Symptom (user, 2026-05-17):** "Within cell completion works just fine if I am not doing multipick. Multi pick of any kind doesn't work." Chord-mode (2 picks) succeeds; multi-pick (Ctrl-click ≥3 + Enter) silently no-ops in every config.
+
+**Root cause:** Bug 3's `sharesEdgeWithExisting(candidate, userTiles)` rule required at least one full polygon edge to coincide with an existing tile edge. Multi-pick polygons whose vertices are non-consecutive on the outer cycle (e.g., picks 0, 2, 4 on an octagon) have NO edge that matches an existing edge — only shared vertices. Adjacency check rejected them all.
+
+The user's actual intent (from earlier clarification "at least one pick must be on a real Cell vertex"): the polygon must touch the user's existing tiles in some way — a shared vertex is enough, no edge coincidence required.
+
+**Fix:**
+- Replaced `sharesEdgeWithExisting` with an early "non-floating" precondition: at least one pick must be in `patchSelectableVertices(patch, /*includeNeighbours=*/false)` — i.e., on a vertex of some Cell's outer / pocket / boundary cycle (no neighbour stamps). Within-cell multi-pick passes trivially (all picks on outer cycle). Cross-stamp multi-pick passes iff at least one pick is on a real Cell vertex. Pure-stamp picks are rejected.
+- Removed the now-unused `sharesEdgeWithExisting` import.
+- Overlap check (`overlapsExisting` vs `userTiles` only) unchanged from Bug 8 fix.
+
+This also subsumes Bug 7 (pure-stamp picks rejected) without needing a separate Bug 7 fix.
+
+**Verification:** User to re-test:
+1. Single-cell square, multi-pick 3 non-consecutive cycle vertices → tile places. (Was rejected by Bug 9.)
+2. Single-cell with symmetry, multi-pick → all orbit images place. (Bug 8.)
+3. 4.8.8 multi-cell, multi-pick spanning octagon + square real vertices → tile places. (Bug 6.)
+4. Pure-stamp multi-pick (all picks on ghost neighbours, none on real Cells) → rejected. (Bug 7.)
 
 ---
 
 ## OPEN bugs (next session — pick up here)
 
-### Bug 6 — Completion only works within the seed (active) patch; not across patches to neighbours
+### Bug 6 — Cross-patch completion to neighbour stamps (re-test pending)
 
-**Status:** OPEN
-**Symptom (latest user message):** With Show Neighbours + Show Strands both on (verified after Bug 4 clarification), the neighbour-stamp rays render in PLACE mode but disappear when the user switches to COMPLETE mode.
+**Status:** PARTIAL — likely covered by the Bug 1 / Bug 8 / Bug 9 chain, but never directly verified in actual 4.8.8 multi-cell.
 
-**Hypothesis:** `editorMode` (`'place' | 'complete'`) is canvas-only state; `usePattern` should be agnostic to it. But somewhere the prop wiring may force `editorNeighbourPreview` or `editorNeighbourStrands` off when complete mode is engaged. Other possible cause: complete-mode overlays (`EditorVertexLayer` dots) might be painted in a way that obscures the strand layer underneath, even though `editorOverlay` is supposed to be the topmost interactive layer with strand paths beneath.
+**Original symptom:** User reported "completion only works within the seed patch and not across patches to neighbours" (2026-05-17). Diagnostic console log revealed the repro was actually single-cell square + symmetry — i.e., Bug 8 + Bug 9. After those landed, the user has not yet re-tested in real 4.8.8 multi-cell.
 
-**To check:**
-- Confirm `editorNeighbourPreview` and `editorNeighbourStrands` values in Canvas / usePattern when `editorMode === 'complete'`. Are they being clobbered by a memoised condition?
-- Confirm `editorNeighbourPreview` formula in `TessellationLabMode.tsx` line 668: `editorPhase === 'design' && showNeighbours && !(wrap)`. Nothing about editorMode here — should hold regardless.
-- Inspect `Canvas.tsx` neighbour-related useMemos for an `editorMode === 'complete'` dependency that disables strand pipeline.
-- Repro in browser: toggle place → complete with neighbours+strands on, watch the segment count in the React Profiler or log it in `usePattern`.
+**Repro to run on resume (single source of truth — DO THIS BEFORE ANY CODE):**
+1. Open Lab → Configuration: 4.8.8 (octagon + square). Confirm `patchCells === 2` in any reducer log.
+2. Design Phase, Complete mode. Show Neighbours on.
+3. Ctrl-click 3 vertices: 2 on octagon outer cycle + 1 on the unique NE square vertex (patch-local ≈ (120.71, 191.42)). Press Enter.
+4. Expect: triangle tile placed in active Cell, vertices spanning octagon + square.
+5. If it works, close Bug 6 as RESOLVED.
+6. If it doesn't, re-add the `[multiPick]` console.log block from commit history (search for `// eslint-disable-next-line no-console` in old `reducer.ts` blame); the block was removed in `75d7995`.
 
----
-
-### Bug 6 — Completion only works within the seed (active) patch; not across patches to neighbours
-
-**Status:** PARTIAL — Bug 8 fix may have resolved the visible symptom; re-test required.
-**Symptom:** Picks on neighbour-stamp vertices alone don't produce a tile. Despite the Bug 1 fix adding stamp candidates to `chordCompleteAcrossPatch`'s iteration order and `patchSelectableVertices` including stamped neighbour vertices.
-
-**Note (2026-05-17):** the user's reproduction of "completion across cells fails" came back as single-cell + symmetry (`active: 'main', patchCells: 1`) — actually Bug 8, not a cross-cell issue. After fix #8 they may see this resolved too. Re-confirm before further work.
-
-**Hypothesis 1:** The Bug 3 adjacency check rejects them. `sharesEdgeWithExisting(candidate, userTiles)` requires the candidate to share an edge with the user's REAL tiles (Cells in the patch, no stamps). A candidate built entirely on neighbour-stamp vertices may share edges with the STAMPED tiles (which are virtual ghost copies) but not the real ones. Then adjacency fails → rejected.
-
-This is exactly the rule the user asked for in Bug 7 below ("completions between vertices that do not include the seed patches cells, this should not be possible"). So Bug 6 and Bug 7 are in tension:
-- Bug 7 says: reject completions whose picks don't include real-cell vertices.
-- Bug 6 says: completions should also work across to neighbour stamps.
-
-**Need clarification:** What does "across patches to neighbours" mean exactly? Possible readings:
-- (a) Picks on a NEIGHBOUR stamp's outer cycle should produce a tile at the neighbour stamp's position, hosted in the active Cell (current implementation tries this but adjacency rejects). This conflicts with Bug 7.
-- (b) Picks that BRIDGE the active Cell + a neighbour stamp should be allowed (at least one pick on real, at least one on stamp). Both adjacency and bridging satisfied.
-- (c) Cross-patch completion is a different mechanic — maybe the new tile should propagate across all lattice copies (i.e., become part of the unit cell, visible at every stamp position).
-
-**To check:**
-- Clarify with user which of (a)/(b)/(c) they mean.
-- If (b): allow adjacency to include neighbour-stamp tile edges, OR require at least one pick to be on a real-cell vertex (cheaper to enforce).
-- If (c): completion should add the tile to a Cell with appropriate coords so PIC sees it inside the unit cell, then composition lattice stamps it normally.
+**Three possible cross-patch readings the user hasn't disambiguated, kept here in case re-test fails:**
+- (a) Picks entirely on a NEIGHBOUR stamp's outer cycle → tile at the neighbour stamp's position, hosted in active Cell. Conflicts with Bug 9's "at least one pick on real Cell" precondition — would have to be re-scoped if (a) is the intent.
+- (b) Picks BRIDGE the active Cell + neighbour stamp (at least one on real, others on stamps). Covered by current code.
+- (c) Completion propagates across all lattice copies (tile becomes part of the unit cell). Different mechanic — not implemented.
 
 ---
 
-### Bug 7 — Completions allowed where picks don't include the seed patch's Cells
+### Bug 7 — Picks-with-no-real-Cell-vertex allowed
 
-**Status:** OPEN
-**Symptom:** User reports being able to complete tiles whose vertex picks don't include any vertex from the user's actual patch (octagon + square in 4.8.8) — only ghost-stamp vertices.
-
-**Hypothesis:** Edges of a neighbour-stamped octagon coincide with the central octagon's edges at the seam. A candidate built on neighbour-stamp vertices CAN share an edge with the central octagon (the shared seam edge). That satisfies `sharesEdgeWithExisting(candidate, userTiles)` even though the picks were all on stamp vertices. The user wants stricter: at least one PICK must be on a real-cell vertex.
-
-**Fix sketch:**
-- Add a precondition in `multiPickCompleteAcrossPatch`: at least one of `picks` must coincide with a vertex in `patchSelectableVertices(patch, false)` (the no-neighbours set — only real-Cell cycles).
-- Mirror in `chordCompleteAcrossPatch` if chord-mode has the same loophole.
-
-**Tension with Bug 6:** If we enforce "at least one pick on real Cell", does Bug 6 want this too? Probably yes — reading (b) is "bridging picks" which by definition has at least one on real. Reading (a) is the conflicting one and probably wrong UX.
+**Status:** RESOLVED by Bug 9 (the "at least one pick on real Cell vertex" precondition is exactly this rule).
+Kept as a header for chronology; actionable work is folded into Bug 9.
 
 ---
 
 ## Resume checklist
 
 1. Re-read this doc top-to-bottom.
-2. Clarify Bug 6 reading (a/b/c) with the user before coding.
-3. Most likely fix: add the "at least one pick on real Cell" precondition (Bug 7); revisit Bug 6 after that lands.
-4. Bug 5 may resolve itself once the Canvas wiring is inspected — start with logging `editorNeighbourPreview` + `editorNeighbourStrands` values when toggling between place/complete.
-5. After each fix: append to the bug log with status FIXED + commit hash + verification.
+2. **Run the Bug 6 repro first.** If it works, mark Bug 6 RESOLVED and move on. Otherwise, re-instrument and diagnose.
+3. After re-test, the only remaining work might be:
+   - Tightening Bug 9's rule if it's too permissive (user reports "polygons floating one-vertex-touched but otherwise far from any tile" being accepted).
+   - Reading (a) for cross-patch — needs a fresh user clarification because it directly contradicts Bug 9.
+4. After each fix: append to the bug log with status FIXED + commit hash + verification.
 
 ## File index
 

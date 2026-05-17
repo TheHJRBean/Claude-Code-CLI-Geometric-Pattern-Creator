@@ -14,7 +14,7 @@ import { BOUNDARY_SIZE_MAX_BY_SHAPE } from '../editor/createDefault'
 import { LAB_DEFAULT_CONFIG } from '../state/labDefaults'
 import type { BoundaryShape, SymmetryMode } from '../types/editor'
 import type { Vec2 } from '../utils/math'
-import { validateNGapPolygon } from '../editor/completeN'
+import { validateMultiPick } from '../editor/patchSelectable'
 import { editorTileTypes } from '../editor/tileTypes'
 import { activeCell } from '../editor/active'
 import { useEditorHistory } from '../editor/useEditorHistory'
@@ -657,10 +657,13 @@ export function TessellationLabMode({
         picks={picks}
         onPickVertex={handlePickVertex}
         previewValid={
-          // 17.11.4 — preview only validates in multi mode with ≥3 picks; the
-          // chord branch never has more than 1 pick so it stays untouched.
+          // 17.11.4 — preview validates in multi mode with ≥3 picks. Uses
+          // the same gates the reducer applies (selectable, real-Cell pick,
+          // non-overlapping, non-self-intersecting, centroid outside tiles)
+          // so the polygon renders green only when Enter would actually
+          // place a Tile.
           multiMode && picks.length >= 3 && config.editor
-            ? validateNGapPolygon(picks, activeCell(config.editor)).kind === 'valid'
+            ? validateMultiPick(config.editor, picks).kind === 'valid'
             : null
         }
         editorStrandMode={editorPhase === 'strand'}

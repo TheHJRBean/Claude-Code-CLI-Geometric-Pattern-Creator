@@ -177,6 +177,32 @@ Kept as a header for chronology; actionable work is folded into Bug 9.
 
 ---
 
+### Bug 12 — Visible rejection-reason label in the preview + overlap detail
+
+**Status:** FIXED · commit pending (the UX half)
+**Symptom (user, 2026-05-17 after Bug 11 fix):** "It's rejecting on the basis of overlapping tiles but this has been fired incorrectly as the tiles would not overlap. Add a visible error message in the UI for this event."
+
+Two parts: a possible false-positive in `overlapsExistingDetail` AND a UX request for an in-canvas rejection message.
+
+**Fix (UX half — landed):**
+- `tileOverlap.ts`: split `overlapsExisting` into a thin boolean wrapper + `overlapsExistingDetail(polygon, existingTiles): OverlapDetail | null` returning `{ rule, tileIndex, ... }` for which rule fired.
+- `patchSelectable.ts`:
+  - `MultiPickValidity['overlaps-existing']` now carries `{ detail: OverlapDetail }`.
+  - `validateMultiPick` calls `overlapsExistingDetail` and forwards the detail.
+  - New `multiPickValidityLabel(validity)` → human-readable string per kind. For overlap, the message names the specific sub-rule (e.g. "Polygon encloses an existing Tile vertex.").
+- `EditorVertexLayer.tsx`: new `previewMessage?: string | null` prop. When set and the preview is invalid, renders a small white pill with red text at the centroid of the picks naming the rejection reason.
+- `Canvas.tsx`: passes `previewMessage` from props into the editor overlay.
+- `TessellationLabMode.tsx`: computes the message via `multiPickValidityLabel(validateMultiPick(patch, picks))` and passes it.
+- Reducer's diagnostic log now prints the overlap rule + the offending tile's vertex array so we can diagnose any genuine false-positive the user reports next.
+
+**Open follow-up (the "fired incorrectly" half):** the user claims the overlap rule was a false positive on a specific scenario. Without the picks + the new detailed log, we can't tell whether:
+- the user's picks genuinely enclosed a tile vertex (rule fires correctly), or
+- there's a real false-positive (e.g. precision edge case, picks on edge midpoints not endpoints).
+
+Next session: ask the user to re-run with the diagnostic logs still on, paste the `[multiPick] orbit ? REJECT` line including the `tileVerts` + `candidateVerts` arrays, then judge whether to relax the rule.
+
+---
+
 ### Bug 11 — Multi-pick preview disagreed with reducer validation
 
 **Status:** FIXED · commit pending

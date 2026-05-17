@@ -48,32 +48,46 @@ function segmentsStrictlyCross(a1: Vec2, a2: Vec2, b1: Vec2, b2: Vec2): boolean 
  * intrusions are rejected.
  */
 export function overlapsExisting(polygon: Vec2[], existingTiles: Vec2[][]): boolean {
+  return overlapsExistingDetail(polygon, existingTiles) !== null
+}
+
+/**
+ * Like `overlapsExisting` but returns a diagnostic record of which rule
+ * fired and which tile triggered it, or `null` if no overlap. Used by the
+ * preview UI to show a specific rejection reason to the user.
+ */
+export type OverlapDetail =
+  | { rule: 'polygon-vertex-inside-tile'; polygonVertex: Vec2; tileIndex: number }
+  | { rule: 'tile-vertex-inside-polygon'; tileVertex: Vec2; tileIndex: number }
+  | { rule: 'edge-crossing'; polygonEdge: [Vec2, Vec2]; tileEdge: [Vec2, Vec2]; tileIndex: number }
+
+export function overlapsExistingDetail(polygon: Vec2[], existingTiles: Vec2[][]): OverlapDetail | null {
   const onVerts = (p: Vec2, verts: Vec2[]) =>
     verts.some(v => pointsEqual(p, v, EDITOR_EPS))
 
-  for (const tile of existingTiles) {
-    // (1) polygon vertices strictly inside an existing tile
+  for (let ti = 0; ti < existingTiles.length; ti++) {
+    const tile = existingTiles[ti]
     for (const p of polygon) {
       if (onVerts(p, tile)) continue
-      if (pointInPolygon(p, tile)) return true
+      if (pointInPolygon(p, tile)) return { rule: 'polygon-vertex-inside-tile', polygonVertex: p, tileIndex: ti }
     }
-    // (2) existing-tile vertices strictly inside the polygon
     for (const v of tile) {
       if (onVerts(v, polygon)) continue
-      if (pointInPolygon(v, polygon)) return true
+      if (pointInPolygon(v, polygon)) return { rule: 'tile-vertex-inside-polygon', tileVertex: v, tileIndex: ti }
     }
-    // (3) edge-edge strict crossings
     for (let i = 0; i < polygon.length; i++) {
       const a1 = polygon[i]
       const a2 = polygon[(i + 1) % polygon.length]
       for (let j = 0; j < tile.length; j++) {
         const b1 = tile[j]
         const b2 = tile[(j + 1) % tile.length]
-        if (segmentsStrictlyCross(a1, a2, b1, b2)) return true
+        if (segmentsStrictlyCross(a1, a2, b1, b2)) {
+          return { rule: 'edge-crossing', polygonEdge: [a1, a2], tileEdge: [b1, b2], tileIndex: ti }
+        }
       }
     }
   }
-  return false
+  return null
 }
 
 /**

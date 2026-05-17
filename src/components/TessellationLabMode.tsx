@@ -14,7 +14,7 @@ import { BOUNDARY_SIZE_MAX_BY_SHAPE } from '../editor/createDefault'
 import { LAB_DEFAULT_CONFIG } from '../state/labDefaults'
 import type { BoundaryShape, SymmetryMode } from '../types/editor'
 import type { Vec2 } from '../utils/math'
-import { validateMultiPick } from '../editor/patchSelectable'
+import { validateMultiPick, multiPickValidityLabel } from '../editor/patchSelectable'
 import { editorTileTypes } from '../editor/tileTypes'
 import { activeCell } from '../editor/active'
 import { useEditorHistory } from '../editor/useEditorHistory'
@@ -664,6 +664,11 @@ export function TessellationLabMode({
           // place a Tile.
           multiMode && picks.length >= 3 && config.editor
             ? validateMultiPick(config.editor, picks).kind === 'valid'
+            : null
+        }
+        previewMessage={
+          multiMode && picks.length >= 3 && config.editor
+            ? multiPickValidityLabel(validateMultiPick(config.editor, picks))
             : null
         }
         editorStrandMode={editorPhase === 'strand'}

@@ -29,7 +29,7 @@ import {
   patchSelectableVertices,
   retargetTile,
 } from '../editor/patchSelectable'
-import { overlapsExisting } from '../editor/tileOverlap'
+import { overlapsExisting, overlapsExistingDetail } from '../editor/tileOverlap'
 import { tileVertices } from '../editor/exposedEdges'
 import type { LatticeStamp } from '../editor/lattice'
 import { pointsEqual } from '../utils/math'
@@ -520,9 +520,16 @@ function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[]): Patt
       return state
     }
     const candidate = tileVertices(tile)
-    if (overlapsExisting(candidate, userTiles)) {
+    const overlap = overlapsExistingDetail(candidate, userTiles)
+    if (overlap) {
       // eslint-disable-next-line no-console
-      console.log('[multiPick] orbit', i, 'REJECT — candidate overlaps user tiles')
+      console.log('[multiPick] orbit', i, 'REJECT — candidate overlaps user tiles', {
+        rule: overlap.rule,
+        tileIndex: overlap.tileIndex,
+        tileVerts: userTiles[overlap.tileIndex],
+        candidateVerts: candidate,
+        detail: overlap,
+      })
       return state
     }
     // eslint-disable-next-line no-console

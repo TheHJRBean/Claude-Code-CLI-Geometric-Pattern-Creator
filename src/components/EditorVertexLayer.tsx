@@ -29,6 +29,9 @@ interface Props {
   picks: Vec2[]
   /** Step 17.11.4 — `null` = no preview, `true|false` = valid/invalid tint. */
   previewValid?: boolean | null
+  /** Bug 12 — human-readable reason rendered next to the preview polygon
+   * when validation fails. Empty when the polygon is valid. */
+  previewMessage?: string | null
   /** Step 17.11.3 — modifier state passed through so the parent can branch into multi mode. */
   onPickVertex: (p: Vec2, ctrlOrCmd: boolean) => void
 }
@@ -166,6 +169,7 @@ export function EditorVertexLayer({
   neighbourVertices = [],
   picks,
   previewValid = null,
+  previewMessage = null,
   onPickVertex,
 }: Props) {
   // 17.11.4 — preview the in-progress polygon when the picker has at least
@@ -174,6 +178,9 @@ export function EditorVertexLayer({
   const showPreview = previewValid !== null && picks.length >= 3
   const previewColor = previewValid ? 'var(--accent)' : DANGER_COLOR
   const previewPoints = picks.map(p => `${p.x},${p.y}`).join(' ')
+  // Centroid of picks → anchor for the rejection-reason label.
+  const labelX = picks.length > 0 ? picks.reduce((s, p) => s + p.x, 0) / picks.length : 0
+  const labelY = picks.length > 0 ? picks.reduce((s, p) => s + p.y, 0) / picks.length : 0
   return (
     <g id="editor-vertex-layer">
       {showPreview && (
@@ -188,6 +195,32 @@ export function EditorVertexLayer({
           vectorEffect="non-scaling-stroke"
           pointerEvents="none"
         />
+      )}
+      {showPreview && !previewValid && previewMessage && (
+        <g pointerEvents="none">
+          <rect
+            x={labelX - 130}
+            y={labelY - 14}
+            width={260}
+            height={28}
+            rx={5}
+            fill="var(--bg)"
+            fillOpacity={0.92}
+            stroke={DANGER_COLOR}
+            strokeWidth={1.4}
+            vectorEffect="non-scaling-stroke"
+          />
+          <text
+            x={labelX}
+            y={labelY + 5}
+            textAnchor="middle"
+            fontFamily="'EB Garamond', Georgia, serif"
+            fontSize={13}
+            fill={DANGER_COLOR}
+          >
+            {previewMessage}
+          </text>
+        </g>
       )}
       {/* Render order, bottom → top: neighbour ghosts (lowest priority),
           boundary corners, pocket vertices, patch vertices. Selection halo

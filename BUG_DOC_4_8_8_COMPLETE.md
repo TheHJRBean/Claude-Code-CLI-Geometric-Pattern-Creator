@@ -177,6 +177,29 @@ Kept as a header for chronology; actionable work is folded into Bug 9.
 
 ---
 
+### Bug 10 — Tile picker stuck on "no polygon fits here" in multi-cell after slider drag
+
+**Status:** FIXED · commit pending
+**Symptom (user, 2026-05-17):** "The tile picker is stuck on 'no polygon fits here' even when there is ample space. It seems to be restricted to 4.8.8." Picker fires on every clicked edge but offers no polygons.
+
+**Root cause:** Multi-cell `SET_CELL_BOUNDARY_SIZE` scales `patch.edgeLength` to keep the lattice invariant, but explicitly leaves seed-Tile `edgeLength` untouched (intentional "single-shape parity" design). After any slider drag, `patch.edgeLength ≠ seed.edgeLength`, so `computeExposedEdges(cell, patch.edgeLength)` marks every seed-Tile edge as `conforming: false` (Decision 14a). `isPlacementViable` returned false on the first line; every PICKER_SIDES probe failed; `viableSidesForEdge` returned `[]`. Single-cell never hit this because its slider doesn't touch `patch.edgeLength`.
+
+**Verified via tsx probe:**
+```
+patch.edgeLength=150, seed.edgeLength=100 → octagon edge 0 conforming=false, viable sides: []
+```
+
+**Fix:** Relaxed Decision 14a. Placement now sizes the new Tile to the SOURCE edge's actual length (`edge.length`) rather than `patch.edgeLength`. The `conforming` field is computed for backwards compat (UI may use it for styling later) but no longer hard-gates `isPlacementViable`. Mixed-size Patches are accepted — multi-cell slider workflow now produces new Tiles flush with the seed Tile's edges regardless of how far the lattice has been scaled.
+
+Changes:
+- `src/editor/placement.ts`: `isPlacementViable` drops the `if (!edge.conforming) return false` gate. Overlap probe uses `edge.length` for sizing.
+- `src/state/reducer.ts`: `EDITOR_PLACE_TILE_ON_EDGE` uses `edge.length` for both viability and `placeRegularNGonOnEdge` / `placeTilesOnOrbit`.
+- `src/editor/orbit.ts`: `viableSidesForEdge` ignores the passed `edgeLength` and uses `edge.length` internally for both single-edge and orbit-aware probes.
+
+**Verification:** tsx probe shows the picker now returns all 9 PICKER_SIDES for an octagon edge under slider-drift (patch.edgeLength=150, seed=100). User to confirm in browser.
+
+---
+
 ## Resume checklist
 
 1. Re-read this doc top-to-bottom.

@@ -66,11 +66,16 @@ export function isPlacementViable(
   edge: ExposedEdge,
   sides: number,
   cell: EditorCell,
-  edgeLength: number,
+  _edgeLength: number,
 ): boolean {
-  // Decision 14a: non-conforming edges (length ≠ origin's) are inert.
-  if (!edge.conforming) return false
   if (sides < 3) return false
+  // Decision 14a (relaxed 2026-05-17): instead of rejecting non-conforming
+  // edges, the placement sizes itself to the source edge's actual length so
+  // the new tile lands flush against it. This unblocks the multi-cell
+  // slider workflow: scaling `patch.edgeLength` past the seed tile's edge
+  // length used to mark every existing edge non-conforming and freeze the
+  // picker on "no polygon fits here". Mixed-size Patches are now accepted.
+  void _edgeLength
 
   const newAngle = ((sides - 2) * Math.PI) / sides
   if (!checkAngleSum(edge.p1, newAngle, cell.tiles)) return false
@@ -81,7 +86,7 @@ export function isPlacementViable(
   // vertex coincides with the new tile). Build the candidate's vertices and
   // check it doesn't contain any existing centre, and no existing tile
   // contains the candidate's centre.
-  const candidate = placeRegularNGonOnEdge(sides, edgeLength, edge.p1, edge.p2, edge.sourceCenter, '__probe__')
+  const candidate = placeRegularNGonOnEdge(sides, edge.length, edge.p1, edge.p2, edge.sourceCenter, '__probe__')
   const candidateVerts = regularPolygonVertices(candidate.sides, candidate.center, candidate.edgeLength, candidate.rotation)
   for (const tile of cell.tiles) {
     const tv = tileVertices(tile)

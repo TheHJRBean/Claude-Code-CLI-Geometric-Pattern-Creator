@@ -244,23 +244,25 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     case 'EDITOR_PLACE_TILE_ON_EDGE': {
       if (!state.editor) return state
       const { tileId, edgeIndex, sides } = action.payload
-      const edgeLength = state.editor.edgeLength
+      const patchEdgeLength = state.editor.edgeLength
       return applyWrap(seedFigures(updateActiveCell(state, cell => {
-        const edges = computeExposedEdges(cell, edgeLength)
+        const edges = computeExposedEdges(cell, patchEdgeLength)
         const edge = edges.find(e => e.tileId === tileId && e.edgeIndex === edgeIndex)
         if (!edge) return cell
+        // Size the new Tile to the source edge's actual length, not
+        // patch.edgeLength — keeps the new Tile flush with the source even
+        // when the Patch's lattice scale has drifted from the seed Tile's
+        // edge length (multi-cell slider workflow).
+        const placementEdge = edge.length
         const mode = cell.symmetryMode ?? 'none'
-        // Subgroup picker — `'none'` keeps the 17.3 single-edge behaviour.
-        // Other subgroups propagate the placement under the chosen orbit;
-        // any orbit image that fails viability fails the whole placement.
         if (mode === 'none') {
-          if (!isPlacementViable(edge, sides, cell, edgeLength)) return cell
+          if (!isPlacementViable(edge, sides, cell, placementEdge)) return cell
           const id = `placed-${cell.tiles.length}-${Date.now()}`
-          const tile = placeRegularNGonOnEdge(sides, edgeLength, edge.p1, edge.p2, edge.sourceCenter, id)
+          const tile = placeRegularNGonOnEdge(sides, placementEdge, edge.p1, edge.p2, edge.sourceCenter, id)
           return { ...cell, tiles: [...cell.tiles, tile] }
         }
         const idPrefix = `placed-${cell.tiles.length}-${Date.now()}`
-        const placements = placeTilesOnOrbit(cell, edgeLength, edge, sides, idPrefix)
+        const placements = placeTilesOnOrbit(cell, placementEdge, edge, sides, idPrefix)
         if (!placements) return cell
         return { ...cell, tiles: [...cell.tiles, ...placements] }
       })))

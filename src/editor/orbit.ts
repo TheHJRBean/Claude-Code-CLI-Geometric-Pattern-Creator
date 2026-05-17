@@ -192,14 +192,16 @@ export function placePolygonsOnOrbit(
  * `placeTilesOnOrbit` returns `null`, and the placement silently fails. The
  * orbit probe here matches the reducer's call exactly.
  */
-export function viableSidesForEdge(edge: ExposedEdge, cell: EditorCell, edgeLength: number): number[] {
+export function viableSidesForEdge(edge: ExposedEdge, cell: EditorCell, _edgeLength: number): number[] {
+  void _edgeLength
   const mode = cell.symmetryMode ?? 'none'
-  if (mode === 'none') return viableSidesSingle(edge, cell, edgeLength)
-  // Orbit-aware: a side is offered only if the full orbit placement succeeds.
-  // Single-edge viability is a necessary condition, so prefilter to keep the
-  // probe count small.
+  // Use the source edge's actual length for both viability and the orbit
+  // probe — keeps the picker honest when patch.edgeLength has drifted from
+  // the seed Tile's edge length (multi-cell slider workflow).
+  const placementEdge = edge.length
+  if (mode === 'none') return viableSidesSingle(edge, cell, placementEdge)
   return PICKER_SIDES.filter(n =>
-    isPlacementViable(edge, n, cell, edgeLength)
-    && placeTilesOnOrbit(cell, edgeLength, edge, n, '__probe__') !== null,
+    isPlacementViable(edge, n, cell, placementEdge)
+    && placeTilesOnOrbit(cell, placementEdge, edge, n, '__probe__') !== null,
   )
 }

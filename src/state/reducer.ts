@@ -29,7 +29,7 @@ import {
   patchSelectableVertices,
   retargetTile,
 } from '../editor/patchSelectable'
-import { overlapsExisting, overlapsExistingDetail } from '../editor/tileOverlap'
+import { overlapsExisting } from '../editor/tileOverlap'
 import { tileVertices } from '../editor/exposedEdges'
 import type { LatticeStamp } from '../editor/lattice'
 import { pointsEqual } from '../utils/math'
@@ -473,19 +473,12 @@ function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[]): Patt
   const patch = state.editor
   const active = activeCell(patch)
   const selectable = patchSelectableVertices(patch, true)
-  // eslint-disable-next-line no-console
-  console.log('[multiPick] start', { picks: picks.length, active: active.id, patchCells: patch.cells.length, selectableCount: selectable.length, symmetryMode: active.symmetryMode ?? 'none' })
-  if (!picks.every(p => isSelectable(p, selectable))) {
-    // eslint-disable-next-line no-console
-    console.log('[multiPick] REJECT — pick not in selectable', picks.map(p => ({ p, in: isSelectable(p, selectable) })))
-    return state
-  }
+  if (!picks.every(p => isSelectable(p, selectable))) return state
+  // Non-floating rule: at least one pick must be on a vertex from the user's
+  // actual Patch (no neighbour stamps). Rejects polygons built entirely on
+  // ghost-stamp vertices.
   const realVerts = patchSelectableVertices(patch, false)
-  if (!picks.some(p => isSelectable(p, realVerts))) {
-    // eslint-disable-next-line no-console
-    console.log('[multiPick] REJECT — no pick on a real Cell vertex')
-    return state
-  }
+  if (!picks.some(p => isSelectable(p, realVerts))) return state
 
   const localPicks = picks.map(p => inverseCellTransform(p, active))
   const syms = boundarySymmetries(active.shape, active.symmetryMode ?? 'none')
@@ -500,45 +493,24 @@ function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[]): Patt
   const userTiles = existingTilesInHostFrame(patch, active)
   for (let i = 0; i < syms.length; i++) {
     const transformed = localPicks.map(p => applySym(syms[i], p))
+    // Orbit image must also land on selectable vertices — drop silently for
+    // asymmetric setups where the orbit branch has no real pick targets.
     const patchLocal = transformed.map(p => applyCellTransform(p, active))
-    if (!patchLocal.every(p => isSelectable(p, selectable))) {
-      // eslint-disable-next-line no-console
-      console.log('[multiPick] orbit', i, 'SKIP — orbit image picks not in selectable')
-      continue
-    }
+    if (!patchLocal.every(p => isSelectable(p, selectable))) continue
     const c = centroidOf(transformed)
-    if (seenCentroids.some(q => pointsEqual(c, q, EDITOR_EPS))) {
-      // eslint-disable-next-line no-console
-      console.log('[multiPick] orbit', i, 'SKIP — centroid dedup')
-      continue
-    }
+    if (seenCentroids.some(q => pointsEqual(c, q, EDITOR_EPS))) continue
     seenCentroids.push(c)
     const tile = completeNGap(working, transformed, `${idPrefix}-${i}`)
-    if (!tile) {
-      // eslint-disable-next-line no-console
-      console.log('[multiPick] orbit', i, 'REJECT — completeNGap returned null (likely centroid-inside-tile or self-intersecting)')
-      return state
-    }
+    if (!tile) return state
+    // Overlap guard against the user's pre-existing Tiles. Sibling orbit
+    // placements are intentionally excluded — under non-trivial symmetry
+    // modes the orbit images often touch one another at the symmetry axis
+    // and the user's intent is that all of them place atomically.
     const candidate = tileVertices(tile)
-    const overlap = overlapsExistingDetail(candidate, userTiles)
-    if (overlap) {
-      // eslint-disable-next-line no-console
-      console.log('[multiPick] orbit', i, 'REJECT — candidate overlaps user tiles', {
-        rule: overlap.rule,
-        tileIndex: overlap.tileIndex,
-        tileVerts: userTiles[overlap.tileIndex],
-        candidateVerts: candidate,
-        detail: overlap,
-      })
-      return state
-    }
-    // eslint-disable-next-line no-console
-    console.log('[multiPick] orbit', i, 'PLACED tile.kind=', tile.kind)
+    if (overlapsExisting(candidate, userTiles)) return state
     placements.push(tile)
     working = { ...working, tiles: [...working.tiles, tile] }
   }
-  // eslint-disable-next-line no-console
-  console.log('[multiPick] done — placements:', placements.length)
   if (placements.length === 0) return state
   return applyWrap(seedFigures(updateActiveCell(state, _ => working)))
 }

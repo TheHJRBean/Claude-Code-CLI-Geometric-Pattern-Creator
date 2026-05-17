@@ -33,6 +33,14 @@ function segmentsStrictlyCross(a1: Vec2, a2: Vec2, b1: Vec2, b2: Vec2): boolean 
   )
 }
 
+/** True if any of the 4 endpoint pairs is point-equal within `EDITOR_EPS`. */
+function shareEndpoint(a1: Vec2, a2: Vec2, b1: Vec2, b2: Vec2): boolean {
+  return pointsEqual(a1, b1, EDITOR_EPS)
+    || pointsEqual(a1, b2, EDITOR_EPS)
+    || pointsEqual(a2, b1, EDITOR_EPS)
+    || pointsEqual(a2, b2, EDITOR_EPS)
+}
+
 /**
  * True if `polygon` strictly overlaps any tile in `existingTiles` — i.e.,
  * they share interior area. Touching at a vertex or sharing an edge is NOT
@@ -81,6 +89,13 @@ export function overlapsExistingDetail(polygon: Vec2[], existingTiles: Vec2[][])
       for (let j = 0; j < tile.length; j++) {
         const b1 = tile[j]
         const b2 = tile[(j + 1) % tile.length]
+        // Two segments that share an endpoint can never have a strict
+        // interior crossing (line segments intersect in at most one point
+        // or a sub-segment — a shared endpoint exhausts that). Skipping
+        // them sidesteps a float-precision false positive where `orient`
+        // accidentally returns tiny opposite signs for picks that lie on
+        // a tile vertex.
+        if (shareEndpoint(a1, a2, b1, b2)) continue
         if (segmentsStrictlyCross(a1, a2, b1, b2)) {
           return { rule: 'edge-crossing', polygonEdge: [a1, a2], tileEdge: [b1, b2], tileIndex: ti }
         }

@@ -177,6 +177,21 @@ Kept as a header for chronology; actionable work is folded into Bug 9.
 
 ---
 
+### Bug 13 — Overlap rule 3 (edge-crossing) false-positive on shared-endpoint segments
+
+**Status:** FIXED · commit pending
+**Symptom (user, 2026-05-17):** "Polygon crosses an existing tile edge. This is on a 3 point completion between the adjacent vertices on square attached to an octagon in the octagonal cell of the 4.8.8 patch." The 3 picks all lie on existing tile vertices; the polygon edges share both endpoints with existing tile edges; there is no geometric reason for a crossing.
+
+**Root cause:** `segmentsStrictlyCross` uses `orient(b1, b2, a)` with strict `> 0 / < 0` comparisons. When two segments share an endpoint (which they always do in completions on tile vertices), the orient values for that shared endpoint can be tiny non-zero floats due to accumulated precision error from upstream sin/cos in `regularPolygonVertices` + the cell transform. If those tiny values happen to come out with opposite signs, the strict-cross check returns true even though the segments only meet at the shared endpoint and never cross strictly.
+
+This is a classic robust-geometry pitfall — strict orient predicates need either exact arithmetic or a guarded epsilon. For our use case, the simpler structural fix works: two line segments that share any endpoint can intersect in at most that one point (they cannot also cross strictly elsewhere), so we can skip the strict-cross check entirely when endpoints are shared.
+
+**Fix:** new `shareEndpoint(a1, a2, b1, b2)` predicate using `pointsEqual` with `EDITOR_EPS`. In `overlapsExistingDetail`'s rule 3 loop, skip any pair where `shareEndpoint` returns true. Rules 1 and 2 already handle the shared-vertex cases via `onVerts`.
+
+**Verification:** user to repeat the 3-pick-on-attached-square scenario; should now place. If a NEW false positive surfaces (rule 1 or 2), the in-canvas rejection label (Bug 12) names it.
+
+---
+
 ### Bug 12 — Visible rejection-reason label in the preview + overlap detail
 
 **Status:** FIXED · commit pending (the UX half)

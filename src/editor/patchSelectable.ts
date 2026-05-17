@@ -7,7 +7,7 @@ import { applyStamp, editorOneRingNeighbourStamps, type LatticeStamp } from './l
 import { compositionOneRingStamps } from './compositionLattice'
 import { ensureCCW } from './complete'
 import { validateNGapPolygon } from './completeN'
-import { overlapsExisting } from './tileOverlap'
+import { overlapsExistingDetail, type OverlapDetail } from './tileOverlap'
 
 /**
  * Patch-frame helpers for Complete mode.
@@ -156,7 +156,27 @@ export type MultiPickValidity =
   | { kind: 'duplicate-vertex' }
   | { kind: 'self-intersecting' }
   | { kind: 'inside-tile' }
-  | { kind: 'overlaps-existing' }
+  | { kind: 'overlaps-existing'; detail: OverlapDetail }
+
+/** Human-readable label for the preview overlay. */
+export function multiPickValidityLabel(v: MultiPickValidity): string | null {
+  switch (v.kind) {
+    case 'valid': return null
+    case 'too-few': return 'Pick at least 3 vertices.'
+    case 'pick-not-selectable': return 'A pick is off the selectable set.'
+    case 'no-real-cell-pick': return 'At least one pick must be on the live Patch (not only neighbour stamps).'
+    case 'duplicate-vertex': return 'Duplicate pick — each vertex must be distinct.'
+    case 'self-intersecting': return 'Polygon self-intersects — re-order picks.'
+    case 'inside-tile': return 'Polygon centroid lies inside an existing Tile.'
+    case 'overlaps-existing': {
+      switch (v.detail.rule) {
+        case 'polygon-vertex-inside-tile': return 'A pick lies inside an existing Tile.'
+        case 'tile-vertex-inside-polygon': return 'Polygon encloses an existing Tile vertex.'
+        case 'edge-crossing': return 'Polygon edge crosses an existing Tile edge.'
+      }
+    }
+  }
+}
 
 /**
  * Validate a multi-pick (Ctrl-click + Enter) attempt against the same
@@ -180,7 +200,8 @@ export function validateMultiPick(patch: EditorPatch, picks: Vec2[]): MultiPickV
 
   const candidate = ensureCCW([...localPicks])
   const userTiles = existingTilesInHostFrame(patch, active)
-  if (overlapsExisting(candidate, userTiles)) return { kind: 'overlaps-existing' }
+  const detail = overlapsExistingDetail(candidate, userTiles)
+  if (detail) return { kind: 'overlaps-existing', detail }
 
   return { kind: 'valid' }
 }

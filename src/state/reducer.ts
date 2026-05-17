@@ -496,12 +496,15 @@ function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[]): Patt
     if (!tile) return state
     // First-layer adjacency + overlap guards. Picks form a free-floating
     // polygon under multi-pick mode (no cycle arc constrains them), so the
-    // result must (a) share an edge with an existing user Tile and (b) not
-    // strictly overlap any Tile (user-placed or sibling orbit image).
+    // result must (a) share an edge with the user's pre-existing Tiles and
+    // (b) not strictly overlap any of them. Sibling orbit placements are
+    // intentionally excluded from the overlap check — under non-trivial
+    // symmetry modes (full / rotation / vertical / horizontal) the orbit
+    // images often touch or overlap one another at the symmetry axis, and
+    // the user's intent is that all of them place atomically.
     const candidate = tileVertices(tile)
     if (!sharesEdgeWithExisting(candidate, userTiles)) return state
-    const placementVerts = placements.map(tileVertices)
-    if (overlapsExisting(candidate, [...userTiles, ...placementVerts])) return state
+    if (overlapsExisting(candidate, userTiles)) return state
     placements.push(tile)
     working = { ...working, tiles: [...working.tiles, tile] }
   }

@@ -1,5 +1,5 @@
 import type { CurvePoint, FigureConfig, PatternConfig } from '../types/pattern'
-import type { EditorCell, EditorPatch, EditorTile } from '../types/editor'
+import type { EditorCell, EditorTile } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import type { Action } from './actions'
 import { TILINGS } from '../tilings/index'
@@ -21,6 +21,7 @@ import { seedFiguresForEditor } from '../editor/tileTypes'
 import { activeCell, allCells, withActiveCell } from '../editor/active'
 import {
   applyCellTransform,
+  existingTilesInHostFrame,
   inverseCellTransform,
   inverseRotateTranslate,
   isSelectable,
@@ -541,28 +542,6 @@ function centroidOf(verts: Vec2[]): Vec2 {
   return { x: x / verts.length, y: y / verts.length }
 }
 
-/**
- * Existing-tile vertex arrays from every Cell in the Patch, expressed in
- * `host`'s local frame. Sibling Cells get their tiles forward-transformed
- * through their own cellTransform then inverse-transformed through `host`'s,
- * so overlap / adjacency checks can compare the candidate tile (in `host`-
- * local) against the entire Patch's tiles uniformly.
- */
-function existingTilesInHostFrame(patch: EditorPatch, host: EditorCell): Vec2[][] {
-  const out: Vec2[][] = []
-  for (const cell of patch.cells) {
-    for (const tile of cell.tiles) {
-      const local = tileVertices(tile)
-      if (cell.id === host.id) {
-        out.push(local)
-        continue
-      }
-      const patchLocal = local.map(v => applyCellTransform(v, cell))
-      out.push(patchLocal.map(v => inverseCellTransform(v, host)))
-    }
-  }
-  return out
-}
 
 /**
  * Q15 — after any editor mutation, ensure every distinct `tileTypeId` across

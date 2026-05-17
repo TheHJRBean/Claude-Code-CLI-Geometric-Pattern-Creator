@@ -2,9 +2,12 @@ import type { Vec2 } from '../utils/math'
 import { pointsEqual } from '../utils/math'
 import type { EditorPatch, EditorCell, EditorTile } from '../types/editor'
 import { computeAllCycles, computeBoundaryCycle } from './boundary'
-import { EDITOR_EPS } from './exposedEdges'
+import { EDITOR_EPS, tileVertices } from './exposedEdges'
 import { applyStamp, editorOneRingNeighbourStamps, type LatticeStamp } from './lattice'
 import { compositionOneRingStamps } from './compositionLattice'
+import { ensureCCW } from './complete'
+import { validateNGapPolygon } from './completeN'
+import { overlapsExisting } from './tileOverlap'
 
 /**
  * Patch-frame helpers for Complete mode.
@@ -114,4 +117,70 @@ export function retargetTile(
 /** True if `p` matches any vertex in `set` within `EDITOR_EPS`. */
 export function isSelectable(p: Vec2, set: Vec2[]): boolean {
   return set.some(q => pointsEqual(p, q, EDITOR_EPS))
+}
+
+/**
+ * Existing-tile vertex arrays from every Cell in the Patch, expressed in
+ * `host`'s local frame. Sibling Cells get their tiles forward-transformed
+ * through their own cellTransform then inverse-transformed through `host`'s,
+ * so overlap / adjacency checks can compare the candidate tile (in `host`-
+ * local) against the entire Patch's tiles uniformly.
+ */
+export function existingTilesInHostFrame(patch: EditorPatch, host: EditorCell): Vec2[][] {
+  const out: Vec2[][] = []
+  for (const cell of patch.cells) {
+    for (const tile of cell.tiles) {
+      const local = tileVertices(tile)
+      if (cell.id === host.id) {
+        out.push(local)
+        continue
+      }
+      const patchLocal = local.map(v => applyCellTransform(v, cell))
+      out.push(patchLocal.map(v => inverseCellTransform(v, host)))
+    }
+  }
+  return out
+}
+
+/**
+ * Result of `validateMultiPick`. Mirrors the reducer's gating in
+ * `multiPickCompleteAcrossPatch`, so the preview can show red / green in
+ * real time without the user having to press Enter to discover the
+ * rejection.
+ */
+export type MultiPickValidity =
+  | { kind: 'valid' }
+  | { kind: 'too-few' }
+  | { kind: 'pick-not-selectable' }
+  | { kind: 'no-real-cell-pick' }
+  | { kind: 'duplicate-vertex' }
+  | { kind: 'self-intersecting' }
+  | { kind: 'inside-tile' }
+  | { kind: 'overlaps-existing' }
+
+/**
+ * Validate a multi-pick (Ctrl-click + Enter) attempt against the same
+ * gates the reducer applies. Used by the canvas preview to colour the
+ * polygon red/green live.
+ */
+export function validateMultiPick(patch: EditorPatch, picks: Vec2[]): MultiPickValidity {
+  if (picks.length < 3) return { kind: 'too-few' }
+  const selectable = patchSelectableVertices(patch, true)
+  if (!picks.every(p => isSelectable(p, selectable))) return { kind: 'pick-not-selectable' }
+  const realVerts = patchSelectableVertices(patch, false)
+  if (!picks.some(p => isSelectable(p, realVerts))) return { kind: 'no-real-cell-pick' }
+
+  const active = patch.cells.find(c => c.id === patch.activeCellId) ?? patch.cells[0]
+  const localPicks = picks.map(p => inverseCellTransform(p, active))
+  const ngap = validateNGapPolygon(localPicks, active)
+  if (ngap.kind === 'too-few') return { kind: 'too-few' }
+  if (ngap.kind === 'duplicate-vertex') return { kind: 'duplicate-vertex' }
+  if (ngap.kind === 'self-intersecting') return { kind: 'self-intersecting' }
+  if (ngap.kind === 'inside-tile') return { kind: 'inside-tile' }
+
+  const candidate = ensureCCW([...localPicks])
+  const userTiles = existingTilesInHostFrame(patch, active)
+  if (overlapsExisting(candidate, userTiles)) return { kind: 'overlaps-existing' }
+
+  return { kind: 'valid' }
 }

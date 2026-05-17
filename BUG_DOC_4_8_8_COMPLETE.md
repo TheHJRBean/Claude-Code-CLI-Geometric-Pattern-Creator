@@ -177,6 +177,29 @@ Kept as a header for chronology; actionable work is folded into Bug 9.
 
 ---
 
+### Bug 11 — Multi-pick preview disagreed with reducer validation
+
+**Status:** FIXED · commit pending
+**Symptom (user, 2026-05-17 after Bug 10 fix):** "Tile picker is working ok now but multipick is still not functioning." Diagnostic log:
+```
+[multiPick] start {picks: 3, active: 'octagon', patchCells: 2, symmetryMode: 'rotation'}
+[multiPick] orbit 0 REJECT — candidate overlaps user tiles
+```
+Reducer correctly rejected the picks (per Bug 3 — polygon overlaps an existing seed Tile). But the canvas preview rendered the polygon GREEN before Enter, so the user thought their picks were valid and was surprised when Enter did nothing.
+
+**Root cause:** The canvas preview used `validateNGapPolygon(picks, activeCell)` which only checks `≥3 picks / no duplicates / simple polygon / centroid not inside any tile`. The reducer's full pipeline adds: selectable, real-Cell pick precondition (Bug 9), and `overlapsExisting` strict overlap check (Bug 3). These extra gates were invisible in the preview.
+
+**Fix:**
+- New `validateMultiPick(patch, picks)` in `src/editor/patchSelectable.ts` returning a unified `MultiPickValidity` kind. Mirrors every gate the reducer applies.
+- `existingTilesInHostFrame` moved from reducer.ts to patchSelectable.ts (now exported, used by both reducer and validator).
+- `TessellationLabMode.tsx`: `previewValid` now calls `validateMultiPick(config.editor, picks)`. Polygon turns red the moment picks would be rejected.
+
+After this fix the user's overlap-rejection is visible BEFORE Enter, so they know to pick differently rather than mash Enter and see nothing happen.
+
+**Verification:** User to confirm — overlapping multi-pick scenarios should preview RED; valid scenarios green and Enter places the Tile.
+
+---
+
 ### Bug 10 — Tile picker stuck on "no polygon fits here" in multi-cell after slider drag
 
 **Status:** FIXED · commit pending

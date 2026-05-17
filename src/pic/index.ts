@@ -7,38 +7,91 @@ import { EPSILON, dist, midpoint, pointInPolygon, isConvexPolygon, type Vec2 } f
 /**
  * For a given vertex (shared by prevEdge and currEdge), find the correct
  * ray pairing. The pairing depends on polygon winding, so we try both
- * combinations and pick the one where both t values are positive.
+ * combinations.
+ *
+ * Selection priority:
+ *  1. Whichever pairing's intersection lies INSIDE the polygon (normal star
+ *     for pair A; concave/reflex star for pair B). This lets the figure
+ *     switch from convex-star to concave-star as θ sweeps past the regime
+ *     where pair A's tip leaves the polygon.
+ *  2. If neither lands inside, fall back to pair A (downstream emitStarArms
+ *     handles the outside-tip case via edge-slide).
+ *  3. If neither is valid (both have non-positive t or are parallel), null.
+ *
+ * The `convex` flag is no longer used to skip pointInPolygon — for irregular
+ * convex tiles, pair A's intersection can be outside even though the polygon
+ * is convex. The cost of pointInPolygon is negligible at this call rate.
  */
 function pairAtVertex(
   rays: ContactRay[],
   prevEdge: number,
   currEdge: number,
   polyVertices: Vec2[],
-  convex: boolean,
+  _convex: boolean,
 ): { ray1: ContactRay; ray2: ContactRay; result: IntersectResult } | null {
-  // Try pairing A: prev.minus + curr.plus
   const rA1 = rays[prevEdge * 2 + 1]
   const rA2 = rays[currEdge * 2]
   const resA = rayRayIntersect(rA1.origin, rA1.dir, rA2.origin, rA2.dir)
-  if (resA && resA.t1 > EPSILON && resA.t2 > EPSILON &&
-      (convex || pointInPolygon(resA.point, polyVertices))) {
-    return { ray1: rA1, ray2: rA2, result: resA }
-  }
+  const aValid = !!resA && resA.t1 > EPSILON && resA.t2 > EPSILON
+  const aInside = aValid && pointInPolygon(resA!.point, polyVertices)
 
-  // Try pairing B: prev.plus + curr.minus
   const rB1 = rays[prevEdge * 2]
   const rB2 = rays[currEdge * 2 + 1]
   const resB = rayRayIntersect(rB1.origin, rB1.dir, rB2.origin, rB2.dir)
-  if (resB && resB.t1 > EPSILON && resB.t2 > EPSILON &&
-      (convex || pointInPolygon(resB.point, polyVertices))) {
-    return { ray1: rB1, ray2: rB2, result: resB }
-  }
+  const bValid = !!resB && resB.t1 > EPSILON && resB.t2 > EPSILON
+  const bInside = bValid && pointInPolygon(resB!.point, polyVertices)
 
+  if (aInside) return { ray1: rA1, ray2: rA2, result: resA! }
+  if (bInside) return { ray1: rB1, ray2: rB2, result: resB! }
+  if (aValid) return { ray1: rA1, ray2: rA2, result: resA! }
+  if (bValid) return { ray1: rB1, ray2: rB2, result: resB! }
   return null
 }
 
 /**
+ * Clip a segment from `from` to `to` against a polygon boundary.
+ * `skipEdgeIdx` excludes the polygon edge the segment originates on (so
+ * the on-boundary start point doesn't self-intersect).
+ * If the segment's natural endpoint lies past the boundary, returns the
+ * first boundary crossing; otherwise returns the natural endpoint.
+ */
+function clipSegmentToPolygon(
+  from: Vec2,
+  to: Vec2,
+  polyVertices: Vec2[],
+  skipEdgeIdx: number,
+): Vec2 {
+  const dir = { x: to.x - from.x, y: to.y - from.y }
+  let nearestT = 1
+  let nearestPoint = to
+  const n = polyVertices.length
+  for (let k = 0; k < n; k++) {
+    if (k === skipEdgeIdx) continue
+    const A = polyVertices[k]
+    const B = polyVertices[(k + 1) % n]
+    const edgeDir = { x: B.x - A.x, y: B.y - A.y }
+    const res = rayRayIntersect(from, dir, A, edgeDir)
+    if (!res) continue
+    if (res.t1 < EPSILON || res.t1 > 1 + EPSILON) continue
+    if (res.t2 < -EPSILON || res.t2 > 1 + EPSILON) continue
+    if (res.t1 < nearestT) {
+      nearestT = res.t1
+      nearestPoint = res.point
+    }
+  }
+  return nearestPoint
+}
+
+/**
  * Emit star arm segments for a single vertex pairing.
+ *
+ * When the natural ray-pair intersection (the star tip) sits outside the
+ * polygon — common on irregular convex tiles at low θ — the figure switches
+ * to "edge-slide" mode: the shorter clipped ray is suppressed (pinned at 0)
+ * and the longer ray is emitted as two segments — origin → boundary clip,
+ * then boundary clip → suppressed ray's origin along the shared exit edge.
+ * In autoLineLength=false (fixed length) mode the boundary clip is just a
+ * safety stop with no slide.
  */
 function emitStarArms(
   pair: { ray1: ContactRay; ray2: ContactRay; result: IntersectResult },
@@ -49,64 +102,86 @@ function emitStarArms(
   tileTypeId: string,
   polygonCenter: Vec2,
   polygonSides: number,
+  polyVertices: Vec2[],
   segments: Segment[],
 ): void {
   const { ray1, ray2, result } = pair
 
-  if (autoLineLength) {
+  if (autoLineLength && !pointInPolygon(result.point, polyVertices)) {
+    // Edge-slide mode: star tip is outside the polygon.
+    const clip1 = clipSegmentToPolygon(ray1.origin, result.point, polyVertices, ray1.edgeIndex)
+    const clip2 = clipSegmentToPolygon(ray2.origin, result.point, polyVertices, ray2.edgeIndex)
+    const len1 = dist(ray1.origin, clip1)
+    const len2 = dist(ray2.origin, clip2)
+    if (len1 < EPSILON && len2 < EPSILON) return
+
+    const longIsR1 = len1 >= len2
+    const longRay = longIsR1 ? ray1 : ray2
+    const longClip = longIsR1 ? clip1 : clip2
+    const shortRay = longIsR1 ? ray2 : ray1
+
+    // Arm: long ray's straight portion from its origin to the boundary.
     segments.push({
-      from: ray1.origin,
-      to: result.point,
-      edgeMidpoint: ray1.origin,
+      from: longRay.origin,
+      to: longClip,
+      edgeMidpoint: longRay.origin,
       polygonCenter,
       polygonSides,
       polygonId,
       tileTypeId,
       kind: 'star-arm',
-      side: ray1.side,
+      side: longRay.side,
     })
+    // Slide: along the shared exit edge to the suppressed ray's origin.
     segments.push({
-      from: ray2.origin,
-      to: result.point,
-      edgeMidpoint: ray2.origin,
+      from: longClip,
+      to: shortRay.origin,
+      edgeMidpoint: longRay.origin,
       polygonCenter,
       polygonSides,
       polygonId,
       tileTypeId,
       kind: 'star-arm',
-      side: ray2.side,
+      side: longRay.side,
     })
-  } else {
-    const t = lineLength * inradius
-    segments.push({
-      from: ray1.origin,
-      to: {
-        x: ray1.origin.x + ray1.dir.x * t,
-        y: ray1.origin.y + ray1.dir.y * t,
-      },
-      edgeMidpoint: ray1.origin,
-      polygonCenter,
-      polygonSides,
-      polygonId,
-      tileTypeId,
-      kind: 'star-arm',
-      side: ray1.side,
-    })
-    segments.push({
-      from: ray2.origin,
-      to: {
-        x: ray2.origin.x + ray2.dir.x * t,
-        y: ray2.origin.y + ray2.dir.y * t,
-      },
-      edgeMidpoint: ray2.origin,
-      polygonCenter,
-      polygonSides,
-      polygonId,
-      tileTypeId,
-      kind: 'star-arm',
-      side: ray2.side,
-    })
+    return
   }
+
+  const to1Natural = autoLineLength
+    ? result.point
+    : {
+        x: ray1.origin.x + ray1.dir.x * lineLength * inradius,
+        y: ray1.origin.y + ray1.dir.y * lineLength * inradius,
+      }
+  const to2Natural = autoLineLength
+    ? result.point
+    : {
+        x: ray2.origin.x + ray2.dir.x * lineLength * inradius,
+        y: ray2.origin.y + ray2.dir.y * lineLength * inradius,
+      }
+
+  segments.push({
+    from: ray1.origin,
+    to: clipSegmentToPolygon(ray1.origin, to1Natural, polyVertices, ray1.edgeIndex),
+    edgeMidpoint: ray1.origin,
+    polygonCenter,
+    polygonSides,
+    polygonId,
+    tileTypeId,
+    kind: 'star-arm',
+    side: ray1.side,
+  })
+  segments.push({
+    from: ray2.origin,
+    to: clipSegmentToPolygon(ray2.origin, to2Natural, polyVertices, ray2.edgeIndex),
+    edgeMidpoint: ray2.origin,
+    polygonCenter,
+    polygonSides,
+    polygonId,
+    tileTypeId,
+    kind: 'star-arm',
+    side: ray2.side,
+  })
 }
 
 /**
@@ -119,31 +194,32 @@ function pairVertexAtEdge(
   vIdx1: number,
   vIdx2: number,
   polyVertices: Vec2[],
-  convex: boolean,
+  _convex: boolean,
 ): { ray1: VertexRay; ray2: VertexRay; result: IntersectResult } | null {
-  // Try pairing A: v1.minus + v2.plus
   const rA1 = vertexRays[vIdx1 * 2 + 1]
   const rA2 = vertexRays[vIdx2 * 2]
   const resA = rayRayIntersect(rA1.origin, rA1.dir, rA2.origin, rA2.dir)
-  if (resA && resA.t1 > EPSILON && resA.t2 > EPSILON &&
-      (convex || pointInPolygon(resA.point, polyVertices))) {
-    return { ray1: rA1, ray2: rA2, result: resA }
-  }
+  const aValid = !!resA && resA.t1 > EPSILON && resA.t2 > EPSILON
+  const aInside = aValid && pointInPolygon(resA!.point, polyVertices)
 
-  // Try pairing B: v1.plus + v2.minus
   const rB1 = vertexRays[vIdx1 * 2]
   const rB2 = vertexRays[vIdx2 * 2 + 1]
   const resB = rayRayIntersect(rB1.origin, rB1.dir, rB2.origin, rB2.dir)
-  if (resB && resB.t1 > EPSILON && resB.t2 > EPSILON &&
-      (convex || pointInPolygon(resB.point, polyVertices))) {
-    return { ray1: rB1, ray2: rB2, result: resB }
-  }
+  const bValid = !!resB && resB.t1 > EPSILON && resB.t2 > EPSILON
+  const bInside = bValid && pointInPolygon(resB!.point, polyVertices)
 
+  if (aInside) return { ray1: rA1, ray2: rA2, result: resA! }
+  if (bInside) return { ray1: rB1, ray2: rB2, result: resB! }
+  if (aValid) return { ray1: rA1, ray2: rA2, result: resA! }
+  if (bValid) return { ray1: rB1, ray2: rB2, result: resB! }
   return null
 }
 
 /**
  * Emit vertex arm segments for a single edge pairing.
+ *
+ * Arms originate at polygon vertices and are clipped to the polygon boundary
+ * so an out-of-polygon meeting point doesn't leak into neighbouring tiles.
  */
 function emitVertexArms(
   pair: { ray1: VertexRay; ray2: VertexRay; result: IntersectResult },
@@ -155,64 +231,48 @@ function emitVertexArms(
   polygonCenter: Vec2,
   polygonSides: number,
   edgeMid: Vec2,
+  polyVertices: Vec2[],
   segments: Segment[],
 ): void {
   const { ray1, ray2, result } = pair
 
-  if (autoLineLength) {
-    segments.push({
-      from: ray1.origin,
-      to: result.point,
-      edgeMidpoint: edgeMid,
-      polygonCenter,
-      polygonSides,
-      polygonId,
-      tileTypeId,
-      kind: 'vertex-line',
-      side: ray1.side,
-    })
-    segments.push({
-      from: ray2.origin,
-      to: result.point,
-      edgeMidpoint: edgeMid,
-      polygonCenter,
-      polygonSides,
-      polygonId,
-      tileTypeId,
-      kind: 'vertex-line',
-      side: ray2.side,
-    })
-  } else {
-    const t = lineLength * circumradius
-    segments.push({
-      from: ray1.origin,
-      to: {
-        x: ray1.origin.x + ray1.dir.x * t,
-        y: ray1.origin.y + ray1.dir.y * t,
-      },
-      edgeMidpoint: edgeMid,
-      polygonCenter,
-      polygonSides,
-      polygonId,
-      tileTypeId,
-      kind: 'vertex-line',
-      side: ray1.side,
-    })
-    segments.push({
-      from: ray2.origin,
-      to: {
-        x: ray2.origin.x + ray2.dir.x * t,
-        y: ray2.origin.y + ray2.dir.y * t,
-      },
-      edgeMidpoint: edgeMid,
-      polygonCenter,
-      polygonSides,
-      polygonId,
-      tileTypeId,
-      kind: 'vertex-line',
-      side: ray2.side,
-    })
-  }
+  const to1Natural = autoLineLength
+    ? result.point
+    : {
+        x: ray1.origin.x + ray1.dir.x * lineLength * circumradius,
+        y: ray1.origin.y + ray1.dir.y * lineLength * circumradius,
+      }
+  const to2Natural = autoLineLength
+    ? result.point
+    : {
+        x: ray2.origin.x + ray2.dir.x * lineLength * circumradius,
+        y: ray2.origin.y + ray2.dir.y * lineLength * circumradius,
+      }
+
+  // Vertex arms start at a polygon vertex (incident to two edges); t1 > EPSILON
+  // alone rejects the trivial self-intersection so no skipEdgeIdx is needed.
+  segments.push({
+    from: ray1.origin,
+    to: clipSegmentToPolygon(ray1.origin, to1Natural, polyVertices, -1),
+    edgeMidpoint: edgeMid,
+    polygonCenter,
+    polygonSides,
+    polygonId,
+    tileTypeId,
+    kind: 'vertex-line',
+    side: ray1.side,
+  })
+  segments.push({
+    from: ray2.origin,
+    to: clipSegmentToPolygon(ray2.origin, to2Natural, polyVertices, -1),
+    edgeMidpoint: edgeMid,
+    polygonCenter,
+    polygonSides,
+    polygonId,
+    tileTypeId,
+    kind: 'vertex-line',
+    side: ray2.side,
+  })
 }
 
 /**
@@ -293,7 +353,7 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
 
       starTips.push(pair.result.point)
       if (edgeEnabled) {
-        emitStarArms(pair, fig.autoLineLength, fig.lineLength, inradius, poly.id, poly.tileTypeId, poly.center, n, segments)
+        emitStarArms(pair, fig.autoLineLength, fig.lineLength, inradius, poly.id, poly.tileTypeId, poly.center, n, poly.vertices, segments)
       }
     }
 
@@ -321,7 +381,7 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
         const nextV = (k + 1) % n
         const pair = pairVertexAtEdge(vertexRays, k, nextV, poly.vertices, convex)
         if (!pair) continue
-        emitVertexArms(pair, vtxAutoLen, vtxLineLen, circumradius, poly.id, poly.tileTypeId, poly.center, n, eMid, segments)
+        emitVertexArms(pair, vtxAutoLen, vtxLineLen, circumradius, poly.id, poly.tileTypeId, poly.center, n, eMid, poly.vertices, segments)
       }
     }
 

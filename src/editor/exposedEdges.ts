@@ -49,7 +49,7 @@ export function tileCenter(tile: EditorTile): Vec2 {
   return tile.kind === 'regular' ? tile.center : centroid(tile.vertices)
 }
 
-function edgesShareEndpoints(a1: Vec2, a2: Vec2, b1: Vec2, b2: Vec2, eps = EDITOR_EPS): boolean {
+export function edgesShareEndpoints(a1: Vec2, a2: Vec2, b1: Vec2, b2: Vec2, eps = EDITOR_EPS): boolean {
   return (
     (pointsEqual(a1, b1, eps) && pointsEqual(a2, b2, eps))
     || (pointsEqual(a1, b2, eps) && pointsEqual(a2, b1, eps))

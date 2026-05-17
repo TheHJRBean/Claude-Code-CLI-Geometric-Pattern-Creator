@@ -1,5 +1,5 @@
 import type { CurvePoint, FigureConfig, PatternConfig } from '../types/pattern'
-import type { EditorCell, EditorTile } from '../types/editor'
+import type { EditorCell, EditorPatch, EditorTile } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import type { Action } from './actions'
 import { TILINGS } from '../tilings/index'
@@ -28,6 +28,8 @@ import {
   patchSelectableVertices,
   retargetTile,
 } from '../editor/patchSelectable'
+import { overlapsExisting, sharesEdgeWithExisting } from '../editor/tileOverlap'
+import { tileVertices } from '../editor/exposedEdges'
 import type { LatticeStamp } from '../editor/lattice'
 import { pointsEqual } from '../utils/math'
 import { EDITOR_EPS } from '../editor/exposedEdges'
@@ -439,6 +441,11 @@ function chordCompleteAcrossPatch(state: PatternConfig, pA: Vec2, pB: Vec2): Pat
       const sourceTile = completeGap(cell, localA, localB, id)
       if (!sourceTile) continue
       const newTile = retargetTile(sourceTile, cell, stamp, host)
+      const candidate = tileVertices(newTile)
+      // Overlap guard: a chord whose arc spans far enough to enclose existing
+      // Tiles produces a gap polygon that overlaps them. Reject those — the
+      // user expected a single-edge first-layer fill, not a wraparound.
+      if (overlapsExisting(candidate, existingTilesInHostFrame(patch, host))) continue
       const updatedHost = { ...host, tiles: [...host.tiles, newTile] }
       const cells = patch.cells.map(c => (c.id === host.id ? updatedHost : c))
       return applyWrap(seedFigures({ ...state, editor: { ...patch, cells } }))
@@ -471,6 +478,11 @@ function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[]): Patt
   const placements: EditorTile[] = []
   let working: EditorCell = active
   const idPrefix = `completed-n-${active.tiles.length}-${Date.now()}`
+  // Adjacency reference: only the user's pre-existing Tiles count. Orbit
+  // images placed inside this loop don't satisfy adjacency for their siblings
+  // — otherwise a chain of mutually-adjacent orbit images could drift away
+  // from any real Tile.
+  const userTiles = existingTilesInHostFrame(patch, active)
   for (let i = 0; i < syms.length; i++) {
     const transformed = localPicks.map(p => applySym(syms[i], p))
     // Orbit image must also land on selectable vertices — drop silently for
@@ -482,6 +494,14 @@ function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[]): Patt
     seenCentroids.push(c)
     const tile = completeNGap(working, transformed, `${idPrefix}-${i}`)
     if (!tile) return state
+    // First-layer adjacency + overlap guards. Picks form a free-floating
+    // polygon under multi-pick mode (no cycle arc constrains them), so the
+    // result must (a) share an edge with an existing user Tile and (b) not
+    // strictly overlap any Tile (user-placed or sibling orbit image).
+    const candidate = tileVertices(tile)
+    if (!sharesEdgeWithExisting(candidate, userTiles)) return state
+    const placementVerts = placements.map(tileVertices)
+    if (overlapsExisting(candidate, [...userTiles, ...placementVerts])) return state
     placements.push(tile)
     working = { ...working, tiles: [...working.tiles, tile] }
   }
@@ -493,6 +513,29 @@ function centroidOf(verts: Vec2[]): Vec2 {
   let x = 0, y = 0
   for (const v of verts) { x += v.x; y += v.y }
   return { x: x / verts.length, y: y / verts.length }
+}
+
+/**
+ * Existing-tile vertex arrays from every Cell in the Patch, expressed in
+ * `host`'s local frame. Sibling Cells get their tiles forward-transformed
+ * through their own cellTransform then inverse-transformed through `host`'s,
+ * so overlap / adjacency checks can compare the candidate tile (in `host`-
+ * local) against the entire Patch's tiles uniformly.
+ */
+function existingTilesInHostFrame(patch: EditorPatch, host: EditorCell): Vec2[][] {
+  const out: Vec2[][] = []
+  for (const cell of patch.cells) {
+    for (const tile of cell.tiles) {
+      const local = tileVertices(tile)
+      if (cell.id === host.id) {
+        out.push(local)
+        continue
+      }
+      const patchLocal = local.map(v => applyCellTransform(v, cell))
+      out.push(patchLocal.map(v => inverseCellTransform(v, host)))
+    }
+  }
+  return out
 }
 
 /**

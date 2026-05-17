@@ -1,5 +1,5 @@
 import type { CurvePoint, FigureConfig, PatternConfig } from '../types/pattern'
-import type { EditorCell } from '../types/editor'
+import type { EditorCell, EditorTile } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import type { Action } from './actions'
 import { TILINGS } from '../tilings/index'
@@ -12,11 +12,25 @@ import {
 } from '../editor/createDefault'
 import { computeExposedEdges } from '../editor/exposedEdges'
 import { isPlacementViable, placeRegularNGonOnEdge } from '../editor/placement'
-import { orbitTileIds, placeTilesOnOrbit, placePolygonsOnOrbit } from '../editor/orbit'
+import { orbitTileIds, placeTilesOnOrbit } from '../editor/orbit'
 import { completeGap } from '../editor/complete'
+import { completeNGap } from '../editor/completeN'
+import { boundarySymmetries, applySym } from '../editor/symmetry'
 import { autoCompleteCell, fitBoundarySize } from '../editor/autoComplete'
 import { seedFiguresForEditor } from '../editor/tileTypes'
 import { activeCell, allCells, withActiveCell } from '../editor/active'
+import {
+  applyCellTransform,
+  inverseCellTransform,
+  inverseRotateTranslate,
+  isSelectable,
+  patchNeighbourStamps,
+  patchSelectableVertices,
+  retargetTile,
+} from '../editor/patchSelectable'
+import type { LatticeStamp } from '../editor/lattice'
+import { pointsEqual } from '../utils/math'
+import { EDITOR_EPS } from '../editor/exposedEdges'
 
 const FALLBACK_FIGURE: FigureConfig = { type: 'star', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
 
@@ -276,32 +290,12 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     case 'EDITOR_COMPLETE_GAP': {
       if (!state.editor) return state
       const { pA, pB } = action.payload
-      // Cross-Cell completion: try the active Cell first, then each sibling.
-      // Picks come from the canvas in Patch-local coords; transform into each
-      // Cell's local frame before handing to `completeGap`.
-      return completeAcrossCells(state, cell => {
-        const localA = inverseCellTransform(pA, cell)
-        const localB = inverseCellTransform(pB, cell)
-        const id = `completed-${cell.tiles.length}-${Date.now()}`
-        const tile = completeGap(cell, localA, localB, id)
-        if (!tile) return null
-        return { ...cell, tiles: [...cell.tiles, tile] }
-      })
+      return chordCompleteAcrossPatch(state, pA, pB)
     }
     case 'EDITOR_COMPLETE_N_GAP': {
       if (!state.editor) return state
       const { picks } = action.payload
-      // 17.11b — orbit propagation. With symmetryMode='none' this returns
-      // the same single-instance tile array as 17.11; with a non-trivial
-      // subgroup, all orbit images that pass the vertex-coincidence gate
-      // place atomically (or none of them do, per Decision a).
-      return completeAcrossCells(state, cell => {
-        const localPicks = picks.map(p => inverseCellTransform(p, cell))
-        const idPrefix = `completed-n-${cell.tiles.length}-${Date.now()}`
-        const tiles = placePolygonsOnOrbit(cell, localPicks, idPrefix)
-        if (!tiles || tiles.length === 0) return null
-        return { ...cell, tiles: [...cell.tiles, ...tiles] }
-      })
+      return multiPickCompleteAcrossPatch(state, picks)
     }
     case 'SET_EDITOR_AUTO_COMPLETE_ENABLED': {
       if (!state.editor) return state
@@ -410,48 +404,95 @@ function updateActiveCell(
 }
 
 /**
- * Cross-Cell completion router. Tries each Cell (active first) by handing it
- * to the supplied factory; the factory returns the new Cell or `null` if the
- * picks don't fit. The first Cell that yields a non-null result wins; the
- * returned `PatternConfig` has that Cell updated in `state.editor.cells`.
- * Picks that match nothing in any Cell leave state untouched.
+ * Chord-mode Complete router across the whole Patch.
+ *
+ * Iterates (Cell, stamp) pairs — active Cell first, then siblings, then each
+ * one-ring neighbour stamp × each Cell. For each pair the picks are mapped
+ * into source-Cell-local (undoing the optional stamp first), and the
+ * existing `completeGap` is called with its native outer / boundary / mixed
+ * disambiguation. The first non-null result wins.
+ *
+ * Tile hosting:
+ *   - `stamp == null` → tile lives in the source Cell (within-Cell Complete,
+ *     same as the legacy per-Cell behaviour).
+ *   - `stamp != null` → tile lives in the active Cell (cross-stamp picks
+ *     land at the stamp position but are stored as active-Cell-local tile
+ *     vertices that poke outside its Boundary per Decision 5).
  */
-function completeAcrossCells(
-  state: PatternConfig,
-  apply: (cell: EditorCell) => EditorCell | null,
-): PatternConfig {
+function chordCompleteAcrossPatch(state: PatternConfig, pA: Vec2, pB: Vec2): PatternConfig {
   if (!state.editor) return state
-  const order = [
-    ...state.editor.cells.filter(c => c.id === state.editor!.activeCellId),
-    ...state.editor.cells.filter(c => c.id !== state.editor!.activeCellId),
+  const patch = state.editor
+  const active = activeCell(patch)
+  const ordered = [
+    ...patch.cells.filter(c => c.id === patch.activeCellId),
+    ...patch.cells.filter(c => c.id !== patch.activeCellId),
   ]
-  for (const cell of order) {
-    const nextCell = apply(cell)
-    if (!nextCell || nextCell === cell) continue
-    const cells = state.editor.cells.map(c => (c.id === cell.id ? nextCell : c))
-    const after: PatternConfig = {
-      ...state,
-      editor: { ...state.editor, cells },
+  const stamps: (LatticeStamp | null)[] = [null, ...patchNeighbourStamps(patch)]
+  for (const stamp of stamps) {
+    for (const cell of ordered) {
+      const undo = (p: Vec2) =>
+        inverseCellTransform(stamp ? inverseRotateTranslate(p, stamp) : p, cell)
+      const localA = undo(pA)
+      const localB = undo(pB)
+      const host = stamp === null ? cell : active
+      const id = `completed-${host.tiles.length}-${Date.now()}`
+      const sourceTile = completeGap(cell, localA, localB, id)
+      if (!sourceTile) continue
+      const newTile = retargetTile(sourceTile, cell, stamp, host)
+      const updatedHost = { ...host, tiles: [...host.tiles, newTile] }
+      const cells = patch.cells.map(c => (c.id === host.id ? updatedHost : c))
+      return applyWrap(seedFigures({ ...state, editor: { ...patch, cells } }))
     }
-    return applyWrap(seedFigures(after))
   }
   return state
 }
 
 /**
- * Inverse of a Cell's transform: takes a point in Patch-local coords and
- * returns the equivalent in the Cell's local coords. Used by Complete-mode
- * handlers in multi-cell Configurations: vertex picks come in Patch-local
- * from the canvas overlay, but `completeGap` / `placePolygonsOnOrbit` expect
- * Cell-local picks to match the Cell's cycle vertices.
+ * Multi-vertex Complete router. Validates every pick against the
+ * Patch-frame selectable set (matches the canvas's pick-target build), then
+ * routes all picks into the active Cell's local frame. Symmetry orbit
+ * propagation uses the active Cell's subgroup — orbit images whose
+ * Patch-local position isn't in the selectable set are silently dropped
+ * (per existing asymmetric-Cell convention).
+ *
+ * Tile always lives in the active Cell (locked design decision — vertices
+ * may poke outside its Boundary per Decision 5).
  */
-function inverseCellTransform(p: Vec2, cell: EditorCell): Vec2 {
-  const dx = p.x - cell.center.x
-  const dy = p.y - cell.center.y
-  if (cell.rotation === 0) return { x: dx, y: dy }
-  // Inverse rotation = transpose for orthogonal matrix.
-  const c = Math.cos(cell.rotation), s = Math.sin(cell.rotation)
-  return { x: dx * c + dy * s, y: -dx * s + dy * c }
+function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[]): PatternConfig {
+  if (!state.editor) return state
+  const patch = state.editor
+  const active = activeCell(patch)
+  const selectable = patchSelectableVertices(patch, true)
+  if (!picks.every(p => isSelectable(p, selectable))) return state
+
+  const localPicks = picks.map(p => inverseCellTransform(p, active))
+  const syms = boundarySymmetries(active.shape, active.symmetryMode ?? 'none')
+  const seenCentroids: Vec2[] = []
+  const placements: EditorTile[] = []
+  let working: EditorCell = active
+  const idPrefix = `completed-n-${active.tiles.length}-${Date.now()}`
+  for (let i = 0; i < syms.length; i++) {
+    const transformed = localPicks.map(p => applySym(syms[i], p))
+    // Orbit image must also land on selectable vertices — drop silently for
+    // asymmetric setups where the orbit branch has no real pick targets.
+    const patchLocal = transformed.map(p => applyCellTransform(p, active))
+    if (!patchLocal.every(p => isSelectable(p, selectable))) continue
+    const c = centroidOf(transformed)
+    if (seenCentroids.some(q => pointsEqual(c, q, EDITOR_EPS))) continue
+    seenCentroids.push(c)
+    const tile = completeNGap(working, transformed, `${idPrefix}-${i}`)
+    if (!tile) return state
+    placements.push(tile)
+    working = { ...working, tiles: [...working.tiles, tile] }
+  }
+  if (placements.length === 0) return state
+  return applyWrap(seedFigures(updateActiveCell(state, _ => working)))
+}
+
+function centroidOf(verts: Vec2[]): Vec2 {
+  let x = 0, y = 0
+  for (const v of verts) { x += v.x; y += v.y }
+  return { x: x / verts.length, y: y / verts.length }
 }
 
 /**

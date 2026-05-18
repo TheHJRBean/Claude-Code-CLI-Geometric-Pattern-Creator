@@ -2,11 +2,17 @@ import type { Vec2 } from '../utils/math'
 import { pointsEqual } from '../utils/math'
 import type { EditorCell, EditorTile } from '../types/editor'
 import { EDITOR_EPS, computeExposedEdges, tileVertices, type ExposedEdge } from './exposedEdges'
-import { applySym, boundarySymmetries } from './symmetry'
+import { applySym, boundarySymmetries, type Sym } from './symmetry'
 import { isPlacementViable, placeRegularNGonOnEdge, PICKER_SIDES, viableSidesForEdge as viableSidesSingle } from './placement'
 import { computeAllCycles, computeBoundaryCycle } from './boundary'
 import { neighbourCycleVertices } from './lattice'
 import { completeNGap } from './completeN'
+import {
+  computeExposedVertices,
+  isVertexPlacementViable,
+  placeRegularNGonOnVertex,
+  type ExposedVertex,
+} from './vertexPlacement'
 
 /**
  * Step 17.4 (re-enabled) — orbit-symmetric edge resolution and placement
@@ -204,4 +210,81 @@ export function viableSidesForEdge(edge: ExposedEdge, cell: EditorCell, _edgeLen
     isPlacementViable(edge, n, cell, placementEdge)
     && placeTilesOnOrbit(cell, placementEdge, edge, n, '__probe__') !== null,
   )
+}
+
+/* ── 17.13b — Vertex placement orbit ───────────────────────────────────── */
+
+/**
+ * Transform a vertex-placement rotation (the angle of edge 0→1 of the new
+ * Tile leaving the anchor vertex) under a boundary symmetry element.
+ *
+ * Pure rotations preserve the CCW polygon and shift the rotation by the
+ * group element's angle. Reflections reverse CCW order — to keep the new
+ * Tile CCW with vertex 0 at the reflected anchor, we re-derive the new
+ * edge 0→1 direction from what was the reflected original edge 0→(n-1).
+ * The closed-form result is `2β - rotation + 2π/n + π` where β is the
+ * reflection axis angle.
+ */
+function transformVertexRotation(s: Sym, rotation: number, sides: number): number {
+  const det = s.a * s.d - s.b * s.c
+  if (det > 0) {
+    // Pure rotation by α = atan2(c, a).
+    return rotation + Math.atan2(s.c, s.a)
+  }
+  // Reflection across line at angle β; refl(β) has a = cos 2β, c = sin 2β.
+  const twoBeta = Math.atan2(s.c, s.a)
+  return twoBeta - rotation + (2 * Math.PI) / sides + Math.PI
+}
+
+/**
+ * All-or-nothing orbit propagation for vertex placement. Mirrors
+ * `placeTilesOnOrbit` (edge variant) and `placeTilesOnBoundarySectionOrbit`.
+ *
+ * Resolves the orbit of `(vertex, rotation)` under the Cell's chosen
+ * symmetry subgroup, validates each image against the cumulative working
+ * state, and returns every resulting Tile — or `null` if any image fails
+ * (symmetry must never partially break).
+ *
+ * Orbit images on a fixed axis (e.g. picking a vertex on the symmetry
+ * axis) collapse to one Tile via centroid dedup, matching
+ * `placePolygonsOnOrbit`'s behaviour.
+ */
+export function placeTilesOnVertexOrbit(
+  cell: EditorCell,
+  edgeLength: number,
+  vertex: ExposedVertex,
+  sides: number,
+  rotation: number,
+  idPrefix: string,
+): EditorTile[] | null {
+  const syms = boundarySymmetries(cell.shape, cell.symmetryMode ?? 'none')
+  // Snapshot the exposed vertex set against the initial Cell — positions
+  // are stable across the loop because new Tiles never move existing
+  // vertices. Asymmetric layouts may have orbit images that don't match a
+  // real exposed vertex; those are silently dropped.
+  const exposed = computeExposedVertices(cell)
+
+  const placements: EditorTile[] = []
+  const seenCenters: Vec2[] = []
+  let working: EditorCell = cell
+
+  for (let i = 0; i < syms.length; i++) {
+    const s = syms[i]
+    const p2 = applySym(s, vertex.p)
+    const matched = exposed.find(v => pointsEqual(v.p, p2, EDITOR_EPS))
+    if (!matched) continue
+
+    const newRotation = transformVertexRotation(s, rotation, sides)
+    const candidate = placeRegularNGonOnVertex(sides, edgeLength, matched, newRotation, '__probe__')
+    if (seenCenters.some(c => pointsEqual(c, candidate.center, EDITOR_EPS))) continue
+
+    if (!isVertexPlacementViable(matched, sides, newRotation, edgeLength, working)) return null
+
+    const tile = placeRegularNGonOnVertex(sides, edgeLength, matched, newRotation, `${idPrefix}-${i}`)
+    placements.push(tile)
+    seenCenters.push(candidate.center)
+    working = { ...working, tiles: [...working.tiles, tile] }
+  }
+
+  return placements.length > 0 ? placements : null
 }

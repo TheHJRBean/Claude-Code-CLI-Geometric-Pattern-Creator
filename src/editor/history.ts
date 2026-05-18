@@ -54,6 +54,9 @@ export const DESIGN_MODE_ACTIONS: ReadonlySet<string> = new Set([
   // Boundary-inward placement (mutates Tiles + possibly `patch.edgeLength`)
   // and the No-Seed toggle (Cell field that resets the Cell when flipped).
   'EDITOR_PLACE_TILE_ON_BOUNDARY_SECTION',
+  // Step 17.13b — vertex-anchored placement (Tile mutation + possible orbit
+  // multi-place under `symmetryMode`).
+  'EDITOR_PLACE_TILE_ON_VERTEX',
   'SET_CELL_NO_SEED',
   'EDITOR_DELETE_TILE',
   'EDITOR_COMPLETE_GAP',

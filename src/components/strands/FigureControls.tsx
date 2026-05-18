@@ -33,6 +33,13 @@ interface FigureControlsProps {
   allFigures: Record<string, { contactAngle: number }>
   dispatch: React.Dispatch<Action>
   onCurvePointActivity: (tileTypeId: string, index: number) => void
+  /**
+   * Reveal the advanced sections (snap, edge/vertex strand toggles,
+   * decoupled vertex parameters, curve recipe). Off by default so callers
+   * opt in. Lab gates this on the Composition phase + Show-advanced toggle;
+   * Gallery gates it on the Show-advanced toggle.
+   */
+  advanced?: boolean
 }
 
 export function FigureControls({
@@ -41,6 +48,7 @@ export function FigureControls({
   curveEnabled, curvePoints, curveAlternating, curveDirection,
   cpShown, onToggleCpShown,
   tilingType, allFigures, dispatch, onCurvePointActivity,
+  advanced = false,
 }: FigureControlsProps) {
   const anglesKey = Object.entries(allFigures)
     .map(([s, f]) => `${s}:${f.contactAngle}`)
@@ -134,30 +142,34 @@ export function FigureControls({
               onChange={e => handleLineLengthChange(Number(e.target.value))}
             />
           </div>
-          <div style={{ marginTop: 6, marginBottom: 4 }}>
-            <Toggle
-              checked={snapEnabled}
-              onChange={v => dispatch({ type: 'SET_SNAP_LINE_LENGTH', payload: { tileTypeId, snap: v } })}
-              label="Snap to neighbors"
-            />
-          </div>
+          {advanced && (
+            <div style={{ marginTop: 6, marginBottom: 4 }}>
+              <Toggle
+                checked={snapEnabled}
+                onChange={v => dispatch({ type: 'SET_SNAP_LINE_LENGTH', payload: { tileTypeId, snap: v } })}
+                label="Snap to neighbors"
+              />
+            </div>
+          )}
         </>
       )}
 
-      <div style={{ marginTop: 12, display: 'flex', gap: 16 }}>
-        <Toggle
-          checked={edgeEnabled}
-          onChange={v => dispatch({ type: 'SET_EDGE_LINES_ENABLED', payload: { tileTypeId, enabled: v } })}
-          label="Edge strands"
-        />
-        <Toggle
-          checked={vertexEnabled}
-          onChange={v => dispatch({ type: 'SET_VERTEX_LINES_ENABLED', payload: { tileTypeId, enabled: v } })}
-          label="Vertex strands"
-        />
-      </div>
+      {advanced && (
+        <div style={{ marginTop: 12, display: 'flex', gap: 16 }}>
+          <Toggle
+            checked={edgeEnabled}
+            onChange={v => dispatch({ type: 'SET_EDGE_LINES_ENABLED', payload: { tileTypeId, enabled: v } })}
+            label="Edge strands"
+          />
+          <Toggle
+            checked={vertexEnabled}
+            onChange={v => dispatch({ type: 'SET_VERTEX_LINES_ENABLED', payload: { tileTypeId, enabled: v } })}
+            label="Vertex strands"
+          />
+        </div>
+      )}
 
-      {vertexEnabled && (
+      {advanced && vertexEnabled && (
         <div style={{ marginTop: 8 }}>
           <Toggle
             checked={vertexDecoupled}
@@ -199,15 +211,17 @@ export function FigureControls({
         </div>
       )}
 
-      <div style={{ marginTop: 12 }}>
-        <Toggle
-          checked={curveEnabled}
-          onChange={v => dispatch({ type: 'SET_CURVE_ENABLED', payload: { tileTypeId, enabled: v } })}
-          label="Curve strands"
-        />
-      </div>
+      {advanced && (
+        <div style={{ marginTop: 12 }}>
+          <Toggle
+            checked={curveEnabled}
+            onChange={v => dispatch({ type: 'SET_CURVE_ENABLED', payload: { tileTypeId, enabled: v } })}
+            label="Curve strands"
+          />
+        </div>
+      )}
 
-      {curveEnabled && (
+      {advanced && curveEnabled && (
         <div style={{ marginTop: 8 }}>
           <div style={{ marginBottom: 8 }}>
             <Toggle

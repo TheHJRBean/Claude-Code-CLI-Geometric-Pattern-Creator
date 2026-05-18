@@ -28,6 +28,14 @@ interface Props {
    */
   boundaryOutlines?: Vec2[][]
   /**
+   * Count of leading `boundaryOutlines` entries that belong to the seed
+   * Patch (the rest are neighbour-stamp ghosts). Seed outlines render with
+   * a solid stroke + full accent opacity; ghosts keep the dimmed dashed
+   * style so the Patch under the user's cursor is the obvious focal area
+   * when Show neighbours is on. Undefined → render every outline as a seed.
+   */
+  seedOutlineCount?: number
+  /**
    * Builder neighbour-preview ghost polygons (Step 17.6d). Drawn at low
    * opacity below the main Tile layer; non-interactive.
    */
@@ -37,7 +45,7 @@ interface Props {
 }
 
 export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
-  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, ghostPolygons, editorOverlay },
+  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, editorOverlay },
   ref
 ) {
   const { x, y, zoom, rotation } = viewTransform
@@ -60,13 +68,17 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
     >
       <g transform={rotation ? `rotate(${rotation} ${cx} ${cy})` : undefined}>
         {ghostPolygons && ghostPolygons.length > 0 && (
-          <g opacity={0.25} pointerEvents="none">
+          <g opacity={0.18} pointerEvents="none">
             <TileLayer polygons={ghostPolygons} visible={showTileLayer} outlineWidth={outlineWidth} />
           </g>
         )}
-        {boundaryOutlines && boundaryOutlines.map((outline, i) => (
-          <BoundaryOutline key={i} vertices={outline} />
-        ))}
+        {boundaryOutlines && boundaryOutlines.map((outline, i) => {
+          // Seed outlines (first `seedOutlineCount` entries when defined) get
+          // the prominent solid style so the active Patch reads as the focal
+          // area. Ghost outlines (the rest) stay in the original dimmed dash.
+          const isSeed = seedOutlineCount === undefined || i < seedOutlineCount
+          return <BoundaryOutline key={i} vertices={outline} variant={isSeed ? 'seed' : 'ghost'} />
+        })}
         <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
         {showLines && <StrandLayer segments={segments} config={config} />}
         <ControlPointLayer
@@ -86,18 +98,27 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
   )
 })
 
-/** Editor-mode patch boundary — dashed grey outline, non-interactive. */
-function BoundaryOutline({ vertices }: { vertices: Vec2[] }) {
+/**
+ * Editor-mode patch boundary outline, non-interactive.
+ *
+ * - `seed` (default): the active Patch's own Cell boundaries — solid stroke
+ *   at full accent opacity and slightly heavier weight, so the seed reads
+ *   as the focal area when Show neighbours stamps ghost Cells around it.
+ * - `ghost`: a neighbour-stamp Cell boundary — keeps the original dashed
+ *   dim style.
+ */
+function BoundaryOutline({ vertices, variant = 'seed' }: { vertices: Vec2[]; variant?: 'seed' | 'ghost' }) {
   if (vertices.length < 3) return null
   const points = vertices.map(v => `${v.x},${v.y}`).join(' ')
+  const isSeed = variant === 'seed'
   return (
     <polygon
       points={points}
       fill="none"
       stroke="var(--accent)"
-      strokeOpacity={0.55}
-      strokeWidth={1.2}
-      strokeDasharray="4 4"
+      strokeOpacity={isSeed ? 0.95 : 0.3}
+      strokeWidth={isSeed ? 1.8 : 1.0}
+      strokeDasharray={isSeed ? undefined : '4 4'}
       vectorEffect="non-scaling-stroke"
       pointerEvents="none"
     />

@@ -34,6 +34,15 @@ export interface PatternData {
    * user can see how their Patch joins its neighbours. Excluded from PIC.
    */
   ghostPolygons?: Polygon[]
+  /**
+   * Count of leading entries in `boundaryOutlines` that belong to the seed
+   * Patch (vs neighbour-stamp ghosts). Lets the renderer style seed Cell
+   * boundaries more prominently than ghost boundaries so the active Patch
+   * remains the visual focal point when Show neighbours is on.
+   * Undefined when there's no Seed/ghost distinction (Composition Phase
+   * lattice or no boundary outlines at all).
+   */
+  seedOutlineCount?: number
 }
 
 export function usePattern(
@@ -137,7 +146,13 @@ export function usePattern(
           ? [...basePolys, ...ghostPolygons]
           : basePolys
         const segments = runPIC(picInput, config)
-        return { polygons: basePolys, segments, boundaryOutlines, ghostPolygons }
+        return {
+          polygons: basePolys,
+          segments,
+          boundaryOutlines,
+          ghostPolygons,
+          seedOutlineCount: baseOutlines.length,
+        }
       }
       // Composition Phase — stamp on the lattice. Single-cell Patches use the
       // per-Cell lattice (triangle has 2 intra-stamps, square/hex have 1);

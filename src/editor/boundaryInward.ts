@@ -103,10 +103,13 @@ export function computeBoundarySections(cell: EditorCell): BoundarySection[] {
  * side of the boundary. The new tile's edge length equals the section length
  * — this is the "first tile dictates edge length" behaviour from the memo.
  *
- * CCW convention mirrors `placeRegularNGonOnEdge`: the new tile's vertex 0 is
- * `section.p2` and vertex 1 is `section.p1`, since the section runs CCW around
- * the boundary and the new tile sits on the interior (where its own CCW
- * traversal runs opposite to the boundary's at the shared edge).
+ * CCW convention: vertex 0 = `section.p1`, vertex 1 = `section.p2`. The
+ * boundary is traced CCW around its own interior; the new tile sits inside
+ * the boundary, so going CCW around the new tile from a vertex on the
+ * shared edge runs in the SAME direction as the boundary's CCW at that
+ * edge. (Contrast with `placeRegularNGonOnEdge`, which uses the opposite
+ * convention because the new tile there sits OUTSIDE the source tile and
+ * the CCW sense flips.)
  */
 export function placeRegularNGonOnBoundarySection(
   sides: number,
@@ -126,7 +129,7 @@ export function placeRegularNGonOnBoundarySection(
   const inY = iy / ilen
   const apothem = sectionLength / (2 * Math.tan(Math.PI / sides))
   const center: Vec2 = { x: midX + inX * apothem, y: midY + inY * apothem }
-  const rotation = Math.atan2(p2.y - center.y, p2.x - center.x)
+  const rotation = Math.atan2(p1.y - center.y, p1.x - center.x)
   return {
     id,
     kind: 'regular',

@@ -6,12 +6,15 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
-**2026-05-18 — Step 17.12 COMPLETE.** All three sub-steps shipped:
-- **17.12a** (foundation, 2026-05-11 `8c935a2`): `boundaryInward.ts` section schedule + geometry, `EditorCell.boundaryInward` flag.
-- **17.12b** (reducer, 2026-05-18): action `EDITOR_PLACE_TILE_ON_BOUNDARY_SECTION` + enabling toggle `SET_EDITOR_BOUNDARY_INWARD`; `isBoundarySectionPlacementViable` / `viableSidesForBoundarySection` / `placeTilesOnBoundarySectionOrbit` helpers; resets `patch.edgeLength` to the section length on placement (locked decision f); single-cell only (locked decision b); both actions in `DESIGN_MODE_ACTIONS` for undo/redo.
-- **17.12c** (UI, 2026-05-18): new `src/components/EditorBoundaryInwardLayer.tsx` SVG layer (dashed accent sections, solid on hover/select); Canvas plumbs `selectedSection` / `onSelectSection` / `onPlaceTileOnBoundarySection`, computes sections in Cell-local + lifts via cellTransform, renders a second `EditorPickerOverlay` at the section midpoint with `viableSidesForBoundarySection`. `TessellationLabMode` adds parallel `selectedSection` state (mutually exclusive with `selectedEdge`); checkbox "Boundary-inward placement" added to `EditorDesignControls` (single-cell only, after Wrap boundary). Build green (tsc + vite).
+**2026-05-18 — Step 17.12 rebuilt after design grill.** The 17.12c boundary-inward UI shipped earlier today was reworked end-to-end based on a follow-up grill:
+- **Boundary-inward placement is now always-on** in Design Phase + Place mode (single-cell). The `EditorCell.boundaryInward` flag and `SET_EDITOR_BOUNDARY_INWARD` action were removed — the section picker is a standard part of design functionality, not a separate mode.
+- **New `EditorCell.noSeed: boolean` + `SET_CELL_NO_SEED` action.** When on, the active Cell starts empty (no auto-placed Seed Tile). Refused if the Cell holds any non-Seed Tile (mirrors the existing Seed-sides slider lock). Toggling on wipes the Seed; toggling off re-creates it at the current `seedSides` + Patch `edgeLength`. Helpers tolerate empty Cells: `applyWrap` skips when `cell.tiles.length === 0`; `SET_CELL_SEED_SIDES` keeps `tiles: []` when noSeed is on. Migrator allows `tiles: []` only when `noSeed: true`.
+- **`patch.edgeLength` reset is now first-only** (locked decision f honored). Proxy: `cell.tiles.length === (cell.noSeed ? 0 : 1)`. Avoids the silent Composition-lattice jump on every subsequent boundary placement.
+- **Tile-priority on click overlap.** Section layer renders BEFORE the edge layer in the same `<g>`, so SVG hit-testing gives the edge layer z-priority on coincident pixels. Sections render transparent at rest (no visual clutter at the boundary), accent on hover/select only. No disambiguation modal in v1 — the soft cases (Seed fills Boundary → section viability rejects everything anyway; placed boundary tile shares an edge → both pickers either reject or place outside) are mostly handled by viability rules. Add the modal if UX reports demand it.
+- **`originLocked` semantic corrected** in `EditorDesignControls`: was `cell.tiles.length > 1`; now `cell.tiles.some(t => t.source !== 'seed')` so the Seed-sides slider and No-Seed checkbox both lock properly when the Cell holds any placed/completed Tile (including the noSeed-on case with one placed Tile).
+- **Disambiguation popup is deferred** — flagged in the grill as a fallback only if users report friction.
 
-**Manual smoke test pending** — type-check passes but the in-browser flow (click a section → picker appears → pick polygon → tile drops, plus interaction with the existing edge picker) has not been verified by the agent. User to confirm visually.
+Build green (tsc + vite). **Manual smoke test still pending** — needs in-browser verification of (1) toggling No Seed wipes the Cell to empty, (2) clicking a section in an empty Cell places a tile, (3) Place-mode click on a coincident Tile edge opens the edge picker (tile-priority), (4) the edgeLength reset fires exactly once per Cell.
 
 
 

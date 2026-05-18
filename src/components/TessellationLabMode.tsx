@@ -204,16 +204,12 @@ export function TessellationLabMode({
   // Reset picker state when patch changes or mode flips.
   const resetPicks = () => { setPicks([]); setMultiMode(false) }
   useEffect(() => { resetPicks() }, [editorMode, config.editor])
-  // Step 17.12c — drop the section selection if the user leaves Place mode
-  // or turns boundary-inward off on the active Cell.
+  // Step 17.12 — drop the section selection when leaving Place mode. The
+  // section layer is always-on in single-cell Place mode now (no boundary-
+  // inward toggle), so there's no per-Cell flag to track.
   useEffect(() => {
     if (editorMode !== 'place') setSelectedSection(null)
   }, [editorMode])
-  useEffect(() => {
-    if (!config.editor) return
-    const active = activeCell(config.editor)
-    if (!active.boundaryInward) setSelectedSection(null)
-  }, [config.editor])
   useEffect(() => {
     if (config.tiling.type !== 'editor' || !config.editor) {
       setEditorMode('place')
@@ -941,11 +937,14 @@ function EditorDesignControls({
   canRedo,
 }: EditorDesignControlsProps) {
   // Once the user has placed (or completed) any Tile in the active Cell
-  // beyond the auto-placed Seed, changing Seed sides would wipe their work —
-  // Decision: lock the slider until the Cell is cleared.
+  // beyond the auto-placed Seed, changing Seed sides (or toggling No Seed)
+  // would wipe their work — lock both controls until the Cell is cleared.
+  // The "non-Seed" semantic (not `tiles.length > 1`) is what we want: with
+  // `noSeed` on, even a single placed Tile counts and should lock the
+  // controls.
   const cell = activeCell(editor)
   const multiCell = editor.cells.length > 1
-  const originLocked = cell.tiles.length > 1
+  const originLocked = cell.tiles.some(t => t.source !== 'seed')
   const inStrand = editorPhase === 'strand'
   return (
     <>
@@ -1303,32 +1302,48 @@ function EditorDesignControls({
         </label>
       </div>
 
-      {/* Step 17.12c — Boundary-inward placement. Single-cell only in v1
-          (locked decision b — multi-cell composition support is a separate
-          arc). When on, the Boundary edge surfaces additional section
-          highlights in Place mode; clicking a section drops a regular
-          n-gon flush against that section and resets the Patch's edgeLength
-          to the section length (locked decision f). Additive: the standard
-          exposed-edge picker stays live alongside. */}
+      {/* Step 17.12 — No Seed Tile. Single-cell only in v1. When on, the
+          active Cell starts empty (no auto-placed Seed) — useful when
+          authoring from the boundary inward via the always-on section
+          picker. Locked while the Cell holds any non-Seed Tile (mirrors the
+          existing Seed-sides slider lock); the reducer silently refuses
+          out-of-lock toggles. */}
       {!multiCell && (
         <div style={{ marginTop: 10 }}>
           <label style={{
             display: 'flex',
             alignItems: 'center',
             gap: 10,
-            cursor: 'pointer',
+            cursor: originLocked ? 'not-allowed' : 'pointer',
             fontFamily: "'EB Garamond', Georgia, serif",
             fontSize: 13,
-            color: cell.boundaryInward ? 'var(--text)' : 'var(--text-muted)',
-            transition: 'color 0.15s',
+            color: cell.noSeed ? 'var(--text)' : 'var(--text-muted)',
+            opacity: originLocked ? 0.5 : 1,
+            transition: 'color 0.15s, opacity 0.15s',
           }}>
             <input
               type="checkbox"
-              checked={!!cell.boundaryInward}
-              onChange={e => dispatch({ type: 'SET_EDITOR_BOUNDARY_INWARD', payload: e.target.checked })}
+              checked={!!cell.noSeed}
+              disabled={originLocked}
+              onChange={e => dispatch({ type: 'SET_CELL_NO_SEED', payload: e.target.checked })}
             />
-            Boundary-inward placement
+            No Seed Tile
           </label>
+          {originLocked && (
+            <div style={{
+              fontFamily: "'Cinzel', Georgia, serif",
+              fontSize: 9,
+              fontWeight: 600,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: 'var(--text-muted)',
+              marginTop: 2,
+              marginBottom: 4,
+              lineHeight: 1.4,
+            }}>
+              Locked — clear the patch to toggle the Seed Tile.
+            </div>
+          )}
         </div>
       )}
 

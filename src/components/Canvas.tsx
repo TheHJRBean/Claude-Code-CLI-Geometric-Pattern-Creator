@@ -82,8 +82,8 @@ interface Props {
   onSelectEdge?: (edge: SelectedEdge | null) => void
   onPlaceTile?: (sides: number) => void
   onDeleteTile?: (tileId: string) => void
-  /** Step 17.12c — Boundary-inward placement. Active only when the active
-   *  Cell has `boundaryInward` on and the Builder is in Place mode. */
+  /** Step 17.12 — boundary-inward placement. Always available in Design
+   *  Phase + Place mode (single-cell Patches only — locked decision b). */
   selectedSection?: SectionKey | null
   onSelectSection?: (section: SectionKey | null) => void
   onPlaceTileOnBoundarySection?: (sides: number) => void
@@ -322,29 +322,29 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     return out
   }, [editorActive, config.editor, editorMode, editorNeighbourPreview, editorStrandMode])
 
-  // Step 17.12c — Boundary-inward section highlights, active only in
-  // single-cell Patches when the active Cell has `boundaryInward` on and the
-  // Builder is in Place mode. Sections are computed in Cell-local coords
-  // (the Boundary is always centred at (0, 0) per `editorBoundaryVertices`)
-  // then lifted into Patch-local via the active Cell's transform. Single-
-  // cell only in v1 per locked decision b; the reducer also refuses if
-  // `cells.length > 1`.
+  // Step 17.12 — Boundary-section highlights, always rendered in single-
+  // cell Design Phase Place mode (no enabling toggle — boundary-section
+  // placement is a standard part of design functionality). Sections are
+  // computed in Cell-local coords (the Boundary is always centred at
+  // (0, 0) per `editorBoundaryVertices`) then lifted into Patch-local via
+  // the active Cell's transform. Multi-cell composition support is parked
+  // per locked decision b; the reducer also refuses if `cells.length > 1`.
   const activeCellForSections = editorActive && config.editor
     ? config.editor.cells.find(c => c.id === config.editor!.activeCellId) ?? null
     : null
-  const boundaryInwardOn = !!(
+  const sectionsActive = !!(
     editorActive && config.editor
     && config.editor.cells.length === 1
-    && activeCellForSections?.boundaryInward
+    && activeCellForSections
     && editorMode === 'place'
     && !editorStrandMode
   )
   const cellLocalSections = useMemo(() => {
-    if (!boundaryInwardOn || !activeCellForSections) return []
+    if (!sectionsActive || !activeCellForSections) return []
     return computeBoundarySections(activeCellForSections)
-  }, [boundaryInwardOn, activeCellForSections])
+  }, [sectionsActive, activeCellForSections])
   const renderedSections = useMemo(() => {
-    if (!boundaryInwardOn || !activeCellForSections) return cellLocalSections
+    if (!sectionsActive || !activeCellForSections) return cellLocalSections
     const tx = cellTransform(activeCellForSections)
     return cellLocalSections.map(s => ({
       ...s,
@@ -352,9 +352,9 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       p2: applyTransform(s.p2, tx),
       midpoint: applyTransform(s.midpoint, tx),
     }))
-  }, [boundaryInwardOn, activeCellForSections, cellLocalSections])
+  }, [sectionsActive, activeCellForSections, cellLocalSections])
   const [hoveredSection, setHoveredSection] = useState<SectionKey | null>(null)
-  useEffect(() => { if (!boundaryInwardOn) setHoveredSection(null) }, [boundaryInwardOn])
+  useEffect(() => { if (!sectionsActive) setHoveredSection(null) }, [sectionsActive])
   const selectedSectionData = selectedSection && cellLocalSections.find(
     s => s.edgeIndex === selectedSection.edgeIndex && s.sectionIndex === selectedSection.sectionIndex,
   )
@@ -386,14 +386,13 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       )
       : onSelectEdge ? (
         <g>
-          <EditorEdgeLayer
-            edges={renderedEdges}
-            selected={selectedEdge ?? null}
-            onSelect={onSelectEdge}
-            hovered={hoveredEdge}
-            onHover={setHoveredEdge}
-          />
-          {boundaryInwardOn && onSelectSection && (
+          {/* Section layer renders FIRST so the edge layer (rendered next)
+              wins z-order on hit-testing — tile-priority for clicks
+              landing on a Tile edge coincident with a Boundary section.
+              Sections are transparent at rest; only hovered/selected
+              sections paint, so the always-on layer adds no visual
+              clutter at the boundary. */}
+          {sectionsActive && onSelectSection && (
             <EditorBoundaryInwardLayer
               sections={renderedSections}
               selected={selectedSection ?? null}
@@ -402,6 +401,13 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
               onHover={setHoveredSection}
             />
           )}
+          <EditorEdgeLayer
+            edges={renderedEdges}
+            selected={selectedEdge ?? null}
+            onSelect={onSelectEdge}
+            hovered={hoveredEdge}
+            onHover={setHoveredEdge}
+          />
         </g>
       ) : null
     : null
@@ -429,7 +435,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   const sectionPickerWorldPos = selectedSectionData && activeCellForSections
     ? applyTransform(selectedSectionData.midpoint, cellTransform(activeCellForSections))
     : null
-  const sectionPickerScreenPos = sectionPickerWorldPos && boundaryInwardOn
+  const sectionPickerScreenPos = sectionPickerWorldPos && sectionsActive
     ? worldToScreen(sectionPickerWorldPos, viewTransform, size.width, size.height)
     : null
   const sectionPickerViable = selectedSectionData && activeCellForSections

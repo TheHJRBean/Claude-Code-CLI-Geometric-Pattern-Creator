@@ -233,7 +233,7 @@ cross-references to the resolutions table.
 | **17.10**| Non-tiling patch detection + UI tag.             | S    | 2         | —            |
 | **17.11**| Multi-vertex Complete (cross-boundary + enclosed pocket). ✅ shipped 2026-05-07; user signed off on enclosed-pocket + chord-regression + UI guidance. Open follow-ups: chord-mode + neighbour-vertex picks silently no-op (auto-promote-to-multi or explicit modifier-required UX TBD); neighbour-click selection awaits browser confirmation that the layer-order fix landed. | M | 9, 10, 12 | — |
 | **17.11b**| Orbit propagation for multi-vertex Complete. ✅ shipped + signed off 2026-05-07. | S | 8 | — |
-| **17.12**| Boundary-inward authoring mode (single-shape v1). ✅ Shipped 2026-05-18 — A (`8c935a2`, 2026-05-11) + B + C all landed. | M | 14, 14a | — |
+| **17.12**| Boundary-inward authoring (single-shape v1). ✅ Shipped 2026-05-18 — A (`8c935a2`, 2026-05-11) + B + C landed, then UX-grill rework swapped the per-Cell `boundaryInward` enabling flag for an always-on section picker + a new `noSeed` flag that lets a Cell start empty. First-only `edgeLength` reset honored. | M | 14, 14a | — |
 
 **Sub-step detail.**
 
@@ -640,7 +640,14 @@ cross-references to the resolutions table.
     `cells.length > 1` (decision b). Both actions in
     `DESIGN_MODE_ACTIONS` for undo/redo. No UI yet — dispatched from
     17.12c.
-  - **17.12c — UI.** ✅ Shipped 2026-05-18.
+  - **17.12c — UI.** ✅ Shipped 2026-05-18, then reworked the same day
+    after a UX grill — see SESSION_STATE for the diff. The shipped
+    design replaces the `boundaryInward` enabling toggle with an
+    always-on section picker (single-cell Design + Place mode) and
+    introduces a new `noSeed` per-Cell flag so the user can start a
+    Cell empty and build entirely from the boundary inward. Tile-
+    priority on overlap is achieved via z-order; disambiguation modal
+    deferred.
     `src/components/EditorBoundaryInwardLayer.tsx` SVG layer renders
     section highlights as click targets when the active Cell has
     `boundaryInward` on and the editor mode is `'place'` (single-Cell

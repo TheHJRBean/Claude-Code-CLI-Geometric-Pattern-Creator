@@ -40,12 +40,18 @@ interface Props {
    * opacity below the main Tile layer; non-interactive.
    */
   ghostPolygons?: Polygon[]
+  /**
+   * Polygon ids belonging to neighbour-stamp ghosts. When defined, StrandLayer
+   * greys out Strands wholly inside the ghost ring; Strands that touch any
+   * seed polygon (the cross-boundary ones) stay full colour.
+   */
+  ghostPolygonIds?: Set<string>
   /** Editor-mode interactive overlay (Step 17.3+). Rendered above the tile layer. */
   editorOverlay?: React.ReactNode
 }
 
 export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
-  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, editorOverlay },
+  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, editorOverlay },
   ref
 ) {
   const { x, y, zoom, rotation } = viewTransform
@@ -80,7 +86,7 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
           return <BoundaryOutline key={i} vertices={outline} variant={isSeed ? 'seed' : 'ghost'} />
         })}
         <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
-        {showLines && <StrandLayer segments={segments} config={config} />}
+        {showLines && <StrandLayer segments={segments} config={config} ghostPolygonIds={ghostPolygonIds} />}
         <ControlPointLayer
           segments={segments}
           config={config}

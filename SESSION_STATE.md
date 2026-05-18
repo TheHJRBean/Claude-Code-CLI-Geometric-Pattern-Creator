@@ -6,7 +6,42 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
-**2026-05-18 — Step 17.12 rebuilt after design grill.** The 17.12c boundary-inward UI shipped earlier today was reworked end-to-end based on a follow-up grill:
+**2026-05-18 — Step 17.13 vertex placement shipped (`24b0959` → `5cfdeb8`).** New Design-Phase + Place-mode authoring mode: anchor a regular n-gon at a Cell corner or inward-only Boundary corner, pick orientation from a discrete set of snap rotations. Sibling to edge placement (17.3) and boundary-section placement (17.12). Always-on, single-cell only in v1 (multi-cell composition deferred — mirrors 17.12c locked decision b).
+
+Sub-steps landed:
+- **17.13a (`24b0959`)** — `src/editor/vertexPlacement.ts`: `ExposedVertex` + `VertexKey` + `computeExposedVertices(cell)` (groups coincident corners, subtracts incident-tile wedges, boundary corners start from the inward wedge `(n-2)π/n` CCW for inward-only enforcement). `placeRegularNGonOnVertex(sides, edgeLength, vertex, rotation, id)` with vertex 0 at the anchor and edge 0→1 leaving at `rotation`. `vertexPlacementOrientations` emits flush-CW / centred / flush-CCW per open sector (collapsed to one when fits ≈ 0). `isVertexPlacementViable` body-overlap + inward-only guard. `viableSidesForVertex` + `hostTileForClick` (closest-tile-to-click disambiguation for the orientation reference — locked decision).
+- **17.13b (`3949d7f`)** — `EDITOR_PLACE_TILE_ON_VERTEX { vertexKey, sides, rotation }` action; reducer single-cell-only, single or orbit dispatch. `placeTilesOnVertexOrbit` in `editor/orbit.ts` with `transformVertexRotation(s, rotation, sides)`: pure rotations shift by α, reflections use `2β - rotation + 2π/n + π` (derived from CCW-reversal — new tile's edge 0→1 corresponds to reflected old edge 0→(n-1)). All-or-nothing on viability; centroid dedup for fixed-axis orbit images. Added to `DESIGN_MODE_ACTIONS`.
+- **17.13c (`36987ca` + `5cfdeb8` fix-up)** — `EditorVertexPlacementLayer.tsx` (diamond dots, dashed when boundary corner, renders LAST in editor overlay so vertex clicks win over edges/sections). `EditorPickerOverlay.tsx` extended with `mode: 'vertex' | 'edge'`. Vertex mode is two-page: page 1 = shape grid; page 2 = ‹ / › orientation arrows + label ("Flush ⟲ / Centred / Flush ⟳") + `1 / total` counter + Place / Back. Arrow keys + Enter shortcut. Translucent dashed polygon preview of the candidate tile renders on canvas via `placeRegularNGonOnVertex`. `onPlaceTileOnVertex` plumbed Canvas → TessellationLabMode → reducer. Selecting a vertex clears edge / section picker so only one overlay is open.
+- **17.13d** — sign-off probes captured (see below). User verified in-browser ("looks good now"). The `5cfdeb8` fix-up bumped the orientation counter from hint-text concatenation to its own monospace line so the 1 / 2 / 3 cycling is obvious at a glance.
+
+**Locked decisions (this conversation, 2026-05-18):**
+| # | Question | Resolution |
+|---|----------|-----------|
+| a | UI mode | Always-on in Design Phase + Place mode (no toggle — mirrors 17.12c). |
+| b | Direction picker | ‹ / › arrows cycle through *snap* orientations (flush-CW, centred, flush-CCW per open sector). No continuous rotation. |
+| c | Host tile for orientation reference | Closest tile to click point. `hostTileForClick(vertex, cell, clickPoint)` resolves it. |
+| d | Boundary corners | Selectable, inward-only (`isVertexPlacementViable` rejects candidates whose centre lies outside the Boundary polygon). |
+| e | Symmetry | Orbit-propagate via `placeTilesOnVertexOrbit` — all-or-nothing, identical semantics to edge orbit. |
+
+**Sign-off probes for 17.13** (run after C; user-verified for the canonical scenarios):
+1. Square Seed in square boundary, click vertex of Seed → picker shows shape grid (page 1) with viable shapes lit.
+2. Pick triangle → page 2 shows `Flush ⟲ · 1 / 3`, arrows enabled. Cycle: Centred · 2 / 3 → Flush ⟳ · 3 / 3 → wraps. Live preview tracks rotation on canvas.
+3. Click Place → triangle lands at the vertex flush against the chosen Seed edge.
+4. Undo → triangle removed, picker state cleared.
+5. Click boundary corner with `noSeed: true` → vertex picker opens; only inward-extending orientations survive viability.
+6. `symmetryMode = 'full'` square Cell + vertex click → orbit propagates: 8 tiles land at corner-equivalent positions of the Seed under D₄.
+7. Save / load Patch with vertex-placed tiles → round-trips (no schema change; tiles serialise via existing `EditorTile` shape).
+8. Vertex click while an edge picker is open → edge picker closes, vertex picker opens. Reverse direction also works (edge click while vertex picker open).
+9. **Fix-up `5cfdeb8`** — orientation counter visibility: confirmed users can see all 3 orientations at a glance after the counter moved to its own line.
+
+**Deferred / not in v1**:
+- Multi-cell composition support (locked decision b inherited from 17.12 — currently the reducer refuses if `cells.length > 1`).
+- Continuous-angle rotation (snap-only is locked).
+- "Snap to viable" UX variants beyond the three snap kinds.
+
+---
+
+**2026-05-18 (earlier) — Step 17.12 rebuilt after design grill.** The 17.12c boundary-inward UI shipped earlier today was reworked end-to-end based on a follow-up grill:
 - **Boundary-inward placement is now always-on** in Design Phase + Place mode (single-cell). The `EditorCell.boundaryInward` flag and `SET_EDITOR_BOUNDARY_INWARD` action were removed — the section picker is a standard part of design functionality, not a separate mode.
 - **New `EditorCell.noSeed: boolean` + `SET_CELL_NO_SEED` action.** When on, the active Cell starts empty (no auto-placed Seed Tile). Refused if the Cell holds any non-Seed Tile (mirrors the existing Seed-sides slider lock). Toggling on wipes the Seed; toggling off re-creates it at the current `seedSides` + Patch `edgeLength`. Helpers tolerate empty Cells: `applyWrap` skips when `cell.tiles.length === 0`; `SET_CELL_SEED_SIDES` keeps `tiles: []` when noSeed is on. Migrator allows `tiles: []` only when `noSeed: true`.
 - **`patch.edgeLength` reset is now first-only** (locked decision f honored). Proxy: `cell.tiles.length === (cell.noSeed ? 0 : 1)`. Avoids the silent Composition-lattice jump on every subsequent boundary placement.

@@ -337,19 +337,18 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     return out
   }, [editorActive, config.editor, editorMode, editorNeighbourPreview, editorStrandMode])
 
-  // Step 17.12 — Boundary-section highlights, always rendered in single-
-  // cell Design Phase Place mode (no enabling toggle — boundary-section
-  // placement is a standard part of design functionality). Sections are
-  // computed in Cell-local coords (the Boundary is always centred at
-  // (0, 0) per `editorBoundaryVertices`) then lifted into Patch-local via
-  // the active Cell's transform. Multi-cell composition support is parked
-  // per locked decision b; the reducer also refuses if `cells.length > 1`.
+  // Step 17.12 — Boundary-section highlights, always rendered in Design
+  // Phase Place mode (no enabling toggle — boundary-section placement is a
+  // standard part of design functionality). Sections are computed in
+  // Cell-local coords (the Boundary is always centred at (0, 0) per
+  // `editorBoundaryVertices`) then lifted into Patch-local via the active
+  // Cell's transform. Works for single-cell and multi-cell Configurations
+  // alike — multi-cell routes through the active Cell of the Patch.
   const activeCellForSections = editorActive && config.editor
     ? config.editor.cells.find(c => c.id === config.editor!.activeCellId) ?? null
     : null
   const sectionsActive = !!(
     editorActive && config.editor
-    && config.editor.cells.length === 1
     && activeCellForSections
     && editorMode === 'place'
     && !editorStrandMode

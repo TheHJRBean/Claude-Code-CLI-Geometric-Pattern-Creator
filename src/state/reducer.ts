@@ -235,12 +235,14 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       const sides = Math.max(3, Math.floor(action.payload))
       // Changing Seed sides invalidates any placed/completed Tiles built on
       // the previous Seed Tile's edges. Reset the active Cell to the new
-      // Seed Tile only.
+      // Seed Tile only. With `noSeed` on, the Cell stays empty — the field
+      // still tracks `seedSides` so toggling no-Seed back off restores the
+      // user's preferred Seed shape.
       const edgeLength = state.editor.edgeLength
       return applyWrap(seedFigures(updateActiveCell(state, cell => ({
         ...cell,
         seedSides: sides,
-        tiles: [createSeedTile(sides, edgeLength)],
+        tiles: cell.noSeed ? [] : [createSeedTile(sides, edgeLength)],
       }))))
     }
     case 'EDITOR_PLACE_TILE_ON_EDGE': {
@@ -270,20 +272,22 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       })))
     }
     case 'EDITOR_PLACE_TILE_ON_BOUNDARY_SECTION': {
-      // Step 17.12b — boundary-inward placement (single-cell v1, locked
-      // decision b). The first boundary-anchored Tile dictates the Patch's
-      // edge length thereafter (decision f) — we reset `patch.edgeLength`
-      // to the section length so the Composition-Phase lattice tracks the
-      // new Tile. Origin Tile is left in place (decision a: both flows
-      // coexist) — its exposed edges become non-conforming (Decision 14a)
-      // but isPlacementViable now sizes Place picks to the source edge's
-      // actual length, so this doesn't freeze the picker.
+      // Step 17.12 — boundary-inward placement. Always available in single-
+      // cell Patches (no enabling flag — boundary-section picker is a
+      // standard part of Design Phase). Multi-cell composition support is
+      // parked per locked decision b.
+      //
+      // `patch.edgeLength` resets to the section length on the FIRST
+      // boundary-anchored placement (locked decision f). After that, further
+      // boundary placements keep the lattice unchanged — the user only
+      // experiences the Composition-lattice jump once per Cell. "First" is
+      // proxied by `cell.tiles.length === (cell.noSeed ? 0 : 1)` — Cell
+      // holds nothing beyond the Seed (or is empty when no-Seed is on).
       if (!state.editor) return state
       if (state.editor.cells.length > 1) return state
       const { edgeIndex, sectionIndex, sides } = action.payload
       const patch = state.editor
       const cell = activeCell(patch)
-      if (!cell.boundaryInward) return state
       const sections = computeBoundarySections(cell)
       const section = sections.find(s => s.edgeIndex === edgeIndex && s.sectionIndex === sectionIndex)
       if (!section) return state
@@ -300,16 +304,33 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         nextTiles = [...cell.tiles, ...placements]
       }
       const nextCell: EditorCell = { ...cell, tiles: nextTiles }
-      const nextEditor = {
-        ...withActiveCell(patch, nextCell),
-        version: patch.version,
-        edgeLength: section.sectionLength,
-      }
+      const isFirstPlacement = cell.tiles.length === (cell.noSeed ? 0 : 1)
+      const nextEditor = isFirstPlacement
+        ? { ...withActiveCell(patch, nextCell), version: patch.version, edgeLength: section.sectionLength }
+        : { ...withActiveCell(patch, nextCell), version: patch.version }
       return applyWrap(seedFigures({ ...state, editor: nextEditor }))
     }
-    case 'SET_EDITOR_BOUNDARY_INWARD': {
+    case 'SET_CELL_NO_SEED': {
+      // Toggle the Seed Tile on/off for the active Cell. Refuse if the Cell
+      // holds any non-Seed Tile — mirrors the existing Seed-sides lock
+      // pattern (see SET_CELL_SEED_SIDES). Turning on wipes the Seed Tile to
+      // empty `tiles: []`; turning off re-adds a Seed at the current
+      // `seedSides` + Patch `edgeLength`.
       if (!state.editor) return state
-      return updateActiveCell(state, cell => ({ ...cell, boundaryInward: action.payload }))
+      const cell = activeCell(state.editor)
+      const hasNonSeed = cell.tiles.some(t => t.source !== 'seed')
+      if (hasNonSeed) return state
+      const next = action.payload
+      if (next === !!cell.noSeed) return state
+      if (next) {
+        return seedFigures(updateActiveCell(state, c => ({ ...c, noSeed: true, tiles: [] })))
+      }
+      const edgeLength = state.editor.edgeLength
+      return seedFigures(updateActiveCell(state, c => ({
+        ...c,
+        noSeed: false,
+        tiles: [createSeedTile(c.seedSides, edgeLength)],
+      })))
     }
     case 'EDITOR_DELETE_TILE': {
       if (!state.editor) return state
@@ -593,6 +614,10 @@ function applyWrap(state: PatternConfig): PatternConfig {
   if (!state.editor) return state
   const cell = activeCell(state.editor)
   if (!cell.wrapBoundary) return state
+  // With no Tiles to hug, wrap has nothing to compute — skip rather than
+  // collapse the boundary to the edgeLength floor (which would shrink the
+  // section picker targets along with it).
+  if (cell.tiles.length === 0) return state
   const fit = fitBoundarySize(cell, state.editor.edgeLength)
   if (!Number.isFinite(fit) || fit <= 0) return state
 

@@ -34,11 +34,16 @@ export type Action =
   | { type: 'EDITOR_PLACE_TILE_ON_EDGE'; payload: { tileId: string; edgeIndex: number; sides: number } }
   // Step 17.12b — Boundary-inward placement. Drops a regular n-gon flush
   // against the picked Boundary section; the new Tile's edge length becomes
-  // the Patch's `edgeLength` (so the lattice tracks the boundary-anchored
-  // Tile thereafter). Single-cell only in v1 (per locked decision b).
+  // the Patch's `edgeLength` on the FIRST boundary placement (so the lattice
+  // tracks the boundary-anchored Tile). Single-cell only in v1 (per locked
+  // decision b). Always-available in Design Phase — no enabling flag.
   | { type: 'EDITOR_PLACE_TILE_ON_BOUNDARY_SECTION'; payload: { edgeIndex: number; sectionIndex: number; sides: number } }
-  // Step 17.12c — toggle Boundary-inward placement UI on/off (per-active-Cell).
-  | { type: 'SET_EDITOR_BOUNDARY_INWARD'; payload: boolean }
+  // Toggle the auto-placed Seed Tile on/off for the active Cell. When on
+  // (default), the Cell carries a Seed Tile at the centre. When off, the
+  // Cell starts empty and the user builds from the boundary inward (or via
+  // Complete picking boundary corners). Refused while the Cell holds any
+  // non-Seed Tile — see reducer for the lock semantic.
+  | { type: 'SET_CELL_NO_SEED'; payload: boolean }
   | { type: 'EDITOR_DELETE_TILE'; payload: { tileId: string } }
   // Step 17.5 — Complete operation (manual, 2-vertex chord)
   | { type: 'EDITOR_COMPLETE_GAP'; payload: { pA: Vec2; pB: Vec2 } }

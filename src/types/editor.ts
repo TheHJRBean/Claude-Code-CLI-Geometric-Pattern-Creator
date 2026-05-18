@@ -162,13 +162,13 @@ export interface EditorCell {
    */
   symmetryMode?: SymmetryMode
   /**
-   * When true, the editor surfaces Boundary-section click targets in addition
-   * to the standard exposed-edge picker — see `editor/boundaryInward.ts` and
-   * the idea memo `project_editor_boundary_inward_mode_idea.md`. Additive: the
-   * Seed Tile and its exposed edges remain clickable in parallel. Optional
-   * for back-compat; absent / `false` keeps the legacy centre-out flow.
+   * When true, the Cell starts empty (no Seed Tile) and must be built from
+   * the boundary inward via `EDITOR_PLACE_TILE_ON_BOUNDARY_SECTION` (or via
+   * Complete picking boundary corners). Toggle is refused while the Cell
+   * holds any non-Seed Tile — mirrors the existing Seed-sides lock pattern.
+   * Optional for back-compat; absent / `false` keeps the legacy Seed.
    */
-  boundaryInward?: boolean
+  noSeed?: boolean
   /**
    * When true, `boundarySize` auto-fits to the Cell in Design Phase after any
    * Tile mutation — the Boundary polygon hugs the convex hull of all Tile
@@ -254,5 +254,5 @@ export interface V2InnerPatch {
   autoComplete?: EditorAutoCompleteSettings
   wrapBoundary?: boolean
   symmetryMode?: SymmetryMode
-  boundaryInward?: boolean
+  noSeed?: boolean
 }

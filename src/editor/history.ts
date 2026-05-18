@@ -51,11 +51,10 @@ export const DESIGN_MODE_ACTIONS: ReadonlySet<string> = new Set([
   'SET_EDITOR_ALTERNATE_BOUNDARY',
   'SET_CELL_SEED_SIDES',
   'EDITOR_PLACE_TILE_ON_EDGE',
-  // Step 17.12b — boundary-inward placement + its enabling toggle.
-  // Placement mutates Tiles + `patch.edgeLength`; the toggle is a Cell
-  // field change worth snapshotting so undo can restore the prior mode.
+  // Boundary-inward placement (mutates Tiles + possibly `patch.edgeLength`)
+  // and the No-Seed toggle (Cell field that resets the Cell when flipped).
   'EDITOR_PLACE_TILE_ON_BOUNDARY_SECTION',
-  'SET_EDITOR_BOUNDARY_INWARD',
+  'SET_CELL_NO_SEED',
   'EDITOR_DELETE_TILE',
   'EDITOR_COMPLETE_GAP',
   'EDITOR_COMPLETE_N_GAP',

@@ -2,14 +2,20 @@ import type { BoundarySection } from '../editor/boundaryInward'
 
 /**
  * Step 17.12c — interactive Boundary-section layer rendered above the Tile
- * layer when the active Cell has `boundaryInward` on and the Builder is in
- * Place mode. Sections are click targets that anchor a regular n-gon flush
+ * layer in Design Phase + Place mode (single-cell Patches only, per locked
+ * decision b). Sections are click targets that anchor a regular n-gon flush
  * against the chosen portion of the Boundary (see `editor/boundaryInward.ts`
  * and the reducer's `EDITOR_PLACE_TILE_ON_BOUNDARY_SECTION` case).
  *
- * Additive per locked decision a: the standard exposed-edge layer renders in
- * parallel so the user keeps the centre-out flow alongside boundary-inward.
- * Hit-test uses an invisible thick stroke, matching `EditorEdgeLayer`.
+ * Always-on — boundary-section placement is a standard part of Design Phase,
+ * not a separate mode. Rendered alongside `EditorEdgeLayer`; sections are
+ * transparent at rest (no visual clutter at the boundary) and accent on
+ * hover / selection. Hit-test uses an invisible thick stroke, matching
+ * `EditorEdgeLayer`.
+ *
+ * Sections render *underneath* the edge layer in z-order so a click landing
+ * on a coincident Tile edge hits the edge layer first (tile-priority). When
+ * the click hits only a section, the section wins.
  */
 export interface SectionKey {
   edgeIndex: number
@@ -34,28 +40,21 @@ export function EditorBoundaryInwardLayer({ sections, selected, onSelect, hovere
       {sections.map(s => {
         const isSelected = sameSection(selected, s)
         const isHovered = sameSection(hovered, s)
-        const stroke = isSelected || isHovered
-          ? 'var(--accent)'
-          : 'var(--accent)'
-        const opacity = isSelected ? 1 : isHovered ? 0.85 : 0.45
+        const stroke = isSelected || isHovered ? 'var(--accent)' : 'transparent'
+        const opacity = isSelected ? 1 : isHovered ? 0.85 : 0
         const key = `${s.edgeIndex}#${s.sectionIndex}`
         const sectionKey: SectionKey = { edgeIndex: s.edgeIndex, sectionIndex: s.sectionIndex }
         return (
           <g key={key}>
-            {/* Visible section highlight — dashed accent when idle so it
-                doesn't compete with the solid edge layer below, solid on
-                hover / selection. */}
             <line
               x1={s.p1.x} y1={s.p1.y} x2={s.p2.x} y2={s.p2.y}
               stroke={stroke}
               strokeOpacity={opacity}
               strokeWidth={isSelected ? 3 : 2}
               strokeLinecap="round"
-              strokeDasharray={isSelected || isHovered ? undefined : '4 4'}
               vectorEffect="non-scaling-stroke"
               pointerEvents="none"
             />
-            {/* Hit area. */}
             <line
               x1={s.p1.x} y1={s.p1.y} x2={s.p2.x} y2={s.p2.y}
               stroke="transparent"

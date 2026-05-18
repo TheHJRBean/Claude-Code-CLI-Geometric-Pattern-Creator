@@ -129,7 +129,11 @@ function migrateCell(raw: unknown, allowOctagon: boolean): EditorCell | null {
   if (typeof r.rotation !== 'number') return null
   if (typeof r.boundarySize !== 'number' || r.boundarySize <= 0) return null
   if (typeof r.seedSides !== 'number' || r.seedSides < 3) return null
-  if (!Array.isArray(r.tiles) || r.tiles.length === 0) return null
+  // `noSeed === true` allows an empty Cell. Otherwise the first Tile must be
+  // the auto-placed Seed Tile (Decision 6, relaxed under noSeed).
+  const noSeed = r.noSeed === true
+  if (!Array.isArray(r.tiles)) return null
+  if (!noSeed && r.tiles.length === 0) return null
 
   const tiles: EditorTile[] = []
   for (const rawTile of r.tiles) {
@@ -137,8 +141,7 @@ function migrateCell(raw: unknown, allowOctagon: boolean): EditorCell | null {
     if (!tile) return null
     tiles.push(tile)
   }
-  // The first tile must be the auto-placed Seed Tile (Decision 6).
-  if (tiles[0].source !== 'seed') return null
+  if (!noSeed && tiles[0].source !== 'seed') return null
 
   const cell: EditorCell = {
     id: r.id,
@@ -154,7 +157,7 @@ function migrateCell(raw: unknown, allowOctagon: boolean): EditorCell | null {
   if (typeof r.symmetryMode === 'string' && SYMMETRY_MODES.has(r.symmetryMode as SymmetryMode)) {
     cell.symmetryMode = r.symmetryMode as SymmetryMode
   }
-  if (typeof r.boundaryInward === 'boolean') cell.boundaryInward = r.boundaryInward
+  if (noSeed) cell.noSeed = true
   return cell
 }
 
@@ -162,7 +165,7 @@ function migrateCell(raw: unknown, allowOctagon: boolean): EditorCell | null {
  * Build an `EditorCell` from a v1 / v2 single-shape Patch's flat field set.
  * Legacy field names are honoured: `boundaryShape`, `boundarySize`,
  * `seedSides` (or `originSides`), `alternateBoundary`, `wrapBoundary`,
- * `symmetryMode`, `boundaryInward`. The Cell sits at the Patch origin with
+ * `symmetryMode`, `noSeed`. The Cell sits at the Patch origin with
  * rotation 0 and id `'main'`.
  */
 function legacyPatchFieldsToCell(r: Record<string, unknown>, allowOctagon: boolean): EditorCell | null {
@@ -171,7 +174,9 @@ function legacyPatchFieldsToCell(r: Record<string, unknown>, allowOctagon: boole
   if (typeof r.boundarySize !== 'number' || r.boundarySize <= 0) return null
   const seedSidesRaw = r.seedSides !== undefined ? r.seedSides : r.originSides
   if (typeof seedSidesRaw !== 'number' || seedSidesRaw < 3) return null
-  if (!Array.isArray(r.tiles) || r.tiles.length === 0) return null
+  const noSeed = r.noSeed === true
+  if (!Array.isArray(r.tiles)) return null
+  if (!noSeed && r.tiles.length === 0) return null
 
   const tiles: EditorTile[] = []
   for (const rawTile of r.tiles) {
@@ -179,7 +184,7 @@ function legacyPatchFieldsToCell(r: Record<string, unknown>, allowOctagon: boole
     if (!tile) return null
     tiles.push(tile)
   }
-  if (tiles[0].source !== 'seed') return null
+  if (!noSeed && tiles[0].source !== 'seed') return null
 
   const cell: EditorCell = {
     id: 'main',
@@ -195,7 +200,7 @@ function legacyPatchFieldsToCell(r: Record<string, unknown>, allowOctagon: boole
   if (typeof r.symmetryMode === 'string' && SYMMETRY_MODES.has(r.symmetryMode as SymmetryMode)) {
     cell.symmetryMode = r.symmetryMode as SymmetryMode
   }
-  if (typeof r.boundaryInward === 'boolean') cell.boundaryInward = r.boundaryInward
+  if (noSeed) cell.noSeed = true
   return cell
 }
 

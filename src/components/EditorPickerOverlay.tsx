@@ -207,11 +207,10 @@ function VertexPickerBody(props: VertexPickerProps) {
   const current = orientations[orientationIndex]
   const total = orientations.length
   const orientationLabel = current ? ORIENTATION_LABEL[current.kind] : '—'
-  const sectorLabel = total > 1 ? ` · ${orientationIndex + 1}/${total}` : ''
   return (
     <>
       <HeaderRow title={`${NGON_LABEL[pickedSides] ?? `${pickedSides}-gon`}`} />
-      <HoverHint text={`Rotate to the orientation you want, then place.${sectorLabel}`} />
+      <HoverHint text="Rotate to the orientation you want, then place." />
       <div style={{
         display: 'grid',
         gridTemplateColumns: '40px 1fr 40px',
@@ -231,7 +230,16 @@ function VertexPickerBody(props: VertexPickerProps) {
           color: 'var(--accent)',
           letterSpacing: '0.04em',
         }}>
-          {orientationLabel}
+          <div>{orientationLabel}</div>
+          <div style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 11,
+            color: 'var(--text-muted)',
+            marginTop: 2,
+            letterSpacing: '0.08em',
+          }}>
+            {total > 0 ? `${orientationIndex + 1} / ${total}` : '—'}
+          </div>
         </div>
         <PickerIconButton
           ariaLabel="Next orientation"

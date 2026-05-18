@@ -222,6 +222,47 @@ export function createDefault31212EditorConfig(): EditorConfig {
  * edge directions (angles 0, π/3, 2π/3). Each non-dodec Cell is rotated so
  * its edge facing the dodecagon coincides with the dodecagon's matching edge.
  */
+/**
+ * Build a fresh **3.6.3.6 Configuration** Patch (trihexagonal / Kagome:
+ * hexagon + two triangles). Each hexagon edge is shared with a triangle and
+ * each triangle edge is shared with a hexagon — at every vertex two
+ * triangles + two hexagons alternate. Six hexagons meet each given hexagon
+ * as nearest neighbours via triangle bridges, at distance 2L.
+ *
+ * Hexagon Cell sits at the Patch origin (canonical orientation). Two
+ * triangle Cells sit at distance 2L√3/3 from the origin in two adjacent
+ * hex-shared edge directions (angles 0 and π/3), rotated so each triangle's
+ * back edge coincides with the hexagon's matching edge.
+ */
+export function createDefault3636EditorConfig(): EditorConfig {
+  const edgeLength = DEFAULT_EDGE_LENGTH
+  const triDist = (2 * edgeLength * Math.sqrt(3)) / 3
+  const cells: EditorCell[] = [
+    createBoundaryMatchingCell('hexagon', 'hexagon', { x: 0, y: 0 }, 0, edgeLength),
+    createBoundaryMatchingCell(
+      'triangle-e',
+      'triangle',
+      { x: triDist, y: 0 },
+      Math.PI / 2,
+      edgeLength,
+    ),
+    createBoundaryMatchingCell(
+      'triangle-ne',
+      'triangle',
+      { x: triDist / 2, y: (triDist * Math.sqrt(3)) / 2 },
+      Math.PI / 6,
+      edgeLength,
+    ),
+  ]
+  return {
+    version: 3,
+    cells,
+    activeCellId: 'hexagon',
+    edgeLength,
+    configuration: '3.6.3.6',
+  }
+}
+
 export function createDefault4612EditorConfig(): EditorConfig {
   const edgeLength = DEFAULT_EDGE_LENGTH
   const hexDist = edgeLength * (1 + Math.sqrt(3))

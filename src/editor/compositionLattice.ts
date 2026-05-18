@@ -72,6 +72,17 @@ export function compositionCellBasis(patch: EditorPatch): { u: Vec2; v: Vec2 } {
         v: { x: period / 2, y: (period * Math.sqrt(3)) / 2 },
       }
     }
+    case '3.6.3.6': {
+      // Trihexagonal (Kagome): hex lattice of hexagons separated by 2L
+      // (nearest hex-to-hex distance via the triangle bridge). Two triangles
+      // per cell fill the interstitial gaps. Basis vectors at angles π/6
+      // and π/2 — the hex-neighbour directions of the central hexagon.
+      const period = 2 * L
+      return {
+        u: { x: (period * Math.sqrt(3)) / 2, y: period / 2 },
+        v: { x: 0, y: period },
+      }
+    }
     default:
       // Single-Cell Patches don't have a Configuration; the per-Cell lattice
       // helper handles them. Treat as a square unit so callers don't crash.

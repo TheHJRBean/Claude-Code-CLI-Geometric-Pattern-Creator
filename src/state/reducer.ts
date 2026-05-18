@@ -279,19 +279,18 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       })))
     }
     case 'EDITOR_PLACE_TILE_ON_BOUNDARY_SECTION': {
-      // Step 17.12 — boundary-inward placement. Always available in single-
-      // cell Patches (no enabling flag — boundary-section picker is a
-      // standard part of Design Phase). Multi-cell composition support is
-      // parked per locked decision b.
+      // Step 17.12 — boundary-inward placement. Standard part of Design Phase,
+      // works on the active Cell of a single-cell Patch OR a multi-cell
+      // Configuration (the active-Cell pane swap picks which Cell is edited).
       //
-      // `patch.edgeLength` resets to the section length on the FIRST
-      // boundary-anchored placement (locked decision f). After that, further
-      // boundary placements keep the lattice unchanged — the user only
-      // experiences the Composition-lattice jump once per Cell. "First" is
-      // proxied by `cell.tiles.length === (cell.noSeed ? 0 : 1)` — Cell
-      // holds nothing beyond the Seed (or is empty when no-Seed is on).
+      // For SINGLE-CELL Patches, `patch.edgeLength` resets to the section
+      // length on the FIRST boundary-anchored placement (locked decision f).
+      // For MULTI-CELL Patches the edgeLength is the shared lattice edge —
+      // rescaling it would invalidate the other Cells' positions and seed
+      // Tile sizes — so the reset is skipped; placed Tiles just sit at the
+      // section size inside the Cell. "First" is proxied by
+      // `cell.tiles.length === (cell.noSeed ? 0 : 1)`.
       if (!state.editor) return state
-      if (state.editor.cells.length > 1) return state
       const { edgeIndex, sectionIndex, sides } = action.payload
       const patch = state.editor
       const cell = activeCell(patch)
@@ -311,7 +310,8 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         nextTiles = [...cell.tiles, ...placements]
       }
       const nextCell: EditorCell = { ...cell, tiles: nextTiles }
-      const isFirstPlacement = cell.tiles.length === (cell.noSeed ? 0 : 1)
+      const multiCell = patch.cells.length > 1
+      const isFirstPlacement = !multiCell && cell.tiles.length === (cell.noSeed ? 0 : 1)
       const nextEditor = isFirstPlacement
         ? { ...withActiveCell(patch, nextCell), version: patch.version, edgeLength: section.sectionLength }
         : { ...withActiveCell(patch, nextCell), version: patch.version }

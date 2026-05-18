@@ -1311,50 +1311,49 @@ function EditorDesignControls({
         </label>
       </div>
 
-      {/* Step 17.12 — No Seed Tile. Single-cell only in v1. When on, the
-          active Cell starts empty (no auto-placed Seed) — useful when
-          authoring from the boundary inward via the always-on section
-          picker. Locked while the Cell holds any non-Seed Tile (mirrors the
-          existing Seed-sides slider lock); the reducer silently refuses
-          out-of-lock toggles. */}
-      {!multiCell && (
-        <div style={{ marginTop: 10 }}>
-          <label style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            cursor: originLocked ? 'not-allowed' : 'pointer',
-            fontFamily: "'EB Garamond', Georgia, serif",
-            fontSize: 13,
-            color: cell.noSeed ? 'var(--text)' : 'var(--text-muted)',
-            opacity: originLocked ? 0.5 : 1,
-            transition: 'color 0.15s, opacity 0.15s',
+      {/* Step 17.12 — No Seed Tile. Per-Cell: applies to whichever Cell is
+          currently active in Design Phase (single-cell Patch or one Cell of a
+          multi-cell Configuration). When on, the active Cell starts empty
+          (no auto-placed Seed) — useful when authoring from the boundary
+          inward via the always-on section picker. Locked while the Cell
+          holds any non-Seed Tile (mirrors the existing Seed-sides slider
+          lock); the reducer silently refuses out-of-lock toggles. */}
+      <div style={{ marginTop: 10 }}>
+        <label style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          cursor: originLocked ? 'not-allowed' : 'pointer',
+          fontFamily: "'EB Garamond', Georgia, serif",
+          fontSize: 13,
+          color: cell.noSeed ? 'var(--text)' : 'var(--text-muted)',
+          opacity: originLocked ? 0.5 : 1,
+          transition: 'color 0.15s, opacity 0.15s',
+        }}>
+          <input
+            type="checkbox"
+            checked={!!cell.noSeed}
+            disabled={originLocked}
+            onChange={e => dispatch({ type: 'SET_CELL_NO_SEED', payload: e.target.checked })}
+          />
+          No Seed Tile
+        </label>
+        {originLocked && (
+          <div style={{
+            fontFamily: "'Cinzel', Georgia, serif",
+            fontSize: 9,
+            fontWeight: 600,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: 'var(--text-muted)',
+            marginTop: 2,
+            marginBottom: 4,
+            lineHeight: 1.4,
           }}>
-            <input
-              type="checkbox"
-              checked={!!cell.noSeed}
-              disabled={originLocked}
-              onChange={e => dispatch({ type: 'SET_CELL_NO_SEED', payload: e.target.checked })}
-            />
-            No Seed Tile
-          </label>
-          {originLocked && (
-            <div style={{
-              fontFamily: "'Cinzel', Georgia, serif",
-              fontSize: 9,
-              fontWeight: 600,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              color: 'var(--text-muted)',
-              marginTop: 2,
-              marginBottom: 4,
-              lineHeight: 1.4,
-            }}>
-              Locked — clear the patch to toggle the Seed Tile.
-            </div>
-          )}
-        </div>
-      )}
+            Locked — clear the {multiCell ? 'cell' : 'patch'} to toggle the Seed Tile.
+          </div>
+        )}
+      </div>
 
       {/* Step 17.6d — Show neighbours. Disabled while wrap is on (boundary
           edge moves under the user's feet). Triangle support added — the

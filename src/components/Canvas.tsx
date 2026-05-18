@@ -160,7 +160,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   )
   // Defer the heavy tiling computation so pointer events stay responsive
   const deferredVT = useDeferredValue(viewTransform)
-  const { polygons, segments, boundaryOutlines, ghostPolygons } = usePattern(
+  const { polygons, segments, boundaryOutlines, ghostPolygons, seedOutlineCount } = usePattern(
     config,
     deferredVT,
     size.width,
@@ -628,6 +628,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         outlineWidth={outlineWidth}
         boundaryOutlines={boundaryOutlines}
         ghostPolygons={ghostPolygons}
+        seedOutlineCount={seedOutlineCount}
         editorOverlay={editorOverlay}
       />
       {pickerScreenPos && onPlaceTile && onSelectEdge && selectedEdgeData && (

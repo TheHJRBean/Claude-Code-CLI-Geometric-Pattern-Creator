@@ -1061,44 +1061,39 @@ function EditorDesignControls({
         label="Boundary"
         tooltip="Cell shape (or multi-cell Configuration) the Patch is built into. Single-cell options like Square/Hex/Triangle give one Cell; Configurations like 4.8.8 give a multi-cell Patch."
       />
-      <div style={{ display: 'flex', gap: 0, marginBottom: 4 }}>
-        {BOUNDARY_OPTIONS.map(opt => {
-          const active = opt.value.kind === 'configuration'
-            ? editor.configuration === opt.value.id
-            : !multiCell && cell.shape === opt.value.shape
-          const onClick = () => {
-            if (opt.value.kind === 'configuration') {
-              dispatch({ type: 'SET_BUILDER_CONFIGURATION', payload: opt.value.id })
-            } else {
-              // Reducer handles the composition → single-shape transition by
-              // seeding a fresh patch in the requested shape.
-              dispatch({ type: 'SET_CELL_SHAPE', payload: opt.value.shape })
-            }
+      <select
+        className="pattern-select"
+        value={
+          multiCell && editor.configuration
+            ? `configuration:${editor.configuration}`
+            : `shape:${cell.shape}`
+        }
+        onChange={e => {
+          const [kind, id] = e.target.value.split(':') as [
+            'shape' | 'configuration',
+            string,
+          ]
+          if (kind === 'configuration') {
+            dispatch({ type: 'SET_BUILDER_CONFIGURATION', payload: id as ConfigurationId })
+          } else {
+            // Reducer handles the composition → single-shape transition by
+            // seeding a fresh patch in the requested shape.
+            dispatch({ type: 'SET_CELL_SHAPE', payload: id as BoundaryShape })
           }
+        }}
+        style={{ marginBottom: 4 }}
+      >
+        {BOUNDARY_OPTIONS.map(opt => {
+          const value = opt.value.kind === 'configuration'
+            ? `configuration:${opt.value.id}`
+            : `shape:${opt.value.shape}`
           return (
-            <button
-              key={opt.label}
-              onClick={onClick}
-              style={{
-                flex: 1,
-                padding: '5px 0',
-                fontFamily: "'Cinzel', Georgia, serif",
-                fontSize: 9,
-                fontWeight: 600,
-                letterSpacing: '0.10em',
-                textTransform: 'uppercase',
-                cursor: 'pointer',
-                border: `1px solid ${active ? 'var(--accent)' : 'var(--border-subtle)'}`,
-                background: active ? 'var(--accent-bg)' : 'transparent',
-                color: active ? 'var(--accent)' : 'var(--text-muted)',
-                transition: 'all 0.15s',
-              }}
-            >
+            <option key={value} value={value}>
               {opt.label}
-            </button>
+            </option>
           )
         })}
-      </div>
+      </select>
 
       {multiCell && (
         <>
@@ -1106,34 +1101,18 @@ function EditorDesignControls({
             label="Editing Cell"
             tooltip="Which Cell of the multi-cell Patch you're authoring Tiles into. Composition Phase renders all Cells together; Design Phase lets you author them one at a time."
           />
-          <div style={{ display: 'flex', gap: 0, marginBottom: 8 }}>
-            {editor.cells.map(t => {
-              const active = editor.activeCellId === t.id
-              const label = t.id.charAt(0).toUpperCase() + t.id.slice(1)
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => dispatch({ type: 'SET_ACTIVE_CELL', payload: { cellId: t.id } })}
-                  style={{
-                    flex: 1,
-                    padding: '5px 0',
-                    fontFamily: "'Cinzel', Georgia, serif",
-                    fontSize: 9,
-                    fontWeight: 600,
-                    letterSpacing: '0.10em',
-                    textTransform: 'uppercase',
-                    cursor: 'pointer',
-                    border: `1px solid ${active ? 'var(--accent)' : 'var(--border-subtle)'}`,
-                    background: active ? 'var(--accent-bg)' : 'transparent',
-                    color: active ? 'var(--accent)' : 'var(--text-muted)',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  {label}
-                </button>
-              )
-            })}
-          </div>
+          <select
+            className="pattern-select"
+            value={editor.activeCellId}
+            onChange={e => dispatch({ type: 'SET_ACTIVE_CELL', payload: { cellId: e.target.value } })}
+            style={{ marginBottom: 8 }}
+          >
+            {editor.cells.map(t => (
+              <option key={t.id} value={t.id}>
+                {t.id.charAt(0).toUpperCase() + t.id.slice(1)}
+              </option>
+            ))}
+          </select>
         </>
       )}
 

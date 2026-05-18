@@ -269,6 +269,14 @@ export function TessellationLabMode({
       : []
   })()
 
+  // 17.11.4 — preview validates in multi mode with ≥3 picks. Same gates the
+  // reducer applies (selectable, real-Cell pick, non-overlapping,
+  // non-self-intersecting, centroid outside tiles). Computed once and
+  // consumed by previewValid, previewMessage, and previewForceable.
+  const validity = multiMode && picks.length >= 3 && config.editor
+    ? validateMultiPick(config.editor, picks)
+    : null
+
   return (
     <div className="app-layout">
       <div className="sidebar sidebar--open">
@@ -656,31 +664,13 @@ export function TessellationLabMode({
         editorMode={editorMode}
         picks={picks}
         onPickVertex={handlePickVertex}
-        previewValid={
-          // 17.11.4 — preview validates in multi mode with ≥3 picks. Uses
-          // the same gates the reducer applies (selectable, real-Cell pick,
-          // non-overlapping, non-self-intersecting, centroid outside tiles)
-          // so the polygon renders green only when Enter would actually
-          // place a Tile.
-          multiMode && picks.length >= 3 && config.editor
-            ? validateMultiPick(config.editor, picks).kind === 'valid'
-            : null
-        }
-        previewMessage={
-          multiMode && picks.length >= 3 && config.editor
-            ? multiPickValidityLabel(validateMultiPick(config.editor, picks))
-            : null
-        }
+        previewValid={validity ? validity.kind === 'valid' : null}
+        previewMessage={validity ? multiPickValidityLabel(validity) : null}
         previewForceable={
-          // Geometry-soft failures the user can override via the Accept
-          // and continue anyway button: overlap false-positives and
-          // centroid-inside-tile. Hard geometric failures stay blocked.
-          multiMode && picks.length >= 3 && config.editor
-            ? (() => {
-                const k = validateMultiPick(config.editor, picks).kind
-                return k === 'overlaps-existing' || k === 'inside-tile'
-              })()
-            : false
+          // Soft failures the user can override via Accept-and-continue-anyway:
+          // overlap false-positives and centroid-inside-tile. Hard geometric
+          // failures (self-intersecting, duplicate vertex, etc.) stay blocked.
+          validity ? validity.kind === 'overlaps-existing' || validity.kind === 'inside-tile' : false
         }
         onForceCommitMulti={() => {
           if (multiMode && picks.length >= 3) {

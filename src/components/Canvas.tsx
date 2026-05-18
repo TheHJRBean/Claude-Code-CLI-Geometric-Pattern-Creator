@@ -17,7 +17,18 @@ import { EditorEdgeLayer } from './EditorEdgeLayer'
 import { EditorPickerOverlay } from './EditorPickerOverlay'
 import { EditorVertexLayer } from './EditorVertexLayer'
 import { EditorBoundaryInwardLayer, type SectionKey } from './EditorBoundaryInwardLayer'
+import { EditorVertexPlacementLayer } from './EditorVertexPlacementLayer'
 import { computeBoundarySections, viableSidesForBoundarySection } from '../editor/boundaryInward'
+import {
+  computeExposedVertices,
+  placeRegularNGonOnVertex,
+  vertexPlacementOrientations,
+  viableSidesForVertex,
+  type ExposedVertex,
+  type VertexKey,
+} from '../editor/vertexPlacement'
+import { PICKER_SIDES } from '../editor/placement'
+import { regularPolygonVertices } from '../editor/regularPolygon'
 
 /**
  * Each **Cell** in a Patch lives in Patch-local coords via its own `center` +
@@ -87,6 +98,10 @@ interface Props {
   selectedSection?: SectionKey | null
   onSelectSection?: (section: SectionKey | null) => void
   onPlaceTileOnBoundarySection?: (sides: number) => void
+  /** Step 17.13c — vertex-anchored placement. Always available in Design
+   *  Phase + Place mode (single-cell only). The picker is two-page: shape
+   *  grid → orientation arrows + live preview. */
+  onPlaceTileOnVertex?: (payload: { vertexKey: VertexKey; sides: number; rotation: number }) => void
   /** Step 17.5 — Complete mode: 'place' shows the edge picker, 'complete' shows the vertex picker. */
   editorMode?: 'place' | 'complete'
   /** Step 17.11 — accumulated picks (chord mode: 0–1; multi mode: 0+). */
@@ -120,7 +135,7 @@ interface Props {
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, editorMode = 'place', picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, editorMode = 'place', picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -359,6 +374,112 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     s => s.edgeIndex === selectedSection.edgeIndex && s.sectionIndex === selectedSection.sectionIndex,
   )
 
+  // ── Vertex placement (Step 17.13c) ───────────────────
+  // Single-cell only in v1 — multi-Cell composition support deferred (mirrors
+  // 17.12 boundary-inward). Active in Design Phase + Place mode. State machine:
+  //   selectedVertex !== null && pickedSides === null → page 1 (shape grid)
+  //   selectedVertex !== null && pickedSides !== null → page 2 (orientations)
+  const vertexPlacementActive = !!(
+    editorActive && config.editor
+    && config.editor.cells.length === 1
+    && activeCellForSections
+    && editorMode === 'place'
+    && !editorStrandMode
+    && onPlaceTileOnVertex
+  )
+  const cellLocalVertices = useMemo<ExposedVertex[]>(() => {
+    if (!vertexPlacementActive || !activeCellForSections) return []
+    return computeExposedVertices(activeCellForSections)
+  }, [vertexPlacementActive, activeCellForSections])
+  const renderedVertices = useMemo<ExposedVertex[]>(() => {
+    if (!vertexPlacementActive || !activeCellForSections) return cellLocalVertices
+    const tx = cellTransform(activeCellForSections)
+    return cellLocalVertices.map(v => ({ ...v, p: applyTransform(v.p, tx) }))
+  }, [vertexPlacementActive, activeCellForSections, cellLocalVertices])
+  const [selectedVertexKey, setSelectedVertexKey] = useState<VertexKey | null>(null)
+  const [hoveredVertexKey, setHoveredVertexKey] = useState<VertexKey | null>(null)
+  const [vertexPickedSides, setVertexPickedSides] = useState<number | null>(null)
+  const [vertexOrientationIdx, setVertexOrientationIdx] = useState(0)
+  useEffect(() => {
+    if (!vertexPlacementActive) {
+      setSelectedVertexKey(null)
+      setHoveredVertexKey(null)
+      setVertexPickedSides(null)
+      setVertexOrientationIdx(0)
+    }
+  }, [vertexPlacementActive])
+  // Drop the picker when the underlying vertex disappears (e.g. another
+  // placement covered it). Stops a stale picker from dispatching against a
+  // vertex key that's been resolved away.
+  useEffect(() => {
+    if (selectedVertexKey && !cellLocalVertices.some(v => v.key === selectedVertexKey)) {
+      setSelectedVertexKey(null)
+      setVertexPickedSides(null)
+      setVertexOrientationIdx(0)
+    }
+  }, [cellLocalVertices, selectedVertexKey])
+  const selectedVertexData = selectedVertexKey
+    ? cellLocalVertices.find(v => v.key === selectedVertexKey) ?? null
+    : null
+  const vertexPickerViableSides = useMemo<number[]>(() => {
+    if (!selectedVertexData || !activeCellForSections || !config.editor) return []
+    return viableSidesForVertex(
+      selectedVertexData,
+      config.editor.edgeLength,
+      activeCellForSections,
+      PICKER_SIDES,
+    )
+  }, [selectedVertexData, activeCellForSections, config.editor])
+  const vertexOrientations = useMemo(() => {
+    if (!selectedVertexData || vertexPickedSides === null || !activeCellForSections || !config.editor) {
+      return []
+    }
+    return vertexPlacementOrientations(
+      selectedVertexData,
+      vertexPickedSides,
+      config.editor.edgeLength,
+      activeCellForSections,
+    )
+  }, [selectedVertexData, vertexPickedSides, activeCellForSections, config.editor])
+  useEffect(() => {
+    // Clamp orientation index if the available orientations shrank.
+    if (vertexOrientationIdx >= vertexOrientations.length && vertexOrientations.length > 0) {
+      setVertexOrientationIdx(0)
+    }
+  }, [vertexOrientations, vertexOrientationIdx])
+
+  // Live preview of the candidate Tile, rendered as a translucent polygon in
+  // the editor overlay. Built in Cell-local coords then transformed into
+  // Patch-local for rendering — keeps centring + rotation consistent with the
+  // active Cell's transform.
+  const vertexPreviewPoints = useMemo<string | null>(() => {
+    if (!selectedVertexData || vertexPickedSides === null || !activeCellForSections || !config.editor) {
+      return null
+    }
+    const orientation = vertexOrientations[vertexOrientationIdx]
+    if (!orientation) return null
+    const tile = placeRegularNGonOnVertex(
+      vertexPickedSides,
+      config.editor.edgeLength,
+      selectedVertexData,
+      orientation.rotation,
+      '__preview__',
+    )
+    const verts = regularPolygonVertices(tile.sides, tile.center, tile.edgeLength, tile.rotation)
+    const tx = cellTransform(activeCellForSections)
+    return verts.map(v => {
+      const w = applyTransform(v, tx)
+      return `${w.x},${w.y}`
+    }).join(' ')
+  }, [selectedVertexData, vertexPickedSides, vertexOrientations, vertexOrientationIdx, activeCellForSections, config.editor])
+
+  // Closing the picker without committing — also clears the page-2 state.
+  const closeVertexPicker = () => {
+    setSelectedVertexKey(null)
+    setVertexPickedSides(null)
+    setVertexOrientationIdx(0)
+  }
+
   // Composition Phase hides every Design-Phase overlay — the canvas is the
   // lattice preview only, and Strand controls in the side panel drive what
   // changes. Multi-Cell Design Phase keeps the picker live: edges are
@@ -408,6 +529,45 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
             hovered={hoveredEdge}
             onHover={setHoveredEdge}
           />
+          {/* Vertex preview — translucent polygon rendered BEFORE the vertex
+              layer so the diamond dots sit on top. Pointer-events off so
+              the preview never intercepts clicks. */}
+          {vertexPreviewPoints && (
+            <polygon
+              points={vertexPreviewPoints}
+              fill="var(--accent)"
+              fillOpacity={0.18}
+              stroke="var(--accent)"
+              strokeOpacity={0.7}
+              strokeWidth={1.6}
+              strokeDasharray="4 3"
+              vectorEffect="non-scaling-stroke"
+              pointerEvents="none"
+            />
+          )}
+          {/* Vertex layer renders LAST so dots sit above edges + sections —
+              vertex clicks win when overlapping an edge midpoint or a
+              boundary section endpoint. */}
+          {vertexPlacementActive && (
+            <EditorVertexPlacementLayer
+              vertices={renderedVertices}
+              selectedKey={selectedVertexKey}
+              onSelect={(v) => {
+                // Clear sibling pickers so only one overlay is open.
+                if (v) {
+                  onSelectEdge?.(null)
+                  onSelectSection?.(null)
+                  setSelectedVertexKey(v.key)
+                  setVertexPickedSides(null)
+                  setVertexOrientationIdx(0)
+                } else {
+                  closeVertexPicker()
+                }
+              }}
+              hoveredKey={hoveredVertexKey}
+              onHover={setHoveredVertexKey}
+            />
+          )}
         </g>
       ) : null
     : null
@@ -441,6 +601,15 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   const sectionPickerViable = selectedSectionData && activeCellForSections
     ? viableSidesForBoundarySection(selectedSectionData, activeCellForSections)
     : []
+
+  // Step 17.13c — vertex picker. World pos = anchor vertex transformed into
+  // Patch-local coords. Vertex placement is single-cell only in v1.
+  const vertexPickerWorldPos = selectedVertexData && activeCellForSections
+    ? applyTransform(selectedVertexData.p, cellTransform(activeCellForSections))
+    : null
+  const vertexPickerScreenPos = vertexPickerWorldPos && vertexPlacementActive
+    ? worldToScreen(vertexPickerWorldPos, viewTransform, size.width, size.height)
+    : null
 
   return (
     <div ref={containerRef} className="canvas-container">
@@ -481,6 +650,42 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
           viableSides={sectionPickerViable}
           onPick={n => { onPlaceTileOnBoundarySection(n); onSelectSection(null) }}
           onClose={() => onSelectSection(null)}
+        />
+      )}
+      {vertexPickerScreenPos && selectedVertexData && onPlaceTileOnVertex && (
+        <EditorPickerOverlay
+          mode="vertex"
+          position={vertexPickerScreenPos}
+          viableSides={vertexPickerViableSides}
+          pickedSides={vertexPickedSides}
+          orientations={vertexOrientations}
+          orientationIndex={vertexOrientationIdx}
+          onPickShape={n => {
+            setVertexPickedSides(n)
+            setVertexOrientationIdx(0)
+          }}
+          onBackToShapes={() => {
+            setVertexPickedSides(null)
+            setVertexOrientationIdx(0)
+          }}
+          onCycleOrientation={dir => {
+            if (vertexOrientations.length < 2) return
+            setVertexOrientationIdx(prev => {
+              const total = vertexOrientations.length
+              return (prev + dir + total) % total
+            })
+          }}
+          onCommit={() => {
+            const orientation = vertexOrientations[vertexOrientationIdx]
+            if (!orientation || vertexPickedSides === null) return
+            onPlaceTileOnVertex({
+              vertexKey: selectedVertexData.key,
+              sides: vertexPickedSides,
+              rotation: orientation.rotation,
+            })
+            closeVertexPicker()
+          }}
+          onClose={closeVertexPicker}
         />
       )}
       <button

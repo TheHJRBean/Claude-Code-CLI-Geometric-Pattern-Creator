@@ -32,6 +32,13 @@ export type Action =
   | { type: 'SET_EDITOR_ALTERNATE_BOUNDARY'; payload: boolean }
   | { type: 'SET_CELL_SEED_SIDES'; payload: number }
   | { type: 'EDITOR_PLACE_TILE_ON_EDGE'; payload: { tileId: string; edgeIndex: number; sides: number } }
+  // Step 17.12b — Boundary-inward placement. Drops a regular n-gon flush
+  // against the picked Boundary section; the new Tile's edge length becomes
+  // the Patch's `edgeLength` (so the lattice tracks the boundary-anchored
+  // Tile thereafter). Single-cell only in v1 (per locked decision b).
+  | { type: 'EDITOR_PLACE_TILE_ON_BOUNDARY_SECTION'; payload: { edgeIndex: number; sectionIndex: number; sides: number } }
+  // Step 17.12c — toggle Boundary-inward placement UI on/off (per-active-Cell).
+  | { type: 'SET_EDITOR_BOUNDARY_INWARD'; payload: boolean }
   | { type: 'EDITOR_DELETE_TILE'; payload: { tileId: string } }
   // Step 17.5 — Complete operation (manual, 2-vertex chord)
   | { type: 'EDITOR_COMPLETE_GAP'; payload: { pA: Vec2; pB: Vec2 } }

@@ -17,6 +17,7 @@ import { completeGap } from '../editor/complete'
 import { completeNGap } from '../editor/completeN'
 import { boundarySymmetries, applySym } from '../editor/symmetry'
 import { autoCompleteCell, fitBoundarySize } from '../editor/autoComplete'
+import { computeBoundarySections, isBoundarySectionPlacementViable, placeRegularNGonOnBoundarySection, placeTilesOnBoundarySectionOrbit } from '../editor/boundaryInward'
 import { seedFiguresForEditor } from '../editor/tileTypes'
 import { activeCell, allCells, withActiveCell } from '../editor/active'
 import {
@@ -267,6 +268,48 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         if (!placements) return cell
         return { ...cell, tiles: [...cell.tiles, ...placements] }
       })))
+    }
+    case 'EDITOR_PLACE_TILE_ON_BOUNDARY_SECTION': {
+      // Step 17.12b — boundary-inward placement (single-cell v1, locked
+      // decision b). The first boundary-anchored Tile dictates the Patch's
+      // edge length thereafter (decision f) — we reset `patch.edgeLength`
+      // to the section length so the Composition-Phase lattice tracks the
+      // new Tile. Origin Tile is left in place (decision a: both flows
+      // coexist) — its exposed edges become non-conforming (Decision 14a)
+      // but isPlacementViable now sizes Place picks to the source edge's
+      // actual length, so this doesn't freeze the picker.
+      if (!state.editor) return state
+      if (state.editor.cells.length > 1) return state
+      const { edgeIndex, sectionIndex, sides } = action.payload
+      const patch = state.editor
+      const cell = activeCell(patch)
+      if (!cell.boundaryInward) return state
+      const sections = computeBoundarySections(cell)
+      const section = sections.find(s => s.edgeIndex === edgeIndex && s.sectionIndex === sectionIndex)
+      if (!section) return state
+      const mode = cell.symmetryMode ?? 'none'
+      const idPrefix = `placed-${cell.tiles.length}-${Date.now()}`
+      let nextTiles: EditorTile[]
+      if (mode === 'none') {
+        if (!isBoundarySectionPlacementViable(sides, section, cell)) return state
+        const tile = placeRegularNGonOnBoundarySection(sides, section, `${idPrefix}-0`)
+        nextTiles = [...cell.tiles, tile]
+      } else {
+        const placements = placeTilesOnBoundarySectionOrbit(cell, section, sides, idPrefix)
+        if (!placements) return state
+        nextTiles = [...cell.tiles, ...placements]
+      }
+      const nextCell: EditorCell = { ...cell, tiles: nextTiles }
+      const nextEditor = {
+        ...withActiveCell(patch, nextCell),
+        version: patch.version,
+        edgeLength: section.sectionLength,
+      }
+      return applyWrap(seedFigures({ ...state, editor: nextEditor }))
+    }
+    case 'SET_EDITOR_BOUNDARY_INWARD': {
+      if (!state.editor) return state
+      return updateActiveCell(state, cell => ({ ...cell, boundaryInward: action.payload }))
     }
     case 'EDITOR_DELETE_TILE': {
       if (!state.editor) return state

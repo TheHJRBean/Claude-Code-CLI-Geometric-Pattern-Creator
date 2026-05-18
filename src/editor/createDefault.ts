@@ -207,3 +207,68 @@ export function createDefault31212EditorConfig(): EditorConfig {
     configuration: '3.12.12',
   }
 }
+
+/**
+ * Build a fresh **4.6.12 Configuration** Patch (great rhombitrihexagonal:
+ * dodecagon + two hexagons + three squares). Around each dodecagon the twelve
+ * edges alternate between hexagon-shared and square-shared. Six dodecagons
+ * meet each given dodecagon as nearest neighbours, at distance L(3+√3) — the
+ * common distance via either a hexagon or a square bridge.
+ *
+ * Dodecagon Cell sits at the Patch origin (flat-top + flat-bottom). Hexagon
+ * Cells sit at distance L(1+√3) from origin in two of the dodecagon's six
+ * hex-shared edge directions (angles π/6 and π/2). Square Cells sit at
+ * distance L(3+√3)/2 from origin in three of the dodecagon's six sq-shared
+ * edge directions (angles 0, π/3, 2π/3). Each non-dodec Cell is rotated so
+ * its edge facing the dodecagon coincides with the dodecagon's matching edge.
+ */
+export function createDefault4612EditorConfig(): EditorConfig {
+  const edgeLength = DEFAULT_EDGE_LENGTH
+  const hexDist = edgeLength * (1 + Math.sqrt(3))
+  const sqDist = (edgeLength * (3 + Math.sqrt(3))) / 2
+  const cells: EditorCell[] = [
+    createBoundaryMatchingCell('dodecagon', 'dodecagon', { x: 0, y: 0 }, 0, edgeLength),
+    createBoundaryMatchingCell(
+      'hexagon-1',
+      'hexagon',
+      { x: (hexDist * Math.sqrt(3)) / 2, y: hexDist / 2 },
+      Math.PI / 2,
+      edgeLength,
+    ),
+    createBoundaryMatchingCell(
+      'hexagon-2',
+      'hexagon',
+      { x: 0, y: hexDist },
+      Math.PI / 2,
+      edgeLength,
+    ),
+    createBoundaryMatchingCell(
+      'square-1',
+      'square',
+      { x: sqDist, y: 0 },
+      0,
+      edgeLength,
+    ),
+    createBoundaryMatchingCell(
+      'square-2',
+      'square',
+      { x: sqDist / 2, y: (sqDist * Math.sqrt(3)) / 2 },
+      -Math.PI / 6,
+      edgeLength,
+    ),
+    createBoundaryMatchingCell(
+      'square-3',
+      'square',
+      { x: -sqDist / 2, y: (sqDist * Math.sqrt(3)) / 2 },
+      Math.PI / 6,
+      edgeLength,
+    ),
+  ]
+  return {
+    version: 3,
+    cells,
+    activeCellId: 'dodecagon',
+    edgeLength,
+    configuration: '4.6.12',
+  }
+}

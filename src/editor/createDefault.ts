@@ -223,6 +223,73 @@ export function createDefault31212EditorConfig(): EditorConfig {
  * its edge facing the dodecagon coincides with the dodecagon's matching edge.
  */
 /**
+ * Build a fresh **3.4.6.4 Configuration** Patch (small rhombitrihexagonal:
+ * hexagon + three squares + two triangles). Every hexagon edge is shared
+ * with a square; each square has two opposite hex-shared edges and two
+ * opposite triangle-shared edges; each triangle's three edges are all
+ * square-shared. Hexagons sit on a hex lattice with period L(√3+1) — the
+ * hex-to-hex distance via the square bridge.
+ *
+ * Hexagon Cell sits at the Patch origin (canonical orientation). Three
+ * square Cells sit at distance L(√3+1)/2 in three hex-shared directions
+ * (angles 0, π/3, 2π/3), each rotated so its inner edge coincides with the
+ * hexagon's matching edge. Two triangle Cells sit at distance L(3+√3)/3
+ * (= hex circumradius + tri apothem ≈ 1.577L) in the hex-vertex directions
+ * angles π/2 and π/6, oriented with vertex 0 pointing back toward the
+ * hexagon centre.
+ */
+export function createDefault3464EditorConfig(): EditorConfig {
+  const edgeLength = DEFAULT_EDGE_LENGTH
+  const sqDist = (edgeLength * (Math.sqrt(3) + 1)) / 2
+  const triDist = (edgeLength * (3 + Math.sqrt(3))) / 3
+  const cells: EditorCell[] = [
+    createBoundaryMatchingCell('hexagon', 'hexagon', { x: 0, y: 0 }, 0, edgeLength),
+    createBoundaryMatchingCell(
+      'square-1',
+      'square',
+      { x: sqDist, y: 0 },
+      0,
+      edgeLength,
+    ),
+    createBoundaryMatchingCell(
+      'square-2',
+      'square',
+      { x: sqDist / 2, y: (sqDist * Math.sqrt(3)) / 2 },
+      -Math.PI / 6,
+      edgeLength,
+    ),
+    createBoundaryMatchingCell(
+      'square-3',
+      'square',
+      { x: -sqDist / 2, y: (sqDist * Math.sqrt(3)) / 2 },
+      Math.PI / 6,
+      edgeLength,
+    ),
+    createBoundaryMatchingCell(
+      'triangle-1',
+      'triangle',
+      { x: 0, y: triDist },
+      0,
+      edgeLength,
+    ),
+    createBoundaryMatchingCell(
+      'triangle-2',
+      'triangle',
+      { x: (triDist * Math.sqrt(3)) / 2, y: triDist / 2 },
+      Math.PI / 3,
+      edgeLength,
+    ),
+  ]
+  return {
+    version: 3,
+    cells,
+    activeCellId: 'hexagon',
+    edgeLength,
+    configuration: '3.4.6.4',
+  }
+}
+
+/**
  * Build a fresh **3.6.3.6 Configuration** Patch (trihexagonal / Kagome:
  * hexagon + two triangles). Each hexagon edge is shared with a triangle and
  * each triangle edge is shared with a hexagon — at every vertex two

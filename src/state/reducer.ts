@@ -228,15 +228,22 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         wrapBoundary: false,
       }))
     }
-    case 'SET_EDITOR_ALTERNATE_BOUNDARY':
-      // Flips just the active Cell's Boundary outline by π/n. Sibling Cells in
-      // a multi-cell Patch are untouched — the unit cell still tiles by
-      // translation because each Cell's `center` + `rotation` is preserved.
+    case 'SET_EDITOR_ALTERNATE_BOUNDARY': {
+      // Flips Boundary outlines by π/n. Multi-cell Configurations: applies to
+      // every Cell in the Patch — a single-Cell flip would rotate that Cell
+      // out of phase with its siblings and break the shared lattice, creating
+      // visible discontinuities at Cell-Cell edges. Single-cell: applies to
+      // the sole Cell.
       if (!state.editor) return state
-      return applyWrap(updateActiveCell(state, cell => ({
-        ...cell,
+      const cells = state.editor.cells.map(c => ({
+        ...c,
         alternateBoundary: action.payload,
-      })))
+      }))
+      return applyWrap({
+        ...state,
+        editor: { ...state.editor, cells },
+      })
+    }
     case 'SET_CELL_SEED_SIDES': {
       if (!state.editor) return state
       const sides = Math.max(3, Math.floor(action.payload))

@@ -233,7 +233,7 @@ cross-references to the resolutions table.
 | **17.10**| Non-tiling patch detection + UI tag.             | S    | 2         | —            |
 | **17.11**| Multi-vertex Complete (cross-boundary + enclosed pocket). ✅ shipped 2026-05-07; user signed off on enclosed-pocket + chord-regression + UI guidance. Open follow-ups: chord-mode + neighbour-vertex picks silently no-op (auto-promote-to-multi or explicit modifier-required UX TBD); neighbour-click selection awaits browser confirmation that the layer-order fix landed. | M | 9, 10, 12 | — |
 | **17.11b**| Orbit propagation for multi-vertex Complete. ✅ shipped + signed off 2026-05-07. | S | 8 | — |
-| **17.12**| Boundary-inward authoring mode (single-shape v1). 🚧 In flight — A shipped 2026-05-11 (`8c935a2`); B shipped 2026-05-18; C (UI) pending. | M | 14, 14a | — |
+| **17.12**| Boundary-inward authoring mode (single-shape v1). ✅ Shipped 2026-05-18 — A (`8c935a2`, 2026-05-11) + B + C all landed. | M | 14, 14a | — |
 
 **Sub-step detail.**
 
@@ -640,13 +640,22 @@ cross-references to the resolutions table.
     `cells.length > 1` (decision b). Both actions in
     `DESIGN_MODE_ACTIONS` for undo/redo. No UI yet — dispatched from
     17.12c.
-  - **17.12c — UI.** New `EditorBoundaryInwardLayer` SVG layer renders
-    section highlights as click targets when `patch.boundaryInward` is
-    on and the editor mode is `'place'`. Checkbox "Boundary-inward
-    placement" in `EditorDesignControls`. Click a section → reuses the
-    existing `EditorPickerOverlay` at the section midpoint → dispatch.
-    Standard exposed-edge highlights remain visible in parallel (per
-    decision a — additive).
+  - **17.12c — UI.** ✅ Shipped 2026-05-18.
+    `src/components/EditorBoundaryInwardLayer.tsx` SVG layer renders
+    section highlights as click targets when the active Cell has
+    `boundaryInward` on and the editor mode is `'place'` (single-Cell
+    Patches only). Sections render dashed accent at rest, solid +
+    thicker on hover / selection; hit area is an invisible thick
+    stroke matching `EditorEdgeLayer`. Canvas computes sections in
+    Cell-local via `computeBoundarySections` and lifts them to
+    Patch-local through the active Cell's transform. Clicking a section
+    opens a second `EditorPickerOverlay` at the section midpoint with
+    `viableSidesForBoundarySection`; picking a side dispatches
+    `EDITOR_PLACE_TILE_ON_BOUNDARY_SECTION`. Checkbox "Boundary-inward
+    placement" added to `EditorDesignControls` (single-cell only,
+    placed under Wrap boundary). Standard exposed-edge highlights stay
+    live in parallel — selecting one selection kind clears the other
+    so only one picker shows at a time.
 
   **Out of scope for 17.12 (parked):**
   - Composition (4.8.8) support — see decision b.

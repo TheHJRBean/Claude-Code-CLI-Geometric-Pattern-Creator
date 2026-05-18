@@ -7,6 +7,7 @@ import type { TileTypeInfo } from '../types/tiling'
 import { createConfigLibrary } from '../state/configLibrary'
 import { ConfigLibraryPanel } from './ConfigLibraryPanel'
 import { Canvas, type SelectedEdge } from './Canvas'
+import type { SectionKey } from './EditorBoundaryInwardLayer'
 import { SandstoneEdge } from './SandstoneEdge'
 import { useTheme } from '../theme/ThemeContext'
 import { SAMPLE_EDITOR_CONFIG } from '../editor/sampleConfig'
@@ -123,9 +124,15 @@ export function TessellationLabMode({
 
   // ── Editor selection (Step 17.3) ───────────────────────
   const [selectedEdge, setSelectedEdge] = useState<SelectedEdge | null>(null)
+  // Step 17.12c — boundary-section selection is parallel to the edge picker;
+  // selecting one clears the other so only one EditorPickerOverlay is open.
+  const [selectedSection, setSelectedSection] = useState<SectionKey | null>(null)
   // Drop the selection whenever the editor patch is cleared or replaced.
   useEffect(() => {
-    if (config.tiling.type !== 'editor' || !config.editor) setSelectedEdge(null)
+    if (config.tiling.type !== 'editor' || !config.editor) {
+      setSelectedEdge(null)
+      setSelectedSection(null)
+    }
   }, [config.tiling.type, config.editor])
   // Multi-cell: clicking an edge that belongs to a non-active Cell
   // auto-switches the active Cell first (pure pane swap, not undoable) so the
@@ -141,6 +148,11 @@ export function TessellationLabMode({
       dispatch({ type: 'SET_ACTIVE_CELL', payload: { cellId: edge.hostCellId } })
     }
     setSelectedEdge(edge)
+    if (edge) setSelectedSection(null)
+  }
+  const handleSelectSection = (section: SectionKey | null) => {
+    setSelectedSection(section)
+    if (section) setSelectedEdge(null)
   }
   const handlePlaceTile = (sides: number) => {
     if (!selectedEdge) return
@@ -149,6 +161,14 @@ export function TessellationLabMode({
     dispatch({ type: 'EDITOR_PLACE_TILE_ON_EDGE', payload: {
       tileId: selectedEdge.tileId,
       edgeIndex: selectedEdge.edgeIndex,
+      sides,
+    } })
+  }
+  const handlePlaceTileOnBoundarySection = (sides: number) => {
+    if (!selectedSection) return
+    dispatch({ type: 'EDITOR_PLACE_TILE_ON_BOUNDARY_SECTION', payload: {
+      edgeIndex: selectedSection.edgeIndex,
+      sectionIndex: selectedSection.sectionIndex,
       sides,
     } })
   }
@@ -184,6 +204,16 @@ export function TessellationLabMode({
   // Reset picker state when patch changes or mode flips.
   const resetPicks = () => { setPicks([]); setMultiMode(false) }
   useEffect(() => { resetPicks() }, [editorMode, config.editor])
+  // Step 17.12c — drop the section selection if the user leaves Place mode
+  // or turns boundary-inward off on the active Cell.
+  useEffect(() => {
+    if (editorMode !== 'place') setSelectedSection(null)
+  }, [editorMode])
+  useEffect(() => {
+    if (!config.editor) return
+    const active = activeCell(config.editor)
+    if (!active.boundaryInward) setSelectedSection(null)
+  }, [config.editor])
   useEffect(() => {
     if (config.tiling.type !== 'editor' || !config.editor) {
       setEditorMode('place')
@@ -617,6 +647,9 @@ export function TessellationLabMode({
         onSelectEdge={handleSelectEdge}
         onPlaceTile={handlePlaceTile}
         onDeleteTile={handleDeleteTile}
+        selectedSection={selectedSection}
+        onSelectSection={handleSelectSection}
+        onPlaceTileOnBoundarySection={handlePlaceTileOnBoundarySection}
         editorMode={editorMode}
         picks={picks}
         onPickVertex={handlePickVertex}
@@ -1269,6 +1302,35 @@ function EditorDesignControls({
           Wrap boundary
         </label>
       </div>
+
+      {/* Step 17.12c — Boundary-inward placement. Single-cell only in v1
+          (locked decision b — multi-cell composition support is a separate
+          arc). When on, the Boundary edge surfaces additional section
+          highlights in Place mode; clicking a section drops a regular
+          n-gon flush against that section and resets the Patch's edgeLength
+          to the section length (locked decision f). Additive: the standard
+          exposed-edge picker stays live alongside. */}
+      {!multiCell && (
+        <div style={{ marginTop: 10 }}>
+          <label style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            cursor: 'pointer',
+            fontFamily: "'EB Garamond', Georgia, serif",
+            fontSize: 13,
+            color: cell.boundaryInward ? 'var(--text)' : 'var(--text-muted)',
+            transition: 'color 0.15s',
+          }}>
+            <input
+              type="checkbox"
+              checked={!!cell.boundaryInward}
+              onChange={e => dispatch({ type: 'SET_EDITOR_BOUNDARY_INWARD', payload: e.target.checked })}
+            />
+            Boundary-inward placement
+          </label>
+        </div>
+      )}
 
       {/* Step 17.6d — Show neighbours. Disabled while wrap is on (boundary
           edge moves under the user's feet). Triangle support added — the

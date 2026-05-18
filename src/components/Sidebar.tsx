@@ -328,6 +328,11 @@ export function Sidebar({
   }
   const isOpen = (key: string) => !collapsedSections[key]
 
+  // Mirror Lab — Figures panel starts with basic per-tile-type controls
+  // (contact angle, Ray length). Ticking "Show advanced" reveals the
+  // vertex Rays, decoupled vertex angle, snap, and curve recipe sections.
+  const [showAdvanced, setShowAdvanced] = useState(false)
+
   return (
     <div className={`sidebar ${open ? 'sidebar--open' : ''} ${desktopCollapsed ? 'sidebar--desktop-collapsed' : ''}`}>
       {/* ── Header ──────────────────────────────────────── */}
@@ -530,9 +535,30 @@ export function Sidebar({
                 allFigures={config.figures}
                 dispatch={dispatch}
                 onCurvePointActivity={onCurvePointActivity}
+                advanced={showAdvanced}
               />
             )
-          })}<div style={{ marginBottom: 4 }} /></>)}
+          })}
+          <label style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            marginTop: 6,
+            cursor: 'pointer',
+            fontFamily: "'EB Garamond', Georgia, serif",
+            fontSize: 13.5,
+            color: showAdvanced ? 'var(--text)' : 'var(--text-muted)',
+            transition: 'color 0.15s',
+          }}>
+            <input
+              type="checkbox"
+              className="pattern-checkbox"
+              checked={showAdvanced}
+              onChange={e => setShowAdvanced(e.target.checked)}
+            />
+            Show advanced
+          </label>
+          <div style={{ marginBottom: 4 }} /></>)}
         </div>
 
         {/* Curves — global options that apply across all figures */}

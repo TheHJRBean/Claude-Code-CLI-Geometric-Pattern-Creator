@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
 import type { Action } from '../state/actions'
@@ -19,6 +19,7 @@ import { editorTileTypes } from '../editor/tileTypes'
 import { activeCell } from '../editor/active'
 import { useEditorHistory } from '../editor/useEditorHistory'
 import { detectCellTilingStatus } from '../editor/nonTilingDetection'
+import { FigureControls } from './strands/FigureControls'
 
 const labLibrary = createConfigLibrary('lab-tessellations-v1')
 
@@ -79,8 +80,14 @@ export function TessellationLabMode({
   const { theme, toggleTheme } = useTheme()
   const svgRef = useRef<SVGSVGElement>(null)
   const segmentsRef = useRef<Segment[]>([])
-  const [cpVisible] = useState<Record<string, boolean>>({})
-  const [cpActive] = useState<Record<string, number>>({})
+  const [cpVisible, setCpVisible] = useState<Record<string, boolean>>({})
+  const [cpActive, setCpActive] = useState<Record<string, number>>({})
+  const toggleCpVisible = useCallback((tileTypeId: string) => {
+    setCpVisible(prev => ({ ...prev, [tileTypeId]: !prev[tileTypeId] }))
+  }, [])
+  const setCpActiveIndex = useCallback((tileTypeId: string, index: number) => {
+    setCpActive(prev => (prev[tileTypeId] === index ? prev : { ...prev, [tileTypeId]: index }))
+  }, [])
   const [showAdvanced, setShowAdvanced] = useState(false)
 
   // Step 17.9 — wrap dispatch so Design-Phase Builder mutations push undo
@@ -462,126 +469,75 @@ export function TessellationLabMode({
           {showStrands && (def || (config.tiling.type === 'editor' && config.editor)) && (
             <div style={{ paddingTop: 22 }}>
               <SectionTitle open={isOpen('strands')} onToggle={() => toggleSection('strands')} tooltip="Per-Tile-type controls for the Figure rendered in each polygon. A Strand is a chain of Rays across polygons; most sliders here actually adjust individual Rays — the Strand emerges from them.">Strands</SectionTitle>
-              {isOpen('strands') && (<>
-              {tileTypes.map(tt => {
-                const fig = config.figures[tt.id]
-                if (!fig) return null
+              {isOpen('strands') && (() => {
+                // Advanced controls (vertex Rays, decoupled vertex angle,
+                // snap, curves) appear only in Composition phase for
+                // Builder Patches. Static archimedean tilings have no
+                // Design/Composition split, so the toggle is always
+                // available there.
+                const advancedAvailable =
+                  config.tiling.type !== 'editor' || editorPhase === 'strand'
+                const advancedActive = advancedAvailable && showAdvanced
                 return (
-                  <div key={tt.id} style={{
-                    marginBottom: 14,
-                    padding: '10px 12px',
-                    border: '1px solid var(--border-subtle)',
-                  }}>
-                    <span style={{
-                      fontFamily: "'Cinzel', Georgia, serif",
-                      fontSize: 9,
-                      fontWeight: 600,
-                      color: 'var(--accent)',
-                      letterSpacing: '0.18em',
-                      textTransform: 'uppercase',
-                    }}>
-                      {tt.label}
-                    </span>
-
-                    <FieldLabel label="Contact angle" value={fig.contactAngle.toFixed(1)} unit="°" />
-                    <input
-                      type="range"
-                      className="pattern-slider"
-                      min={10}
-                      max={85}
-                      step={0.5}
-                      value={fig.contactAngle}
-                      onChange={e => dispatch({
-                        type: 'SET_CONTACT_ANGLE',
-                        payload: { tileTypeId: tt.id, angle: Number(e.target.value) },
-                      })}
-                    />
-
-                    <label style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 12,
-                      marginTop: 10,
-                      cursor: 'pointer',
-                      fontFamily: "'EB Garamond', Georgia, serif",
-                      fontSize: 13.5,
-                      color: fig.autoLineLength ? 'var(--text)' : 'var(--text-muted)',
-                      transition: 'color 0.15s',
-                    }}>
-                      <input
-                        type="checkbox"
-                        className="pattern-checkbox"
-                        checked={fig.autoLineLength}
-                        onChange={e => dispatch({
-                          type: 'SET_AUTO_LINE_LENGTH',
-                          payload: { tileTypeId: tt.id, auto: e.target.checked },
-                        })}
-                      />
-                      Auto Ray length
-                    </label>
-
-                    {!fig.autoLineLength && (
-                      <>
-                        <FieldLabel
-                          label="Ray length"
-                          value={(fig.lineLength * 100).toFixed(0)}
-                          unit="%"
-                          tooltip="Length of each Ray (the atomic line piece inside a polygon's Figure), as a fraction of the auto length where Rays meet their neighbours. Rays chain across polygons to form Strands."
+                  <>
+                    {tileTypes.map(tt => {
+                      const fig = config.figures[tt.id]
+                      if (!fig) return null
+                      return (
+                        <FigureControls
+                          key={tt.id}
+                          tileTypeId={tt.id}
+                          sides={tt.sides}
+                          displayLabel={tt.label}
+                          angle={fig.contactAngle}
+                          lineLength={fig.lineLength}
+                          autoLen={fig.autoLineLength}
+                          snapEnabled={fig.snapLineLength ?? false}
+                          edgeEnabled={fig.edgeLinesEnabled !== false}
+                          vertexEnabled={fig.vertexLinesEnabled ?? false}
+                          vertexDecoupled={fig.vertexLinesDecoupled ?? false}
+                          vertexAngle={fig.vertexContactAngle ?? fig.contactAngle}
+                          vertexLineLength={fig.vertexLineLength ?? fig.lineLength}
+                          vertexAutoLen={fig.vertexAutoLineLength ?? fig.autoLineLength}
+                          curveEnabled={fig.curve?.enabled ?? false}
+                          curvePoints={fig.curve?.points ?? [{ position: 0.5, offset: 0.2 }]}
+                          curveAlternating={fig.curve?.alternating ?? false}
+                          curveDirection={fig.curve?.direction ?? 'left'}
+                          cpShown={cpVisible[tt.id] ?? false}
+                          onToggleCpShown={() => toggleCpVisible(tt.id)}
+                          tilingType={config.tiling.type}
+                          allFigures={config.figures}
+                          dispatch={dispatch}
+                          onCurvePointActivity={setCpActiveIndex}
+                          advanced={advancedActive}
                         />
+                      )
+                    })}
+
+                    {advancedAvailable && (
+                      <label style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        marginTop: 6,
+                        cursor: 'pointer',
+                        fontFamily: "'EB Garamond', Georgia, serif",
+                        fontSize: 13.5,
+                        color: showAdvanced ? 'var(--text)' : 'var(--text-muted)',
+                        transition: 'color 0.15s',
+                      }}>
                         <input
-                          type="range"
-                          className="pattern-slider"
-                          min={10}
-                          max={500}
-                          step={1}
-                          value={Math.round(fig.lineLength * 100)}
-                          onChange={e => dispatch({
-                            type: 'SET_LINE_LENGTH',
-                            payload: { tileTypeId: tt.id, lineLength: Number(e.target.value) / 100 },
-                          })}
+                          type="checkbox"
+                          className="pattern-checkbox"
+                          checked={showAdvanced}
+                          onChange={e => setShowAdvanced(e.target.checked)}
                         />
-                      </>
+                        Show advanced
+                      </label>
                     )}
-                  </div>
+                  </>
                 )
-              })}
-
-              <label style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                marginTop: 6,
-                cursor: 'pointer',
-                fontFamily: "'EB Garamond', Georgia, serif",
-                fontSize: 13.5,
-                color: showAdvanced ? 'var(--text)' : 'var(--text-muted)',
-                transition: 'color 0.15s',
-              }}>
-                <input
-                  type="checkbox"
-                  className="pattern-checkbox"
-                  checked={showAdvanced}
-                  onChange={e => setShowAdvanced(e.target.checked)}
-                />
-                Show advanced
-              </label>
-              {showAdvanced && (
-                <p style={{
-                  marginTop: 8,
-                  marginBottom: 0,
-                  padding: '8px 10px',
-                  border: '1px dashed var(--border-subtle)',
-                  fontFamily: "'EB Garamond', Georgia, serif",
-                  fontSize: 12,
-                  color: 'var(--text-muted)',
-                  lineHeight: 1.4,
-                }}>
-                  Advanced controls (vertex Rays, curves, snap, decoupled
-                  vertex angle) are available in Gallery. Surfacing them
-                  in the Lab is parked — switch to Gallery if you need them.
-                </p>
-              )}
-              </>)}
+              })()}
             </div>
           )}
 

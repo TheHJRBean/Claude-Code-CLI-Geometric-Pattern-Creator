@@ -32,6 +32,11 @@ interface Props {
   /** Bug 12 — human-readable reason rendered next to the preview polygon
    * when validation fails. Empty when the polygon is valid. */
   previewMessage?: string | null
+  /** True when the current rejection is a soft rule (overlap / inside-tile)
+   *  the user can override. Toggles the Accept-and-continue-anyway button. */
+  previewForceable?: boolean
+  /** Fires when the user clicks Accept-and-continue-anyway. */
+  onForceCommitMulti?: () => void
   /** Step 17.11.3 — modifier state passed through so the parent can branch into multi mode. */
   onPickVertex: (p: Vec2, ctrlOrCmd: boolean) => void
 }
@@ -170,6 +175,8 @@ export function EditorVertexLayer({
   picks,
   previewValid = null,
   previewMessage = null,
+  previewForceable = false,
+  onForceCommitMulti,
   onPickVertex,
 }: Props) {
   // 17.11.4 — preview the in-progress polygon when the picker has at least
@@ -197,18 +204,19 @@ export function EditorVertexLayer({
         />
       )}
       {showPreview && !previewValid && previewMessage && (
-        <g pointerEvents="none">
+        <g>
           <rect
             x={labelX - 130}
             y={labelY - 14}
             width={260}
             height={28}
             rx={5}
-            fill="var(--bg)"
-            fillOpacity={0.92}
+            fill="#f5ede0"
+            fillOpacity={0.95}
             stroke={DANGER_COLOR}
             strokeWidth={1.4}
             vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
           />
           <text
             x={labelX}
@@ -217,9 +225,40 @@ export function EditorVertexLayer({
             fontFamily="'EB Garamond', Georgia, serif"
             fontSize={13}
             fill={DANGER_COLOR}
+            pointerEvents="none"
           >
             {previewMessage}
           </text>
+          {previewForceable && onForceCommitMulti && (
+            <g
+              onClick={(e) => { e.stopPropagation(); onForceCommitMulti() }}
+              style={{ cursor: 'pointer' }}
+            >
+              <rect
+                x={labelX - 110}
+                y={labelY + 20}
+                width={220}
+                height={26}
+                rx={4}
+                fill="#f5ede0"
+                fillOpacity={0.95}
+                stroke={DANGER_COLOR}
+                strokeWidth={1.2}
+                vectorEffect="non-scaling-stroke"
+              />
+              <text
+                x={labelX}
+                y={labelY + 38}
+                textAnchor="middle"
+                fontFamily="'EB Garamond', Georgia, serif"
+                fontSize={12}
+                fill={DANGER_COLOR}
+                pointerEvents="none"
+              >
+                Accept and continue anyway
+              </text>
+            </g>
+          )}
         </g>
       )}
       {/* Render order, bottom → top: neighbour ghosts (lowest priority),

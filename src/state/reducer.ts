@@ -299,8 +299,8 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     }
     case 'EDITOR_COMPLETE_N_GAP': {
       if (!state.editor) return state
-      const { picks } = action.payload
-      return multiPickCompleteAcrossPatch(state, picks)
+      const { picks, force } = action.payload
+      return multiPickCompleteAcrossPatch(state, picks, force ?? false)
     }
     case 'SET_EDITOR_AUTO_COMPLETE_ENABLED': {
       if (!state.editor) return state
@@ -468,7 +468,7 @@ function chordCompleteAcrossPatch(state: PatternConfig, pA: Vec2, pB: Vec2): Pat
  * Tile always lives in the active Cell (locked design decision — vertices
  * may poke outside its Boundary per Decision 5).
  */
-function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[]): PatternConfig {
+function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[], force = false): PatternConfig {
   if (!state.editor) return state
   const patch = state.editor
   const active = activeCell(patch)
@@ -500,14 +500,15 @@ function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[]): Patt
     const c = centroidOf(transformed)
     if (seenCentroids.some(q => pointsEqual(c, q, EDITOR_EPS))) continue
     seenCentroids.push(c)
-    const tile = completeNGap(working, transformed, `${idPrefix}-${i}`)
+    const tile = completeNGap(working, transformed, `${idPrefix}-${i}`, force)
     if (!tile) return state
     // Overlap guard against the user's pre-existing Tiles. Sibling orbit
     // placements are intentionally excluded — under non-trivial symmetry
     // modes the orbit images often touch one another at the symmetry axis
     // and the user's intent is that all of them place atomically.
+    // `force` bypasses this guard so the user can override false-positives.
     const candidate = tileVertices(tile)
-    if (overlapsExisting(candidate, userTiles)) return state
+    if (!force && overlapsExisting(candidate, userTiles)) return state
     placements.push(tile)
     working = { ...working, tiles: [...working.tiles, tile] }
   }

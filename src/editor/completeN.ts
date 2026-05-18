@@ -85,8 +85,13 @@ export function completeNGap(
   cell: EditorCell,
   picks: Vec2[],
   newId: string,
+  force = false,
 ): EditorTile | null {
-  if (validateNGapPolygon(picks, cell).kind !== 'valid') return null
+  const v = validateNGapPolygon(picks, cell)
+  // Hard geometric failures stay blocked even with force; only the soft
+  // `inside-tile` rule is overridable (centroid happens to land in an
+  // existing Tile — the user is asserting they meant it).
+  if (v.kind !== 'valid' && !(force && v.kind === 'inside-tile')) return null
   const verts = ensureCCW([...picks])
   const reg = tryRegularFit({ vertices: verts })
   if (reg) {

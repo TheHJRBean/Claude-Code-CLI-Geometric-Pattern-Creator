@@ -12,7 +12,12 @@ import {
 } from '../editor/createDefault'
 import { computeExposedEdges } from '../editor/exposedEdges'
 import { isPlacementViable, placeRegularNGonOnEdge } from '../editor/placement'
-import { orbitTileIds, placeTilesOnOrbit } from '../editor/orbit'
+import { orbitTileIds, placeTilesOnOrbit, placeTilesOnVertexOrbit } from '../editor/orbit'
+import {
+  computeExposedVertices,
+  isVertexPlacementViable,
+  placeRegularNGonOnVertex,
+} from '../editor/vertexPlacement'
 import { completeGap } from '../editor/complete'
 import { completeNGap } from '../editor/completeN'
 import { boundarySymmetries, applySym } from '../editor/symmetry'
@@ -309,6 +314,32 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         ? { ...withActiveCell(patch, nextCell), version: patch.version, edgeLength: section.sectionLength }
         : { ...withActiveCell(patch, nextCell), version: patch.version }
       return applyWrap(seedFigures({ ...state, editor: nextEditor }))
+    }
+    case 'EDITOR_PLACE_TILE_ON_VERTEX': {
+      // Step 17.13b — vertex-anchored placement. Anchors one corner of a
+      // regular n-gon at an exposed Cell corner (or an inward-only Boundary
+      // corner) at the rotation the picker resolved from
+      // `vertexPlacementOrientations`. Single-cell only in v1 to mirror
+      // boundary-inward (17.12) — multi-Cell composition support deferred.
+      if (!state.editor) return state
+      if (state.editor.cells.length > 1) return state
+      const { vertexKey, sides, rotation } = action.payload
+      const patchEdgeLength = state.editor.edgeLength
+      return applyWrap(seedFigures(updateActiveCell(state, cell => {
+        const vertices = computeExposedVertices(cell)
+        const vertex = vertices.find(v => v.key === vertexKey)
+        if (!vertex) return cell
+        const mode = cell.symmetryMode ?? 'none'
+        const idPrefix = `placed-${cell.tiles.length}-${Date.now()}`
+        if (mode === 'none') {
+          if (!isVertexPlacementViable(vertex, sides, rotation, patchEdgeLength, cell)) return cell
+          const tile = placeRegularNGonOnVertex(sides, patchEdgeLength, vertex, rotation, `${idPrefix}-0`)
+          return { ...cell, tiles: [...cell.tiles, tile] }
+        }
+        const placements = placeTilesOnVertexOrbit(cell, patchEdgeLength, vertex, sides, rotation, idPrefix)
+        if (!placements) return cell
+        return { ...cell, tiles: [...cell.tiles, ...placements] }
+      })))
     }
     case 'SET_CELL_NO_SEED': {
       // Toggle the Seed Tile on/off for the active Cell. Refuse if the Cell

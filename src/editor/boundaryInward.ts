@@ -1,6 +1,12 @@
-import type { EditorCell, EditorRegularTile } from '../types/editor'
+import type { EditorCell, EditorRegularTile, EditorTile } from '../types/editor'
 import type { Vec2 } from '../utils/math'
+import { pointInPolygon, pointsEqual } from '../utils/math'
 import { editorBoundaryVertices } from './buildEditorPolygons'
+import { EDITOR_EPS, tileVertices } from './exposedEdges'
+import { regularPolygonVertices } from './regularPolygon'
+import { applySym, boundarySymmetries } from './symmetry'
+import { overlapsExisting } from './tileOverlap'
+import { PICKER_SIDES } from './placement'
 
 /**
  * Boundary-inward authoring mode — Step 17 v2 (idea memo
@@ -130,4 +136,98 @@ export function placeRegularNGonOnBoundarySection(
     rotation,
     source: 'placed',
   }
+}
+
+/**
+ * Strong-overlap viability for a boundary-section placement.
+ *
+ * Differs from `placement.isPlacementViable` (which is keyed on an
+ * `ExposedEdge`): the boundary section has no source-Tile anchor, so the
+ * angle-sum check at endpoints is skipped (section endpoints don't coincide
+ * with existing-Tile vertices in any realistic case — the origin Tile is
+ * far interior to the Boundary). The strong probe — does any existing Tile's
+ * centre fall inside the candidate, or vice versa, or do edges strictly
+ * cross — is enough to catch encroachment as the user backfills toward the
+ * centre.
+ */
+export function isBoundarySectionPlacementViable(
+  sides: number,
+  section: BoundarySection,
+  cell: EditorCell,
+): boolean {
+  if (sides < 3) return false
+  const candidate = placeRegularNGonOnBoundarySection(sides, section, '__probe__')
+  const candidateVerts = regularPolygonVertices(
+    candidate.sides, candidate.center, candidate.edgeLength, candidate.rotation,
+  )
+  for (const tile of cell.tiles) {
+    const tv = tileVertices(tile)
+    const tc = tile.kind === 'regular' ? tile.center : avgCenter(tv)
+    if (pointInPolygon(tc, candidateVerts)) return false
+    if (pointInPolygon(candidate.center, tv)) return false
+  }
+  return !overlapsExisting(candidateVerts, cell.tiles.map(t => tileVertices(t)))
+}
+
+/** Subset of `PICKER_SIDES` that pass `isBoundarySectionPlacementViable`. */
+export function viableSidesForBoundarySection(
+  section: BoundarySection,
+  cell: EditorCell,
+): number[] {
+  return PICKER_SIDES.filter(n => isBoundarySectionPlacementViable(n, section, cell))
+}
+
+/**
+ * Orbit-symmetric boundary-section placement. Mirrors `placeTilesOnOrbit`'s
+ * all-or-nothing semantics: every orbit image must pass viability against
+ * the cumulative working state, otherwise the whole placement is rejected
+ * (symmetry must never partially break).
+ *
+ * Orbit image lookup: each subgroup element transforms the picked section's
+ * endpoints; the matching boundary section is found by endpoint match against
+ * the full section list (within `EDITOR_EPS`). Sections on a fixed axis
+ * collapse via centroid dedup (a square section bisected by the vertical
+ * mirror coincides with its own image).
+ *
+ * `symmetryMode='none'` returns the identity-only group → single-section
+ * behaviour by default (matches locked decision e).
+ */
+export function placeTilesOnBoundarySectionOrbit(
+  cell: EditorCell,
+  picked: BoundarySection,
+  sides: number,
+  idPrefix: string,
+): EditorTile[] | null {
+  if (sides < 3) return null
+  const sections = computeBoundarySections(cell)
+  const syms = boundarySymmetries(cell.shape, cell.symmetryMode ?? 'none')
+  const seenCentroids: Vec2[] = []
+  const placements: EditorTile[] = []
+  let working: EditorCell = cell
+  let placedIndex = 0
+
+  for (const s of syms) {
+    const q1 = applySym(s, picked.p1)
+    const q2 = applySym(s, picked.p2)
+    const match = sections.find(sec =>
+      (pointsEqual(sec.p1, q1, EDITOR_EPS) && pointsEqual(sec.p2, q2, EDITOR_EPS))
+      || (pointsEqual(sec.p1, q2, EDITOR_EPS) && pointsEqual(sec.p2, q1, EDITOR_EPS)),
+    )
+    if (!match) continue
+    const midpoint = match.midpoint
+    if (seenCentroids.some(q => pointsEqual(midpoint, q, EDITOR_EPS))) continue
+    seenCentroids.push(midpoint)
+    if (!isBoundarySectionPlacementViable(sides, match, working)) return null
+    const tile = placeRegularNGonOnBoundarySection(sides, match, `${idPrefix}-${placedIndex}`)
+    placements.push(tile)
+    working = { ...working, tiles: [...working.tiles, tile] }
+    placedIndex++
+  }
+  return placements.length > 0 ? placements : null
+}
+
+function avgCenter(verts: Vec2[]): Vec2 {
+  let x = 0, y = 0
+  for (const v of verts) { x += v.x; y += v.y }
+  return { x: x / verts.length, y: y / verts.length }
 }

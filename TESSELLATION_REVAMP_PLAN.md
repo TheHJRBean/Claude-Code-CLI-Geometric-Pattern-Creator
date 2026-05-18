@@ -233,7 +233,7 @@ cross-references to the resolutions table.
 | **17.10**| Non-tiling patch detection + UI tag.             | S    | 2         | —            |
 | **17.11**| Multi-vertex Complete (cross-boundary + enclosed pocket). ✅ shipped 2026-05-07; user signed off on enclosed-pocket + chord-regression + UI guidance. Open follow-ups: chord-mode + neighbour-vertex picks silently no-op (auto-promote-to-multi or explicit modifier-required UX TBD); neighbour-click selection awaits browser confirmation that the layer-order fix landed. | M | 9, 10, 12 | — |
 | **17.11b**| Orbit propagation for multi-vertex Complete. ✅ shipped + signed off 2026-05-07. | S | 8 | — |
-| **17.12**| Boundary-inward authoring mode (single-shape v1). 🚧 In flight — sub-step A shipped 2026-05-11 (`8c935a2`); B (reducer) and C (UI) pending. | M | 14, 14a | — |
+| **17.12**| Boundary-inward authoring mode (single-shape v1). 🚧 In flight — A shipped 2026-05-11 (`8c935a2`); B shipped 2026-05-18; C (UI) pending. | M | 14, 14a | — |
 
 **Sub-step detail.**
 
@@ -624,14 +624,22 @@ cross-references to the resolutions table.
     `computeBoundarySections`, `placeRegularNGonOnBoundarySection`, plus
     the size-→-fraction schedule. `EditorPatch.boundaryInward?: boolean`
     field added; migration plumbing updated. No reducer / UI yet.
-  - **17.12b — Reducer + first-tile placement.** New action
-    `EDITOR_PLACE_TILE_ON_BOUNDARY_SECTION` payload `{ sectionIndex,
-    edgeIndex, sides }`. Validates viability against existing tiles
-    (origin tile is in the centre, so the first boundary placement
-    always passes by construction). Routes through `placeTilesOnOrbit`
-    when `symmetryMode !== 'none'`. Resets `patch.edgeLength` to the
-    section length and re-seeds figures + `applyWrap` envelope. Member
-    of `DESIGN_MODE_ACTIONS` so undo/redo covers it.
+  - **17.12b — Reducer + first-tile placement.** ✅ Shipped 2026-05-18.
+    New action `EDITOR_PLACE_TILE_ON_BOUNDARY_SECTION` payload
+    `{ edgeIndex, sectionIndex, sides }` plus enabling toggle
+    `SET_EDITOR_BOUNDARY_INWARD`. Validates viability against existing
+    Tiles via `isBoundarySectionPlacementViable` (strong-overlap probe —
+    candidate-vs-existing centre containment + `overlapsExisting`;
+    angle-sum skipped since section endpoints don't coincide with
+    existing-Tile vertices in any realistic case). Routes through the
+    new `placeTilesOnBoundarySectionOrbit` (mirrors
+    `placeTilesOnOrbit`'s all-or-nothing semantics with centroid dedup
+    for fixed-axis sections) when `symmetryMode !== 'none'`. Resets
+    `patch.edgeLength` to the section length (decision f), then
+    `seedFigures` + `applyWrap`. Single-cell only in v1 — refuses if
+    `cells.length > 1` (decision b). Both actions in
+    `DESIGN_MODE_ACTIONS` for undo/redo. No UI yet — dispatched from
+    17.12c.
   - **17.12c — UI.** New `EditorBoundaryInwardLayer` SVG layer renders
     section highlights as click targets when `patch.boundaryInward` is
     on and the editor mode is `'place'`. Checkbox "Boundary-inward

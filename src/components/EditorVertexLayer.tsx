@@ -1,3 +1,4 @@
+import type React from 'react'
 import type { Vec2 } from '../utils/math'
 import type { BoundaryVertex } from '../editor/boundary'
 import { EDITOR_EPS } from '../editor/exposedEdges'
@@ -203,64 +204,6 @@ export function EditorVertexLayer({
           pointerEvents="none"
         />
       )}
-      {showPreview && !previewValid && previewMessage && (
-        <g>
-          <rect
-            x={labelX - 130}
-            y={labelY - 14}
-            width={260}
-            height={28}
-            rx={5}
-            fill="#f5ede0"
-            fillOpacity={0.95}
-            stroke={DANGER_COLOR}
-            strokeWidth={1.4}
-            vectorEffect="non-scaling-stroke"
-            pointerEvents="none"
-          />
-          <text
-            x={labelX}
-            y={labelY + 5}
-            textAnchor="middle"
-            fontFamily="'EB Garamond', Georgia, serif"
-            fontSize={13}
-            fill={DANGER_COLOR}
-            pointerEvents="none"
-          >
-            {previewMessage}
-          </text>
-          {previewForceable && onForceCommitMulti && (
-            <g
-              onClick={(e) => { e.stopPropagation(); onForceCommitMulti() }}
-              style={{ cursor: 'pointer' }}
-            >
-              <rect
-                x={labelX - 110}
-                y={labelY + 20}
-                width={220}
-                height={26}
-                rx={4}
-                fill="#f5ede0"
-                fillOpacity={0.95}
-                stroke={DANGER_COLOR}
-                strokeWidth={1.2}
-                vectorEffect="non-scaling-stroke"
-              />
-              <text
-                x={labelX}
-                y={labelY + 38}
-                textAnchor="middle"
-                fontFamily="'EB Garamond', Georgia, serif"
-                fontSize={12}
-                fill={DANGER_COLOR}
-                pointerEvents="none"
-              >
-                Accept and continue anyway
-              </text>
-            </g>
-          )}
-        </g>
-      )}
       {/* Render order, bottom → top: neighbour ghosts (lowest priority),
           boundary corners, pocket vertices, patch vertices. Selection halo
           inside `VertexDot` keeps the picked dot visually on top within its
@@ -301,6 +244,151 @@ export function EditorVertexLayer({
           onPickVertex={onPickVertex}
         />
       ))}
+      {/* Rejection pill + soft-override button render AFTER the dots so they
+          sit on top in z-order. The button uses onPointerDown (not onClick)
+          to win the event race against any vertex dot's onPointerDown that
+          might be underneath the button's hit area. */}
+      {showPreview && !previewValid && previewMessage && (
+        <RejectionPill
+          x={labelX}
+          y={labelY}
+          message={previewMessage}
+          forceable={previewForceable}
+          onForce={onForceCommitMulti}
+        />
+      )}
+    </g>
+  )
+}
+
+/* ── Rejection pill + Art-Deco override button ─────────────── */
+
+const PILL_H = 30
+const BTN_W = 240
+const BTN_H = 32
+const BTN_GAP = 10
+const PILL_CHAR_W = 6.8 // EB Garamond @ 13.5px ≈ avg glyph width
+
+function RejectionPill({
+  x, y, message, forceable, onForce,
+}: {
+  x: number
+  y: number
+  message: string
+  forceable: boolean
+  onForce?: () => void
+}) {
+  // Auto-fit width to message length so long rejections (e.g. the
+  // no-real-cell-pick precondition at 72 chars) don't clip.
+  const pillW = Math.max(280, message.length * PILL_CHAR_W + 32)
+  return (
+    <g>
+      {/* Rejection message pill — non-interactive, theme-aware. */}
+      <rect
+        x={x - pillW / 2}
+        y={y - PILL_H / 2}
+        width={pillW}
+        height={PILL_H}
+        rx={4}
+        fill="var(--bg-elevated)"
+        fillOpacity={0.96}
+        stroke={DANGER_COLOR}
+        strokeWidth={1.4}
+        vectorEffect="non-scaling-stroke"
+        pointerEvents="none"
+      />
+      <text
+        x={x}
+        y={y + 5}
+        textAnchor="middle"
+        fontFamily="'EB Garamond', Georgia, serif"
+        fontSize={13.5}
+        fill={DANGER_COLOR}
+        pointerEvents="none"
+      >
+        {message}
+      </text>
+      {forceable && onForce && (
+        <SoftOverrideButton
+          x={x}
+          y={y + PILL_H / 2 + BTN_GAP + BTN_H / 2}
+          onForce={onForce}
+        />
+      )}
+    </g>
+  )
+}
+
+function SoftOverrideButton({
+  x, y, onForce,
+}: { x: number; y: number; onForce: () => void }) {
+  const fire = (ev: React.PointerEvent<SVGGElement>) => {
+    ev.stopPropagation()
+    ev.preventDefault()
+    onForce()
+  }
+  // Diamond ornament path centred on (cx, cy) with given half-size.
+  const diamond = (cx: number, cy: number, r: number) =>
+    `M ${cx} ${cy - r} L ${cx + r} ${cy} L ${cx} ${cy + r} L ${cx - r} ${cy} Z`
+  const ornamentY = y
+  const ornamentR = 3.2
+  return (
+    <g
+      className="editor-soft-override-btn"
+      onPointerDown={fire}
+    >
+      {/* Hit area covers entire button including ornaments. */}
+      <rect
+        x={x - BTN_W / 2}
+        y={y - BTN_H / 2}
+        width={BTN_W}
+        height={BTN_H}
+        rx={3}
+        className="editor-soft-override-bg"
+        fill="var(--bg-elevated)"
+        stroke="var(--accent)"
+        strokeWidth={1.5}
+        vectorEffect="non-scaling-stroke"
+      />
+      {/* Inset hairline — classic Art Deco double-line border. */}
+      <rect
+        x={x - BTN_W / 2 + 3}
+        y={y - BTN_H / 2 + 3}
+        width={BTN_W - 6}
+        height={BTN_H - 6}
+        rx={2}
+        fill="none"
+        stroke="var(--accent)"
+        strokeOpacity={0.35}
+        strokeWidth={0.6}
+        vectorEffect="non-scaling-stroke"
+        pointerEvents="none"
+      />
+      {/* Flanking diamond ornaments. */}
+      <path
+        d={diamond(x - BTN_W / 2 + 16, ornamentY, ornamentR)}
+        fill="var(--accent)"
+        pointerEvents="none"
+      />
+      <path
+        d={diamond(x + BTN_W / 2 - 16, ornamentY, ornamentR)}
+        fill="var(--accent)"
+        pointerEvents="none"
+      />
+      <text
+        x={x}
+        y={y + 4}
+        textAnchor="middle"
+        fontFamily="'EB Garamond', Georgia, serif"
+        fontSize={11}
+        fontWeight={600}
+        letterSpacing={2.2}
+        fill="var(--accent)"
+        pointerEvents="none"
+        style={{ textTransform: 'uppercase' }}
+      >
+        Accept and continue
+      </text>
     </g>
   )
 }

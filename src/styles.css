@@ -454,6 +454,21 @@
   flex: 1;
 }
 
+/* ── Editor soft-override button (rejection pill CTA) ──────── */
+.editor-soft-override-btn {
+  cursor: pointer;
+  transition: filter 140ms ease-out;
+}
+.editor-soft-override-btn .editor-soft-override-bg {
+  transition: fill 140ms ease-out;
+}
+.editor-soft-override-btn:hover .editor-soft-override-bg {
+  fill: var(--accent-bg);
+}
+.editor-soft-override-btn:active {
+  filter: brightness(0.92);
+}
+
 /* ── Sandstone edge decoration ────────────────────────────── */
 .sandstone-edge-wrapper {
   width: 0;

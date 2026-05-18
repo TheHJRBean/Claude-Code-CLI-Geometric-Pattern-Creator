@@ -16,6 +16,8 @@ import { viableSidesForEdge } from '../editor/orbit'
 import { EditorEdgeLayer } from './EditorEdgeLayer'
 import { EditorPickerOverlay } from './EditorPickerOverlay'
 import { EditorVertexLayer } from './EditorVertexLayer'
+import { EditorBoundaryInwardLayer, type SectionKey } from './EditorBoundaryInwardLayer'
+import { computeBoundarySections, viableSidesForBoundarySection } from '../editor/boundaryInward'
 
 /**
  * Each **Cell** in a Patch lives in Patch-local coords via its own `center` +
@@ -80,6 +82,11 @@ interface Props {
   onSelectEdge?: (edge: SelectedEdge | null) => void
   onPlaceTile?: (sides: number) => void
   onDeleteTile?: (tileId: string) => void
+  /** Step 17.12c — Boundary-inward placement. Active only when the active
+   *  Cell has `boundaryInward` on and the Builder is in Place mode. */
+  selectedSection?: SectionKey | null
+  onSelectSection?: (section: SectionKey | null) => void
+  onPlaceTileOnBoundarySection?: (sides: number) => void
   /** Step 17.5 — Complete mode: 'place' shows the edge picker, 'complete' shows the vertex picker. */
   editorMode?: 'place' | 'complete'
   /** Step 17.11 — accumulated picks (chord mode: 0–1; multi mode: 0+). */
@@ -113,7 +120,7 @@ interface Props {
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, editorMode = 'place', picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, editorMode = 'place', picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -315,6 +322,43 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     return out
   }, [editorActive, config.editor, editorMode, editorNeighbourPreview, editorStrandMode])
 
+  // Step 17.12c — Boundary-inward section highlights, active only in
+  // single-cell Patches when the active Cell has `boundaryInward` on and the
+  // Builder is in Place mode. Sections are computed in Cell-local coords
+  // (the Boundary is always centred at (0, 0) per `editorBoundaryVertices`)
+  // then lifted into Patch-local via the active Cell's transform. Single-
+  // cell only in v1 per locked decision b; the reducer also refuses if
+  // `cells.length > 1`.
+  const activeCellForSections = editorActive && config.editor
+    ? config.editor.cells.find(c => c.id === config.editor!.activeCellId) ?? null
+    : null
+  const boundaryInwardOn = !!(
+    editorActive && config.editor
+    && config.editor.cells.length === 1
+    && activeCellForSections?.boundaryInward
+    && editorMode === 'place'
+    && !editorStrandMode
+  )
+  const cellLocalSections = useMemo(() => {
+    if (!boundaryInwardOn || !activeCellForSections) return []
+    return computeBoundarySections(activeCellForSections)
+  }, [boundaryInwardOn, activeCellForSections])
+  const renderedSections = useMemo(() => {
+    if (!boundaryInwardOn || !activeCellForSections) return cellLocalSections
+    const tx = cellTransform(activeCellForSections)
+    return cellLocalSections.map(s => ({
+      ...s,
+      p1: applyTransform(s.p1, tx),
+      p2: applyTransform(s.p2, tx),
+      midpoint: applyTransform(s.midpoint, tx),
+    }))
+  }, [boundaryInwardOn, activeCellForSections, cellLocalSections])
+  const [hoveredSection, setHoveredSection] = useState<SectionKey | null>(null)
+  useEffect(() => { if (!boundaryInwardOn) setHoveredSection(null) }, [boundaryInwardOn])
+  const selectedSectionData = selectedSection && cellLocalSections.find(
+    s => s.edgeIndex === selectedSection.edgeIndex && s.sectionIndex === selectedSection.sectionIndex,
+  )
+
   // Composition Phase hides every Design-Phase overlay — the canvas is the
   // lattice preview only, and Strand controls in the side panel drive what
   // changes. Multi-Cell Design Phase keeps the picker live: edges are
@@ -341,13 +385,24 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         />
       )
       : onSelectEdge ? (
-        <EditorEdgeLayer
-          edges={renderedEdges}
-          selected={selectedEdge ?? null}
-          onSelect={onSelectEdge}
-          hovered={hoveredEdge}
-          onHover={setHoveredEdge}
-        />
+        <g>
+          <EditorEdgeLayer
+            edges={renderedEdges}
+            selected={selectedEdge ?? null}
+            onSelect={onSelectEdge}
+            hovered={hoveredEdge}
+            onHover={setHoveredEdge}
+          />
+          {boundaryInwardOn && onSelectSection && (
+            <EditorBoundaryInwardLayer
+              sections={renderedSections}
+              selected={selectedSection ?? null}
+              onSelect={onSelectSection}
+              hovered={hoveredSection}
+              onHover={setHoveredSection}
+            />
+          )}
+        </g>
       ) : null
     : null
 
@@ -367,6 +422,18 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     : null
   const pickerViable = selectedEdgeData && selectedHostCell && config.editor
     ? viableSidesForEdge(selectedEdgeData, selectedHostCell, config.editor.edgeLength)
+    : []
+
+  // Step 17.12c — boundary-section picker. Mirrors the edge picker: world →
+  // screen via `worldToScreen`, viable sides via `viableSidesForBoundarySection`.
+  const sectionPickerWorldPos = selectedSectionData && activeCellForSections
+    ? applyTransform(selectedSectionData.midpoint, cellTransform(activeCellForSections))
+    : null
+  const sectionPickerScreenPos = sectionPickerWorldPos && boundaryInwardOn
+    ? worldToScreen(sectionPickerWorldPos, viewTransform, size.width, size.height)
+    : null
+  const sectionPickerViable = selectedSectionData && activeCellForSections
+    ? viableSidesForBoundarySection(selectedSectionData, activeCellForSections)
     : []
 
   return (
@@ -400,6 +467,14 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
               ? () => { onDeleteTile(selectedEdgeData.tileId); onSelectEdge(null) }
               : undefined
           }
+        />
+      )}
+      {sectionPickerScreenPos && onPlaceTileOnBoundarySection && onSelectSection && selectedSectionData && (
+        <EditorPickerOverlay
+          position={sectionPickerScreenPos}
+          viableSides={sectionPickerViable}
+          onPick={n => { onPlaceTileOnBoundarySection(n); onSelectSection(null) }}
+          onClose={() => onSelectSection(null)}
         />
       )}
       <button

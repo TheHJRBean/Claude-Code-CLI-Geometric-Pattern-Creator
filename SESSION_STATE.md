@@ -6,7 +6,14 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
-**2026-05-18 — Step 17.12b shipped (boundary-inward reducer).** New action `EDITOR_PLACE_TILE_ON_BOUNDARY_SECTION` (+ enabling toggle `SET_EDITOR_BOUNDARY_INWARD`) wired in `src/state/reducer.ts`. Boundary-section placement: looks up the section, validates with `isBoundarySectionPlacementViable`, routes through `placeTilesOnBoundarySectionOrbit` when `symmetryMode !== 'none'`, resets `patch.edgeLength` to the section length (locked decision f), re-seeds figures, applies wrap. Single-cell only in v1 (locked decision b) — refuses if `cells.length > 1`. Both actions are in `DESIGN_MODE_ACTIONS` for undo/redo. Build green. New helpers in `src/editor/boundaryInward.ts`: `isBoundarySectionPlacementViable`, `viableSidesForBoundarySection`, `placeTilesOnBoundarySectionOrbit`. **Next: 17.12c — UI** (`EditorBoundaryInwardLayer` SVG section highlights + checkbox in `EditorDesignControls` reusing `EditorPickerOverlay`).
+**2026-05-18 — Step 17.12 COMPLETE.** All three sub-steps shipped:
+- **17.12a** (foundation, 2026-05-11 `8c935a2`): `boundaryInward.ts` section schedule + geometry, `EditorCell.boundaryInward` flag.
+- **17.12b** (reducer, 2026-05-18): action `EDITOR_PLACE_TILE_ON_BOUNDARY_SECTION` + enabling toggle `SET_EDITOR_BOUNDARY_INWARD`; `isBoundarySectionPlacementViable` / `viableSidesForBoundarySection` / `placeTilesOnBoundarySectionOrbit` helpers; resets `patch.edgeLength` to the section length on placement (locked decision f); single-cell only (locked decision b); both actions in `DESIGN_MODE_ACTIONS` for undo/redo.
+- **17.12c** (UI, 2026-05-18): new `src/components/EditorBoundaryInwardLayer.tsx` SVG layer (dashed accent sections, solid on hover/select); Canvas plumbs `selectedSection` / `onSelectSection` / `onPlaceTileOnBoundarySection`, computes sections in Cell-local + lifts via cellTransform, renders a second `EditorPickerOverlay` at the section midpoint with `viableSidesForBoundarySection`. `TessellationLabMode` adds parallel `selectedSection` state (mutually exclusive with `selectedEdge`); checkbox "Boundary-inward placement" added to `EditorDesignControls` (single-cell only, after Wrap boundary). Build green (tsc + vite).
+
+**Manual smoke test pending** — type-check passes but the in-browser flow (click a section → picker appears → pick polygon → tile drops, plus interaction with the existing edge picker) has not been verified by the agent. User to confirm visually.
+
+
 
 **2026-05-17 — Builder Complete-mode bug sweep in flight.** Detailed tracker at `BUG_DOC_4_8_8_COMPLETE.md` (root). Read that FIRST before any Complete-mode work; it has the full chronology, fixes (commits `39ff3d4`, `55af253`, `75d7995`, and one pending), open Bug 6 with a concrete re-test repro, and the file index. The summary below is preserved for the prior Phase 2/4/5/6 schema work.
 

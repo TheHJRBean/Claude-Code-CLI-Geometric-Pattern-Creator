@@ -43,6 +43,15 @@ export interface PatternData {
    * lattice or no boundary outlines at all).
    */
   seedOutlineCount?: number
+  /**
+   * Set of polygon ids belonging to neighbour-stamp ghosts (Step 17.6d, when
+   * Show neighbours + Show strands are both on so PIC sees ghost polygons).
+   * StrandLayer uses this to grey out Strands wholly contained inside the
+   * ghost ring — seed-touching cross-boundary Strands stay full colour so
+   * the user can still see how Strands flow into neighbouring Cells.
+   * Undefined when ghost polygons aren't in the PIC input.
+   */
+  ghostPolygonIds?: Set<string>
 }
 
 export function usePattern(
@@ -142,16 +151,21 @@ export function usePattern(
         // Strands flow across stamp boundaries when the user opts in by
         // including ghost polygons in the PIC input. Otherwise PIC runs on
         // the centre patch only and strands stop at the boundary.
-        const picInput = editorNeighbourPreview && editorNeighbourStrands && ghostPolygons
+        const ghostsInPic = !!(editorNeighbourPreview && editorNeighbourStrands && ghostPolygons)
+        const picInput = ghostsInPic && ghostPolygons
           ? [...basePolys, ...ghostPolygons]
           : basePolys
         const segments = runPIC(picInput, config)
+        const ghostPolygonIds = ghostsInPic && ghostPolygons
+          ? new Set(ghostPolygons.map(p => p.id))
+          : undefined
         return {
           polygons: basePolys,
           segments,
           boundaryOutlines,
           ghostPolygons,
           seedOutlineCount: baseOutlines.length,
+          ghostPolygonIds,
         }
       }
       // Composition Phase — stamp on the lattice. Single-cell Patches use the

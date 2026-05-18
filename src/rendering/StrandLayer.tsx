@@ -8,6 +8,14 @@ import { curvedPathD } from '../strand/curvedPathD'
 interface Props {
   segments: Segment[]
   config: PatternConfig
+  /**
+   * Step 17.6d — when defined, every Strand whose source segments are wholly
+   * owned by these ids is treated as a neighbour-stamp ghost and rendered
+   * greyed out below the live Strand layer. Strands that touch at least one
+   * seed polygon stay at full colour so the cross-boundary flow visualisation
+   * still reads.
+   */
+  ghostPolygonIds?: Set<string>
 }
 
 /**
@@ -19,7 +27,7 @@ interface Props {
  * Lacing returns under the Decoration Phase per ADR-0003 and
  * `project_decoration_stage_idea.md`.
  */
-export function StrandLayer({ segments, config }: Props) {
+export function StrandLayer({ segments, config, ghostPolygonIds }: Props) {
   const { strand } = config
 
   const strandData = useMemo(() => buildStrands(segments), [segments])
@@ -28,15 +36,46 @@ export function StrandLayer({ segments, config }: Props) {
     return config.smoothTransitions ? raw.map(smoothCurves) : raw
   }, [strandData, segments, config])
   const paths = useMemo(() => curvedStrands.map(cs => curvedPathD(cs)), [curvedStrands])
+  // A Strand is "ghost" only if every one of its source segments belongs to a
+  // ghost polygon. Strands that bridge a seed polygon and a ghost (the ones
+  // demonstrating cross-boundary Strand flow) stay seed-coloured.
+  const isGhostStrand = useMemo(() => {
+    if (!ghostPolygonIds || ghostPolygonIds.size === 0) return null
+    return strandData.map(sd =>
+      sd.segmentIndices.every(idx => ghostPolygonIds.has(segments[idx].polygonId))
+    )
+  }, [strandData, segments, ghostPolygonIds])
 
   if (paths.length === 0) return null
 
+  const ghostIndices: number[] = []
+  const seedIndices: number[] = []
+  for (let i = 0; i < paths.length; i++) {
+    if (isGhostStrand && isGhostStrand[i]) ghostIndices.push(i)
+    else seedIndices.push(i)
+  }
+
   return (
     <g id="strand-layer">
-      {paths.map((d, i) => (
+      {ghostIndices.length > 0 && (
+        <g opacity={0.3}>
+          {ghostIndices.map(i => (
+            <path
+              key={`strand-ghost-${i}`}
+              d={paths[i]}
+              fill="none"
+              stroke={strand.color}
+              strokeWidth={strand.width}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          ))}
+        </g>
+      )}
+      {seedIndices.map(i => (
         <path
           key={`strand-${i}`}
-          d={d}
+          d={paths[i]}
           fill="none"
           stroke={strand.color}
           strokeWidth={strand.width}

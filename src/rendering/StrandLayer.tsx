@@ -3,7 +3,7 @@ import type { Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
 import { buildStrands } from '../strand/buildStrands'
 import { computeCurves, smoothCurves } from '../strand/computeCurves'
-import { curvedPathD } from '../strand/curvedPathD'
+import { curvedPathD, curvedPathDSplit } from '../strand/curvedPathD'
 
 interface Props {
   segments: Segment[]
@@ -35,34 +35,38 @@ export function StrandLayer({ segments, config, ghostPolygonIds }: Props) {
     const raw = computeCurves(strandData, segments, config)
     return config.smoothTransitions ? raw.map(smoothCurves) : raw
   }, [strandData, segments, config])
-  const paths = useMemo(() => curvedStrands.map(cs => curvedPathD(cs)), [curvedStrands])
-  // A Strand is "ghost" only if every one of its source segments belongs to a
-  // ghost polygon. Strands that bridge a seed polygon and a ghost (the ones
-  // demonstrating cross-boundary Strand flow) stay seed-coloured.
-  const isGhostStrand = useMemo(() => {
-    if (!ghostPolygonIds || ghostPolygonIds.size === 0) return null
-    return strandData.map(sd =>
-      sd.segmentIndices.every(idx => ghostPolygonIds.has(segments[idx].polygonId))
-    )
-  }, [strandData, segments, ghostPolygonIds])
 
-  if (paths.length === 0) return null
+  // When ghost ids exist, split each Strand per-edge by host polygon so the
+  // boundary crossing produces a clean colour break — strands that bridge a
+  // seed and a ghost get rendered partially full-colour (seed side) and
+  // partially faded (ghost side). Otherwise emit one path per Strand.
+  const { seedPaths, ghostPaths } = useMemo(() => {
+    if (!ghostPolygonIds || ghostPolygonIds.size === 0) {
+      return { seedPaths: curvedStrands.map(cs => curvedPathD(cs)), ghostPaths: [] as string[] }
+    }
+    const seeds: string[] = []
+    const ghosts: string[] = []
+    for (let s = 0; s < curvedStrands.length; s++) {
+      const sd = strandData[s]
+      const isGhostEdge = (i: number) =>
+        ghostPolygonIds.has(segments[sd.segmentIndices[i]].polygonId)
+      const { seedD, ghostD } = curvedPathDSplit(curvedStrands[s], isGhostEdge)
+      if (seedD) seeds.push(seedD)
+      if (ghostD) ghosts.push(ghostD)
+    }
+    return { seedPaths: seeds, ghostPaths: ghosts }
+  }, [curvedStrands, strandData, segments, ghostPolygonIds])
 
-  const ghostIndices: number[] = []
-  const seedIndices: number[] = []
-  for (let i = 0; i < paths.length; i++) {
-    if (isGhostStrand && isGhostStrand[i]) ghostIndices.push(i)
-    else seedIndices.push(i)
-  }
+  if (seedPaths.length === 0 && ghostPaths.length === 0) return null
 
   return (
     <g id="strand-layer">
-      {ghostIndices.length > 0 && (
+      {ghostPaths.length > 0 && (
         <g opacity={0.3}>
-          {ghostIndices.map(i => (
+          {ghostPaths.map((d, i) => (
             <path
               key={`strand-ghost-${i}`}
-              d={paths[i]}
+              d={d}
               fill="none"
               stroke={strand.color}
               strokeWidth={strand.width}
@@ -72,10 +76,10 @@ export function StrandLayer({ segments, config, ghostPolygonIds }: Props) {
           ))}
         </g>
       )}
-      {seedIndices.map(i => (
+      {seedPaths.map((d, i) => (
         <path
           key={`strand-${i}`}
-          d={paths[i]}
+          d={d}
           fill="none"
           stroke={strand.color}
           strokeWidth={strand.width}

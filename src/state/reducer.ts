@@ -25,7 +25,7 @@ import { completeNGap } from '../editor/completeN'
 import { boundarySymmetries, applySym } from '../editor/symmetry'
 import { autoCompleteCell, fitBoundarySize } from '../editor/autoComplete'
 import { computeBoundarySections, isBoundarySectionPlacementViable, placeRegularNGonOnBoundarySection, placeTilesOnBoundarySectionOrbit } from '../editor/boundaryInward'
-import { seedFiguresForEditor } from '../editor/tileTypes'
+import { DEFAULT_EDITOR_FIGURE, seedFiguresForEditor } from '../editor/tileTypes'
 import { activeCell, allCells, withActiveCell } from '../editor/active'
 import {
   applyCellTransform,
@@ -71,6 +71,22 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         tiling: { ...state.tiling, type: action.payload },
         figures: { ...state.figures, ...(def.defaultConfig.figures ?? {}) },
       }
+    }
+    case 'RESET_FIGURES': {
+      // Resets every entry in `state.figures` to its default. For Gallery
+      // tilings, the per-Tile-type default lives on `TILINGS[type].defaultConfig.figures`
+      // (entries not present in that map fall through to DEFAULT_EDITOR_FIGURE).
+      // For Builder Patches (`tiling.type === 'editor'`) there's no per-tiling
+      // default — every entry resets to DEFAULT_EDITOR_FIGURE.
+      const def = TILINGS[state.tiling.type]
+      const tilingDefaults = def?.defaultConfig.figures ?? {}
+      const next: Record<string, FigureConfig> = {}
+      for (const id of Object.keys(state.figures)) {
+        next[id] = tilingDefaults[id]
+          ? { ...tilingDefaults[id] }
+          : { ...DEFAULT_EDITOR_FIGURE }
+      }
+      return { ...state, figures: next }
     }
     case 'SET_SCALE':
       return { ...state, tiling: { ...state.tiling, scale: action.payload } }

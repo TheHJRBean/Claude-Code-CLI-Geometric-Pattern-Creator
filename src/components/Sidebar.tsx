@@ -558,6 +558,28 @@ export function Sidebar({
             />
             Show advanced
           </label>
+          <button
+            type="button"
+            onClick={() => dispatch({ type: 'RESET_FIGURES' })}
+            style={{
+              marginTop: 10,
+              width: '100%',
+              padding: '6px 0',
+              fontFamily: "'Cinzel', Georgia, serif",
+              fontSize: 10,
+              fontWeight: 600,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+              border: '1px solid var(--border-subtle)',
+              background: 'transparent',
+              color: 'var(--text-muted)',
+              transition: 'all 0.15s',
+            }}
+            title="Reset every Tile-type's Strand parameters (contact angle, line length, vertex Rays, curves) back to the tiling defaults."
+          >
+            Reset parameters
+          </button>
           <div style={{ marginBottom: 4 }} /></>)}
         </div>
 

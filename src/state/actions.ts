@@ -22,6 +22,11 @@ export type Action =
   | { type: 'SET_CURVE_ALTERNATING'; payload: { tileTypeId: string; alternating: boolean } }
   | { type: 'SET_CURVE_DIRECTION'; payload: { tileTypeId: string; direction: 'left' | 'right' } }
   | { type: 'SET_SMOOTH_TRANSITIONS'; payload: boolean }
+  // Reset every FigureConfig in `figures` back to its tiling default
+  // (TILINGS[type].defaultConfig.figures) for Gallery mode, or to
+  // DEFAULT_EDITOR_FIGURE for Builder Patches. Wipes the user's per-Tile-type
+  // strand tuning across the whole pattern.
+  | { type: 'RESET_FIGURES' }
   | { type: 'LOAD_CONFIG'; payload: PatternConfig }
   // Step 17 — Builder (Design Phase shell, sub-step 17.2)
   | { type: 'EDITOR_NEW' }

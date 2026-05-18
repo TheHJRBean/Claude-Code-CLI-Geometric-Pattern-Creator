@@ -671,6 +671,23 @@ export function TessellationLabMode({
             ? multiPickValidityLabel(validateMultiPick(config.editor, picks))
             : null
         }
+        previewForceable={
+          // Geometry-soft failures the user can override via the Accept
+          // and continue anyway button: overlap false-positives and
+          // centroid-inside-tile. Hard geometric failures stay blocked.
+          multiMode && picks.length >= 3 && config.editor
+            ? (() => {
+                const k = validateMultiPick(config.editor, picks).kind
+                return k === 'overlaps-existing' || k === 'inside-tile'
+              })()
+            : false
+        }
+        onForceCommitMulti={() => {
+          if (multiMode && picks.length >= 3) {
+            dispatch({ type: 'EDITOR_COMPLETE_N_GAP', payload: { picks, force: true } })
+            resetPicks()
+          }
+        }}
         editorStrandMode={editorPhase === 'strand'}
         showBoundaryLattice={showBoundaryLattice}
         editorNeighbourPreview={editorPhase === 'design' && showNeighbours && !(config.editor && activeCell(config.editor).wrapBoundary)}

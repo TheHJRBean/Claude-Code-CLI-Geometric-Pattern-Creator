@@ -36,7 +36,7 @@ export type Action =
   // Step 17.5 — Complete operation (manual, 2-vertex chord)
   | { type: 'EDITOR_COMPLETE_GAP'; payload: { pA: Vec2; pB: Vec2 } }
   // Step 17.11 — Complete operation (multi-vertex polygon pick)
-  | { type: 'EDITOR_COMPLETE_N_GAP'; payload: { picks: Vec2[] } }
+  | { type: 'EDITOR_COMPLETE_N_GAP'; payload: { picks: Vec2[]; force?: boolean } }
   // Step 17.7 — Auto-complete on phase-switch (Decision 11)
   | { type: 'SET_EDITOR_AUTO_COMPLETE_ENABLED'; payload: boolean }
   | { type: 'EDITOR_RUN_AUTO_COMPLETE' }

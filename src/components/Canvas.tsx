@@ -94,6 +94,11 @@ interface Props {
   previewValid?: boolean | null
   /** Bug 12 — rejection reason text rendered next to the in-progress preview. */
   previewMessage?: string | null
+  /** True when the rejection is a soft rule (overlap / inside-tile) that the
+   *  user can override via the Accept-and-continue-anyway button. */
+  previewForceable?: boolean
+  /** Fired when the user clicks Accept-and-continue-anyway in the preview. */
+  onForceCommitMulti?: () => void
   /** Step 17.6 — when true, the Builder Patch is stamped on the Boundary's translation lattice (Composition Phase). Hides Design-Phase overlays. */
   editorStrandMode?: boolean
   /** Step 17.6 — when true in the Composition Phase, draw the Patch Boundary outline at every lattice stamp. */
@@ -108,7 +113,7 @@ interface Props {
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, editorMode = 'place', picks, onPickVertex, previewValid = null, previewMessage = null, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, editorMode = 'place', picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -330,6 +335,8 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
           picks={picks ?? []}
           previewValid={previewValid}
           previewMessage={previewMessage}
+          previewForceable={previewForceable}
+          onForceCommitMulti={onForceCommitMulti}
           onPickVertex={onPickVertex}
         />
       )

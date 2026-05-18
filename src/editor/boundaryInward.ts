@@ -119,14 +119,19 @@ export function placeRegularNGonOnBoundarySection(
   const { p1, p2, sectionLength } = section
   const midX = (p1.x + p2.x) / 2
   const midY = (p1.y + p2.y) / 2
-  // Interior direction: from section midpoint toward the boundary centre at
-  // the origin. The boundary is always centred on (0, 0) in cell-local coords
-  // (see `editorBoundaryVertices`), so the interior is `-midpoint` normalised.
-  const ix = -midX
-  const iy = -midY
-  const ilen = Math.hypot(ix, iy) || 1
-  const inX = ix / ilen
-  const inY = iy / ilen
+  // Inward perpendicular to the section (p1 → p2). For a CCW boundary the
+  // interior sits to the LEFT of each edge direction, which is the CCW-90°
+  // rotation of the edge direction. Using `-midpoint` would happen to work
+  // only when the section midpoint coincides with the boundary edge midpoint
+  // (one section per edge) — for multi-section edges the line from the
+  // section midpoint toward origin isn't perpendicular to the boundary edge,
+  // which rotates the placed tile by the angular drift between the two
+  // directions.
+  const ex = p2.x - p1.x
+  const ey = p2.y - p1.y
+  const elen = Math.hypot(ex, ey) || 1
+  const inX = -ey / elen
+  const inY = ex / elen
   const apothem = sectionLength / (2 * Math.tan(Math.PI / sides))
   const center: Vec2 = { x: midX + inX * apothem, y: midY + inY * apothem }
   const rotation = Math.atan2(p1.y - center.y, p1.x - center.x)

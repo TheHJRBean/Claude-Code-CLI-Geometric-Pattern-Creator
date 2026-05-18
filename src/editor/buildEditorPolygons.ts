@@ -15,6 +15,7 @@ export const BOUNDARY_SIDES: Record<CellShape, number> = {
   square: 4,
   hexagon: 6,
   octagon: 8,
+  dodecagon: 12,
 }
 
 /**
@@ -32,6 +33,10 @@ export const BOUNDARY_ROTATION: Record<CellShape, number> = {
   // square (vertex 0 at bottom-right, edge 0 = bottom). The result is a
   // flat-top octagon with screen-axis-aligned edges.
   octagon: (3 * Math.PI) / 8,
+  // 5π/12 = π/2 - π/12 puts vertex 0 at the bottom-right of the bottom
+  // horizontal edge. The result is a flat-top + flat-bottom dodecagon —
+  // the canonical 3.12.12 / 4.6.12 orientation.
+  dodecagon: (5 * Math.PI) / 12,
 }
 
 /**

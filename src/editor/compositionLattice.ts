@@ -50,6 +50,17 @@ export function compositionCellBasis(patch: EditorPatch): { u: Vec2; v: Vec2 } {
       const period = L * (1 + Math.SQRT2)
       return { u: { x: period, y: 0 }, v: { x: 0, y: period } }
     }
+    case '3.12.12': {
+      // Truncated hexagonal: hex lattice of dodecagons sharing every other
+      // edge, separated by 2·apothem = L(2+√3). Pick two adjacent
+      // dodecagon-shared edge directions (angle π/2 and π/6) as the lattice
+      // basis. Two triangles per cell fill the interstitial gaps.
+      const period = L * (2 + Math.sqrt(3))
+      return {
+        u: { x: 0, y: period },
+        v: { x: (period * Math.sqrt(3)) / 2, y: period / 2 },
+      }
+    }
     default:
       // Single-Cell Patches don't have a Configuration; the per-Cell lattice
       // helper handles them. Treat as a square unit so callers don't crash.

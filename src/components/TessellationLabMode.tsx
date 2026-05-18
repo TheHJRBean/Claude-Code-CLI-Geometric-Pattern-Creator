@@ -13,7 +13,7 @@ import { useTheme } from '../theme/ThemeContext'
 import { SAMPLE_EDITOR_CONFIG } from '../editor/sampleConfig'
 import { BOUNDARY_SIZE_MAX_BY_SHAPE } from '../editor/createDefault'
 import { LAB_DEFAULT_CONFIG } from '../state/labDefaults'
-import type { BoundaryShape, SymmetryMode } from '../types/editor'
+import type { BoundaryShape, ConfigurationId, SymmetryMode } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import { validateMultiPick, multiPickValidityLabel } from '../editor/patchSelectable'
 import { editorTileTypes } from '../editor/tileTypes'
@@ -885,13 +885,14 @@ function NonTilingWarning({ editor }: { editor: NonNullable<PatternConfig['edito
 
 type BoundaryPickerKind =
   | { kind: 'shape'; shape: BoundaryShape }
-  | { kind: 'configuration'; id: '4.8.8' }
+  | { kind: 'configuration'; id: ConfigurationId }
 
 const BOUNDARY_OPTIONS: { value: BoundaryPickerKind; label: string }[] = [
   { value: { kind: 'shape', shape: 'triangle' }, label: 'Triangle' },
   { value: { kind: 'shape', shape: 'square' }, label: 'Square' },
   { value: { kind: 'shape', shape: 'hexagon' }, label: 'Hexagon' },
   { value: { kind: 'configuration', id: '4.8.8' }, label: '4.8.8' },
+  { value: { kind: 'configuration', id: '3.12.12' }, label: '3.12.12' },
 ]
 
 interface EditorDesignControlsProps {

@@ -41,9 +41,11 @@ function latticeBasis(cell: EditorCell): { u: Vec2; v: Vec2 } | null {
     case 'triangle':
       return null // handled via expandedLattice's intra-cell stamps
     case 'octagon':
-      // Octagon doesn't tile by translation alone — only inside a multi-cell
-      // Configuration (e.g. 4.8.8). Per-Cell lattice helpers are inert here;
-      // the Configuration path uses `compositionLatticeStamps` instead.
+    case 'dodecagon':
+      // Octagon and dodecagon don't tile by translation alone — only inside
+      // a multi-cell Configuration (e.g. 4.8.8 / 3.12.12). Per-Cell lattice
+      // helpers are inert here; the Configuration path uses
+      // `compositionLatticeStamps` instead.
       return null
   }
   if (cell.alternateBoundary) {

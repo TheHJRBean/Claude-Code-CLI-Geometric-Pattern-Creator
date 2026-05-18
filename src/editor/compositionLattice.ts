@@ -61,6 +61,17 @@ export function compositionCellBasis(patch: EditorPatch): { u: Vec2; v: Vec2 } {
         v: { x: (period * Math.sqrt(3)) / 2, y: period / 2 },
       }
     }
+    case '4.6.12': {
+      // Great rhombitrihexagonal: hex lattice of dodecagons separated by
+      // L(3+√3) (the dodecagon-to-nearest-dodecagon distance, equal whether
+      // reached via a hex bridge or a sq bridge). Each lattice cell holds
+      // 1 dodecagon + 2 hexagons + 3 squares.
+      const period = L * (3 + Math.sqrt(3))
+      return {
+        u: { x: period, y: 0 },
+        v: { x: period / 2, y: (period * Math.sqrt(3)) / 2 },
+      }
+    }
     default:
       // Single-Cell Patches don't have a Configuration; the per-Cell lattice
       // helper handles them. Treat as a square unit so callers don't crash.

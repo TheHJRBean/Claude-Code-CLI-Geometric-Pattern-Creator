@@ -893,6 +893,7 @@ const BOUNDARY_OPTIONS: { value: BoundaryPickerKind; label: string }[] = [
   { value: { kind: 'shape', shape: 'hexagon' }, label: 'Hexagon' },
   { value: { kind: 'configuration', id: '4.8.8' }, label: '4.8.8' },
   { value: { kind: 'configuration', id: '3.12.12' }, label: '3.12.12' },
+  { value: { kind: 'configuration', id: '4.6.12' }, label: '4.6.12' },
 ]
 
 interface EditorDesignControlsProps {

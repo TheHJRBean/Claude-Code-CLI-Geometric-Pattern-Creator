@@ -32,11 +32,12 @@ import type { Vec2 } from '../utils/math'
 /**
  * Shapes that can appear as a Cell boundary.
  *
- * Octagon is allowed in any Cell — multi-cell **Configurations** like
- * `"4.8.8"` use octagons. (Single-cell Patches restrict to triangle, square,
- * hexagon at the picker level; octagon doesn't tile by translation alone.)
+ * Octagon and dodecagon are allowed in any Cell — multi-cell **Configurations**
+ * like `"4.8.8"` use octagons and `"3.12.12"` / `"4.6.12"` use dodecagons.
+ * (Single-cell Patches restrict to triangle, square, hexagon at the picker
+ * level; octagon and dodecagon don't tile by translation alone.)
  */
-export type CellShape = 'triangle' | 'square' | 'hexagon' | 'octagon'
+export type CellShape = 'triangle' | 'square' | 'hexagon' | 'octagon' | 'dodecagon'
 
 /**
  * Legacy alias kept for the (now narrow) migration code paths and any
@@ -115,9 +116,9 @@ export type SymmetryMode = 'full' | 'rotation' | 'vertical' | 'horizontal' | 'no
 
 /**
  * Identifier for a multi-cell **Configuration** (CONTEXT.md). Extend when
- * adding 3.12.12, 4.6.12, … Single-cell Patches don't carry one.
+ * adding 4.6.12, 3.6.3.6, 3.4.6.4, … Single-cell Patches don't carry one.
  */
-export type ConfigurationId = '4.8.8'
+export type ConfigurationId = '4.8.8' | '3.12.12'
 
 /**
  * A single Cell within a Patch. Carries its own Boundary shape, size,

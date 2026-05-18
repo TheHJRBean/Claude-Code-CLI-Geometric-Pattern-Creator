@@ -31,6 +31,9 @@ export const DEFAULT_BOUNDARY_SIZE_BY_SHAPE: Record<CellShape, number> = {
   // entry exists so 4.8.8 / future multi-cell Configurations can read a sane
   // default. Roughly matches the square's visual footprint at the same edge.
   octagon: 200,
+  // Dodecagon mirrors octagon — never appears single-cell, but 3.12.12 /
+  // 4.6.12 need a sane fallback.
+  dodecagon: 200,
 }
 export const DEFAULT_BOUNDARY_SIZE = DEFAULT_BOUNDARY_SIZE_BY_SHAPE[DEFAULT_BOUNDARY_SHAPE]
 /**
@@ -43,6 +46,7 @@ export const BOUNDARY_SIZE_MAX_BY_SHAPE: Record<CellShape, number> = {
   square: 1000,
   hexagon: 800,
   octagon: 800,
+  dodecagon: 800,
 }
 export const DEFAULT_SEED_SIDES = 4
 export const DEFAULT_EDGE_LENGTH = 100
@@ -107,7 +111,11 @@ function createBoundaryMatchingCell(
   rotation: number,
   edgeLength: number,
 ): EditorCell {
-  const sides = shape === 'triangle' ? 3 : shape === 'square' ? 4 : shape === 'hexagon' ? 6 : 8
+  const sides = shape === 'triangle' ? 3
+    : shape === 'square' ? 4
+    : shape === 'hexagon' ? 6
+    : shape === 'octagon' ? 8
+    : 12
   return {
     id,
     shape,
@@ -155,5 +163,47 @@ export function createDefault488EditorConfig(): EditorConfig {
     activeCellId: 'octagon',
     edgeLength,
     configuration: '4.8.8',
+  }
+}
+
+/**
+ * Build a fresh **3.12.12 Configuration** Patch (truncated hexagonal:
+ * dodecagon + two triangles). Six dodecagons share an edge with each given
+ * dodecagon (every other edge), separated by L(2+√3); the alternating six
+ * edges are shared with equilateral triangles, two of which (in distinct
+ * lattice-equivalence classes) sit inside each lattice cell.
+ *
+ * Dodecagon Cell sits at the Patch origin in flat-top + flat-bottom
+ * orientation. Triangle Cells sit at distance L(3+2√3)/3 from origin in two
+ * adjacent triangle directions (angle 0 and π/3), each rotated so its edge
+ * facing the dodecagon aligns with the dodecagon's matching triangle-shared
+ * edge.
+ */
+export function createDefault31212EditorConfig(): EditorConfig {
+  const edgeLength = DEFAULT_EDGE_LENGTH
+  const triDist = (edgeLength * (3 + 2 * Math.sqrt(3))) / 3
+  const cells: EditorCell[] = [
+    createBoundaryMatchingCell('dodecagon', 'dodecagon', { x: 0, y: 0 }, 0, edgeLength),
+    createBoundaryMatchingCell(
+      'triangle-e',
+      'triangle',
+      { x: triDist, y: 0 },
+      Math.PI / 2,
+      edgeLength,
+    ),
+    createBoundaryMatchingCell(
+      'triangle-ne',
+      'triangle',
+      { x: triDist / 2, y: (triDist * Math.sqrt(3)) / 2 },
+      (5 * Math.PI) / 6,
+      edgeLength,
+    ),
+  ]
+  return {
+    version: 3,
+    cells,
+    activeCellId: 'dodecagon',
+    edgeLength,
+    configuration: '3.12.12',
   }
 }

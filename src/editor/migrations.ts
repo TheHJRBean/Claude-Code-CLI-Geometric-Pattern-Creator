@@ -31,10 +31,10 @@ const SYMMETRY_MODES = new Set<SymmetryMode>(['full', 'rotation', 'vertical', 'h
 
 /** Cell shapes that can appear in a single-cell Patch (excludes octagon). */
 const SINGLE_CELL_SHAPES = new Set<CellShape>(['triangle', 'square', 'hexagon'])
-/** Cell shapes allowed in any Cell of a multi-cell Patch (octagon included). */
-const ANY_CELL_SHAPES = new Set<CellShape>(['triangle', 'square', 'hexagon', 'octagon'])
-/** Configuration ids supported. Extend when adding 3.12.12, 4.6.12, … */
-const CONFIGURATION_IDS = new Set<ConfigurationId>(['4.8.8'])
+/** Cell shapes allowed in any Cell of a multi-cell Patch (octagon + dodecagon included). */
+const ANY_CELL_SHAPES = new Set<CellShape>(['triangle', 'square', 'hexagon', 'octagon', 'dodecagon'])
+/** Configuration ids supported. Extend when adding 4.6.12, 3.6.3.6, 3.4.6.4, … */
+const CONFIGURATION_IDS = new Set<ConfigurationId>(['4.8.8', '3.12.12'])
 
 function isVec2(v: unknown): v is { x: number; y: number } {
   return typeof v === 'object' && v !== null

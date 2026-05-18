@@ -1,5 +1,5 @@
 import type { PatternConfig, StrandStyle } from '../types/pattern'
-import type { BoundaryShape, EditorConfig, SymmetryMode } from '../types/editor'
+import type { BoundaryShape, ConfigurationId, EditorConfig, SymmetryMode } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 
 export type Action =
@@ -66,9 +66,9 @@ export type Action =
   // Step 17.9 — undo/redo restores a snapshot. `null` means "no editor".
   | { type: 'EDITOR_RESTORE_SNAPSHOT'; payload: EditorConfig | null }
   // Switch the Patch between single-Cell and a multi-Cell **Configuration**
-  // (e.g. 4.8.8). `null` returns to a single-Cell Patch; `'4.8.8'` seeds a
-  // fresh octagon+square Cell pair.
-  | { type: 'SET_BUILDER_CONFIGURATION'; payload: '4.8.8' | null }
+  // (e.g. 4.8.8, 3.12.12). `null` returns to a single-Cell Patch; an id
+  // seeds a fresh Cell set for that Configuration.
+  | { type: 'SET_BUILDER_CONFIGURATION'; payload: ConfigurationId | null }
   // Switch which Cell the user is editing in Design Phase (multi-Cell only).
   // Pure pane swap — does NOT push a history snapshot.
   | { type: 'SET_ACTIVE_CELL'; payload: { cellId: string } }

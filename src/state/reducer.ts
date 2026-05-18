@@ -1,10 +1,11 @@
 import type { CurvePoint, FigureConfig, PatternConfig } from '../types/pattern'
-import type { EditorCell, EditorTile } from '../types/editor'
+import type { EditorCell, EditorConfig, EditorTile } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import type { Action } from './actions'
 import { TILINGS } from '../tilings/index'
 import { DEFAULT_CONFIG } from './defaults'
 import {
+  createDefault31212EditorConfig,
   createDefault488EditorConfig,
   createDefaultEditorConfig,
   createSeedTile,
@@ -436,16 +437,18 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       // Switch the Patch between single-cell and a multi-cell Configuration.
       // Destructive — discards the current Cells (single → multi-cell seeds
       // fresh; multi-cell → single returns to defaults).
-      if (action.payload === '4.8.8') {
-        const next = createDefault488EditorConfig()
-        return seedFigures({
-          ...state,
-          tiling: { ...state.tiling, type: 'editor' },
-          editor: next,
-        })
+      let next: EditorConfig
+      switch (action.payload) {
+        case '4.8.8':
+          next = createDefault488EditorConfig()
+          break
+        case '3.12.12':
+          next = createDefault31212EditorConfig()
+          break
+        default:
+          // payload === null → leave Configuration, fresh single-cell Patch.
+          next = createDefaultEditorConfig()
       }
-      // payload === null → leave Configuration, fresh single-cell Patch.
-      const next = createDefaultEditorConfig()
       return seedFigures({
         ...state,
         tiling: { ...state.tiling, type: 'editor' },

@@ -73,11 +73,22 @@ export function FigureControls({
     Math.max(0, Math.min(100, ((val * 100 - sliderMin) / (sliderMax - sliderMin)) * 100))
 
   return (
-    <div style={{ marginBottom: 16 }}>
-      <FieldLabel
-        label={`${displayLabel} · figure`}
-        tooltip="Figure recipe for this Tile type — drives the per-polygon star/motif rendered by PIC. Every Tile of this type uses the same recipe."
-      />
+    <div style={{
+      marginBottom: 14,
+      padding: '10px 12px',
+      border: '1px solid var(--border-subtle)',
+    }}>
+      <div style={{
+        fontFamily: "'Cinzel', Georgia, serif",
+        fontSize: 9,
+        fontWeight: 600,
+        color: 'var(--accent)',
+        letterSpacing: '0.18em',
+        textTransform: 'uppercase',
+        marginBottom: 4,
+      }}>
+        {displayLabel}
+      </div>
 
       <FieldLabel
         label="Contact angle"

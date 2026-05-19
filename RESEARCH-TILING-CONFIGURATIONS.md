@@ -943,6 +943,9 @@ without needing an explicit reflex-vertex test.
 - [Tatham — Two algorithms for randomly generating aperiodic tilings](https://www.chiark.greenend.org.uk/~sgtatham/quasiblog/aperiodic-tilings/)
 - [Penrose substitution — Imperfect Congruence](https://gruze.org/tilings/penrose_sub)
 - [Edmund Harriss — *Images of the Ammann-Beenker Tiling*, Bridges 2007 (PDF)](https://archive.bridgesmathart.org/2007/bridges2007-377.pdf)
+- [Chung, Chan, Wang — *Automatic generation of nonperiodic patterns from dynamical systems*, Chaos, Solitons & Fractals 2004](https://doi.org/10.1016/s0960-0779(03)00307-2) — Chair / Sphinx substitution; tree of tile-transformations; invariant-mapping framework
+- [Chung & Wang — *Automatic generation of aesthetic patterns on aperiodic tilings by means of dynamical systems*, Int. J. Bifurc. Chaos 2004](https://doi.org/10.1142/s0218127404011314) — Penrose-tiling invariant mappings with boundary-continuity theorems
+- [Chung & Ma — *Automatic generation of aesthetic patterns on fractal tilings by means of dynamical systems*, Chaos, Solitons & Fractals 2005](https://doi.org/10.1016/j.chaos.2004.09.115) — fractal (f-)tilings from kite/dart prototiles; classification (m,n)ₓ; nine single-prototile cases
 
 ### Aperiodic monotiles (Hat & Spectre, 2023)
 
@@ -964,6 +967,8 @@ without needing an explicit reflex-vertex test.
 - [Sadun — *Some Generalizations of the Pinwheel Tiling* (arXiv math/9712263)](https://arxiv.org/abs/math/9712263)
 - [Wikipedia — Pythagorean tiling](https://en.wikipedia.org/wiki/Pythagorean_tiling)
 - [Wikipedia — Voderberg tiling](https://en.wikipedia.org/wiki/Voderberg_tiling)
+- [Medeiros e Sá, de Figueiredo, Soto Sánchez — *Synthesizing Periodic Tilings of Regular Polygons*, SIBGRAPI 2018](https://doi.org/10.1109/sibgrapi.2018.00009) — basic-directions / seed-vertex encoding; roots of unity for n ∈ {1,2,3,4,6,8,12}
+- [Fisher & Mellor — *Using tiling theory to generate angle weaves with beads*, J. Math. Arts 2012](https://doi.org/10.1080/17513472.2012.736935) — star tilings (David / Kepler / Archimedes); vertex-weave ↔ edge-weave duality
 
 ### Decorative / Truchet / non-Islamic traditions
 
@@ -1049,3 +1054,66 @@ without needing an explicit reflex-vertex test.
   `computeCanonicalEdgeLen` derives the user-edgelen mapping from the
   first edge of the first irregular polygon, so vertex order matters
   for getting a sensible user-facing scale.
+- **2026-05-19** — read external research summary (`TIling Research
+  notes from scibot.txt`, 8 papers on the mathematics of tiling for
+  computer-generated patterns). Triage against current project state:
+
+  **Genuinely useful**
+    * **Medeiros e Sá, de Figueiredo, Soto Sánchez 2018 — "Synthesizing
+      Periodic Tilings of Regular Polygons"** (SIBGRAPI; DOI
+      10.1109/sibgrapi.2018.00009). Compact representation for *any*
+      periodic tiling of regular polygons: a finite set of **basic
+      directions** as roots of unity for **n ∈ {1, 2, 3, 4, 6, 8, 12}**,
+      two translation vectors as integer linear combinations of those
+      directions, plus a set of **seed vertices** inside the basic
+      translation cell. All other vertices follow by integer
+      translation; edges and faces are recovered by nearest-neighbour
+      search inside a small adjacency window. Crucially the n-set
+      matches *exactly* the directions our shipping Configurations use
+      (4.8.8, 3.12.12, 4.6.12, 3.6.3.6, 3.4.6.4), so this is essentially
+      the math behind `compositionCellBasis` generalised. Best home is
+      **Step 15 (k-uniform tilings, parked)** — k-uniform tilings have
+      multi-orbit vertex sets but the same translation-cell structure,
+      so this representation collapses the data model uniformly across
+      all of them and obviates per-tiling hand-coded basis lookups.
+    * **Fisher & Mellor 2012 — "Using tiling theory to generate angle
+      weaves with beads"** (J. Math. Arts; DOI
+      10.1080/17513472.2012.736935). Introduces **star tilings**:
+      construct a new tiling by placing a "star of triangles" at every
+      vertex of a base regular tiling. The three regular cases are
+      named — **David's Star** (from 3⁶), **Kepler's Star** (from 4⁴),
+      **Archimedes' Star** (from 6³). Their Theorem 1 (vertex-only
+      weave of a star tiling ≡ edge-and-cover weave of the base) is a
+      PIC-style duality: stars on vertices ↔ figures on edges. Three
+      concrete new Gallery Configurations sit here, plus a clean
+      "place-star-at-vertex" generator that could later be applied to
+      other base tilings (e.g. star on 3.6.3.6). Captured as an Idea
+      memory — see `project_star_tilings_idea.md`.
+
+  **Relevant only to parked work**
+    * Chung, Chan, Wang 2004 (Chair / Sphinx; DOI
+      10.1016/s0960-0779(03)00307-2) and Chung & Wang 2004 (Penrose;
+      DOI 10.1142/s0218127404011314) — substitution / inflation rules
+      with a **tree of tile-transformations** (the transformations don't
+      form a group as in periodic cases). Right framing for the parked
+      **Step 18 Girih substitution** engine. Also introduces "invariant
+      mappings" (F such that F(αp)=F(p) for every tile transformation α)
+      with explicit boundary-continuity theorems — applicable if/when
+      Decoration grows colour fields.
+    * Chung & Ma 2005 — "Automatic generation of aesthetic patterns on
+      fractal tilings" (DOI 10.1016/j.chaos.2004.09.115). Self-similar
+      f-tilings from kite/dart prototiles; formal classification (m,n)ₓ
+      with exactly nine well-behaved single-prototile cases. Most
+      relevant to the parked `project_editor_nested_layers_idea` — the
+      recursive scaling factor s = short edge/long edge generalises the
+      "layer N becomes layer N+1's boundary tile" mechanic.
+
+  **Not useful in current scope**
+    * Cohen et al. 2003 / Lagae & Dutré 2006 / Derouet-Jourdan et al.
+      2019 — Wang tiles, corner tiles, on-the-fly stochastic wall
+      patterns. These are *stochastic non-periodic texture-synthesis*
+      tools; our pipeline is deterministic ordered PIC. Filed in case
+      the future Decoration stage wants stamped/stochastic colour fills
+      — Lagae & Dutré's corner-tile scheme (matching corner colours
+      instead of edge colours; no "corner problem") is the cleanest
+      published variant.

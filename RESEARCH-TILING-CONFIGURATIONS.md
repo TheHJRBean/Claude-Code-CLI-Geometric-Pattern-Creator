@@ -1016,3 +1016,36 @@ without needing an explicit reflex-vertex test.
   three new Gallery additions called out: **rhombille, Cairo
   pentagonal, tetrakis square** (single-planigon BFS, one short PR
   combined).
+- **2026-05-19** — Tier 1 Laves additions DELIVERED. **16-fold rosette
+  fix** + 6 new Laves tilings shipped via the Taprats `rosette-patch`
+  pathway (NOT the BFS pathway as the §8 "single-planigon BFS"
+  description suggested — BFS only handles regular polygons, so each
+  Laves entry needed a fresh Taprats-data block with translation
+  vectors + per-tile affine transforms). New entries:
+    * `hexadecagonal-rosette` — bug-fixed: was advertised as delivered
+      2026-04-27 but had no Taprats data, returning empty polygon list.
+      Now: 1 regular 16-gon + 1 non-convex 12-gon gap per square cell
+      (t1=(2,0), t2=(0,2)). `tileTypes` updated from `'4'` to `'12'`.
+    * `rhombille` — 60°/120° rhombi, 3 per cell rotated 0°/60°/120°
+      around the "star vertex"; hex lattice with edge √3.
+    * `cairo-pentagonal` — 120/120/90/120/90 pentagons, 4 per cell in
+      a rotating cluster; rhombic translation lattice t1=(√3,√3),
+      t2=(√3,-√3).
+    * `tetrakis-square` — 45-45-90 right triangles, 4 per cell rotated
+      around each square-dual vertex; t1=(1,1), t2=(1,-1).
+    * `floret-pentagonal` — irregular pentagon with one 60° + four 120°
+      vertices, 6 per cell rotated 60° around the 60° vertex; hex
+      lattice spacing √21.
+    * `deltoidal-trihexagonal` — 60-90-120-90 kites (same base shape
+      the Hat aperiodic monotile uses), 6 per cell rotated 60° around
+      each hex-centre.
+    * `kisrhombille` — 30-60-90 right triangles, 12 per cell around
+      each dodecagon-centre but ALTERNATING CHIRALITY (so encoded as
+      2 separate Taprats tile blocks each with 6 rotation transforms);
+      hex lattice with edge 3+√3.
+  All seven entries verified with `vitest run` (12 new tests:
+  produces-correct-polygons + has-shared-edges for each) and a clean
+  `npm run build`. Engine constraint noted: `tapratsTiling.ts`
+  `computeCanonicalEdgeLen` derives the user-edgelen mapping from the
+  first edge of the first irregular polygon, so vertex order matters
+  for getting a sensible user-facing scale.

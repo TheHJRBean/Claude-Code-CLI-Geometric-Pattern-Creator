@@ -54,6 +54,38 @@ export const TILINGS: Record<string, TilingDefinition> = {
       },
     },
   },
+  'cairo-pentagonal': {
+    name: 'cairo-pentagonal',
+    label: 'Cairo Pentagonal (Laves dual of 3².4.3.4)',
+    vertexConfig: [5],
+    seedSides: 5,
+    foldSymmetry: 4,
+    category: 'rosette-patch',
+    tileTypes: [
+      { id: '5', sides: 5, label: 'Cairo pentagon' },
+    ],
+    defaultConfig: {
+      figures: {
+        '5': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 72 },
+      },
+    },
+  },
+  'tetrakis-square': {
+    name: 'tetrakis-square',
+    label: 'Tetrakis Square (Laves dual of 4.8.8)',
+    vertexConfig: [3],
+    seedSides: 3,
+    foldSymmetry: 4,
+    category: 'rosette-patch',
+    tileTypes: [
+      { id: '3', sides: 3, label: '45°-45°-90° triangle' },
+    ],
+    defaultConfig: {
+      figures: {
+        '3': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 45 },
+      },
+    },
+  },
 
   // ── 5-fold (rosette patch) ──────────────────────────
   'pentagonal-rosette': {
@@ -129,6 +161,70 @@ export const TILINGS: Record<string, TilingDefinition> = {
       figures: {
         3: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 60 },
         6: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 60 },
+      },
+    },
+  },
+  'rhombille': {
+    name: 'rhombille',
+    label: 'Rhombille (Laves dual of 3.6.3.6)',
+    vertexConfig: [4, 4, 4, 4, 4, 4],
+    seedSides: 4,
+    foldSymmetry: 6,
+    category: 'rosette-patch',
+    tileTypes: [
+      { id: '4', sides: 4, label: 'Rhombus (60°/120°)' },
+    ],
+    defaultConfig: {
+      figures: {
+        '4': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 60 },
+      },
+    },
+  },
+  'floret-pentagonal': {
+    name: 'floret-pentagonal',
+    label: 'Floret Pentagonal (Laves dual of 3⁴.6)',
+    vertexConfig: [5],
+    seedSides: 5,
+    foldSymmetry: 6,
+    category: 'rosette-patch',
+    tileTypes: [
+      { id: '5', sides: 5, label: 'Floret pentagon' },
+    ],
+    defaultConfig: {
+      figures: {
+        '5': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 72 },
+      },
+    },
+  },
+  'deltoidal-trihexagonal': {
+    name: 'deltoidal-trihexagonal',
+    label: 'Deltoidal Trihexagonal (Laves dual of 3.4.6.4)',
+    vertexConfig: [4],
+    seedSides: 4,
+    foldSymmetry: 6,
+    category: 'rosette-patch',
+    tileTypes: [
+      { id: '4', sides: 4, label: '60°-90°-120°-90° kite' },
+    ],
+    defaultConfig: {
+      figures: {
+        '4': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 60 },
+      },
+    },
+  },
+  'kisrhombille': {
+    name: 'kisrhombille',
+    label: 'Kisrhombille (Laves dual of 4.6.12)',
+    vertexConfig: [3],
+    seedSides: 3,
+    foldSymmetry: 6,
+    category: 'rosette-patch',
+    tileTypes: [
+      { id: '3', sides: 3, label: '30°-60°-90° triangle' },
+    ],
+    defaultConfig: {
+      figures: {
+        '3': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 60 },
       },
     },
   },
@@ -232,18 +328,18 @@ export const TILINGS: Record<string, TilingDefinition> = {
   'hexadecagonal-rosette': {
     name: 'hexadecagonal-rosette',
     label: 'Hexadecagonal Rosette',
-    vertexConfig: [16, 4],
+    vertexConfig: [16, 12],
     seedSides: 16,
     foldSymmetry: 16,
     category: 'rosette-patch',
     tileTypes: [
       { id: '16', sides: 16, label: '16-gon (centre)' },
-      { id: '4', sides: 4, label: '4-gon (rhombus / square filler)' },
+      { id: '12', sides: 12, label: '12-gon (concave gap)' },
     ],
     defaultConfig: {
       figures: {
         '16': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 78.75 },
-        '4': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 67.5 },
+        '12': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 75 },
       },
     },
   },
@@ -285,9 +381,9 @@ export const TILING_NAMES = Object.keys(TILINGS)
 
 export const SYMMETRY_GROUPS: SymmetryGroup[] = [
   { fold: 3,  label: '3-fold',  tilings: ['triangular'] },
-  { fold: 4,  label: '4-fold',  tilings: ['square', '3.3.3.4.4', '3.3.4.3.4'] },
+  { fold: 4,  label: '4-fold',  tilings: ['square', '3.3.3.4.4', '3.3.4.3.4', 'cairo-pentagonal', 'tetrakis-square'] },
   { fold: 5,  label: '5-fold',  tilings: ['pentagonal-rosette'] },
-  { fold: 6,  label: '6-fold',  tilings: ['hexagonal', '3.3.3.3.6', '3.4.6.4', '3.6.3.6'] },
+  { fold: 6,  label: '6-fold',  tilings: ['hexagonal', '3.3.3.3.6', '3.4.6.4', '3.6.3.6', 'rhombille', 'floret-pentagonal', 'deltoidal-trihexagonal', 'kisrhombille'] },
   { fold: 7,  label: '7-fold',  tilings: ['heptagonal-rosette'] },
   { fold: 8,  label: '8-fold',  tilings: ['4.8.8'] },
   { fold: 9,  label: '9-fold',  tilings: ['nonagonal-rosette'] },

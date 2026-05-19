@@ -36,6 +36,18 @@ git commit -m "description"
 git push
 ```
 
+## Research notes
+
+`RESEARCH-TILING-CONFIGURATIONS.md` at the repo root is the canonical home
+for **all** project research notes (tilings, symmetries, construction
+methods, historical references, decorative traditions, algorithm
+behaviour, edge cases — anything useful to a future session). Append a
+dated entry under the Working log or add a new numbered section; **do
+not start parallel research docs** (`RESEARCH-*.md`, `NOTES-*.md`,
+`STUDY-*.md`). State files — `TESSELLATION_REVAMP_PLAN.md`,
+`SESSION_STATE.md`, `INVESTIGATION-*.md`, `BUG_DOC_*.md`,
+`STEP*_PROGRESS*.md` — are separate and stay separate.
+
 ## Architecture
 
 React + TypeScript + Vite web app that generates traditional Islamic geometric patterns using **Kaplan's Polygons in Contact (PIC) method**. The app is structured in three independent layers that mirror Taprats (Craig Kaplan's reference implementation):

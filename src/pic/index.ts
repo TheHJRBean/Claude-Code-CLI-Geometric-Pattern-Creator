@@ -94,6 +94,52 @@ function clipSegmentToPolygon(
 }
 
 /**
+ * Find the endpoint for an "orphan" ray — one whose natural Kaplan pair
+ * partner failed (asymmetric tier in pairAtVertex) or that didn't get
+ * emitted by the vertex-pair pass at all. Returns the nearest valid
+ * intersection with any other-edge ray (the original Kaplan trim
+ * algorithm), or — if no such intersection exists — the polygon-boundary
+ * clip capped at maxLen.
+ *
+ * `allRays` is the full ContactRay array for the polygon. `rayIdx` is the
+ * orphan ray's own index in that array.
+ */
+function findOrphanRayEndpoint(
+  ray: ContactRay,
+  allRays: ContactRay[],
+  polyVertices: Vec2[],
+  maxLen: number,
+): Vec2 | null {
+  let nearestT = Infinity
+  let nearestPoint: Vec2 | null = null
+  for (const other of allRays) {
+    if (other === ray) continue
+    if (other.edgeIndex === ray.edgeIndex) continue
+    const res = rayRayIntersect(ray.origin, ray.dir, other.origin, other.dir)
+    if (!res) continue
+    if (res.t1 < EPSILON || res.t2 < EPSILON) continue
+    if (!pointInPolygon(res.point, polyVertices)) continue
+    if (res.t1 < nearestT) {
+      nearestT = res.t1
+      nearestPoint = res.point
+    }
+  }
+  if (nearestPoint) return nearestPoint
+
+  const far = {
+    x: ray.origin.x + ray.dir.x * maxLen * 4,
+    y: ray.origin.y + ray.dir.y * maxLen * 4,
+  }
+  const clip = clipSegmentToPolygon(ray.origin, far, polyVertices, ray.edgeIndex)
+  const cdist = dist(ray.origin, clip)
+  if (cdist < EPSILON) return null
+  if (cdist > maxLen) {
+    return { x: ray.origin.x + ray.dir.x * maxLen, y: ray.origin.y + ray.dir.y * maxLen }
+  }
+  return clip
+}
+
+/**
  * Emit star arm segments for a single vertex pairing.
  *
  * When the natural ray-pair intersection (the star tip) sits outside the
@@ -114,6 +160,7 @@ function emitStarArms(
   polygonCenter: Vec2,
   polygonSides: number,
   polyVertices: Vec2[],
+  allRays: ContactRay[],
   segments: Segment[],
   emittedRays: Set<string>,
 ): void {
@@ -123,22 +170,19 @@ function emitStarArms(
 
   // Asymmetric (auto-length only): one ray's meeting is behind its origin
   // (irregular-polygon regime, e.g. Cairo short-edge vertices at θ ≥ 25°).
-  // Emit only the still-forward ray, clipped to the polygon boundary;
-  // the negative-t ray will be picked up by the per-ray fallback if it
+  // Emit only the still-forward ray, terminating at its nearest valid
+  // intersection with another ray (or polygon boundary if none exists).
+  // The negative-t ray will be picked up by the per-ray fallback if it
   // doesn't get emitted at its other vertex.
   if (autoLineLength && (result.t1 <= EPSILON || result.t2 <= EPSILON)) {
     const ray1Forward = result.t1 > EPSILON
     const fwdRay = ray1Forward ? ray1 : ray2
     const fwdKey = ray1Forward ? key1 : key2
-    const far = {
-      x: fwdRay.origin.x + fwdRay.dir.x * inradius * 4,
-      y: fwdRay.origin.y + fwdRay.dir.y * inradius * 4,
-    }
-    const clip = clipSegmentToPolygon(fwdRay.origin, far, polyVertices, fwdRay.edgeIndex)
-    if (dist(fwdRay.origin, clip) >= EPSILON) {
+    const endpoint = findOrphanRayEndpoint(fwdRay, allRays, polyVertices, inradius)
+    if (endpoint && dist(fwdRay.origin, endpoint) >= EPSILON) {
       segments.push({
         from: fwdRay.origin,
-        to: clip,
+        to: endpoint,
         edgeMidpoint: fwdRay.origin,
         polygonCenter,
         polygonSides,
@@ -403,33 +447,27 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
 
       starTips.push(pair.result.point)
       if (edgeEnabled) {
-        emitStarArms(pair, fig.autoLineLength, fig.lineLength, inradius, poly.id, poly.tileTypeId, poly.center, n, poly.vertices, segments, emittedRays)
+        emitStarArms(pair, fig.autoLineLength, fig.lineLength, inradius, poly.id, poly.tileTypeId, poly.center, n, poly.vertices, rays, segments, emittedRays)
       }
     }
 
     // Per-ray fallback. Irregular polygons (e.g. Cairo, kites, deltoids)
     // can have rays that participate in no successful vertex pair across
-    // a band of θ. Emit each such ray independently from its midpoint,
-    // clipped to the polygon boundary and capped at inradius so it
-    // doesn't run wild. By construction regular polygons emit every ray
-    // through the pair pass, so this loop is a no-op for them.
+    // a band of θ. Emit each such ray to its nearest valid intersection
+    // with another ray (original Kaplan trim algorithm) so adjacent rays
+    // stop at their visible crossing instead of overshooting. Boundary
+    // clip + inradius cap is the safety net when no intersection exists.
+    // Regular polygons emit every ray through the pair pass, so this
+    // loop is a no-op for them.
     if (edgeEnabled) {
       const fallbackLen = fig.autoLineLength ? inradius : fig.lineLength * inradius
       for (const ray of rays) {
         if (emittedRays.has(`${ray.edgeIndex}-${ray.side}`)) continue
-        const far = {
-          x: ray.origin.x + ray.dir.x * fallbackLen * 4,
-          y: ray.origin.y + ray.dir.y * fallbackLen * 4,
-        }
-        const clip = clipSegmentToPolygon(ray.origin, far, poly.vertices, ray.edgeIndex)
-        const cdist = dist(ray.origin, clip)
-        if (cdist < EPSILON) continue
-        const finalTo = cdist > fallbackLen
-          ? { x: ray.origin.x + ray.dir.x * fallbackLen, y: ray.origin.y + ray.dir.y * fallbackLen }
-          : clip
+        const endpoint = findOrphanRayEndpoint(ray, rays, poly.vertices, fallbackLen)
+        if (!endpoint || dist(ray.origin, endpoint) < EPSILON) continue
         segments.push({
           from: ray.origin,
-          to: finalTo,
+          to: endpoint,
           edgeMidpoint: ray.origin,
           polygonCenter: poly.center,
           polygonSides: n,

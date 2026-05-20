@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { runPIC } from './index'
 import { generateTiling } from '../tilings/archimedean'
+import { generateTapratsTiling } from '../tilings/tapratsTiling'
 import { TILINGS } from '../tilings/index'
 import { DEFAULT_CONFIG } from '../state/defaults'
 import { resetIds } from '../tilings/shared'
@@ -83,5 +84,27 @@ describe('runPIC — full pipeline integration', () => {
       expect(isFinite(seg.to.x)).toBe(true)
       expect(isFinite(seg.to.y)).toBe(true)
     }
+  })
+
+  // Regression: irregular-polygon Cairo at θ in the 25-30° band used to
+  // drop every ray from the short edge (V0/V4 pair A meeting drifted past
+  // the short edge, V0/V4 pair B was divergent → pairAtVertex returned
+  // null at those vertices). Per-ray fallback now guarantees each ray
+  // contributes a segment.
+  it('Cairo pentagonal — every edge contributes rays at θ=27.5°', () => {
+    const vp: Viewport = { x: -50, y: -50, width: 100, height: 100 }
+    const polys = generateTapratsTiling('cairo-pentagonal', vp, 50)
+    const config: PatternConfig = {
+      ...DEFAULT_CONFIG,
+      tiling: { type: 'cairo-pentagonal', scale: 50 },
+      figures: { '5': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 27.5 } },
+    }
+    const segs = runPIC(polys, config)
+    const poly = polys[0]
+    if (!poly) throw new Error('no Cairo polygon generated')
+    const polySegs = segs.filter(s => s.polygonId === poly.id && s.kind === 'star-arm')
+    // 5 edges × 2 sides = 10 distinct (edgeIdx, side) midpoint origins.
+    const originKeys = new Set(polySegs.map(s => `${Math.round(s.edgeMidpoint.x * 1e3)},${Math.round(s.edgeMidpoint.y * 1e3)}|${s.side}`))
+    expect(originKeys.size).toBeGreaterThanOrEqual(10)
   })
 })

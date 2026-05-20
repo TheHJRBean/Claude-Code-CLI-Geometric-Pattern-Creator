@@ -16,12 +16,12 @@ import { EPSILON, dist, midpoint, pointInPolygon, isConvexPolygon, type Vec2 } f
  *     where pair A's tip leaves the polygon.
  *  2. Both t positive but intersection outside — downstream emitStarArms
  *     handles via edge-slide.
- *  3. Asymmetric: one t positive, one slightly negative. Happens on
- *     irregular polygons (e.g. Cairo's short-edge vertices at θ ≥ 25°)
- *     where the natural meeting point sweeps past one ray's origin.
- *     emitStarArms emits only the still-forward ray. By construction this
- *     tier never fires for regular polygons (their symmetry forces both t
- *     positive or both negative).
+ *  3. Asymmetric (one t positive, one negative). Returned only so that
+ *     fixed-length emission still gets two rays at the user's chosen
+ *     length; auto-length emission in emitStarArms early-returns on this
+ *     case and lets the per-ray fallback handle both rays via Kaplan
+ *     trim. By construction this tier never fires for regular polygons
+ *     (their symmetry forces both t the same sign).
  *  4. Neither is even partially valid (parallel, or both t negative): null.
  *
  * The `convex` flag is no longer used to skip pointInPolygon — for irregular
@@ -94,15 +94,15 @@ function clipSegmentToPolygon(
 }
 
 /**
- * Find the endpoint for an "orphan" ray — one whose natural Kaplan pair
- * partner failed (asymmetric tier in pairAtVertex) or that didn't get
- * emitted by the vertex-pair pass at all. Returns the nearest valid
- * intersection with any other-edge ray (the original Kaplan trim
- * algorithm), or — if no such intersection exists — the polygon-boundary
- * clip capped at maxLen.
+ * Find the endpoint for an "orphan" ray — one that didn't get emitted by
+ * the vertex-pair pass (its natural pair-A meeting fell outside the
+ * polygon, or one or both rays in the pair pointed away from it).
+ * Returns the nearest valid intersection with any other-edge ray (the
+ * original Kaplan trim algorithm), or — if no such intersection exists —
+ * the polygon-boundary clip capped at maxLen.
  *
- * `allRays` is the full ContactRay array for the polygon. `rayIdx` is the
- * orphan ray's own index in that array.
+ * Caller is responsible for the stub-length drop check; this function
+ * just returns the geometric endpoint.
  */
 function findOrphanRayEndpoint(
   ray: ContactRay,
@@ -167,13 +167,14 @@ function emitStarArms(
   const key1 = `${ray1.edgeIndex}-${ray1.side}`
   const key2 = `${ray2.edgeIndex}-${ray2.side}`
 
-  // Asymmetric (auto-length only): one ray's meeting is behind its origin.
-  // The naive "pick whichever t is positive" can flip between rays as θ
-  // crosses the parallel-rays regime (denom sign change), causing the
-  // asymmetric forward to be a tiny stub at one θ and a long ray at
-  // another. Emit nothing here — the per-ray fallback handles both rays
-  // uniformly, picking each one's own nearest valid crossing and
-  // dropping stubs via the length threshold.
+  // Asymmetric pair (one ray's meeting is behind its origin). In
+  // auto-length mode there's no geometrically stable forward ray to
+  // pick — sign of t flips across the parallel-rays regime, so picking
+  // "the positive t" alternates between long ray and tiny stub as θ
+  // sweeps. Emit nothing; the per-ray fallback runs Kaplan trim on
+  // each ray independently and drops stubs uniformly. In fixed-length
+  // mode we fall through to the normal emission path below, which
+  // ignores result.point and emits both rays at user-specified length.
   if (autoLineLength && (result.t1 <= EPSILON || result.t2 <= EPSILON)) {
     return
   }
@@ -415,19 +416,13 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
     const inradius = n > 0 ? dist(poly.center, rays[0].origin) : 0
     const convex = isConvexPolygon(poly.vertices)
 
-    // Compute star tips for all vertices
-    const starTips: (Vec2 | null)[] = []
     const emittedRays = new Set<string>()
 
     for (let k = 0; k < n; k++) {
       const prevEdge = (k - 1 + n) % n
       const pair = pairAtVertex(rays, prevEdge, k, poly.vertices, convex)
-      if (!pair) {
-        starTips.push(null)
-        continue
-      }
+      if (!pair) continue
 
-      starTips.push(pair.result.point)
       if (edgeEnabled) {
         emitStarArms(pair, fig.autoLineLength, fig.lineLength, inradius, poly.id, poly.tileTypeId, poly.center, n, poly.vertices, segments, emittedRays)
       }

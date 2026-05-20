@@ -14,9 +14,15 @@ import { EPSILON, dist, midpoint, pointInPolygon, isConvexPolygon, type Vec2 } f
  *     for pair A; concave/reflex star for pair B). This lets the figure
  *     switch from convex-star to concave-star as θ sweeps past the regime
  *     where pair A's tip leaves the polygon.
- *  2. If neither lands inside, fall back to pair A (downstream emitStarArms
- *     handles the outside-tip case via edge-slide).
- *  3. If neither is valid (both have non-positive t or are parallel), null.
+ *  2. Both t positive but intersection outside — downstream emitStarArms
+ *     handles via edge-slide.
+ *  3. Asymmetric: one t positive, one slightly negative. Happens on
+ *     irregular polygons (e.g. Cairo's short-edge vertices at θ ≥ 25°)
+ *     where the natural meeting point sweeps past one ray's origin.
+ *     emitStarArms emits only the still-forward ray. By construction this
+ *     tier never fires for regular polygons (their symmetry forces both t
+ *     positive or both negative).
+ *  4. Neither is even partially valid (parallel, or both t negative): null.
  *
  * The `convex` flag is no longer used to skip pointInPolygon — for irregular
  * convex tiles, pair A's intersection can be outside even though the polygon
@@ -45,6 +51,11 @@ function pairAtVertex(
   if (bInside) return { ray1: rB1, ray2: rB2, result: resB! }
   if (aValid) return { ray1: rA1, ray2: rA2, result: resA! }
   if (bValid) return { ray1: rB1, ray2: rB2, result: resB! }
+
+  const aAsym = !!resA && (resA.t1 > EPSILON || resA.t2 > EPSILON)
+  const bAsym = !!resB && (resB.t1 > EPSILON || resB.t2 > EPSILON)
+  if (aAsym) return { ray1: rA1, ray2: rA2, result: resA! }
+  if (bAsym) return { ray1: rB1, ray2: rB2, result: resB! }
   return null
 }
 
@@ -104,8 +115,42 @@ function emitStarArms(
   polygonSides: number,
   polyVertices: Vec2[],
   segments: Segment[],
+  emittedRays: Set<string>,
 ): void {
   const { ray1, ray2, result } = pair
+  const key1 = `${ray1.edgeIndex}-${ray1.side}`
+  const key2 = `${ray2.edgeIndex}-${ray2.side}`
+
+  // Asymmetric (auto-length only): one ray's meeting is behind its origin
+  // (irregular-polygon regime, e.g. Cairo short-edge vertices at θ ≥ 25°).
+  // Emit only the still-forward ray, clipped to the polygon boundary;
+  // the negative-t ray will be picked up by the per-ray fallback if it
+  // doesn't get emitted at its other vertex.
+  if (autoLineLength && (result.t1 <= EPSILON || result.t2 <= EPSILON)) {
+    const ray1Forward = result.t1 > EPSILON
+    const fwdRay = ray1Forward ? ray1 : ray2
+    const fwdKey = ray1Forward ? key1 : key2
+    const far = {
+      x: fwdRay.origin.x + fwdRay.dir.x * inradius * 4,
+      y: fwdRay.origin.y + fwdRay.dir.y * inradius * 4,
+    }
+    const clip = clipSegmentToPolygon(fwdRay.origin, far, polyVertices, fwdRay.edgeIndex)
+    if (dist(fwdRay.origin, clip) >= EPSILON) {
+      segments.push({
+        from: fwdRay.origin,
+        to: clip,
+        edgeMidpoint: fwdRay.origin,
+        polygonCenter,
+        polygonSides,
+        polygonId,
+        tileTypeId,
+        kind: 'star-arm',
+        side: fwdRay.side,
+      })
+      emittedRays.add(fwdKey)
+    }
+    return
+  }
 
   if (autoLineLength && !pointInPolygon(result.point, polyVertices)) {
     // Edge-slide mode: star tip is outside the polygon.
@@ -119,6 +164,7 @@ function emitStarArms(
     const longRay = longIsR1 ? ray1 : ray2
     const longClip = longIsR1 ? clip1 : clip2
     const shortRay = longIsR1 ? ray2 : ray1
+    const longKey = longIsR1 ? key1 : key2
 
     // Arm: long ray's straight portion from its origin to the boundary.
     segments.push({
@@ -144,6 +190,7 @@ function emitStarArms(
       kind: 'star-arm',
       side: longRay.side,
     })
+    emittedRays.add(longKey)
     return
   }
 
@@ -182,6 +229,8 @@ function emitStarArms(
     kind: 'star-arm',
     side: ray2.side,
   })
+  emittedRays.add(key1)
+  emittedRays.add(key2)
 }
 
 /**
@@ -342,6 +391,7 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
 
     // Compute star tips for all vertices
     const starTips: (Vec2 | null)[] = []
+    const emittedRays = new Set<string>()
 
     for (let k = 0; k < n; k++) {
       const prevEdge = (k - 1 + n) % n
@@ -353,7 +403,41 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
 
       starTips.push(pair.result.point)
       if (edgeEnabled) {
-        emitStarArms(pair, fig.autoLineLength, fig.lineLength, inradius, poly.id, poly.tileTypeId, poly.center, n, poly.vertices, segments)
+        emitStarArms(pair, fig.autoLineLength, fig.lineLength, inradius, poly.id, poly.tileTypeId, poly.center, n, poly.vertices, segments, emittedRays)
+      }
+    }
+
+    // Per-ray fallback. Irregular polygons (e.g. Cairo, kites, deltoids)
+    // can have rays that participate in no successful vertex pair across
+    // a band of θ. Emit each such ray independently from its midpoint,
+    // clipped to the polygon boundary and capped at inradius so it
+    // doesn't run wild. By construction regular polygons emit every ray
+    // through the pair pass, so this loop is a no-op for them.
+    if (edgeEnabled) {
+      const fallbackLen = fig.autoLineLength ? inradius : fig.lineLength * inradius
+      for (const ray of rays) {
+        if (emittedRays.has(`${ray.edgeIndex}-${ray.side}`)) continue
+        const far = {
+          x: ray.origin.x + ray.dir.x * fallbackLen * 4,
+          y: ray.origin.y + ray.dir.y * fallbackLen * 4,
+        }
+        const clip = clipSegmentToPolygon(ray.origin, far, poly.vertices, ray.edgeIndex)
+        const cdist = dist(ray.origin, clip)
+        if (cdist < EPSILON) continue
+        const finalTo = cdist > fallbackLen
+          ? { x: ray.origin.x + ray.dir.x * fallbackLen, y: ray.origin.y + ray.dir.y * fallbackLen }
+          : clip
+        segments.push({
+          from: ray.origin,
+          to: finalTo,
+          edgeMidpoint: ray.origin,
+          polygonCenter: poly.center,
+          polygonSides: n,
+          polygonId: poly.id,
+          tileTypeId: poly.tileTypeId,
+          kind: 'star-arm',
+          side: ray.side,
+        })
       }
     }
 

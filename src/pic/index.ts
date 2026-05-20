@@ -459,12 +459,22 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
     // clip + inradius cap is the safety net when no intersection exists.
     // Regular polygons emit every ray through the pair pass, so this
     // loop is a no-op for them.
+    //
+    // Stub drop: when the nearest crossing is implausibly short (e.g. an
+    // orphan from the Cairo short edge crossing an asymmetric forward ray
+    // ~1.6 units from its midpoint), the resulting "tiny stub from the
+    // edge midpoint" is an artifact, not a meaningful figure piece.
+    // Drop any orphan whose endpoint is closer to its origin than
+    // ORPHAN_MIN_LEN_FRACTION × inradius.
+    const ORPHAN_MIN_LEN_FRACTION = 0.25
     if (edgeEnabled) {
       const fallbackLen = fig.autoLineLength ? inradius : fig.lineLength * inradius
+      const minLen = inradius * ORPHAN_MIN_LEN_FRACTION
       for (const ray of rays) {
         if (emittedRays.has(`${ray.edgeIndex}-${ray.side}`)) continue
         const endpoint = findOrphanRayEndpoint(ray, rays, poly.vertices, fallbackLen)
-        if (!endpoint || dist(ray.origin, endpoint) < EPSILON) continue
+        if (!endpoint) continue
+        if (dist(ray.origin, endpoint) < minLen) continue
         segments.push({
           from: ray.origin,
           to: endpoint,

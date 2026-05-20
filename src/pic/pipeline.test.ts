@@ -86,12 +86,29 @@ describe('runPIC — full pipeline integration', () => {
     }
   })
 
-  // Regression: irregular-polygon Cairo at θ in the 25-30° band used to
-  // drop every ray from the short edge (V0/V4 pair A meeting drifted past
-  // the short edge, V0/V4 pair B was divergent → pairAtVertex returned
-  // null at those vertices). Per-ray fallback now guarantees each ray
-  // contributes a segment.
-  it('Cairo pentagonal — every edge contributes rays at θ=27.5°', () => {
+  // Regression: irregular-polygon Cairo at θ in the working range emits
+  // rays from every edge (10 origin keys).
+  it('Cairo pentagonal — every edge contributes rays at θ=22°', () => {
+    const vp: Viewport = { x: -50, y: -50, width: 100, height: 100 }
+    const polys = generateTapratsTiling('cairo-pentagonal', vp, 50)
+    const config: PatternConfig = {
+      ...DEFAULT_CONFIG,
+      tiling: { type: 'cairo-pentagonal', scale: 50 },
+      figures: { '5': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 22 } },
+    }
+    const segs = runPIC(polys, config)
+    const poly = polys[0]
+    if (!poly) throw new Error('no Cairo polygon generated')
+    const polySegs = segs.filter(s => s.polygonId === poly.id && s.kind === 'star-arm')
+    const originKeys = new Set(polySegs.map(s => `${Math.round(s.edgeMidpoint.x * 1e3)},${Math.round(s.edgeMidpoint.y * 1e3)}|${s.side}`))
+    expect(originKeys.size).toBeGreaterThanOrEqual(10)
+  })
+
+  // Regression: in the degenerate θ band (25-32°), Cairo's short edge
+  // orphan rays would otherwise emit as tiny stubs (~1.6 units from the
+  // midpoint, < inradius/4). They are intentionally dropped to remove
+  // that artifact. The four long edges still contribute both rays each.
+  it('Cairo pentagonal — long edges still contribute at θ=27.5°, no short stubs', () => {
     const vp: Viewport = { x: -50, y: -50, width: 100, height: 100 }
     const polys = generateTapratsTiling('cairo-pentagonal', vp, 50)
     const config: PatternConfig = {
@@ -103,8 +120,11 @@ describe('runPIC — full pipeline integration', () => {
     const poly = polys[0]
     if (!poly) throw new Error('no Cairo polygon generated')
     const polySegs = segs.filter(s => s.polygonId === poly.id && s.kind === 'star-arm')
-    // 5 edges × 2 sides = 10 distinct (edgeIdx, side) midpoint origins.
     const originKeys = new Set(polySegs.map(s => `${Math.round(s.edgeMidpoint.x * 1e3)},${Math.round(s.edgeMidpoint.y * 1e3)}|${s.side}`))
-    expect(originKeys.size).toBeGreaterThanOrEqual(10)
+    expect(originKeys.size).toBeGreaterThanOrEqual(8)
+    for (const seg of polySegs) {
+      const len = Math.hypot(seg.to.x - seg.from.x, seg.to.y - seg.from.y)
+      expect(len).toBeGreaterThan(2)
+    }
   })
 })

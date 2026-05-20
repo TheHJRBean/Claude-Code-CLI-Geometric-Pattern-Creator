@@ -160,6 +160,7 @@ function emitStarArms(
   polygonCenter: Vec2,
   polygonSides: number,
   polyVertices: Vec2[],
+  allRays: ContactRay[],
   segments: Segment[],
   emittedRays: Set<string>,
 ): void {
@@ -169,11 +170,30 @@ function emitStarArms(
 
   // Asymmetric (auto-length only): one ray's meeting is behind its origin
   // (irregular-polygon regime, e.g. Cairo short-edge vertices at θ ≥ 25°).
-  // Emit nothing here — the per-ray fallback handles both rays uniformly,
-  // applying the orphan drop criteria (too-short, or endpoint too close
-  // to a non-self polygon edge) so degenerate-θ artifacts are filtered
-  // out in one place.
+  // Emit only the still-forward ray, terminating at its nearest valid
+  // intersection with another ray (Kaplan's trim). The user-visible
+  // "rays meeting just before the in-between edge" comes from this path.
+  // The negative-t ray is left to per-ray fallback (which drops it if
+  // it would only emit a tiny stub).
   if (autoLineLength && (result.t1 <= EPSILON || result.t2 <= EPSILON)) {
+    const ray1Forward = result.t1 > EPSILON
+    const fwdRay = ray1Forward ? ray1 : ray2
+    const fwdKey = ray1Forward ? key1 : key2
+    const endpoint = findOrphanRayEndpoint(fwdRay, allRays, polyVertices, inradius)
+    if (endpoint && dist(fwdRay.origin, endpoint) >= EPSILON) {
+      segments.push({
+        from: fwdRay.origin,
+        to: endpoint,
+        edgeMidpoint: fwdRay.origin,
+        polygonCenter,
+        polygonSides,
+        polygonId,
+        tileTypeId,
+        kind: 'star-arm',
+        side: fwdRay.side,
+      })
+      emittedRays.add(fwdKey)
+    }
     return
   }
 
@@ -428,7 +448,7 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
 
       starTips.push(pair.result.point)
       if (edgeEnabled) {
-        emitStarArms(pair, fig.autoLineLength, fig.lineLength, inradius, poly.id, poly.tileTypeId, poly.center, n, poly.vertices, segments, emittedRays)
+        emitStarArms(pair, fig.autoLineLength, fig.lineLength, inradius, poly.id, poly.tileTypeId, poly.center, n, poly.vertices, rays, segments, emittedRays)
       }
     }
 
@@ -441,35 +461,22 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
     //    PIC contact-angle range.
     //
     // Each unemitted ray's endpoint is its nearest valid crossing with
-    // any other-edge ray (Kaplan's trim). Two artifact filters apply
-    // uniformly — neither triggers for regular polygons in their working
-    // θ range because every ray emits through the pair pass before this
-    // loop runs:
-    //  1. Stub: endpoint closer to origin than ORPHAN_MIN × inradius.
-    //  2. Edge-shadow: endpoint within ORPHAN_MIN × inradius of any
-    //     non-self polygon edge midpoint. Catches "asymmetric pair
-    //     meetings just inside an in-between edge" — the Cairo offset
-    //     meeting at θ=27 sits 1.65 units inside the short edge midpoint.
-    //     As θ grows the same meeting moves deeper into the polygon and
-    //     the filter naturally releases it.
-    const ORPHAN_MIN = 0.25
+    // any other-edge ray (Kaplan's trim). Drop the emission only when
+    // the endpoint is implausibly close to the origin (a "stub from the
+    // edge midpoint" artifact). The longer asymmetric forwards meeting
+    // just inside an in-between edge are preserved — that's the
+    // "rays joining before the edge" behavior the user wants. Regular
+    // polygons emit every ray through the pair pass so this loop is a
+    // no-op for them.
+    const ORPHAN_MIN_LEN_FRACTION = 0.25
     if (edgeEnabled) {
       const fallbackLen = fig.autoLineLength ? inradius : fig.lineLength * inradius
-      const minClearance = inradius * ORPHAN_MIN
-      const otherEdgeMidpoints = rays
-        .filter((_, i) => i % 2 === 0)
-        .map(r => ({ edgeIndex: r.edgeIndex, mid: r.origin }))
+      const minLen = inradius * ORPHAN_MIN_LEN_FRACTION
       for (const ray of rays) {
         if (emittedRays.has(`${ray.edgeIndex}-${ray.side}`)) continue
         const endpoint = findOrphanRayEndpoint(ray, rays, poly.vertices, fallbackLen)
         if (!endpoint) continue
-        if (dist(ray.origin, endpoint) < minClearance) continue
-        let nearOtherEdge = false
-        for (const o of otherEdgeMidpoints) {
-          if (o.edgeIndex === ray.edgeIndex) continue
-          if (dist(endpoint, o.mid) < minClearance) { nearOtherEdge = true; break }
-        }
-        if (nearOtherEdge) continue
+        if (dist(ray.origin, endpoint) < minLen) continue
         segments.push({
           from: ray.origin,
           to: endpoint,

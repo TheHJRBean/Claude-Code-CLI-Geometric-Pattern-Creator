@@ -160,7 +160,6 @@ function emitStarArms(
   polygonCenter: Vec2,
   polygonSides: number,
   polyVertices: Vec2[],
-  allRays: ContactRay[],
   segments: Segment[],
   emittedRays: Set<string>,
 ): void {
@@ -168,32 +167,14 @@ function emitStarArms(
   const key1 = `${ray1.edgeIndex}-${ray1.side}`
   const key2 = `${ray2.edgeIndex}-${ray2.side}`
 
-  // Asymmetric (auto-length only): one ray's meeting is behind its origin
-  // (irregular-polygon regime, e.g. Cairo short-edge vertices at θ ≥ 25°).
-  // Emit only the still-forward ray, terminating at its nearest valid
-  // intersection with another ray (Kaplan's trim). The user-visible
-  // "rays meeting just before the in-between edge" comes from this path.
-  // The negative-t ray is left to per-ray fallback (which drops it if
-  // it would only emit a tiny stub).
+  // Asymmetric (auto-length only): one ray's meeting is behind its origin.
+  // The naive "pick whichever t is positive" can flip between rays as θ
+  // crosses the parallel-rays regime (denom sign change), causing the
+  // asymmetric forward to be a tiny stub at one θ and a long ray at
+  // another. Emit nothing here — the per-ray fallback handles both rays
+  // uniformly, picking each one's own nearest valid crossing and
+  // dropping stubs via the length threshold.
   if (autoLineLength && (result.t1 <= EPSILON || result.t2 <= EPSILON)) {
-    const ray1Forward = result.t1 > EPSILON
-    const fwdRay = ray1Forward ? ray1 : ray2
-    const fwdKey = ray1Forward ? key1 : key2
-    const endpoint = findOrphanRayEndpoint(fwdRay, allRays, polyVertices, inradius)
-    if (endpoint && dist(fwdRay.origin, endpoint) >= EPSILON) {
-      segments.push({
-        from: fwdRay.origin,
-        to: endpoint,
-        edgeMidpoint: fwdRay.origin,
-        polygonCenter,
-        polygonSides,
-        polygonId,
-        tileTypeId,
-        kind: 'star-arm',
-        side: fwdRay.side,
-      })
-      emittedRays.add(fwdKey)
-    }
     return
   }
 
@@ -448,7 +429,7 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
 
       starTips.push(pair.result.point)
       if (edgeEnabled) {
-        emitStarArms(pair, fig.autoLineLength, fig.lineLength, inradius, poly.id, poly.tileTypeId, poly.center, n, poly.vertices, rays, segments, emittedRays)
+        emitStarArms(pair, fig.autoLineLength, fig.lineLength, inradius, poly.id, poly.tileTypeId, poly.center, n, poly.vertices, segments, emittedRays)
       }
     }
 

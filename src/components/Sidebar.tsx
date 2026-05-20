@@ -456,9 +456,9 @@ export function Sidebar({
       {/* ── Sections ────────────────────────────────────── */}
       <div className="sidebar-sections">
 
-        {/* Tessellation */}
+        {/* Tiling */}
         <div style={{ paddingTop: 20, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
-          <SectionTitle open={isOpen('tiling')} onToggle={() => toggleSection('tiling')}>Tessellation</SectionTitle>
+          <SectionTitle open={isOpen('tiling')} onToggle={() => toggleSection('tiling')}>Tiling</SectionTitle>
           {isOpen('tiling') && (
             <>
               <FieldLabel label="Type" />
@@ -642,7 +642,7 @@ export function Sidebar({
                 <Toggle
                   checked={showTileLayer}
                   onChange={() => onToggleTileLayer()}
-                  label="Show tessellation"
+                  label="Show tiling"
                 />
               </div>
               <div style={{ marginBottom: 4 }} />

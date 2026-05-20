@@ -105,13 +105,14 @@ describe('runPIC — full pipeline integration', () => {
   })
 
   // Regression: in the degenerate θ band (25-32°), Cairo's short edge
-  // orphan rays emit as tiny stubs (~1.6 units from the midpoint) and the
-  // V0/V4 asymmetric forwards meet at an offset point ~1.6 units inside
-  // the short edge midpoint. Both artifacts get filtered: stub by
-  // length, offset-meeting by endpoint-near-non-self-edge. The 3 working
-  // pair-A vertices (V1, V2, V3) still emit, giving 6 origin keys; every
-  // emitted segment is substantially longer than the artifact threshold.
-  it('Cairo pentagonal — degenerate θ drops artifacts, keeps working pairs', () => {
+  // orphan rays emit as tiny stubs (~1.6 units from the midpoint) which
+  // get dropped by the stub-length filter. The V0/V4 asymmetric forwards
+  // (e0.plus and e3.minus meeting just inside the short edge) are kept —
+  // that's the desired "rays joining before the edge" visual. Long edges
+  // contribute their full pair-A rays via V1/V2/V3, plus the asymmetric
+  // forwards from V0/V4, for 8 origin keys; every emitted segment is
+  // longer than the stub threshold.
+  it('Cairo pentagonal — degenerate θ drops stubs, keeps asymmetric forwards', () => {
     const vp: Viewport = { x: -50, y: -50, width: 100, height: 100 }
     const polys = generateTapratsTiling('cairo-pentagonal', vp, 50)
     const config: PatternConfig = {
@@ -124,7 +125,7 @@ describe('runPIC — full pipeline integration', () => {
     if (!poly) throw new Error('no Cairo polygon generated')
     const polySegs = segs.filter(s => s.polygonId === poly.id && s.kind === 'star-arm')
     const originKeys = new Set(polySegs.map(s => `${Math.round(s.edgeMidpoint.x * 1e3)},${Math.round(s.edgeMidpoint.y * 1e3)}|${s.side}`))
-    expect(originKeys.size).toBeGreaterThanOrEqual(6)
+    expect(originKeys.size).toBeGreaterThanOrEqual(8)
     for (const seg of polySegs) {
       const len = Math.hypot(seg.to.x - seg.from.x, seg.to.y - seg.from.y)
       expect(len).toBeGreaterThan(5)

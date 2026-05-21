@@ -156,6 +156,43 @@ describe('runPIC — full pipeline integration', () => {
     }
   })
 
+  // Regression: Bug 1 (2026-05-21). On the floret-pentagonal 5-gon at
+  // θ=20°, the asymmetric pair at V0/V3 emitted a 67-unit forward arm
+  // that ran most of the way across the polygon (diameter 132) before
+  // a tiny 1.6-unit slide along the edge — user perceived it as
+  // "rays continuing through to the edge." The arm-length cap in
+  // emitStarArms drops the pair when the forward arm exceeds the
+  // polygon's half-span. This regression ensures no star-arm exceeds
+  // 50% of the polygon's diameter on the floret pentagon at θ=20°.
+  it('floret-pentagonal — no asymmetric arm exceeds halfSpan at θ=20°', () => {
+    const vp: Viewport = { x: -300, y: -300, width: 600, height: 600 }
+    const polys = generateTapratsTiling('floret-pentagonal', vp, 50)
+    const config: PatternConfig = {
+      ...DEFAULT_CONFIG,
+      tiling: { type: 'floret-pentagonal', scale: 50 },
+      figures: { '5': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 20 } },
+    }
+    const segs = runPIC(polys, config)
+    const pentagons = polys.filter(p => p.sides === 5)
+    expect(pentagons.length).toBeGreaterThan(0)
+    for (const poly of pentagons) {
+      let diameter = 0
+      for (let i = 0; i < poly.vertices.length; i++) {
+        for (let j = i + 1; j < poly.vertices.length; j++) {
+          const dx = poly.vertices[i].x - poly.vertices[j].x
+          const dy = poly.vertices[i].y - poly.vertices[j].y
+          const d = Math.sqrt(dx * dx + dy * dy)
+          if (d > diameter) diameter = d
+        }
+      }
+      const polySegs = segs.filter(s => s.polygonId === poly.id && s.kind === 'star-arm')
+      for (const seg of polySegs) {
+        const len = Math.hypot(seg.to.x - seg.from.x, seg.to.y - seg.from.y)
+        expect(len).toBeLessThanOrEqual(diameter * 0.5)
+      }
+    }
+  })
+
   it('Cairo pentagonal — degenerate θ emits asymmetric forwards with boundary slides', () => {
     const vp: Viewport = { x: -50, y: -50, width: 100, height: 100 }
     const polys = generateTapratsTiling('cairo-pentagonal', vp, 50)

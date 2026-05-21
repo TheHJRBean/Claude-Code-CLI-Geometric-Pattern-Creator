@@ -176,6 +176,32 @@ function emitStarArms(
   const key1 = `${ray1.edgeIndex}-${ray1.side}`
   const key2 = `${ray2.edgeIndex}-${ray2.side}`
 
+  // Polygon "half-span" = half the max pairwise vertex distance. Used as
+  // the cap for edge-slide forward arms: when the natural pair-A meeting
+  // is asymmetric or outside the polygon, the forward ray gets clipped
+  // at the boundary — but on some irregular polygons (floret apex,
+  // heptagonal-rosette kite, deltoid, kisrhombille) the clipped arm
+  // still extends across most of the polygon, reading as the strand
+  // "running through to the edge" the user reported 2026-05-21. Capping
+  // at the polygon's half-span preserves Cairo (arm 40 < halfSpan 43)
+  // and Tetrakis (arm 25 < halfSpan 35) while dropping the long-arm
+  // cases (floret 67 > 66, heptagonal-rosette 40 > 39, deltoid 33 > 29,
+  // kisrhombille 56 > 50). Both rays are marked emitted on drop so the
+  // per-ray fallback doesn't re-introduce the long arm via Kaplan trim.
+  // Centroid-based circumradius is wrong here because it's only ≈ span/2
+  // for regular polygons; for irregulars the centroid can be far from
+  // the polygon "center" and circumradius approaches the full span.
+  let halfSpan = 0
+  for (let i = 0; i < polyVertices.length; i++) {
+    for (let j = i + 1; j < polyVertices.length; j++) {
+      const dx = polyVertices[i].x - polyVertices[j].x
+      const dy = polyVertices[i].y - polyVertices[j].y
+      const d = Math.hypot(dx, dy)
+      if (d > halfSpan) halfSpan = d
+    }
+  }
+  halfSpan *= 0.5
+
   // Asymmetric pair (one ray's meeting is behind its origin) — e.g. the
   // Tetrakis Square right-triangle's 45° vertices at θ ≥ 46°, where one
   // contact ray points away from the would-be star tip. In auto-length
@@ -198,7 +224,16 @@ function emitStarArms(
       y: forwardRay.origin.y + forwardRay.dir.y * inradius * 4,
     }
     const { point: clip, edgeIdx: clipEdge } = clipSegmentToPolygon(forwardRay.origin, far, polyVertices, forwardRay.edgeIndex)
-    if (dist(forwardRay.origin, clip) < EPSILON) return
+    const armLen = dist(forwardRay.origin, clip)
+    if (armLen < EPSILON) return
+    // Arm-length cap: drop the entire pair when the forward arm extends
+    // beyond the polygon's circumradius. Marks both rays as emitted so
+    // the per-ray fallback doesn't re-emit the long arm via Kaplan trim.
+    if (armLen > halfSpan) {
+      emittedRays.add(forwardKey)
+      emittedRays.add(backKey)
+      return
+    }
 
     segments.push({
       from: forwardRay.origin,
@@ -245,6 +280,13 @@ function emitStarArms(
     const len1 = dist(ray1.origin, clip1Res.point)
     const len2 = dist(ray2.origin, clip2Res.point)
     if (len1 < EPSILON && len2 < EPSILON) return
+    // Arm-length cap (mirrors the asymmetric branch): drop emission
+    // entirely when the long arm exceeds the polygon's circumradius.
+    if (Math.max(len1, len2) > halfSpan) {
+      emittedRays.add(key1)
+      emittedRays.add(key2)
+      return
+    }
 
     const longIsR1 = len1 >= len2
     const longRay = longIsR1 ? ray1 : ray2

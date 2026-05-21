@@ -113,6 +113,49 @@ describe('runPIC — full pipeline integration', () => {
   // their full pair-A rays via V1/V2/V3. Each strand piece (sum of
   // segments per origin midpoint + side) is substantive — no tiny
   // dangling stubs.
+  // Regression: Bug 2 (2026-05-21). The nonagonal-rosette 5-gon is
+  // concave (V2 is a reflex vertex). At θ=54° the natural pair-A meeting
+  // at one vertex fell outside the polygon; the previous edge-slide
+  // implementation clipped the forward ray at the FIRST boundary
+  // crossing — which on a concave polygon could be the reflex notch on
+  // the far side — and drew the slide straight across the polygon
+  // interior (a 49-unit chord on a polygon of comparable diameter).
+  // Same-edge slide guard now suppresses any slide whose clip edge ≠
+  // back-ray edge.
+  it('nonagonal-rosette 5-gon — no slide segment cuts across the polygon at θ=54°', () => {
+    const vp: Viewport = { x: -300, y: -300, width: 600, height: 600 }
+    const polys = generateTapratsTiling('nonagonal-rosette', vp, 50)
+    const config: PatternConfig = {
+      ...DEFAULT_CONFIG,
+      tiling: { type: 'nonagonal-rosette', scale: 50 },
+      figures: { '5': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 54 } },
+    }
+    const segs = runPIC(polys, config)
+    const pentagons = polys.filter(p => p.sides === 5)
+    expect(pentagons.length).toBeGreaterThan(0)
+    for (const poly of pentagons) {
+      // Polygon diameter: max pairwise distance between vertices.
+      let diameter = 0
+      for (let i = 0; i < poly.vertices.length; i++) {
+        for (let j = i + 1; j < poly.vertices.length; j++) {
+          const dx = poly.vertices[i].x - poly.vertices[j].x
+          const dy = poly.vertices[i].y - poly.vertices[j].y
+          const d = Math.sqrt(dx * dx + dy * dy)
+          if (d > diameter) diameter = d
+        }
+      }
+      // No emitted segment should span more than 60% of the polygon's
+      // diameter. Pre-fix, the cross-polygon slide on this 5-gon ran ~49
+      // units (~64% of its 76-unit diameter). Post-fix the worst segment
+      // is a legitimate ~40-unit forward arm.
+      const polySegs = segs.filter(s => s.polygonId === poly.id && s.kind === 'star-arm')
+      for (const seg of polySegs) {
+        const len = Math.hypot(seg.to.x - seg.from.x, seg.to.y - seg.from.y)
+        expect(len).toBeLessThan(diameter * 0.6)
+      }
+    }
+  })
+
   it('Cairo pentagonal — degenerate θ emits asymmetric forwards with boundary slides', () => {
     const vp: Viewport = { x: -50, y: -50, width: 100, height: 100 }
     const polys = generateTapratsTiling('cairo-pentagonal', vp, 50)

@@ -47,14 +47,21 @@ function pairAtVertex(
   const bValid = !!resB && resB.t1 > EPSILON && resB.t2 > EPSILON
   const bInside = bValid && pointInPolygon(resB!.point, polyVertices)
 
+  const aAsym = !!resA && (resA.t1 > EPSILON || resA.t2 > EPSILON) && !aValid
+  const bAsym = !!resB && (resB.t1 > EPSILON || resB.t2 > EPSILON) && !bValid
+
+  // Priority: prefer pair-A; pair-B is reserved for the concave-star fallback
+  // where pair-A's tip is fully outside the polygon (aValid but not aInside).
+  // When pair-A is asymmetric (one ray points away from its origin) we MUST
+  // stick with pair-A and let emitStarArms / per-ray fallback handle it —
+  // falling through to pair-B here causes double-emission of rays that
+  // neighbouring vertices' pair-A also uses (e.g. Tetrakis right-triangle
+  // at θ ≥ 46° where V1 is pair-A IN but V0/V2 are pair-A ASYM + pair-B IN).
   if (aInside) return { ray1: rA1, ray2: rA2, result: resA! }
+  if (aAsym) return { ray1: rA1, ray2: rA2, result: resA! }
   if (bInside) return { ray1: rB1, ray2: rB2, result: resB! }
   if (aValid) return { ray1: rA1, ray2: rA2, result: resA! }
   if (bValid) return { ray1: rB1, ray2: rB2, result: resB! }
-
-  const aAsym = !!resA && (resA.t1 > EPSILON || resA.t2 > EPSILON)
-  const bAsym = !!resB && (resB.t1 > EPSILON || resB.t2 > EPSILON)
-  if (aAsym) return { ray1: rA1, ray2: rA2, result: resA! }
   if (bAsym) return { ray1: rB1, ray2: rB2, result: resB! }
   return null
 }
@@ -167,15 +174,54 @@ function emitStarArms(
   const key1 = `${ray1.edgeIndex}-${ray1.side}`
   const key2 = `${ray2.edgeIndex}-${ray2.side}`
 
-  // Asymmetric pair (one ray's meeting is behind its origin). In
-  // auto-length mode there's no geometrically stable forward ray to
-  // pick — sign of t flips across the parallel-rays regime, so picking
-  // "the positive t" alternates between long ray and tiny stub as θ
-  // sweeps. Emit nothing; the per-ray fallback runs Kaplan trim on
-  // each ray independently and drops stubs uniformly. In fixed-length
-  // mode we fall through to the normal emission path below, which
-  // ignores result.point and emits both rays at user-specified length.
+  // Asymmetric pair (one ray's meeting is behind its origin) — e.g. the
+  // Tetrakis Square right-triangle's 45° vertices at θ ≥ 46°, where one
+  // contact ray points away from the would-be star tip. In auto-length
+  // mode, emit just the forward ray as an edge-slide: forward ray from
+  // its origin to the polygon boundary, then slide along the boundary
+  // to the back ray's origin. Mark BOTH rays as emitted so the per-ray
+  // fallback doesn't redundantly draw the (tiny) Kaplan-trim crossing
+  // for the back ray — the slide already provides the strand continuity
+  // to the back ray's edge midpoint. Fixed-length mode falls through to
+  // the normal path, which ignores result.point and emits both rays at
+  // user-specified length.
   if (autoLineLength && (result.t1 <= EPSILON || result.t2 <= EPSILON)) {
+    const forwardRay = result.t1 > EPSILON ? ray1 : ray2
+    const backRay = result.t1 > EPSILON ? ray2 : ray1
+    const forwardKey = result.t1 > EPSILON ? key1 : key2
+    const backKey = result.t1 > EPSILON ? key2 : key1
+
+    const far = {
+      x: forwardRay.origin.x + forwardRay.dir.x * inradius * 4,
+      y: forwardRay.origin.y + forwardRay.dir.y * inradius * 4,
+    }
+    const clip = clipSegmentToPolygon(forwardRay.origin, far, polyVertices, forwardRay.edgeIndex)
+    if (dist(forwardRay.origin, clip) < EPSILON) return
+
+    segments.push({
+      from: forwardRay.origin,
+      to: clip,
+      edgeMidpoint: forwardRay.origin,
+      polygonCenter,
+      polygonSides,
+      polygonId,
+      tileTypeId,
+      kind: 'star-arm',
+      side: forwardRay.side,
+    })
+    segments.push({
+      from: clip,
+      to: backRay.origin,
+      edgeMidpoint: forwardRay.origin,
+      polygonCenter,
+      polygonSides,
+      polygonId,
+      tileTypeId,
+      kind: 'star-arm',
+      side: forwardRay.side,
+    })
+    emittedRays.add(forwardKey)
+    emittedRays.add(backKey)
     return
   }
 
@@ -192,6 +238,7 @@ function emitStarArms(
     const longClip = longIsR1 ? clip1 : clip2
     const shortRay = longIsR1 ? ray2 : ray1
     const longKey = longIsR1 ? key1 : key2
+    const shortKey = longIsR1 ? key2 : key1
 
     // Arm: long ray's straight portion from its origin to the boundary.
     segments.push({
@@ -217,7 +264,11 @@ function emitStarArms(
       kind: 'star-arm',
       side: longRay.side,
     })
+    // Both rays consumed — the slide already lands at the short ray's
+    // origin, so don't let the per-ray fallback redundantly emit a
+    // (typically short) Kaplan-trim segment for the short ray on top.
     emittedRays.add(longKey)
+    emittedRays.add(shortKey)
     return
   }
 

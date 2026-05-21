@@ -314,7 +314,17 @@ function emitStarArms(
 /**
  * Pair vertex rays from two adjacent vertices sharing an edge.
  * Mirrors pairAtVertex but for vertex-origin rays.
- * Only accepts intersections that fall inside the polygon.
+ *
+ * NOTE: this function carries the same per-edge pair-A/pair-B selection
+ * pattern as `pairAtVertex`. If adjacent edges of an irregular polygon
+ * choose different pair types (one aInside, the next bInside), they can
+ * share a vertex ray and double-emit it — the same bug pattern fixed
+ * for star arms in `pairAtVertex`. emitVertexArms doesn't track an
+ * `emittedRays` set, so a double-emission would render as two visible
+ * overlapping vertex lines. No user-facing report yet; if vertex-lines
+ * artefacts appear on irregular polygons, lift the pair selection to
+ * the polygon level (one pair-type per polygon) the same way the star-
+ * arm fix could be extended.
  */
 function pairVertexAtEdge(
   vertexRays: VertexRay[],

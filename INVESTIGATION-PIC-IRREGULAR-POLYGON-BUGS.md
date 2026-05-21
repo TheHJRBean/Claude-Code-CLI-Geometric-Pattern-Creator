@@ -1,7 +1,14 @@
 # PIC Irregular-Polygon Edge-Slide Bugs — Investigation 2026-05-21
 
 **Branch:** `feat/art-deco-egypt-theme-revamp`
-**Status:** Probe data captured. Same-edge slide guard implemented in working tree (uncommitted — user didn't observe visible improvement). Need to choose direction for the broader fix.
+**Status:** PARTIALLY FIXED 2026-05-21.
+- `ddcad24` — Bug 2 same-edge slide guard (concave polygons no longer cut strands across reflex notches).
+- `2632e69` — Bug 1 arm-length cap at polygon half-span (worst long-arm cases dropped).
+- User feedback after both commits: **"It looks better although none are fixed."**
+- Borderline cases still emit: floret θ=40° (arm 63/diameter 132 = 0.48, just under the 0.5 cap), kisrhombille θ=72° (arm 41/100 = 0.41).
+- All 161 tests pass.
+
+See bottom of this doc for **Follow-up directions** to try next session.
 
 Related memory: `~/.claude/projects/-home-harryjrh-Geometric-Pattern-Creator/memory/project_pic_irregular_polygon_bugs.md`.
 
@@ -111,9 +118,67 @@ Open question for the user before implementing:
 
 ## How to apply next session
 
-1. Read this memo.
+1. Read this memo + the project memory `project_pic_irregular_polygon_bugs.md` first.
 2. Re-run `npx vitest run src/pic/probe.test.ts --reporter=verbose` for fresh probe data.
-3. Pick A / B / C from the recommendation section based on user response.
+3. Pick from **Follow-up directions** below.
 4. Implement behind no flag (single-path is preferred — feature flags will be confusing).
-5. Update / extend `src/pic/pipeline.test.ts` with regression coverage for the chosen approach.
-6. Visual check in browser at the affected (tiling, θ) pairs listed above before commit.
+5. Update / extend `src/pic/pipeline.test.ts` with regression coverage.
+6. Visual check in browser at the affected (tiling, θ) pairs before commit.
+
+---
+
+## Follow-up directions (session 3+)
+
+User said "it looks better although none are fixed." So the partial fix is on the right track but not aggressive enough. Three sharper approaches, ordered by how invasive they are:
+
+### Direction 1 — Tighten the threshold
+
+The current cap is at `armLen > halfSpan` (= 0.5 × diameter). Candidates:
+- `0.47 × diameter` drops floret θ=40° (0.48) but Cairo θ=27.5° sits at 0.465 — close to false-positive territory.
+- `0.45 × diameter` drops floret θ=40° + drops the Cairo regression — would need to relax the Cairo test (or accept regressing Cairo's asymmetric slide).
+- `0.40 × diameter` catches more (kisrhombille θ=72° at 0.41) but regresses Cairo (0.46) and is risky.
+
+Run the probe after each threshold change. Decide based on the worst-borderline-case acceptance.
+
+### Direction 2 — Polygon-level coherent emission (was "Option B")
+
+Inspect every vertex's pair-A status BEFORE per-vertex emission. If any vertex is non-inside, drop emission at every non-inside vertex (no arm, no slide, no per-ray fallback). Inside vertices emit normally.
+
+Risk: regresses Cairo at θ=27.5° (V0/V4 asymmetric → would drop those). Cairo regression test asserts 8+ origin keys and strand pieces > 5 length — likely fails.
+
+Mitigation: keep the per-ray fallback for inside-vertex-dominated polygons (drop only edge-slide emissions, not the inside ones). That's essentially what the current arm-cap does just with a smoother threshold.
+
+### Direction 3 — Centroid-routed strands (was "Option C")
+
+When pair-A meeting is outside the polygon, route the strand through the polygon centroid (or a point on the inradius circle) instead of clipping to the boundary. Forward ray → centroid → back ray's edge midpoint.
+
+This is the cleanest visual result but requires:
+- Selecting the routing point (centroid? inradius circle? midpoint of arms' bisector?).
+- Smooth blending into normal pair-A regime as θ approaches the boundary threshold.
+- Handling concave polygons (centroid may lie outside the polygon — use centroid clipped to polygon interior, or use a different anchor).
+
+Substantial design work. Best done after Directions 1 and 2 are exhausted.
+
+### Direction 4 — Hybrid (recommended starting point)
+
+Combine:
+- Keep the current arm-cap (catches the worst cases).
+- Add a secondary rule: **if pair-A meeting is outside the polygon AND polygon has only one or two "inside" vertices, switch the entire polygon to pair-B (concave star).** This catches the "all degenerate" case (e.g. floret θ=30° where all pair-A meetings are degenerate) coherently.
+- Cap the per-ray fallback's nearest-crossing search to a fraction of the polygon's halfSpan (currently it's just inradius * 0.25). Prevents fallback from re-introducing long arms via Kaplan trim.
+
+### Probe data quick-reference (re-run for fresh numbers)
+
+| Tiling           | θ      | Vertex / status          | Arm / halfSpan / ratio | Verdict        |
+|------------------|--------|--------------------------|------------------------|----------------|
+| Floret           | 20°    | V0/V3 asym               | 67.4 / 66.2 / 1.02     | dropped (good) |
+| Floret           | 40°    | V0/V3 asym               | 63.3 / 66.2 / 0.96     | emits (still bad) |
+| Deltoid          | 30°    | V1/V3 asym               | 28.9 / 28.9 / 1.00     | borderline drop |
+| Deltoid          | 40°    | V1/V3 asym               | 32.6 / 28.9 / 1.13     | dropped (good) |
+| Kisrhombille     | 30°    | V0/V1 asym               | 50.0 / 50.0 / 1.00     | borderline drop |
+| Kisrhombille     | 40°    | V0/V1 asym               | 56.5 / 50.0 / 1.13     | dropped (good) |
+| Kisrhombille     | 72°    | V1/V2 asym               | 41.4 / 50.0 / 0.83     | emits (still bad) |
+| Heptagonal       | 30°    | V1/V2 asym               | 40.0 / 39.1 / 1.02     | dropped (good) |
+| Cairo            | 27.5°  | V0/V4 asym               | 40.3 / 43.3 / 0.93     | preserved      |
+| Tetrakis         | 46-60° | V0/V2 asym               | 25.0 / 35.4 / 0.71     | preserved      |
+| Nonagonal        | 54°    | V2 concave reflex        | (cross-tile, fixed)    | preserved      |
+| Decagonal        | 67.5°  | V2/V5 concave reflex     | (cross-tile, fixed)    | preserved      |

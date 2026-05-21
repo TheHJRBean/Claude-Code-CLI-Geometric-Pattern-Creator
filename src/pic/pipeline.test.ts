@@ -105,14 +105,15 @@ describe('runPIC — full pipeline integration', () => {
   })
 
   // Regression: in the degenerate θ band (25-32°), Cairo's short edge
-  // orphan rays emit as tiny stubs (~1.6 units from the midpoint) which
-  // get dropped by the stub-length filter. The V0/V4 asymmetric forwards
-  // (e0.plus and e3.minus meeting just inside the short edge) are kept —
-  // that's the desired "rays joining before the edge" visual. Long edges
-  // contribute their full pair-A rays via V1/V2/V3, plus the asymmetric
-  // forwards from V0/V4, for 8 origin keys; every emitted segment is
-  // longer than the stub threshold.
-  it('Cairo pentagonal — degenerate θ drops stubs, keeps asymmetric forwards', () => {
+  // asymmetric vertices (V0/V4) trigger the asymmetric-edge-slide path:
+  // the forward ray (e.g. e0.plus) is clipped to the polygon boundary
+  // and a short slide along that boundary lands on the partner ray's
+  // edge midpoint — closing the gap that would otherwise leave the
+  // strand disconnected from the next tile's ray. Long edges contribute
+  // their full pair-A rays via V1/V2/V3. Each strand piece (sum of
+  // segments per origin midpoint + side) is substantive — no tiny
+  // dangling stubs.
+  it('Cairo pentagonal — degenerate θ emits asymmetric forwards with boundary slides', () => {
     const vp: Viewport = { x: -50, y: -50, width: 100, height: 100 }
     const polys = generateTapratsTiling('cairo-pentagonal', vp, 50)
     const config: PatternConfig = {
@@ -126,9 +127,18 @@ describe('runPIC — full pipeline integration', () => {
     const polySegs = segs.filter(s => s.polygonId === poly.id && s.kind === 'star-arm')
     const originKeys = new Set(polySegs.map(s => `${Math.round(s.edgeMidpoint.x * 1e3)},${Math.round(s.edgeMidpoint.y * 1e3)}|${s.side}`))
     expect(originKeys.size).toBeGreaterThanOrEqual(8)
+
+    // Per-strand-piece length check: each (origin midpoint, side) tuple
+    // sums all its segments — for asymmetric vertices this is forward +
+    // slide; for normal pair-A vertices it's a single segment.
+    const strandLen = new Map<string, number>()
     for (const seg of polySegs) {
+      const key = `${Math.round(seg.edgeMidpoint.x * 1e3)},${Math.round(seg.edgeMidpoint.y * 1e3)}|${seg.side}`
       const len = Math.hypot(seg.to.x - seg.from.x, seg.to.y - seg.from.y)
-      expect(len).toBeGreaterThan(5)
+      strandLen.set(key, (strandLen.get(key) ?? 0) + len)
+    }
+    for (const [, total] of strandLen) {
+      expect(total).toBeGreaterThan(5)
     }
   })
 })

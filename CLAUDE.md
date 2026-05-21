@@ -66,11 +66,11 @@ The geometry pipeline runs entirely in pure TypeScript (no React), memoized in `
 1. `tilings/archimedean.ts` — BFS generates `Polygon[]` covering the viewport from a seed polygon, expanding neighbors according to the **Configuration** (e.g. `[4,8,8]` for the 4.8.8 tiling)
 2. `pic/stellation.ts` — computes 2 **Contact Rays** per polygon edge at ±(π/2 − θ) from the edge direction
 3. `pic/intersect.ts` — parametric ray-ray intersection
-4. `pic/index.ts::runPIC` — per-polygon emission to `Segment[]`. Pair-A at each vertex (`pairAtVertex`) is the primary path: two adjacent edges' rays meet at the natural vertex star tip and `emitStarArms` emits two segments per pair. Branches:
-   - **Pair-A inside polygon**: normal emission.
-   - **Both t positive, tip outside polygon** (irregular convex tiles at low θ): edge-slide — longer ray clipped to boundary, slide along the exit edge to the suppressed ray's origin.
-   - **Asymmetric (one t negative)** in auto-length mode (e.g. Cairo short-edge vertices at θ ≥ 25°): emit nothing here; per-ray fallback handles both rays. Fixed-length mode still emits at user-specified length.
-   - **Per-ray fallback** after the pair pass: any ray not emitted (orphans from asymmetric or fully-failed pairs) terminates at its nearest valid crossing with any other-edge ray (`findOrphanRayEndpoint`, the original Kaplan trim). Drops emissions shorter than `inradius * 0.25` to suppress short-stub artifacts.
+4. `pic/index.ts::runPIC` — per-polygon emission to `Segment[]`. Pair-A at each vertex (`pairAtVertex`) is the primary path: two adjacent edges' rays meet at the natural vertex star tip and `emitStarArms` emits two segments per pair. Selection priority in `pairAtVertex`: `aInside` → `aAsym` → `bInside` → `aValid` → `bValid` → `bAsym` → null. `aAsym` is checked **before** `bInside` so polygons with mixed inside/asymmetric vertices (e.g. Tetrakis right-triangle at θ ≥ 46°) don't fall through to pair-B at the asymmetric vertices and double-emit a shared ray with a neighbouring pair-A vertex. Branches in `emitStarArms`:
+   - **Pair-A inside polygon**: normal emission, both rays marked emitted.
+   - **Asymmetric (one t negative)** in auto-length mode: edge-slide using the forward (positive-t) ray — forward ray clipped to polygon boundary, then slide along the boundary to the back ray's origin (which is the partner edge's midpoint). Both rays marked emitted so the per-ray fallback doesn't redundantly draw a tiny Kaplan-trim crossing for the back ray. Fixed-length mode falls through to normal emission at user-specified length.
+   - **Both t positive, tip outside polygon** (irregular convex tiles at low θ): edge-slide — longer ray clipped to boundary, slide along the exit edge to the suppressed ray's origin. Both rays marked emitted.
+   - **Per-ray fallback** after the pair pass: any ray not emitted (e.g. pair-B fallback case where only some rays were touched) terminates at its nearest valid crossing with any other-edge ray (`findOrphanRayEndpoint`, the original Kaplan trim). Drops emissions shorter than `inradius * 0.25` to suppress short-stub artifacts.
    - `pic/trim.ts` is legacy and no longer in the production path.
 5. SVG components render Rays directly; **Lacing** (legacy, broken) uses two-pass stroke rendering — being removed and reintroduced under the Decoration Phase
 

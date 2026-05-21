@@ -444,22 +444,10 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
     // "rays joining before the edge" behavior the user wants. Regular
     // polygons emit every ray through the pair pass so this loop is a
     // no-op for them.
-    // Threshold uses shortest edge, not inradius: acute polygons like the
-    // Tetrakis 45-45-90 triangle have inradius ≈ 0.37·edge, so inradius/4
-    // lands at ~9% of the edge — too small to drop orphan stubs that visibly
-    // poke into the tile at θ ≥ 53°.
     const ORPHAN_MIN_LEN_FRACTION = 0.25
     if (edgeEnabled) {
-      let shortestEdge = Infinity
-      for (let k = 0; k < n; k++) {
-        const a = poly.vertices[k]
-        const b = poly.vertices[(k + 1) % n]
-        const len = dist(a, b)
-        if (len < shortestEdge) shortestEdge = len
-      }
-      if (!isFinite(shortestEdge)) shortestEdge = 0
       const fallbackLen = fig.autoLineLength ? inradius : fig.lineLength * inradius
-      const minLen = shortestEdge * ORPHAN_MIN_LEN_FRACTION
+      const minLen = inradius * ORPHAN_MIN_LEN_FRACTION
       for (const ray of rays) {
         if (emittedRays.has(`${ray.edgeIndex}-${ray.side}`)) continue
         const endpoint = findOrphanRayEndpoint(ray, rays, poly.vertices, fallbackLen)

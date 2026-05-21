@@ -70,18 +70,19 @@ function pairAtVertex(
  * Clip a segment from `from` to `to` against a polygon boundary.
  * `skipEdgeIdx` excludes the polygon edge the segment originates on (so
  * the on-boundary start point doesn't self-intersect).
- * If the segment's natural endpoint lies past the boundary, returns the
- * first boundary crossing; otherwise returns the natural endpoint.
+ * Returns the first boundary crossing and its edge index, or the natural
+ * endpoint with `edgeIdx: -1` if the segment doesn't reach the boundary.
  */
 function clipSegmentToPolygon(
   from: Vec2,
   to: Vec2,
   polyVertices: Vec2[],
   skipEdgeIdx: number,
-): Vec2 {
+): { point: Vec2; edgeIdx: number } {
   const dir = { x: to.x - from.x, y: to.y - from.y }
   let nearestT = 1
   let nearestPoint = to
+  let nearestEdge = -1
   const n = polyVertices.length
   for (let k = 0; k < n; k++) {
     if (k === skipEdgeIdx) continue
@@ -95,9 +96,10 @@ function clipSegmentToPolygon(
     if (res.t1 < nearestT) {
       nearestT = res.t1
       nearestPoint = res.point
+      nearestEdge = k
     }
   }
-  return nearestPoint
+  return { point: nearestPoint, edgeIdx: nearestEdge }
 }
 
 /**
@@ -137,7 +139,7 @@ function findOrphanRayEndpoint(
     x: ray.origin.x + ray.dir.x * maxLen * 4,
     y: ray.origin.y + ray.dir.y * maxLen * 4,
   }
-  const clip = clipSegmentToPolygon(ray.origin, far, polyVertices, ray.edgeIndex)
+  const { point: clip } = clipSegmentToPolygon(ray.origin, far, polyVertices, ray.edgeIndex)
   const cdist = dist(ray.origin, clip)
   if (cdist < EPSILON) return null
   if (cdist > maxLen) {
@@ -195,7 +197,7 @@ function emitStarArms(
       x: forwardRay.origin.x + forwardRay.dir.x * inradius * 4,
       y: forwardRay.origin.y + forwardRay.dir.y * inradius * 4,
     }
-    const clip = clipSegmentToPolygon(forwardRay.origin, far, polyVertices, forwardRay.edgeIndex)
+    const { point: clip, edgeIdx: clipEdge } = clipSegmentToPolygon(forwardRay.origin, far, polyVertices, forwardRay.edgeIndex)
     if (dist(forwardRay.origin, clip) < EPSILON) return
 
     segments.push({
@@ -209,6 +211,17 @@ function emitStarArms(
       kind: 'star-arm',
       side: forwardRay.side,
     })
+    // Same-edge slide guard: the slide is only valid when it runs along
+    // a single polygon edge — i.e. the boundary clip and the back ray's
+    // origin both lie on the same edge. On concave polygons the forward
+    // ray can exit through a different edge (e.g. across a reflex notch),
+    // which would draw the slide straight across the polygon interior.
+    // When that happens, emit just the forward arm and let the back ray
+    // fall through to the per-ray fallback.
+    if (clipEdge !== -1 && clipEdge !== backRay.edgeIndex) {
+      emittedRays.add(forwardKey)
+      return
+    }
     segments.push({
       from: clip,
       to: backRay.origin,
@@ -227,15 +240,15 @@ function emitStarArms(
 
   if (autoLineLength && !pointInPolygon(result.point, polyVertices)) {
     // Edge-slide mode: star tip is outside the polygon.
-    const clip1 = clipSegmentToPolygon(ray1.origin, result.point, polyVertices, ray1.edgeIndex)
-    const clip2 = clipSegmentToPolygon(ray2.origin, result.point, polyVertices, ray2.edgeIndex)
-    const len1 = dist(ray1.origin, clip1)
-    const len2 = dist(ray2.origin, clip2)
+    const clip1Res = clipSegmentToPolygon(ray1.origin, result.point, polyVertices, ray1.edgeIndex)
+    const clip2Res = clipSegmentToPolygon(ray2.origin, result.point, polyVertices, ray2.edgeIndex)
+    const len1 = dist(ray1.origin, clip1Res.point)
+    const len2 = dist(ray2.origin, clip2Res.point)
     if (len1 < EPSILON && len2 < EPSILON) return
 
     const longIsR1 = len1 >= len2
     const longRay = longIsR1 ? ray1 : ray2
-    const longClip = longIsR1 ? clip1 : clip2
+    const longClipRes = longIsR1 ? clip1Res : clip2Res
     const shortRay = longIsR1 ? ray2 : ray1
     const longKey = longIsR1 ? key1 : key2
     const shortKey = longIsR1 ? key2 : key1
@@ -243,7 +256,7 @@ function emitStarArms(
     // Arm: long ray's straight portion from its origin to the boundary.
     segments.push({
       from: longRay.origin,
-      to: longClip,
+      to: longClipRes.point,
       edgeMidpoint: longRay.origin,
       polygonCenter,
       polygonSides,
@@ -252,9 +265,18 @@ function emitStarArms(
       kind: 'star-arm',
       side: longRay.side,
     })
+    // Same-edge slide guard: only slide when the long ray's clip lands
+    // on the short ray's edge — otherwise the slide would cut across
+    // the polygon interior (concave polygon with reflex notch). When
+    // suppressed, emit just the forward arm; the short ray falls through
+    // to per-ray fallback.
+    if (longClipRes.edgeIdx !== -1 && longClipRes.edgeIdx !== shortRay.edgeIndex) {
+      emittedRays.add(longKey)
+      return
+    }
     // Slide: along the shared exit edge to the suppressed ray's origin.
     segments.push({
-      from: longClip,
+      from: longClipRes.point,
       to: shortRay.origin,
       edgeMidpoint: longRay.origin,
       polygonCenter,
@@ -287,7 +309,7 @@ function emitStarArms(
 
   segments.push({
     from: ray1.origin,
-    to: clipSegmentToPolygon(ray1.origin, to1Natural, polyVertices, ray1.edgeIndex),
+    to: clipSegmentToPolygon(ray1.origin, to1Natural, polyVertices, ray1.edgeIndex).point,
     edgeMidpoint: ray1.origin,
     polygonCenter,
     polygonSides,
@@ -298,7 +320,7 @@ function emitStarArms(
   })
   segments.push({
     from: ray2.origin,
-    to: clipSegmentToPolygon(ray2.origin, to2Natural, polyVertices, ray2.edgeIndex),
+    to: clipSegmentToPolygon(ray2.origin, to2Natural, polyVertices, ray2.edgeIndex).point,
     edgeMidpoint: ray2.origin,
     polygonCenter,
     polygonSides,
@@ -390,7 +412,7 @@ function emitVertexArms(
   // alone rejects the trivial self-intersection so no skipEdgeIdx is needed.
   segments.push({
     from: ray1.origin,
-    to: clipSegmentToPolygon(ray1.origin, to1Natural, polyVertices, -1),
+    to: clipSegmentToPolygon(ray1.origin, to1Natural, polyVertices, -1).point,
     edgeMidpoint: edgeMid,
     polygonCenter,
     polygonSides,
@@ -401,7 +423,7 @@ function emitVertexArms(
   })
   segments.push({
     from: ray2.origin,
-    to: clipSegmentToPolygon(ray2.origin, to2Natural, polyVertices, -1),
+    to: clipSegmentToPolygon(ray2.origin, to2Natural, polyVertices, -1).point,
     edgeMidpoint: edgeMid,
     polygonCenter,
     polygonSides,

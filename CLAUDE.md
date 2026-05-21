@@ -70,7 +70,7 @@ The geometry pipeline runs entirely in pure TypeScript (no React), memoized in `
    - **Pair-A inside polygon**: normal emission.
    - **Both t positive, tip outside polygon** (irregular convex tiles at low θ): edge-slide — longer ray clipped to boundary, slide along the exit edge to the suppressed ray's origin.
    - **Asymmetric (one t negative)** in auto-length mode (e.g. Cairo short-edge vertices at θ ≥ 25°): emit nothing here; per-ray fallback handles both rays. Fixed-length mode still emits at user-specified length.
-   - **Per-ray fallback** after the pair pass: any ray not emitted (orphans from asymmetric or fully-failed pairs) terminates at its nearest valid crossing with any other-edge ray (`findOrphanRayEndpoint`, the original Kaplan trim). Drops emissions shorter than `shortestEdge * 0.25` to suppress short-stub artifacts (the per-polygon shortest edge — switching from `inradius * 0.25` fixed visible stubs on acute polygons like the Tetrakis 45-45-90 right triangle at θ ≥ 53°).
+   - **Per-ray fallback** after the pair pass: any ray not emitted (orphans from asymmetric or fully-failed pairs) terminates at its nearest valid crossing with any other-edge ray (`findOrphanRayEndpoint`, the original Kaplan trim). Drops emissions shorter than `inradius * 0.25` to suppress short-stub artifacts.
    - `pic/trim.ts` is legacy and no longer in the production path.
 5. SVG components render Rays directly; **Lacing** (legacy, broken) uses two-pass stroke rendering — being removed and reintroduced under the Decoration Phase
 

@@ -260,12 +260,13 @@ describe('runPIC — full pipeline integration', () => {
     }
   })
 
-  // Regression: per-ray fallback cap (2026-05-22). At θ values where ALL
-  // pair-A meetings on a polygon are degenerate (e.g. floret θ=30°), the
-  // per-ray fallback handles every ray via Kaplan trim — pre-fix it could
-  // emit 72-unit arms across the 132-diameter polygon (same "running
-  // through to the edge" symptom). Capped at halfSpan / 0.75 × halfSpan.
-  it('floret-pentagonal — per-ray fallback arms capped at θ=30°', () => {
+  // Regression: per-ray fallback at degenerate-θ (2026-05-22). At θ values
+  // where ALL pair-A meetings on a polygon are degenerate (floret θ=30°),
+  // the per-ray fallback (Kaplan trim) must still emit rays. Previously a
+  // halfSpan-based cap suppressed these; we removed the cap so the figure
+  // stays populated. Asserts every floret pentagon emits at least one
+  // star-arm at θ=30°.
+  it('floret-pentagonal — per-ray fallback emits at θ=30°', () => {
     const vp: Viewport = { x: -300, y: -300, width: 600, height: 600 }
     const polys = generateTapratsTiling('floret-pentagonal', vp, 50)
     const config: PatternConfig = {
@@ -275,21 +276,10 @@ describe('runPIC — full pipeline integration', () => {
     }
     const segs = runPIC(polys, config)
     const pentagons = polys.filter(p => p.sides === 5)
+    expect(pentagons.length).toBeGreaterThan(0)
     for (const poly of pentagons) {
-      let diameter = 0
-      for (let i = 0; i < poly.vertices.length; i++) {
-        for (let j = i + 1; j < poly.vertices.length; j++) {
-          const dx = poly.vertices[i].x - poly.vertices[j].x
-          const dy = poly.vertices[i].y - poly.vertices[j].y
-          const d = Math.hypot(dx, dy)
-          if (d > diameter) diameter = d
-        }
-      }
       const polySegs = segs.filter(s => s.polygonId === poly.id && s.kind === 'star-arm')
-      for (const seg of polySegs) {
-        const len = Math.hypot(seg.to.x - seg.from.x, seg.to.y - seg.from.y)
-        expect(len).toBeLessThanOrEqual(diameter * 0.5)
-      }
+      expect(polySegs.length).toBeGreaterThan(0)
     }
   })
 

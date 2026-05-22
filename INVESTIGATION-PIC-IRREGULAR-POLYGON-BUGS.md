@@ -1,13 +1,14 @@
 # PIC Irregular-Polygon Edge-Slide Bugs — Investigation 2026-05-21
 
 **Branch:** `feat/art-deco-egypt-theme-revamp`
-**Status:** MORE-FIXED 2026-05-22 (session 3 + 4).
-- `ddcad24` — Bug 2 same-edge slide guard (concave polygons no longer cut strands across reflex notches).
-- `2632e69` — Bug 1 arm-length cap at polygon half-span (worst long-arm cases dropped).
-- `e451af0` — edge-ratio gate: stricter 0.75 × halfSpan cap on uneven polygons (shortest/longest edge ratio < 0.65) + cap per-ray fallback's nearest-crossing search.
-- `271168f` — drop edge-slide entirely on uneven polygons (both asymmetric + both-positive-outside branches); strand falls to per-ray fallback or sparse if no valid crossings.
-- **Session 4 commit (2026-05-22)** — Direction 3 centroid-routed V: replace the dropped edge-slide on convex uneven polygons with a V routed through the polygon centre (forwardRay.origin → centre and backRay.origin → centre). Restores figure richness at middle θ without the boundary-slide artifact.
-- Regression tests: `floret-pentagonal θ=40° — asymmetric pair emits centroid-routed V` (10+ segs, endpoint at centre) + `kisrhombille θ=72° — asymmetric pair emits centroid-routed V` (centre-endpoint count > 0). 166 tests pass.
+**Status:** MORE-FIXED 2026-05-22 (sessions 3, 4, 5).
+- `ddcad24` — Bug 2 same-edge slide guard (concave polygons no longer cut strands across reflex notches). **KEEP**.
+- `2632e69` — arm-length cap at polygon half-span. **Removed in session 5** (replaced by centroid V on all convex).
+- `e451af0` — edge-ratio gate + per-ray fallback cap. **Removed in session 5** (fallback cap killed too many rays).
+- `271168f` — drop edge-slide on uneven polygons. **Effectively removed in session 5** (replaced by always-on centroid V on convex).
+- **Session 4 commit `224fdfb`** — Direction 3 centroid-routed V (uneven-convex only). **Superseded by session 5** (extended to all convex).
+- **Session 5 (this commit)** — centroid V on ALL convex polygons; all arm-length caps removed. Concave polygons keep original edge-slide with same-edge guard.
+- 166 tests pass.
 
 ### Net effect vs. previous session
 

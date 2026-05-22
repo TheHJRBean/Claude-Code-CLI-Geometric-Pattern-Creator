@@ -38,6 +38,32 @@ Follow-up section is the natural next step — replace the dropped
 edge-slide with a clean interior V-shape from forwardRay.origin →
 polygonCenter → backRay.origin.
 
+### Session-end (2026-05-22)
+
+User asked for closing notes — has NOT visually verified today's four
+commits yet. To resume:
+
+1. `npm run dev` (http://localhost:5173/).
+2. Spot-check the affected tilings: `kisrhombille`, `floret-pentagonal`,
+   `deltoidal-trihexagonal`, `heptagonal-rosette`, `nonagonal-rosette`,
+   `decagonal-rosette`, `cairo-pentagonal`, `tetrakis-square`. Sweep
+   the contact-angle slider on each.
+3. Specific to compare against before this session:
+   - **Kisrhombille θ=72°** — used to show an 18-unit slide visibly
+     running along the polygon's long edge; now just two short arms
+     from V0 inside pair-A. Sparser but no slide.
+   - **Floret θ=40°** — used to show two long 63-unit forward arms
+     spanning the pentagon; now a clean 6-segment star.
+   - **Deltoid θ=30-50°** — sliders that used to flip between regimes
+     now stable at sparse 2-4-segment patterns.
+4. Decide the next direction:
+   - "Looks good, ship it" → close out the project memory.
+   - "Too sparse, fill it back in" → implement Direction 3 (centroid-
+     routed strands). Sketch in this memo's Follow-up directions.
+   - "Some specific case still wrong" → run `npx vitest run
+     src/pic/probe.test.ts --reporter=verbose` for per-θ data; the
+     probe diagnoses where each emission is coming from.
+
 Related memory: `~/.claude/projects/-home-harryjrh-Geometric-Pattern-Creator/memory/project_pic_irregular_polygon_bugs.md`.
 
 ---

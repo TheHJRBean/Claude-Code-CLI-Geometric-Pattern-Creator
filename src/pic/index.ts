@@ -191,6 +191,14 @@ function emitStarArms(
   // Centroid-based circumradius is wrong here because it's only ≈ span/2
   // for regular polygons; for irregulars the centroid can be far from
   // the polygon "center" and circumradius approaches the full span.
+  //
+  // Edge-ratio gate (2026-05-22): the halfSpan cap alone left borderline
+  // cases emitting — floret θ=40° arm=63.3/halfSpan=66.15=0.96; kisrhombille
+  // θ=72° arm=41.4/50=0.83; deltoid θ=50° arm=22.5/28.87=0.78. These all
+  // sit on polygons with shortest/longest edge ratio < 0.65 ("elongated"
+  // shapes where a near-halfSpan arm crosses the narrow dimension and
+  // reads as wrong). Cairo (0.73) and Tetrakis (0.71) keep the looser
+  // 1.0 × halfSpan cap; uneven polygons get a stricter 0.75 × halfSpan.
   let halfSpan = 0
   for (let i = 0; i < polyVertices.length; i++) {
     for (let j = i + 1; j < polyVertices.length; j++) {
@@ -201,6 +209,19 @@ function emitStarArms(
     }
   }
   halfSpan *= 0.5
+
+  let shortestEdge = Infinity
+  let longestEdge = 0
+  const nv = polyVertices.length
+  for (let i = 0; i < nv; i++) {
+    const a = polyVertices[i]
+    const b = polyVertices[(i + 1) % nv]
+    const e = Math.hypot(b.x - a.x, b.y - a.y)
+    if (e < shortestEdge) shortestEdge = e
+    if (e > longestEdge) longestEdge = e
+  }
+  const isUneven = longestEdge > 0 && shortestEdge / longestEdge < 0.65
+  const armCap = isUneven ? halfSpan * 0.75 : halfSpan
 
   // Asymmetric pair (one ray's meeting is behind its origin) — e.g. the
   // Tetrakis Square right-triangle's 45° vertices at θ ≥ 46°, where one
@@ -227,9 +248,10 @@ function emitStarArms(
     const armLen = dist(forwardRay.origin, clip)
     if (armLen < EPSILON) return
     // Arm-length cap: drop the entire pair when the forward arm extends
-    // beyond the polygon's circumradius. Marks both rays as emitted so
-    // the per-ray fallback doesn't re-emit the long arm via Kaplan trim.
-    if (armLen > halfSpan) {
+    // beyond armCap (halfSpan for even polygons; 0.75 × halfSpan for
+    // uneven). Marks both rays as emitted so the per-ray fallback doesn't
+    // re-emit the long arm via Kaplan trim.
+    if (armLen > armCap) {
       emittedRays.add(forwardKey)
       emittedRays.add(backKey)
       return
@@ -281,8 +303,8 @@ function emitStarArms(
     const len2 = dist(ray2.origin, clip2Res.point)
     if (len1 < EPSILON && len2 < EPSILON) return
     // Arm-length cap (mirrors the asymmetric branch): drop emission
-    // entirely when the long arm exceeds the polygon's circumradius.
-    if (Math.max(len1, len2) > halfSpan) {
+    // entirely when the long arm exceeds armCap.
+    if (Math.max(len1, len2) > armCap) {
       emittedRays.add(key1)
       emittedRays.add(key2)
       return
@@ -569,15 +591,42 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
     // "rays joining before the edge" behavior the user wants. Regular
     // polygons emit every ray through the pair pass so this loop is a
     // no-op for them.
+    //
+    // Length cap (2026-05-22): the nearest-crossing search can pick a
+    // crossing far across the polygon when the next-nearest other-edge
+    // ray is on the opposite side (e.g. Floret θ=30° where ALL pair-A
+    // meetings are degenerate so per-ray fallback handles every ray —
+    // produces 72-unit arms on a 132-diameter polygon). Same halfSpan /
+    // 0.75 × halfSpan armCap as emitStarArms: drops the cross-polygon
+    // arms while preserving Cairo's short fallback (≤35 < 43 halfSpan).
     const ORPHAN_MIN_LEN_FRACTION = 0.25
     if (edgeEnabled) {
       const fallbackLen = fig.autoLineLength ? inradius : fig.lineLength * inradius
       const minLen = inradius * ORPHAN_MIN_LEN_FRACTION
+      let halfSpan = 0
+      for (let i = 0; i < poly.vertices.length; i++) {
+        for (let j = i + 1; j < poly.vertices.length; j++) {
+          const d = Math.hypot(poly.vertices[i].x - poly.vertices[j].x, poly.vertices[i].y - poly.vertices[j].y)
+          if (d > halfSpan) halfSpan = d
+        }
+      }
+      halfSpan *= 0.5
+      let shortest = Infinity, longest = 0
+      for (let i = 0; i < n; i++) {
+        const a = poly.vertices[i]
+        const b = poly.vertices[(i + 1) % n]
+        const e = Math.hypot(b.x - a.x, b.y - a.y)
+        if (e < shortest) shortest = e
+        if (e > longest) longest = e
+      }
+      const fallbackCap = (longest > 0 && shortest / longest < 0.65) ? halfSpan * 0.75 : halfSpan
       for (const ray of rays) {
         if (emittedRays.has(`${ray.edgeIndex}-${ray.side}`)) continue
         const endpoint = findOrphanRayEndpoint(ray, rays, poly.vertices, fallbackLen)
         if (!endpoint) continue
-        if (dist(ray.origin, endpoint) < minLen) continue
+        const len = dist(ray.origin, endpoint)
+        if (len < minLen) continue
+        if (len > fallbackCap) continue
         segments.push({
           from: ray.origin,
           to: endpoint,

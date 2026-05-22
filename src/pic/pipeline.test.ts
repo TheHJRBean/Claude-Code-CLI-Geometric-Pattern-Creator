@@ -193,6 +193,106 @@ describe('runPIC — full pipeline integration', () => {
     }
   })
 
+  // Regression: Bug 1 borderline (2026-05-22). Pre-fix the 1.0 × halfSpan
+  // cap left these emitting because their forward arms sat just under the
+  // threshold:
+  //   - floret-pentagonal θ=40°: arm 63.3 / halfSpan 66.15 = 0.96
+  //   - kisrhombille θ=72°: arm 41.4 / halfSpan 50 = 0.83
+  //   - deltoid θ=50°: arm 22.5 / halfSpan 28.87 = 0.78
+  // These polygons all have shortest/longest edge ratio < 0.65 ("uneven").
+  // Post-fix the cap on uneven polygons tightens to 0.75 × halfSpan so the
+  // asymmetric branch drops these emissions.
+  it('floret-pentagonal — no asymmetric arm exceeds 0.5 × diameter at θ=40°', () => {
+    const vp: Viewport = { x: -300, y: -300, width: 600, height: 600 }
+    const polys = generateTapratsTiling('floret-pentagonal', vp, 50)
+    const config: PatternConfig = {
+      ...DEFAULT_CONFIG,
+      tiling: { type: 'floret-pentagonal', scale: 50 },
+      figures: { '5': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 40 } },
+    }
+    const segs = runPIC(polys, config)
+    const pentagons = polys.filter(p => p.sides === 5)
+    expect(pentagons.length).toBeGreaterThan(0)
+    for (const poly of pentagons) {
+      let diameter = 0
+      for (let i = 0; i < poly.vertices.length; i++) {
+        for (let j = i + 1; j < poly.vertices.length; j++) {
+          const dx = poly.vertices[i].x - poly.vertices[j].x
+          const dy = poly.vertices[i].y - poly.vertices[j].y
+          const d = Math.hypot(dx, dy)
+          if (d > diameter) diameter = d
+        }
+      }
+      const polySegs = segs.filter(s => s.polygonId === poly.id && s.kind === 'star-arm')
+      for (const seg of polySegs) {
+        const len = Math.hypot(seg.to.x - seg.from.x, seg.to.y - seg.from.y)
+        expect(len).toBeLessThanOrEqual(diameter * 0.5)
+      }
+    }
+  })
+
+  it('kisrhombille — no asymmetric arm exceeds 0.5 × diameter at θ=72°', () => {
+    const vp: Viewport = { x: -300, y: -300, width: 600, height: 600 }
+    const polys = generateTapratsTiling('kisrhombille', vp, 50)
+    const config: PatternConfig = {
+      ...DEFAULT_CONFIG,
+      tiling: { type: 'kisrhombille', scale: 50 },
+      figures: { '3': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 72 } },
+    }
+    const segs = runPIC(polys, config)
+    const triangles = polys.filter(p => p.sides === 3)
+    expect(triangles.length).toBeGreaterThan(0)
+    for (const poly of triangles) {
+      let diameter = 0
+      for (let i = 0; i < poly.vertices.length; i++) {
+        for (let j = i + 1; j < poly.vertices.length; j++) {
+          const dx = poly.vertices[i].x - poly.vertices[j].x
+          const dy = poly.vertices[i].y - poly.vertices[j].y
+          const d = Math.hypot(dx, dy)
+          if (d > diameter) diameter = d
+        }
+      }
+      const polySegs = segs.filter(s => s.polygonId === poly.id && s.kind === 'star-arm')
+      for (const seg of polySegs) {
+        const len = Math.hypot(seg.to.x - seg.from.x, seg.to.y - seg.from.y)
+        expect(len).toBeLessThanOrEqual(diameter * 0.5)
+      }
+    }
+  })
+
+  // Regression: per-ray fallback cap (2026-05-22). At θ values where ALL
+  // pair-A meetings on a polygon are degenerate (e.g. floret θ=30°), the
+  // per-ray fallback handles every ray via Kaplan trim — pre-fix it could
+  // emit 72-unit arms across the 132-diameter polygon (same "running
+  // through to the edge" symptom). Capped at halfSpan / 0.75 × halfSpan.
+  it('floret-pentagonal — per-ray fallback arms capped at θ=30°', () => {
+    const vp: Viewport = { x: -300, y: -300, width: 600, height: 600 }
+    const polys = generateTapratsTiling('floret-pentagonal', vp, 50)
+    const config: PatternConfig = {
+      ...DEFAULT_CONFIG,
+      tiling: { type: 'floret-pentagonal', scale: 50 },
+      figures: { '5': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 30 } },
+    }
+    const segs = runPIC(polys, config)
+    const pentagons = polys.filter(p => p.sides === 5)
+    for (const poly of pentagons) {
+      let diameter = 0
+      for (let i = 0; i < poly.vertices.length; i++) {
+        for (let j = i + 1; j < poly.vertices.length; j++) {
+          const dx = poly.vertices[i].x - poly.vertices[j].x
+          const dy = poly.vertices[i].y - poly.vertices[j].y
+          const d = Math.hypot(dx, dy)
+          if (d > diameter) diameter = d
+        }
+      }
+      const polySegs = segs.filter(s => s.polygonId === poly.id && s.kind === 'star-arm')
+      for (const seg of polySegs) {
+        const len = Math.hypot(seg.to.x - seg.from.x, seg.to.y - seg.from.y)
+        expect(len).toBeLessThanOrEqual(diameter * 0.5)
+      }
+    }
+  })
+
   it('Cairo pentagonal — degenerate θ emits asymmetric forwards with boundary slides', () => {
     const vp: Viewport = { x: -50, y: -50, width: 100, height: 100 }
     const polys = generateTapratsTiling('cairo-pentagonal', vp, 50)

@@ -176,52 +176,13 @@ function emitStarArms(
   const key1 = `${ray1.edgeIndex}-${ray1.side}`
   const key2 = `${ray2.edgeIndex}-${ray2.side}`
 
-  // Polygon "half-span" = half the max pairwise vertex distance. Used as
-  // the cap for edge-slide forward arms: when the natural pair-A meeting
-  // is asymmetric or outside the polygon, the forward ray gets clipped
-  // at the boundary — but on some irregular polygons (floret apex,
-  // heptagonal-rosette kite, deltoid, kisrhombille) the clipped arm
-  // still extends across most of the polygon, reading as the strand
-  // "running through to the edge" the user reported 2026-05-21. Capping
-  // at the polygon's half-span preserves Cairo (arm 40 < halfSpan 43)
-  // and Tetrakis (arm 25 < halfSpan 35) while dropping the long-arm
-  // cases (floret 67 > 66, heptagonal-rosette 40 > 39, deltoid 33 > 29,
-  // kisrhombille 56 > 50). Both rays are marked emitted on drop so the
-  // per-ray fallback doesn't re-introduce the long arm via Kaplan trim.
-  // Centroid-based circumradius is wrong here because it's only ≈ span/2
-  // for regular polygons; for irregulars the centroid can be far from
-  // the polygon "center" and circumradius approaches the full span.
-  //
-  // Edge-ratio gate (2026-05-22): the halfSpan cap alone left borderline
-  // cases emitting — floret θ=40° arm=63.3/halfSpan=66.15=0.96; kisrhombille
-  // θ=72° arm=41.4/50=0.83; deltoid θ=50° arm=22.5/28.87=0.78. These all
-  // sit on polygons with shortest/longest edge ratio < 0.65 ("elongated"
-  // shapes where a near-halfSpan arm crosses the narrow dimension and
-  // reads as wrong). Cairo (0.73) and Tetrakis (0.71) keep the looser
-  // 1.0 × halfSpan cap; uneven polygons get a stricter 0.75 × halfSpan.
-  let halfSpan = 0
-  for (let i = 0; i < polyVertices.length; i++) {
-    for (let j = i + 1; j < polyVertices.length; j++) {
-      const dx = polyVertices[i].x - polyVertices[j].x
-      const dy = polyVertices[i].y - polyVertices[j].y
-      const d = Math.hypot(dx, dy)
-      if (d > halfSpan) halfSpan = d
-    }
-  }
-  halfSpan *= 0.5
-
-  let shortestEdge = Infinity
-  let longestEdge = 0
-  const nv = polyVertices.length
-  for (let i = 0; i < nv; i++) {
-    const a = polyVertices[i]
-    const b = polyVertices[(i + 1) % nv]
-    const e = Math.hypot(b.x - a.x, b.y - a.y)
-    if (e < shortestEdge) shortestEdge = e
-    if (e > longestEdge) longestEdge = e
-  }
-  const isUneven = longestEdge > 0 && shortestEdge / longestEdge < 0.65
-  const armCap = isUneven ? halfSpan * 0.75 : halfSpan
+  // Convexity gate: on convex polygons the centroid is guaranteed interior,
+  // so the asymmetric / both-positive-outside branches can route a V
+  // through `polygonCenter` and stay inside the polygon. On concave
+  // polygons the original edge-slide path runs with the same-edge guard
+  // (legitimate slides along one edge are emitted; cross-polygon cuts
+  // through reflex notches are suppressed).
+  const isConvex = isConvexPolygon(polyVertices)
 
   // Asymmetric pair (one ray's meeting is behind its origin) — e.g. the
   // Tetrakis Square right-triangle's 45° vertices at θ ≥ 46°, where one
@@ -240,46 +201,42 @@ function emitStarArms(
     const forwardKey = result.t1 > EPSILON ? key1 : key2
     const backKey = result.t1 > EPSILON ? key2 : key1
 
-    // Centroid-routed V (2026-05-22, Direction 3): on uneven polygons
-    // (shortest/longest edge ratio < 0.65) the asymmetric edge-slide reads
-    // as the strand "running along the edge". Earlier this branch dropped
-    // the pair entirely, which left sparse 2-segment figures at middle θ
-    // on floret / kisrhombille / deltoid. Instead, replace the slide with
-    // a V routed through the polygon centre: forwardRay.origin → centre
-    // and backRay.origin → centre. Stays interior, keeps the figure
-    // populated, no edge artifact. Convex-only — centroid is guaranteed
-    // interior on convex polygons; uneven concave polygons fall through
-    // to drop + per-ray fallback.
-    if (isUneven) {
-      if (isConvexPolygon(polyVertices)) {
-        segments.push({
-          from: forwardRay.origin,
-          to: polygonCenter,
-          edgeMidpoint: forwardRay.origin,
-          polygonCenter,
-          polygonSides,
-          polygonId,
-          tileTypeId,
-          kind: 'star-arm',
-          side: forwardRay.side,
-        })
-        segments.push({
-          from: backRay.origin,
-          to: polygonCenter,
-          edgeMidpoint: backRay.origin,
-          polygonCenter,
-          polygonSides,
-          polygonId,
-          tileTypeId,
-          kind: 'star-arm',
-          side: backRay.side,
-        })
-      }
+    // Centroid-routed V (2026-05-22, Direction 3): on convex polygons,
+    // route a V through the polygon centre instead of clipping the forward
+    // ray to the boundary and sliding along an edge. Stays interior, fills
+    // the figure, avoids the "running along the edge" artifact reported on
+    // 2026-05-21. Applies to ALL convex polygons (Cairo / Tetrakis /
+    // heptagonal-rosette / floret / kisrhombille / deltoid) — the cap-
+    // based earlier approach dropped rays on borderline cases.
+    if (isConvex) {
+      segments.push({
+        from: forwardRay.origin,
+        to: polygonCenter,
+        edgeMidpoint: forwardRay.origin,
+        polygonCenter,
+        polygonSides,
+        polygonId,
+        tileTypeId,
+        kind: 'star-arm',
+        side: forwardRay.side,
+      })
+      segments.push({
+        from: backRay.origin,
+        to: polygonCenter,
+        edgeMidpoint: backRay.origin,
+        polygonCenter,
+        polygonSides,
+        polygonId,
+        tileTypeId,
+        kind: 'star-arm',
+        side: backRay.side,
+      })
       emittedRays.add(forwardKey)
       emittedRays.add(backKey)
       return
     }
 
+    // Concave path: original edge-slide with same-edge guard.
     const far = {
       x: forwardRay.origin.x + forwardRay.dir.x * inradius * 4,
       y: forwardRay.origin.y + forwardRay.dir.y * inradius * 4,
@@ -287,15 +244,6 @@ function emitStarArms(
     const { point: clip, edgeIdx: clipEdge } = clipSegmentToPolygon(forwardRay.origin, far, polyVertices, forwardRay.edgeIndex)
     const armLen = dist(forwardRay.origin, clip)
     if (armLen < EPSILON) return
-    // Arm-length cap: drop the entire pair when the forward arm extends
-    // beyond armCap (halfSpan for even polygons; 0.75 × halfSpan for
-    // uneven). Marks both rays as emitted so the per-ray fallback doesn't
-    // re-emit the long arm via Kaplan trim.
-    if (armLen > armCap) {
-      emittedRays.add(forwardKey)
-      emittedRays.add(backKey)
-      return
-    }
 
     segments.push({
       from: forwardRay.origin,
@@ -337,50 +285,43 @@ function emitStarArms(
 
   if (autoLineLength && !pointInPolygon(result.point, polyVertices)) {
     // Edge-slide mode: star tip is outside the polygon.
-    // Centroid-routed V (mirrors the asymmetric branch): replace the
-    // boundary slide with ray1.origin → centre and ray2.origin → centre
-    // on convex uneven polygons.
-    if (isUneven) {
-      if (isConvexPolygon(polyVertices)) {
-        segments.push({
-          from: ray1.origin,
-          to: polygonCenter,
-          edgeMidpoint: ray1.origin,
-          polygonCenter,
-          polygonSides,
-          polygonId,
-          tileTypeId,
-          kind: 'star-arm',
-          side: ray1.side,
-        })
-        segments.push({
-          from: ray2.origin,
-          to: polygonCenter,
-          edgeMidpoint: ray2.origin,
-          polygonCenter,
-          polygonSides,
-          polygonId,
-          tileTypeId,
-          kind: 'star-arm',
-          side: ray2.side,
-        })
-      }
+    // Centroid-routed V (mirrors the asymmetric branch): convex polygons
+    // route ray1.origin → centre and ray2.origin → centre instead of
+    // clipping + sliding along the boundary.
+    if (isConvex) {
+      segments.push({
+        from: ray1.origin,
+        to: polygonCenter,
+        edgeMidpoint: ray1.origin,
+        polygonCenter,
+        polygonSides,
+        polygonId,
+        tileTypeId,
+        kind: 'star-arm',
+        side: ray1.side,
+      })
+      segments.push({
+        from: ray2.origin,
+        to: polygonCenter,
+        edgeMidpoint: ray2.origin,
+        polygonCenter,
+        polygonSides,
+        polygonId,
+        tileTypeId,
+        kind: 'star-arm',
+        side: ray2.side,
+      })
       emittedRays.add(key1)
       emittedRays.add(key2)
       return
     }
+
+    // Concave path: original edge-slide with same-edge guard.
     const clip1Res = clipSegmentToPolygon(ray1.origin, result.point, polyVertices, ray1.edgeIndex)
     const clip2Res = clipSegmentToPolygon(ray2.origin, result.point, polyVertices, ray2.edgeIndex)
     const len1 = dist(ray1.origin, clip1Res.point)
     const len2 = dist(ray2.origin, clip2Res.point)
     if (len1 < EPSILON && len2 < EPSILON) return
-    // Arm-length cap (mirrors the asymmetric branch): drop emission
-    // entirely when the long arm exceeds armCap.
-    if (Math.max(len1, len2) > armCap) {
-      emittedRays.add(key1)
-      emittedRays.add(key2)
-      return
-    }
 
     const longIsR1 = len1 >= len2
     const longRay = longIsR1 ? ray1 : ray2
@@ -663,42 +604,16 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
     // "rays joining before the edge" behavior the user wants. Regular
     // polygons emit every ray through the pair pass so this loop is a
     // no-op for them.
-    //
-    // Length cap (2026-05-22): the nearest-crossing search can pick a
-    // crossing far across the polygon when the next-nearest other-edge
-    // ray is on the opposite side (e.g. Floret θ=30° where ALL pair-A
-    // meetings are degenerate so per-ray fallback handles every ray —
-    // produces 72-unit arms on a 132-diameter polygon). Same halfSpan /
-    // 0.75 × halfSpan armCap as emitStarArms: drops the cross-polygon
-    // arms while preserving Cairo's short fallback (≤35 < 43 halfSpan).
     const ORPHAN_MIN_LEN_FRACTION = 0.25
     if (edgeEnabled) {
       const fallbackLen = fig.autoLineLength ? inradius : fig.lineLength * inradius
       const minLen = inradius * ORPHAN_MIN_LEN_FRACTION
-      let halfSpan = 0
-      for (let i = 0; i < poly.vertices.length; i++) {
-        for (let j = i + 1; j < poly.vertices.length; j++) {
-          const d = Math.hypot(poly.vertices[i].x - poly.vertices[j].x, poly.vertices[i].y - poly.vertices[j].y)
-          if (d > halfSpan) halfSpan = d
-        }
-      }
-      halfSpan *= 0.5
-      let shortest = Infinity, longest = 0
-      for (let i = 0; i < n; i++) {
-        const a = poly.vertices[i]
-        const b = poly.vertices[(i + 1) % n]
-        const e = Math.hypot(b.x - a.x, b.y - a.y)
-        if (e < shortest) shortest = e
-        if (e > longest) longest = e
-      }
-      const fallbackCap = (longest > 0 && shortest / longest < 0.65) ? halfSpan * 0.75 : halfSpan
       for (const ray of rays) {
         if (emittedRays.has(`${ray.edgeIndex}-${ray.side}`)) continue
         const endpoint = findOrphanRayEndpoint(ray, rays, poly.vertices, fallbackLen)
         if (!endpoint) continue
         const len = dist(ray.origin, endpoint)
         if (len < minLen) continue
-        if (len > fallbackCap) continue
         segments.push({
           from: ray.origin,
           to: endpoint,

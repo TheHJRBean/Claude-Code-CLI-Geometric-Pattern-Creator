@@ -6,12 +6,26 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
-**2026-05-22 (session 4) — PIC Direction 3 centroid-routed V.** User reported after visual verification of session-3 commits: "many of the rays disappear in the middle angles. However it is looking a bit cleaner at least, there is less overlapping." The session-3 trade-off (sparse figures on uneven polygons at middle θ) was too aggressive. Implemented Direction 3 (centroid-routed strands) from the investigation memo's Follow-up section.
+**2026-05-22 (session 4 + 5) — PIC: centroid V extended to all convex polygons; arm-length caps removed.**
 
-- `emitStarArms` (`src/pic/index.ts`): both edge-slide branches (asymmetric + both-positive-outside) on uneven polygons now emit a V routed through `polygonCenter` instead of dropping the pair. Convex-only guard (`isConvexPolygon(polyVertices)`); concave uneven polygons keep the original drop (Bug 2 same-edge guard already handles them).
-- Two new regression tests in `src/pic/pipeline.test.ts`: floret θ=40° asserts 10+ segs/pentagon + at least one endpoint at `poly.center`; kisrhombille θ=72° asserts ≥1 triangle has a centre endpoint. All 166 tests pass.
-- Doc updates: `INVESTIGATION-PIC-IRREGULAR-POLYGON-BUGS.md` open-trade-off block now marked RESOLVED with the session-4 result table.
-- **Visual verification pending** — refresh browser and sweep θ on floret-pentagonal, kisrhombille, deltoidal-trihexagonal to confirm gaps are filled and the V doesn't read as a chunky inward kink. If the V looks too rigid, the next iteration is to route through a softer interior point (apothem foot along the bisector of forwardRay/backRay edges) instead of the raw centroid.
+Session 4 (commit `224fdfb`) introduced centroid-routed V on uneven convex polygons only, but user verification with 11 bug screenshots showed "many rays missing and floating shapes" — even-borderline polygons (heptagonal-rosette ratio 0.696) were still dropping their slide pairs via the arm-length cap from `2632e69`, and the per-ray fallback cap from `e451af0` was killing long Kaplan-trim arms on floret θ=30°.
+
+Session 5 fix (this commit):
+- **Centroid V now fires on ALL convex polygons** (was: uneven-only). Both `emitStarArms` branches gate on `isConvexPolygon(polyVertices)` rather than `isUneven`. Concave polygons keep the original edge-slide with same-edge guard (`ddcad24`).
+- **Arm-length cap removed** from `emitStarArms` (no longer needed since convex always uses centroid V; concave path runs original Kaplan slide which is bounded by the polygon boundary).
+- **Per-ray fallback cap removed** from `runPIC` — long Kaplan-trim arms (floret θ=30° 72-unit fallbacks) are restored.
+- **Cairo behaviour changes** — the small slide at V0/V4 θ=27.5° is now a centroid V. Cairo regression test still passes (≥8 origin keys, strand pieces > 5 length).
+- Probe: heptagonal-rosette θ=30° 6→9 segs; floret θ=30° 8→10; deltoid θ=30°/60° 6→7, 9→10. All 166 tests pass.
+- **Visual verification pending** — refresh browser and sweep θ on floret-pentagonal, kisrhombille, deltoidal-trihexagonal, heptagonal-rosette, cairo, tetrakis. Confirm: (a) rays no longer missing; (b) the centroid V is acceptable on Cairo (this is a visible Cairo change vs. the original slide).
+
+If the centroid V is too visible on Cairo specifically, the next iteration is to add a CAIRO-SPECIFIC exception (keep edge-slide on Cairo, centroid V elsewhere) or route through a softer interior point (apothem foot on the bisector of forwardRay/backRay edges) instead of the raw centroid.
+
+---
+
+**2026-05-22 (session 4) — PIC Direction 3 centroid-routed V (FIRST ATTEMPT, superseded by session 5).** User reported after visual verification of session-3 commits: "many of the rays disappear in the middle angles. However it is looking a bit cleaner at least, there is less overlapping." The session-3 trade-off (sparse figures on uneven polygons at middle θ) was too aggressive. Implemented Direction 3 (centroid-routed strands) from the investigation memo's Follow-up section.
+
+- `emitStarArms` (`src/pic/index.ts`): both edge-slide branches (asymmetric + both-positive-outside) on uneven polygons emitted a V routed through `polygonCenter` instead of dropping the pair. Convex-only guard (`isConvexPolygon(polyVertices)`); concave uneven polygons kept the original drop.
+- Was insufficient — even-borderline polygons (heptagonal-rosette ratio 0.696) and the per-ray fallback cap continued to drop rays. Replaced in session 5.
 
 ---
 

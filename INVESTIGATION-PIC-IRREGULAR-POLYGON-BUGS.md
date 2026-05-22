@@ -1,12 +1,13 @@
 # PIC Irregular-Polygon Edge-Slide Bugs — Investigation 2026-05-21
 
 **Branch:** `feat/art-deco-egypt-theme-revamp`
-**Status:** MORE-FIXED 2026-05-22.
+**Status:** MORE-FIXED 2026-05-22 (session 3 + 4).
 - `ddcad24` — Bug 2 same-edge slide guard (concave polygons no longer cut strands across reflex notches).
 - `2632e69` — Bug 1 arm-length cap at polygon half-span (worst long-arm cases dropped).
 - `e451af0` — edge-ratio gate: stricter 0.75 × halfSpan cap on uneven polygons (shortest/longest edge ratio < 0.65) + cap per-ray fallback's nearest-crossing search.
 - `271168f` — drop edge-slide entirely on uneven polygons (both asymmetric + both-positive-outside branches); strand falls to per-ray fallback or sparse if no valid crossings.
-- All 164 tests pass.
+- **Session 4 commit (2026-05-22)** — Direction 3 centroid-routed V: replace the dropped edge-slide on convex uneven polygons with a V routed through the polygon centre (forwardRay.origin → centre and backRay.origin → centre). Restores figure richness at middle θ without the boundary-slide artifact.
+- Regression tests: `floret-pentagonal θ=40° — asymmetric pair emits centroid-routed V` (10+ segs, endpoint at centre) + `kisrhombille θ=72° — asymmetric pair emits centroid-routed V` (centre-endpoint count > 0). 166 tests pass.
 
 ### Net effect vs. previous session
 
@@ -25,18 +26,34 @@
 | Nonagonal-rosette | all    | (preserved by same-edge guard) | (preserved) |
 | Decagonal-rosette | all    | (preserved by same-edge guard) | (preserved) |
 
-### Open trade-off
+### Open trade-off (RESOLVED 2026-05-22 session 4)
 
-The uneven polygons (kisrhombille, deltoid) now produce sparse patterns
-at many θ values — kisrhombille θ=30-50° / 67.5° / 72° shows just 2
-short arms (V0 inside pair-A only). This is the "shape consistency"
-the user asked for in the previous session ("Consider dropping some
-pairs of rays entirely at certain angles to maintain shape consistency"),
-but it loses figure richness. If a later session decides the sparseness
-is too much, **Direction 3 (centroid-routed strands)** in the
-Follow-up section is the natural next step — replace the dropped
-edge-slide with a clean interior V-shape from forwardRay.origin →
-polygonCenter → backRay.origin.
+The session-3 drop left kisrhombille θ=30-72° / floret θ=40° / deltoid
+θ=30-50° with sparse 2-segment figures. User feedback after visual
+verification: "many of the rays disappear in the middle angles. However
+it is looking a bit cleaner at least, there is less overlapping."
+
+Session-4 fix implements **Direction 3 (centroid-routed strands)** for
+convex uneven polygons. The asymmetric and both-positive-outside edge-
+slide branches in `emitStarArms` no longer drop the pair — instead they
+emit a V: `forwardRay.origin → polygonCenter` and `backRay.origin →
+polygonCenter` (or `ray1.origin → centre, ray2.origin → centre` for
+the both-positive-outside branch). Each segment uses its own ray's
+side so curve rendering picks the right direction. Convex-only guard
+(`isConvexPolygon(polyVertices)`) — concave uneven polygons fall
+through to the original drop + per-ray fallback (already handled by
+the same-edge guard for the Bug-2 nonagonal/decagonal cases).
+
+Result vs. session 3 drop:
+- Floret θ=20° / 40°: 6 segs → 10 segs (V0/V3 asym pair returns as
+  V through centroid).
+- Kisrhombille θ=30-72°: 2 segs → 5-7 segs (V1/V2 / V0 asym pairs
+  return).
+- Deltoid θ=30-50°: 2-4 segs → 4-8 segs.
+- Cairo / Tetrakis: unchanged (even polygons, edge-ratio gate keeps
+  them on the original edge-slide path).
+- Nonagonal / decagonal: unchanged (even by edge ratio; same-edge
+  guard catches the concave reflex cases).
 
 ### Session-end (2026-05-22)
 

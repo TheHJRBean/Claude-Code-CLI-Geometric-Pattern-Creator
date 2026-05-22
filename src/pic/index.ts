@@ -240,16 +240,41 @@ function emitStarArms(
     const forwardKey = result.t1 > EPSILON ? key1 : key2
     const backKey = result.t1 > EPSILON ? key2 : key1
 
-    // Uneven-polygon drop (2026-05-22): the asymmetric edge-slide on
-    // uneven polygons (shortest/longest edge ratio < 0.65) emits a
-    // forward arm + boundary slide; the slide is co-linear with the
-    // polygon edge and reads as the strand "running along the edge"
-    // regardless of arm length. Drop the entire pair on uneven polygons
-    // for shape consistency across the θ sweep. Mark both rays emitted
-    // so per-ray fallback doesn't reintroduce them. Affected: floret-
-    // pentagonal, kisrhombille, deltoidal-trihexagonal. Cairo (0.73)
-    // and Tetrakis (0.71) keep the edge-slide.
+    // Centroid-routed V (2026-05-22, Direction 3): on uneven polygons
+    // (shortest/longest edge ratio < 0.65) the asymmetric edge-slide reads
+    // as the strand "running along the edge". Earlier this branch dropped
+    // the pair entirely, which left sparse 2-segment figures at middle θ
+    // on floret / kisrhombille / deltoid. Instead, replace the slide with
+    // a V routed through the polygon centre: forwardRay.origin → centre
+    // and backRay.origin → centre. Stays interior, keeps the figure
+    // populated, no edge artifact. Convex-only — centroid is guaranteed
+    // interior on convex polygons; uneven concave polygons fall through
+    // to drop + per-ray fallback.
     if (isUneven) {
+      if (isConvexPolygon(polyVertices)) {
+        segments.push({
+          from: forwardRay.origin,
+          to: polygonCenter,
+          edgeMidpoint: forwardRay.origin,
+          polygonCenter,
+          polygonSides,
+          polygonId,
+          tileTypeId,
+          kind: 'star-arm',
+          side: forwardRay.side,
+        })
+        segments.push({
+          from: backRay.origin,
+          to: polygonCenter,
+          edgeMidpoint: backRay.origin,
+          polygonCenter,
+          polygonSides,
+          polygonId,
+          tileTypeId,
+          kind: 'star-arm',
+          side: backRay.side,
+        })
+      }
       emittedRays.add(forwardKey)
       emittedRays.add(backKey)
       return
@@ -312,11 +337,34 @@ function emitStarArms(
 
   if (autoLineLength && !pointInPolygon(result.point, polyVertices)) {
     // Edge-slide mode: star tip is outside the polygon.
-    // Uneven-polygon drop (mirrors the asymmetric branch): pair-B on an
-    // uneven polygon at certain θ may fall into this branch with a long
-    // forward arm + boundary slide — same "running along the edge"
-    // symptom. Drop entirely on uneven polygons.
+    // Centroid-routed V (mirrors the asymmetric branch): replace the
+    // boundary slide with ray1.origin → centre and ray2.origin → centre
+    // on convex uneven polygons.
     if (isUneven) {
+      if (isConvexPolygon(polyVertices)) {
+        segments.push({
+          from: ray1.origin,
+          to: polygonCenter,
+          edgeMidpoint: ray1.origin,
+          polygonCenter,
+          polygonSides,
+          polygonId,
+          tileTypeId,
+          kind: 'star-arm',
+          side: ray1.side,
+        })
+        segments.push({
+          from: ray2.origin,
+          to: polygonCenter,
+          edgeMidpoint: ray2.origin,
+          polygonCenter,
+          polygonSides,
+          polygonId,
+          tileTypeId,
+          kind: 'star-arm',
+          side: ray2.side,
+        })
+      }
       emittedRays.add(key1)
       emittedRays.add(key2)
       return

@@ -293,6 +293,60 @@ describe('runPIC — full pipeline integration', () => {
     }
   })
 
+  // Regression: centroid-routed V (2026-05-22, Direction 3). On uneven
+  // polygons the asymmetric / both-positive-outside edge-slide is replaced
+  // with a V routed through the polygon centre — keeps the figure populated
+  // at middle θ where dropping the pair left only V0/V4 inside-pair-A. The
+  // centroid endpoints land at the polygon's `center` and stay inside.
+  it('floret-pentagonal θ=40° — asymmetric pair emits centroid-routed V', () => {
+    const vp: Viewport = { x: -300, y: -300, width: 600, height: 600 }
+    const polys = generateTapratsTiling('floret-pentagonal', vp, 50)
+    const config: PatternConfig = {
+      ...DEFAULT_CONFIG,
+      tiling: { type: 'floret-pentagonal', scale: 50 },
+      figures: { '5': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 40 } },
+    }
+    const segs = runPIC(polys, config)
+    const pentagons = polys.filter(p => p.sides === 5)
+    expect(pentagons.length).toBeGreaterThan(0)
+    for (const poly of pentagons) {
+      const polySegs = segs.filter(s => s.polygonId === poly.id && s.kind === 'star-arm')
+      // Pre-fix this dropped to 6 segs (V0/V3 asym pair entirely suppressed).
+      // Post-fix the centroid V brings it back to 10.
+      expect(polySegs.length).toBeGreaterThanOrEqual(10)
+      // At least one segment endpoint should be at the polygon centre
+      // (the V apex) — proves the centroid routing fired.
+      const atCentre = polySegs.some(s =>
+        Math.hypot(s.to.x - poly.center.x, s.to.y - poly.center.y) < 1e-6,
+      )
+      expect(atCentre).toBe(true)
+    }
+  })
+
+  it('kisrhombille θ=72° — asymmetric pair emits centroid-routed V', () => {
+    const vp: Viewport = { x: -300, y: -300, width: 600, height: 600 }
+    const polys = generateTapratsTiling('kisrhombille', vp, 50)
+    const config: PatternConfig = {
+      ...DEFAULT_CONFIG,
+      tiling: { type: 'kisrhombille', scale: 50 },
+      figures: { '3': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 72 } },
+    }
+    const segs = runPIC(polys, config)
+    const triangles = polys.filter(p => p.sides === 3)
+    expect(triangles.length).toBeGreaterThan(0)
+    // Pre-fix kisrhombille at θ=72° dropped to 2 segs (V0 inside pair-A only,
+    // V1/V2 asym pair suppressed). Post-fix expect 5+ from centroid V on the
+    // asym vertices.
+    let polysWithCentreEndpoint = 0
+    for (const poly of triangles) {
+      const polySegs = segs.filter(s => s.polygonId === poly.id && s.kind === 'star-arm')
+      if (polySegs.some(s => Math.hypot(s.to.x - poly.center.x, s.to.y - poly.center.y) < 1e-6)) {
+        polysWithCentreEndpoint++
+      }
+    }
+    expect(polysWithCentreEndpoint).toBeGreaterThan(0)
+  })
+
   it('Cairo pentagonal — degenerate θ emits asymmetric forwards with boundary slides', () => {
     const vp: Viewport = { x: -50, y: -50, width: 100, height: 100 }
     const polys = generateTapratsTiling('cairo-pentagonal', vp, 50)

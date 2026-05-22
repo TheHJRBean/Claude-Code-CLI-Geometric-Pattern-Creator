@@ -104,6 +104,14 @@ All 152 tests pass with the change in place, including the Cairo asymmetric-slid
 Affected (per user 2026-05-21): `floret-pentagonal`, `deltoidal-trihexagonal`, `kisrhombille`, `heptagonal-rosette` (Bug 1: snap-in/out on convex acute-vertex polygons); `nonagonal-rosette`, `decagonal-rosette` (Bug 2: cross-polygon slide on concave reflex-vertex polygons).
 Reference (aesthetic per user): `cairo-pentagonal`, `tetrakis-square`.
 
+### Visual reproducers (pre-fix screenshots)
+`docs/bug-pictures/` holds 11 "before" PNGs captured 2026-05-21 (pre-session-3 state):
+- Deltoid (`delt tri 40.PNG`, `delt tri 50.PNG`, `Delt tri 60.PNG`)
+- Floret-pentagonal (`floret pen 20.PNG`, `floret pen 36.5.PNG`, `floret pent 60.PNG`)
+- Kisrhombille (`kisrombille 40.PNG`, `kisrombille 60+.PNG`, `kidrombille 60.PNG`)
+- Girih bowtie (`girih bowtie 31.PNG`, `girih bowtie 70.PNG`) — out-of-scope of the current production tilings; useful for the parked star-tilings / Taprats rosette-patch work.
+After the session-5 centroid V + arm-length-cap removal, these should be revisited in-browser to confirm whether the visible artifacts are gone.
+
 ### Slide lengths (asymmetric branch)
 
 | Tiling | θ | arm len | slide len | slide / diameter |

@@ -1,4 +1,4 @@
-import type { PatternConfig, StrandStyle } from '../types/pattern'
+import type { FigureRouting, PatternConfig, StrandStyle } from '../types/pattern'
 import type { BoundaryShape, ConfigurationId, EditorConfig, SymmetryMode } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 
@@ -22,6 +22,7 @@ export type Action =
   | { type: 'SET_CURVE_ALTERNATING'; payload: { tileTypeId: string; alternating: boolean } }
   | { type: 'SET_CURVE_DIRECTION'; payload: { tileTypeId: string; direction: 'left' | 'right' } }
   | { type: 'SET_SMOOTH_TRANSITIONS'; payload: boolean }
+  | { type: 'SET_FIGURE_ROUTING'; payload: FigureRouting }
   // Reset every FigureConfig in `figures` back to its tiling default
   // (TILINGS[type].defaultConfig.figures) for Gallery mode, or to
   // DEFAULT_EDITOR_FIGURE for Builder Patches. Wipes the user's per-Tile-type

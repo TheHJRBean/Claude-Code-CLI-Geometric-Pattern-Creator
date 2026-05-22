@@ -240,6 +240,21 @@ function emitStarArms(
     const forwardKey = result.t1 > EPSILON ? key1 : key2
     const backKey = result.t1 > EPSILON ? key2 : key1
 
+    // Uneven-polygon drop (2026-05-22): the asymmetric edge-slide on
+    // uneven polygons (shortest/longest edge ratio < 0.65) emits a
+    // forward arm + boundary slide; the slide is co-linear with the
+    // polygon edge and reads as the strand "running along the edge"
+    // regardless of arm length. Drop the entire pair on uneven polygons
+    // for shape consistency across the θ sweep. Mark both rays emitted
+    // so per-ray fallback doesn't reintroduce them. Affected: floret-
+    // pentagonal, kisrhombille, deltoidal-trihexagonal. Cairo (0.73)
+    // and Tetrakis (0.71) keep the edge-slide.
+    if (isUneven) {
+      emittedRays.add(forwardKey)
+      emittedRays.add(backKey)
+      return
+    }
+
     const far = {
       x: forwardRay.origin.x + forwardRay.dir.x * inradius * 4,
       y: forwardRay.origin.y + forwardRay.dir.y * inradius * 4,
@@ -297,6 +312,15 @@ function emitStarArms(
 
   if (autoLineLength && !pointInPolygon(result.point, polyVertices)) {
     // Edge-slide mode: star tip is outside the polygon.
+    // Uneven-polygon drop (mirrors the asymmetric branch): pair-B on an
+    // uneven polygon at certain θ may fall into this branch with a long
+    // forward arm + boundary slide — same "running along the edge"
+    // symptom. Drop entirely on uneven polygons.
+    if (isUneven) {
+      emittedRays.add(key1)
+      emittedRays.add(key2)
+      return
+    }
     const clip1Res = clipSegmentToPolygon(ray1.origin, result.point, polyVertices, ray1.edgeIndex)
     const clip2Res = clipSegmentToPolygon(ray2.origin, result.point, polyVertices, ray2.edgeIndex)
     const len1 = dist(ray1.origin, clip1Res.point)

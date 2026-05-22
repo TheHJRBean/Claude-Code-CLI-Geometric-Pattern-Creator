@@ -6,6 +6,15 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
+**2026-05-22 (session 4) — PIC Direction 3 centroid-routed V.** User reported after visual verification of session-3 commits: "many of the rays disappear in the middle angles. However it is looking a bit cleaner at least, there is less overlapping." The session-3 trade-off (sparse figures on uneven polygons at middle θ) was too aggressive. Implemented Direction 3 (centroid-routed strands) from the investigation memo's Follow-up section.
+
+- `emitStarArms` (`src/pic/index.ts`): both edge-slide branches (asymmetric + both-positive-outside) on uneven polygons now emit a V routed through `polygonCenter` instead of dropping the pair. Convex-only guard (`isConvexPolygon(polyVertices)`); concave uneven polygons keep the original drop (Bug 2 same-edge guard already handles them).
+- Two new regression tests in `src/pic/pipeline.test.ts`: floret θ=40° asserts 10+ segs/pentagon + at least one endpoint at `poly.center`; kisrhombille θ=72° asserts ≥1 triangle has a centre endpoint. All 166 tests pass.
+- Doc updates: `INVESTIGATION-PIC-IRREGULAR-POLYGON-BUGS.md` open-trade-off block now marked RESOLVED with the session-4 result table.
+- **Visual verification pending** — refresh browser and sweep θ on floret-pentagonal, kisrhombille, deltoidal-trihexagonal to confirm gaps are filled and the V doesn't read as a chunky inward kink. If the V looks too rigid, the next iteration is to route through a softer interior point (apothem foot along the bisector of forwardRay/backRay edges) instead of the raw centroid.
+
+---
+
 **2026-05-22 — PIC irregular-polygon edge-slide bugs, session 3 (`e451af0` → `7b08c38`).** Continued the work tracked in `~/.claude/projects/-home-harryjrh-Geometric-Pattern-Creator/memory/project_pic_irregular_polygon_bugs.md` and `INVESTIGATION-PIC-IRREGULAR-POLYGON-BUGS.md`. Four commits today (after the previous session's `ddcad24` Bug-2 same-edge guard + `2632e69` Bug-1 halfSpan cap):
 - `e451af0` — edge-ratio gate: polygons with shortest/longest edge ratio < 0.65 ("uneven") get a stricter `0.75 × halfSpan` cap on the asymmetric + both-positive-outside edge-slide branches. Per-ray fallback's nearest-crossing search also capped at halfSpan / 0.75 × halfSpan (same gate). Catches Floret θ=40°, Deltoid θ=30°/50°, Floret θ=30° fallback long-arms.
 - `271168f` — drop edge-slide entirely on uneven polygons (both branches, regardless of arm length). Catches the slide-along-boundary visual artifact at Kisrhombille θ=72° (was 18.0-unit boundary slide; now V0 inside pair-A only). Cairo / Tetrakis preserved because they're even (ratio 0.73 / 0.71).

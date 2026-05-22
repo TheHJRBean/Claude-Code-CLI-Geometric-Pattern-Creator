@@ -6,6 +6,18 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
+**2026-05-22 — PIC irregular-polygon edge-slide bugs, session 3 (`e451af0` → `7b08c38`).** Continued the work tracked in `~/.claude/projects/-home-harryjrh-Geometric-Pattern-Creator/memory/project_pic_irregular_polygon_bugs.md` and `INVESTIGATION-PIC-IRREGULAR-POLYGON-BUGS.md`. Four commits today (after the previous session's `ddcad24` Bug-2 same-edge guard + `2632e69` Bug-1 halfSpan cap):
+- `e451af0` — edge-ratio gate: polygons with shortest/longest edge ratio < 0.65 ("uneven") get a stricter `0.75 × halfSpan` cap on the asymmetric + both-positive-outside edge-slide branches. Per-ray fallback's nearest-crossing search also capped at halfSpan / 0.75 × halfSpan (same gate). Catches Floret θ=40°, Deltoid θ=30°/50°, Floret θ=30° fallback long-arms.
+- `271168f` — drop edge-slide entirely on uneven polygons (both branches, regardless of arm length). Catches the slide-along-boundary visual artifact at Kisrhombille θ=72° (was 18.0-unit boundary slide; now V0 inside pair-A only). Cairo / Tetrakis preserved because they're even (ratio 0.73 / 0.71).
+- `7b08c38` — updates `INVESTIGATION-PIC-IRREGULAR-POLYGON-BUGS.md` with before/after table.
+- Regression tests added in `src/pic/pipeline.test.ts`: floret θ=40°, kisrhombille θ=72°, floret θ=30° (per-ray fallback). All 164 tests pass.
+
+**Trade-off the user needs to verify visually:** uneven polygons (kisrhombille, deltoid) now produce sparse strand patterns at many θ — kisrhombille θ=30°-72° shows just 2 short arms (V0 inside pair-A only) instead of the previous 4-6 segs with visible boundary slides. The visual artifact ("running along the edge") is gone but figure richness is reduced. If sparseness reads too empty in browser, the documented next step is **centroid-routed strands** (forwardRay.origin → polygonCenter → backRay.origin V-shape, replacing the dropped edge-slide) — see Direction 3 in `INVESTIGATION-PIC-IRREGULAR-POLYGON-BUGS.md`.
+
+**Status as of session end:** user said "make notes so I can close the session" — has NOT visually verified today's commits yet. Probe data in `src/pic/probe.test.ts`; run with `npx vitest run src/pic/probe.test.ts --reporter=verbose` for fresh per-θ segment lengths. Dev server on http://localhost:5173/ when picking back up. Affected tilings to spot-check: `kisrhombille`, `floret-pentagonal`, `deltoidal-trihexagonal`, `heptagonal-rosette`, `nonagonal-rosette`, `decagonal-rosette`, `cairo-pentagonal`, `tetrakis-square`.
+
+---
+
 **2026-05-18 — Step 17.13 vertex placement shipped (`24b0959` → `5cfdeb8`).** New Design-Phase + Place-mode authoring mode: anchor a regular n-gon at a Cell corner or inward-only Boundary corner, pick orientation from a discrete set of snap rotations. Sibling to edge placement (17.3) and boundary-section placement (17.12). Always-on, single-cell only in v1 (multi-cell composition deferred — mirrors 17.12c locked decision b).
 
 Sub-steps landed:

@@ -175,6 +175,8 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     }
     case 'SET_SMOOTH_TRANSITIONS':
       return { ...state, smoothTransitions: action.payload }
+    case 'SET_FIGURE_ROUTING':
+      return { ...state, figureRouting: action.payload }
     case 'LOAD_CONFIG':
       return action.payload
     case 'EDITOR_NEW': {

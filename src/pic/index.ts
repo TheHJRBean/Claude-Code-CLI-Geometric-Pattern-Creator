@@ -1,5 +1,5 @@
 import type { Polygon, Segment } from '../types/geometry'
-import type { PatternConfig } from '../types/pattern'
+import type { FigureRouting, PatternConfig } from '../types/pattern'
 import { computeContactRays, computeVertexRays, type ContactRay, type VertexRay } from './stellation'
 import { rayRayIntersect, type IntersectResult } from './intersect'
 import { EPSILON, dist, midpoint, pointInPolygon, isConvexPolygon, type Vec2 } from '../utils/math'
@@ -171,18 +171,19 @@ function emitStarArms(
   polyVertices: Vec2[],
   segments: Segment[],
   emittedRays: Set<string>,
+  routing: FigureRouting,
 ): void {
   const { ray1, ray2, result } = pair
   const key1 = `${ray1.edgeIndex}-${ray1.side}`
   const key2 = `${ray2.edgeIndex}-${ray2.side}`
 
-  // Convexity gate: on convex polygons the centroid is guaranteed interior,
-  // so the asymmetric / both-positive-outside branches can route a V
-  // through `polygonCenter` and stay inside the polygon. On concave
-  // polygons the original edge-slide path runs with the same-edge guard
-  // (legitimate slides along one edge are emitted; cross-polygon cuts
-  // through reflex notches are suppressed).
+  // Routing gate. `auto` and `centroid` use centroid V on convex polygons
+  // (concave polygons fall back to edge-slide since the centroid may lie
+  // outside the polygon). `edge` always uses the original edge-slide.
+  // The same-edge guard still applies on concave polygons regardless of
+  // mode — cross-polygon cuts are never desired.
   const isConvex = isConvexPolygon(polyVertices)
+  const useCentroidV = routing !== 'edge' && isConvex
 
   // Asymmetric pair (one ray's meeting is behind its origin) — e.g. the
   // Tetrakis Square right-triangle's 45° vertices at θ ≥ 46°, where one
@@ -205,10 +206,11 @@ function emitStarArms(
     // route a V through the polygon centre instead of clipping the forward
     // ray to the boundary and sliding along an edge. Stays interior, fills
     // the figure, avoids the "running along the edge" artifact reported on
-    // 2026-05-21. Applies to ALL convex polygons (Cairo / Tetrakis /
-    // heptagonal-rosette / floret / kisrhombille / deltoid) — the cap-
-    // based earlier approach dropped rays on borderline cases.
-    if (isConvex) {
+    // 2026-05-21. Honoured when `routing` is `auto` or `centroid`; the
+    // `edge` mode skips this branch and falls through to the original
+    // edge-slide path below (re-introduces the slide artifact but never
+    // drops a ray pair).
+    if (useCentroidV) {
       segments.push({
         from: forwardRay.origin,
         to: polygonCenter,
@@ -287,8 +289,9 @@ function emitStarArms(
     // Edge-slide mode: star tip is outside the polygon.
     // Centroid-routed V (mirrors the asymmetric branch): convex polygons
     // route ray1.origin → centre and ray2.origin → centre instead of
-    // clipping + sliding along the boundary.
-    if (isConvex) {
+    // clipping + sliding along the boundary. Skipped when `routing ===
+    // 'edge'` so the user can opt into the original slide behaviour.
+    if (useCentroidV) {
       segments.push({
         from: ray1.origin,
         to: polygonCenter,
@@ -564,6 +567,7 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
   const segments: Segment[] = []
   const internalEdges = buildInternalEdgeSet(polygons)
   const edgeKeyF = 1e3
+  const routing: FigureRouting = config.figureRouting ?? 'auto'
 
   for (const poly of polygons) {
     const fig = config.figures[poly.tileTypeId]
@@ -584,7 +588,7 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
       if (!pair) continue
 
       if (edgeEnabled) {
-        emitStarArms(pair, fig.autoLineLength, fig.lineLength, inradius, poly.id, poly.tileTypeId, poly.center, n, poly.vertices, segments, emittedRays)
+        emitStarArms(pair, fig.autoLineLength, fig.lineLength, inradius, poly.id, poly.tileTypeId, poly.center, n, poly.vertices, segments, emittedRays, routing)
       }
     }
 

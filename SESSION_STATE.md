@@ -6,6 +6,17 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
+**2026-05-22 (session 6) — PIC `figureRouting` toggle.** User asked the honest meta-question: are these problems solvable or a product of the mathematics? Answer: partly mathematical (generic PIC has no canonical answer for degenerate pair-A meetings on irregular tilings; historical Islamic patterns on dual Laves tilings essentially don't exist and use bespoke rosette construction in Taprats, not generic PIC). Given the user can't have one "right" answer, surfaced the trade-off as a user-facing control.
+
+- `PatternConfig.figureRouting?: 'auto' | 'edge' | 'centroid'` (default `auto`). New `SET_FIGURE_ROUTING` action + reducer case. Persisted through `configValidation.readPatternConfig`.
+- `runPIC` reads `config.figureRouting` and threads it to `emitStarArms`. `useCentroidV = routing !== 'edge' && isConvex` — `edge` falls through to the original Kaplan edge-slide (with same-edge guard); `auto` and `centroid` keep the current centroid V behaviour.
+- New segmented control in the Sidebar (under Curves, above Strand Thickness): three buttons — Auto / Edge / Centroid — with tooltips explaining the trade-off.
+- New regression test: `figureRouting=edge bypasses centroid V on floret θ=40°` (asserts no segment endpoint at `poly.center` and longest segment ≥ 0.4 × diameter). 167 tests pass.
+
+**Resume protocol:** load floret / kisrhombille / deltoid / heptagonal in browser and try each routing mode. Auto is the same as before this commit. Edge mode restores the slide artifact but keeps every ray. Centroid is the same as auto for now (kept as explicit symmetric override).
+
+---
+
 **2026-05-22 (session 4 + 5) — PIC: centroid V extended to all convex polygons; arm-length caps removed.**
 
 Session 4 (commit `224fdfb`) introduced centroid-routed V on uneven convex polygons only, but user verification with 11 bug screenshots showed "many rays missing and floating shapes" — even-borderline polygons (heptagonal-rosette ratio 0.696) were still dropping their slide pairs via the arm-length cap from `2632e69`, and the per-ray fallback cap from `e451af0` was killing long Kaplan-trim arms on floret θ=30°.

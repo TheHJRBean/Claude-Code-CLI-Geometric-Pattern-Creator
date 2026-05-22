@@ -66,6 +66,24 @@ export interface StrandStyle {
   background: string
 }
 
+/**
+ * How emitStarArms handles asymmetric / outside pair-A meetings (the cases
+ * where the natural star tip falls outside the polygon). On irregular
+ * polygons this is a genuine geometric degeneracy with no canonical
+ * answer; the routing modes pick among different approximations.
+ *
+ * - `auto`: convex polygons route through `polygonCenter` (centroid V),
+ *   concave polygons fall back to the original edge-slide with the
+ *   same-edge guard. Default. No "running along the edge" artifact on
+ *   convex tiles; concave bowties keep legitimate edge slides.
+ * - `edge`: always emit the original edge-slide. Brings back the
+ *   "running along the edge" appearance but never drops a ray pair.
+ * - `centroid`: same as `auto` (centroid V on convex; concave still
+ *   uses edge-slide since the centroid may lie outside the polygon).
+ *   Provided as an explicit override symmetric with `edge`.
+ */
+export type FigureRouting = 'auto' | 'edge' | 'centroid'
+
 export interface PatternConfig {
   tiling: TilingConfig
   /** keyed by tile type ID (e.g. "6", "6.1", "6.2") */
@@ -74,6 +92,8 @@ export interface PatternConfig {
   strand: StrandStyle
   /** When true, adjacent Bézier curves' control points are adjusted to share a tangent at interior join points (G1 continuity) */
   smoothTransitions?: boolean
+  /** Routing mode for degenerate pair-A meetings on irregular polygons. Default `auto`. */
+  figureRouting?: FigureRouting
   /**
    * Step 17 — user-editable tessellation editor patch (Q13 Option C).
    *

@@ -599,6 +599,58 @@ export function Sidebar({
           )}
         </div>
 
+        {/* Figure routing — picks how degenerate pair-A meetings are handled
+            on irregular polygons. Auto (default) routes through the polygon
+            centre on convex tiles; Edge runs the original boundary slide;
+            Centroid forces centroid V everywhere it's safe. */}
+        <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
+          <LotusDivider />
+          <SectionTitle
+            open={isOpen('figureRouting')}
+            onToggle={() => toggleSection('figureRouting')}
+            tooltip="On irregular tilings (kisrhombille, floret, deltoid, heptagonal-rosette) the natural ray meeting can fall outside the polygon. This picks how that case is handled. Auto keeps strands interior; Edge brings back the visible boundary slide."
+          >Figure Routing</SectionTitle>
+          {isOpen('figureRouting') && (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginTop: 2 }}>
+                {(['auto', 'edge', 'centroid'] as const).map(mode => {
+                  const active = (config.figureRouting ?? 'auto') === mode
+                  return (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => dispatch({ type: 'SET_FIGURE_ROUTING', payload: mode })}
+                      style={{
+                        padding: '5px 0',
+                        fontFamily: "'Cinzel', Georgia, serif",
+                        fontSize: 10,
+                        fontWeight: 600,
+                        letterSpacing: '0.10em',
+                        textTransform: 'uppercase',
+                        cursor: 'pointer',
+                        border: active ? '1px solid var(--text)' : '1px solid var(--border-subtle)',
+                        background: active ? 'var(--accent-soft, rgba(0,0,0,0.04))' : 'transparent',
+                        color: active ? 'var(--text)' : 'var(--text-muted)',
+                        transition: 'all 0.15s',
+                      }}
+                      title={
+                        mode === 'auto'
+                          ? 'Centroid V on convex polygons; original edge-slide on concave (default).'
+                          : mode === 'edge'
+                            ? 'Always emit the original edge-slide. Brings back the "running along the edge" look on irregular tilings.'
+                            : 'Force centroid V on every convex polygon. Concave polygons still slide.'
+                      }
+                    >
+                      {mode}
+                    </button>
+                  )
+                })}
+              </div>
+              <div style={{ marginBottom: 4 }} />
+            </>
+          )}
+        </div>
+
         {/* Strand thickness — stroke width applied to every rendered Strand. */}
         <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
           <LotusDivider />

@@ -1,14 +1,42 @@
 # PIC Irregular-Polygon Edge-Slide Bugs — Investigation 2026-05-21
 
 **Branch:** `feat/art-deco-egypt-theme-revamp`
-**Status:** PARTIALLY FIXED 2026-05-21.
+**Status:** MORE-FIXED 2026-05-22.
 - `ddcad24` — Bug 2 same-edge slide guard (concave polygons no longer cut strands across reflex notches).
 - `2632e69` — Bug 1 arm-length cap at polygon half-span (worst long-arm cases dropped).
-- User feedback after both commits: **"It looks better although none are fixed."**
-- Borderline cases still emit: floret θ=40° (arm 63/diameter 132 = 0.48, just under the 0.5 cap), kisrhombille θ=72° (arm 41/100 = 0.41).
-- All 161 tests pass.
+- `e451af0` — edge-ratio gate: stricter 0.75 × halfSpan cap on uneven polygons (shortest/longest edge ratio < 0.65) + cap per-ray fallback's nearest-crossing search.
+- `271168f` — drop edge-slide entirely on uneven polygons (both asymmetric + both-positive-outside branches); strand falls to per-ray fallback or sparse if no valid crossings.
+- All 164 tests pass.
 
-See bottom of this doc for **Follow-up directions** to try next session.
+### Net effect vs. previous session
+
+| Tiling           | θ      | Before today | After today |
+|------------------|--------|-------------|-------------|
+| Floret           | 20°    | 6 segs (already dropped) | 6 segs (unchanged) |
+| Floret           | 30°    | 10 segs incl. 72.2-unit fallback arms | 8 segs (fallback cap) |
+| Floret           | 40°    | 10 segs incl. 63.3-unit edge-slide arms | 6 segs (uneven drop) |
+| Kisrhombille     | 30-50° | 4-6 segs incl. 50-unit forward arms | 2 segs (uneven drop) |
+| Kisrhombille     | 67.5°  | 6 segs incl. 27.3-unit slide | 2 segs (uneven drop) |
+| Kisrhombille     | 72°    | 6 segs incl. 18.0-unit boundary slide | 2 segs (uneven drop) |
+| Deltoid          | 30-50° | 5-8 segs incl. ≤25-unit slides | 2-4 segs (uneven drop) |
+| Cairo            | all    | (preserved) | (preserved — even) |
+| Tetrakis         | all    | (preserved) | (preserved — even) |
+| Heptagonal-rosette | all    | (preserved) | (preserved — even, ratio 0.696) |
+| Nonagonal-rosette | all    | (preserved by same-edge guard) | (preserved) |
+| Decagonal-rosette | all    | (preserved by same-edge guard) | (preserved) |
+
+### Open trade-off
+
+The uneven polygons (kisrhombille, deltoid) now produce sparse patterns
+at many θ values — kisrhombille θ=30-50° / 67.5° / 72° shows just 2
+short arms (V0 inside pair-A only). This is the "shape consistency"
+the user asked for in the previous session ("Consider dropping some
+pairs of rays entirely at certain angles to maintain shape consistency"),
+but it loses figure richness. If a later session decides the sparseness
+is too much, **Direction 3 (centroid-routed strands)** in the
+Follow-up section is the natural next step — replace the dropped
+edge-slide with a clean interior V-shape from forwardRay.origin →
+polygonCenter → backRay.origin.
 
 Related memory: `~/.claude/projects/-home-harryjrh-Geometric-Pattern-Creator/memory/project_pic_irregular_polygon_bugs.md`.
 

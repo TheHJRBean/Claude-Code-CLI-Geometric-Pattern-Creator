@@ -2,3 +2,4 @@ node_modules
 dist
 taprats-batik/
 vite.config.ts.timestamp-*
+*:Zone.Identifier

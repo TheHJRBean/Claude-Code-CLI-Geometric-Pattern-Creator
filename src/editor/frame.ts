@@ -64,3 +64,92 @@ export function frameOutlinePolygon(frame: FrameConfig): Vec2[] | null {
   }
   return out
 }
+
+/**
+ * One placement target along a Frame's edge: the segment between two adjacent
+ * **Frame nodes**. Full sections have length `edgeLength`; the trailing `stub`
+ * on each edge (< `edgeLength`) is what the irregular Complete fallback
+ * absorbs (slice 5). Mirrors `boundaryInward.ts`'s `BoundarySection` shape so
+ * the completion code can share placement logic — the difference is purely the
+ * spacing rule (absolute `edgeLength` here vs. the fraction schedule there).
+ */
+export interface FrameSection {
+  /** Index of the outline edge this section lies on. */
+  edgeIndex: number
+  /** Index of the section within its edge, from the start corner. */
+  sectionIndex: number
+  /** Section start node (corner-ward). */
+  p1: Vec2
+  /** Section end node. */
+  p2: Vec2
+  /** Section midpoint. */
+  midpoint: Vec2
+  /** Length in world units (`edgeLength` for full sections, < it for a stub). */
+  length: number
+  /** True for the trailing remainder section that doesn't fit a full node span. */
+  isStub: boolean
+}
+
+/**
+ * Walk each edge of a Frame `outline` from its start corner, dropping a
+ * **Frame node** every exact `edgeLength`. Returns the sections (segments
+ * between adjacent nodes) edge by edge, CCW. The trailing remainder on each
+ * edge becomes one `isStub` section (omitted if negligibly short).
+ */
+export function computeFrameSections(outline: Vec2[], edgeLength: number): FrameSection[] {
+  const sections: FrameSection[] = []
+  if (outline.length < 3 || edgeLength <= 0) return sections
+  const eps = edgeLength * 1e-3
+  const n = outline.length
+  for (let i = 0; i < n; i++) {
+    const a = outline[i]
+    const b = outline[(i + 1) % n]
+    const dx = b.x - a.x
+    const dy = b.y - a.y
+    const edgeLen = Math.hypot(dx, dy)
+    if (edgeLen <= eps) continue
+    const ux = dx / edgeLen
+    const uy = dy / edgeLen
+    const full = Math.floor(edgeLen / edgeLength)
+    let si = 0
+    for (let k = 0; k < full; k++) {
+      const d1 = k * edgeLength
+      const d2 = (k + 1) * edgeLength
+      const p1 = { x: a.x + ux * d1, y: a.y + uy * d1 }
+      const p2 = { x: a.x + ux * d2, y: a.y + uy * d2 }
+      sections.push({
+        edgeIndex: i,
+        sectionIndex: si++,
+        p1,
+        p2,
+        midpoint: { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 },
+        length: edgeLength,
+        isStub: false,
+      })
+    }
+    const remainder = edgeLen - full * edgeLength
+    if (remainder > eps) {
+      const d1 = full * edgeLength
+      const p1 = { x: a.x + ux * d1, y: a.y + uy * d1 }
+      const p2 = { x: b.x, y: b.y }
+      sections.push({
+        edgeIndex: i,
+        sectionIndex: si++,
+        p1,
+        p2,
+        midpoint: { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 },
+        length: remainder,
+        isStub: true,
+      })
+    }
+  }
+  return sections
+}
+
+/**
+ * The distinct **Frame node** points (section start corners) for rendering.
+ * Because the outline is closed, every node appears as some section's `p1`.
+ */
+export function frameNodePoints(sections: FrameSection[]): Vec2[] {
+  return sections.map(s => s.p1)
+}

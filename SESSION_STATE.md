@@ -14,11 +14,11 @@
 1. ✅ Phase scaffold (`10a0ce8`) — `editorPhase` union gains `'framing'`, 3rd tab; framing renders the stamped Composition.
 2. ✅ Frame data model (`c554c08`) — `FrameConfig` on `EditorConfig`; `SET_FRAME` action + history + `migrateFrame`.
 3. ✅ Frame outline + clip render + basic UI (`637e384`) — `editor/frame.ts::frameOutlinePolygon` (square/hex/oct); PatternSVG clips pattern to the outline; Framing panel = Add Frame + shape select + size slider + Remove.
-4. ← NEXT: Frame nodes — absolute `edgeLength` spacing along outline (NOT boundaryInward's fraction schedule).
-5. Completion-to-frame — reuse `complete.ts` + `boundaryInward.ts`; irregular stub fallback; frame-scoped tiles.
-6. PIC over frame tiles via tile-type recipes.
+4. ✅ Frame nodes (`41a24b2`) — `computeFrameSections` (exact edgeLength spacing + isStub remainder); nodes rendered as dots; 9 tests.
+5. ✅ Completion-to-frame (`4b30d64` + `ab68691`) — `placeRegularNGonOnFrameSection`; `EDITOR_PLACE_TILE_ON_FRAME_SECTION` → frame-scoped `completedTiles`; click a frame section to place the seed-sided Tile; rendered inside the clip. (Auto-fill + irregular stub fallback still TODO.)
+6. ← NEXT: PIC over frame tiles via tile-type recipes (so Strands reach the edge — completed tiles currently render bare).
 7. n-ring clip-only type (`compositionOneRingStamps` + `exposedEdges`).
-8. UI — shape picker, size/aspect/rotation sliders, `frameOrigin` picker.
+8. UI — shape picker (done), size slider (done); still: aspect / rotation / `frameOrigin` pickers, auto-complete-to-frame, irregular stub fill.
 
 **Resume:** continue from the latest `wip:` commit on this branch. `editorPhase` is local UI state (not persisted); frame *settings* persist on `EditorConfig`. Still-open: default state on entering Framing, `frameOrigin` picker UX, auto-complete-to-frame vs manual, symmetry-orbit on completion, **Frame node** vs **Frame section** term.
 

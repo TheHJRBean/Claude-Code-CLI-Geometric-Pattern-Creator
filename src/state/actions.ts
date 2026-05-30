@@ -1,5 +1,5 @@
 import type { FigureRouting, PatternConfig, StrandStyle } from '../types/pattern'
-import type { BoundaryShape, ConfigurationId, EditorConfig, SymmetryMode } from '../types/editor'
+import type { BoundaryShape, ConfigurationId, EditorConfig, FrameConfig, SymmetryMode } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 
 export type Action =
@@ -75,6 +75,7 @@ export type Action =
   // (e.g. 4.8.8, 3.12.12). `null` returns to a single-Cell Patch; an id
   // seeds a fresh Cell set for that Configuration.
   | { type: 'SET_BUILDER_CONFIGURATION'; payload: ConfigurationId | null }
+  | { type: 'SET_FRAME'; payload: FrameConfig | null }
   // Switch which Cell the user is editing in Design Phase (multi-Cell only).
   // Pure pane swap — does NOT push a history snapshot.
   | { type: 'SET_ACTIVE_CELL'; payload: { cellId: string } }

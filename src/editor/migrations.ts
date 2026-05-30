@@ -7,10 +7,15 @@ import type {
   EditorIrregularTile,
   EditorRegularTile,
   EditorTile,
+  FrameConfig,
+  FrameShape,
+  FrameType,
   SymmetryMode,
 } from '../types/editor'
 
 const SYMMETRY_MODES = new Set<SymmetryMode>(['full', 'rotation', 'vertical', 'horizontal', 'none'])
+const FRAME_TYPES = new Set<FrameType>(['shape', 'n-ring'])
+const FRAME_SHAPES = new Set<FrameShape>(['square', 'hexagon', 'octagon'])
 
 /**
  * Step 17.8 — load-time validation + migration for `EditorConfig`.
@@ -114,6 +119,33 @@ function migrateAutoComplete(raw: unknown): EditorAutoCompleteSettings | undefin
   const ac = raw as Record<string, unknown>
   if (typeof ac.enabled !== 'boolean') return undefined
   return { enabled: ac.enabled }
+}
+
+/** Step 17 Framing — validate a persisted `FrameConfig`. Unknown / malformed
+ * frames drop to `undefined` (no Frame), never crash the load. */
+function migrateFrame(raw: unknown): FrameConfig | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined
+  const r = raw as Record<string, unknown>
+  if (!FRAME_TYPES.has(r.type as FrameType)) return undefined
+  const out: FrameConfig = { type: r.type as FrameType }
+  if (isVec2(r.origin)) out.origin = { x: r.origin.x, y: r.origin.y }
+  if (FRAME_SHAPES.has(r.shape as FrameShape)) out.shape = r.shape as FrameShape
+  if (typeof r.size === 'number' && r.size > 0) out.size = r.size
+  if (typeof r.aspect === 'number' && r.aspect > 0) out.aspect = r.aspect
+  if (typeof r.rotation === 'number') out.rotation = r.rotation
+  if (r.boundaryTreatment === 'complete' || r.boundaryTreatment === 'clip') {
+    out.boundaryTreatment = r.boundaryTreatment
+  }
+  if (typeof r.rings === 'number' && r.rings >= 1) out.rings = Math.floor(r.rings)
+  if (Array.isArray(r.completedTiles)) {
+    const tiles: EditorTile[] = []
+    for (const t of r.completedTiles) {
+      const tile = migrateTile(t)
+      if (tile) tiles.push(tile)
+    }
+    if (tiles.length) out.completedTiles = tiles
+  }
+  return out
 }
 
 /**
@@ -262,6 +294,8 @@ function migrateV3(r: Record<string, unknown>): EditorConfig | null {
   if (isConfigurationId(r.configuration)) out.configuration = r.configuration
   const ac = migrateAutoComplete(r.autoComplete)
   if (ac) out.autoComplete = ac
+  const frame = migrateFrame(r.frame)
+  if (frame) out.frame = frame
   return out
 }
 

@@ -70,4 +70,6 @@ export const DESIGN_MODE_ACTIONS: ReadonlySet<string> = new Set([
   // swaps within a multi-Cell Patch are pure UI (excluded — never push a
   // snapshot).
   'SET_BUILDER_CONFIGURATION',
+  // Framing Phase — setting / clearing the Frame is undoable.
+  'SET_FRAME',
 ])

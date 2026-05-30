@@ -16,9 +16,16 @@
 3. ✅ Frame outline + clip render + basic UI (`637e384`) — `editor/frame.ts::frameOutlinePolygon` (square/hex/oct); PatternSVG clips pattern to the outline; Framing panel = Add Frame + shape select + size slider + Remove.
 4. ✅ Frame nodes (`41a24b2`) — `computeFrameSections` (exact edgeLength spacing + isStub remainder); nodes rendered as dots; 9 tests.
 5. ✅ Completion-to-frame (`4b30d64` + `ab68691`) — `placeRegularNGonOnFrameSection`; `EDITOR_PLACE_TILE_ON_FRAME_SECTION` → frame-scoped `completedTiles`; click a frame section to place the seed-sided Tile; rendered inside the clip. (Auto-fill + irregular stub fallback still TODO.)
-6. ← NEXT: PIC over frame tiles via tile-type recipes (so Strands reach the edge — completed tiles currently render bare).
-7. n-ring clip-only type (`compositionOneRingStamps` + `exposedEdges`).
-8. UI — shape picker (done), size slider (done); still: aspect / rotation / `frameOrigin` pickers, auto-complete-to-frame, irregular stub fill.
+6. ✅ PIC over frame tiles (`4cc859c`) — `usePattern` editorFraming branch appends `frame.completedTiles` to the PIC input; strands flow through them.
+7. ✅ Field bounding (`7a8fc3d`) — keep stamped tiles whose centre is inside the frame (Q12), opening the gap completion fills (no overlap).
+8a. ✅ Auto-fill (`91f9ba3`) — `EDITOR_COMPLETE_TO_FRAME` fills every full section in one click; `Complete to Frame` + `Clear Tiles` buttons.
+
+**Remaining (← resume here):**
+- Aspect / rotation / `frameOrigin` picker UI (geometry already supports aspect+rotation; origin field exists).
+- n-ring clip-only frame type (`compositionOneRingStamps` + `exposedEdges`).
+- Irregular **stub** fallback (fill the < edgeLength remainder per edge via `complete.ts`).
+- **Wrap to nearest whole patch** (user idea, captured in framing memo open items — two readings A/B).
+- Symmetry-orbit on frame completion; default-state-on-entering-Framing.
 
 **Resume:** continue from the latest `wip:` commit on this branch. `editorPhase` is local UI state (not persisted); frame *settings* persist on `EditorConfig`. Still-open: default state on entering Framing, `frameOrigin` picker UX, auto-complete-to-frame vs manual, symmetry-orbit on completion, **Frame node** vs **Frame section** term.
 

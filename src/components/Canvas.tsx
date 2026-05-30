@@ -4,7 +4,6 @@ import type { Segment } from '../types/geometry'
 import type { Vec2 } from '../utils/math'
 import { usePattern } from '../hooks/usePattern'
 import { frameOutlinePolygon, computeFrameSections, frameNodePoints } from '../editor/frame'
-import { tilesToPolygons } from '../editor/buildEditorPolygons'
 import { usePanZoom, type ViewTransform } from '../hooks/usePanZoom'
 import { PatternSVG } from '../rendering/PatternSVG'
 import { RotationDial } from './RotationDial'
@@ -178,6 +177,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     editorNeighbourPreview,
     editorNeighbourBoundaries,
     editorNeighbourStrands,
+    editorFraming,
   )
 
   // Step 17 Framing — the Shape Frame outline to clip the Composition to.
@@ -196,14 +196,8 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     [frameOutline, editorEdgeLength],
   )
   const frameNodes = useMemo(() => (frameSections ? frameNodePoints(frameSections) : null), [frameSections])
-  // Frame-scoped completion Tiles (world space) → render polygons.
-  const frameCompletedTiles = config.editor?.frame?.completedTiles
-  const frameTiles = useMemo(
-    () => (editorFraming && frameCompletedTiles && frameCompletedTiles.length > 0
-      ? tilesToPolygons(frameCompletedTiles)
-      : null),
-    [editorFraming, frameCompletedTiles],
-  )
+  // Frame-scoped completion Tiles render through usePattern's `polygons` (so
+  // PIC emits Strands through them) — see the editorFraming branch there.
   const [frameHover, setFrameHover] = useState<SectionKey | null>(null)
   // Interactive Frame-section overlay (full sections only; stubs are reserved
   // for the irregular fallback). Clicking a section places the seed-sided Tile.
@@ -678,7 +672,6 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         editorOverlay={editorFraming ? frameOverlay : editorOverlay}
         frameOutline={frameOutline}
         frameNodes={frameNodes}
-        frameTiles={frameTiles}
       />
       {pickerScreenPos && onPlaceTile && onSelectEdge && selectedEdgeData && (
         <EditorPickerOverlay

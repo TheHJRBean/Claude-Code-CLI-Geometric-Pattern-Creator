@@ -59,15 +59,10 @@ interface Props {
    * points along the Frame outline). Drawn as small dots over the outline.
    */
   frameNodes?: Vec2[] | null
-  /**
-   * Step 17 Framing — frame-scoped completion Tiles (`frame.completedTiles`),
-   * drawn as Tiles inside the Frame clip. PIC over them lands in a later slice.
-   */
-  frameTiles?: Polygon[] | null
 }
 
 export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
-  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, editorOverlay, frameOutline, frameNodes, frameTiles },
+  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, editorOverlay, frameOutline, frameNodes },
   ref
 ) {
   const { x, y, zoom, rotation } = viewTransform
@@ -116,9 +111,6 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
             return <BoundaryOutline key={i} vertices={outline} variant={isSeed ? 'seed' : 'ghost'} />
           })}
           <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
-          {frameTiles && frameTiles.length > 0 && (
-            <TileLayer polygons={frameTiles} visible={showTileLayer} outlineWidth={outlineWidth} />
-          )}
           {showLines && <StrandLayer segments={segments} config={config} ghostPolygonIds={ghostPolygonIds} />}
           <ControlPointLayer
             segments={segments}

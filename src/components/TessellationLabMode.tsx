@@ -13,8 +13,8 @@ import { useTheme } from '../theme/ThemeContext'
 import { SAMPLE_EDITOR_CONFIG } from '../editor/sampleConfig'
 import { BOUNDARY_SIZE_MAX_BY_SHAPE } from '../editor/createDefault'
 import { LAB_DEFAULT_CONFIG } from '../state/labDefaults'
-import type { BoundaryShape, ConfigurationId, FrameShape, SymmetryMode } from '../types/editor'
-import { DEFAULT_FRAME_SIZE, MIN_FRAME_SIZE, MAX_FRAME_SIZE } from '../editor/frame'
+import type { BoundaryShape, ConfigurationId, FrameConfig, FrameShape, SymmetryMode } from '../types/editor'
+import { DEFAULT_FRAME_SIZE, MIN_FRAME_SIZE, MAX_FRAME_SIZE, SQRT2 } from '../editor/frame'
 import type { Vec2 } from '../utils/math'
 import { validateMultiPick, multiPickValidityLabel } from '../editor/patchSelectable'
 import { editorTileTypes } from '../editor/tileTypes'
@@ -990,6 +990,13 @@ function EditorDesignControls({
   const originLocked = cell.tiles.some(t => t.source !== 'seed')
   const inStrand = editorPhase === 'strand'
   const inFraming = editorPhase === 'framing'
+  // Framing — update a Frame geometry field. Geometry changes invalidate the
+  // prior completion ring, so clear `completedTiles` (the user re-runs Complete
+  // to Frame against the new outline).
+  const updateFrameGeom = (partial: Partial<FrameConfig>) => {
+    if (!editor.frame) return
+    dispatch({ type: 'SET_FRAME', payload: { ...editor.frame, ...partial, completedTiles: [] } })
+  }
   return (
     <>
       {/* Step 17.9 — Undo / Redo header (Q12). Visible in both phases:
@@ -1103,10 +1110,9 @@ function EditorDesignControls({
             border: '1px solid var(--border-subtle)',
           }}>
             Wrap the Composition in a <strong>Frame</strong> — the pattern is
-            clipped to its outline. <strong>Click a frame edge</strong> (between
-            nodes) to tile a Seed-shaped Tile out to it. Auto-complete, the
-            irregular stub fallback, and aspect / rotation / origin controls
-            arrive in later slices.
+            clipped to its outline. <strong>Complete to Frame</strong> (or click
+            individual frame edges) tiles the Seed shape out to the edge. The
+            irregular stub fallback arrives in a later slice.
           </div>
           {!editor.frame ? (
             <button
@@ -1134,15 +1140,12 @@ function EditorDesignControls({
             <>
               <FieldLabel
                 label="Frame shape"
-                tooltip="Outline shape the Composition is clipped to. √2 rectangle (square + aspect) and rotation arrive with the full controls."
+                tooltip="Outline shape the Composition is clipped to. A square + aspect √2 gives the A-series rectangle."
               />
               <select
                 className="pattern-select"
                 value={editor.frame.shape ?? 'square'}
-                onChange={e => dispatch({
-                  type: 'SET_FRAME',
-                  payload: { ...editor.frame!, shape: e.target.value as FrameShape },
-                })}
+                onChange={e => updateFrameGeom({ shape: e.target.value as FrameShape })}
                 style={{ marginBottom: 10 }}
               >
                 <option value="square">Square</option>
@@ -1159,12 +1162,81 @@ function EditorDesignControls({
                 max={MAX_FRAME_SIZE}
                 step={1}
                 value={editor.frame.size ?? DEFAULT_FRAME_SIZE}
-                onChange={e => dispatch({
-                  type: 'SET_FRAME',
-                  payload: { ...editor.frame!, size: Number(e.target.value) },
-                })}
+                onChange={e => updateFrameGeom({ size: Number(e.target.value) })}
                 style={{ width: '100%', marginBottom: 10 }}
               />
+              <FieldLabel
+                label={`Aspect (width ÷ height) — ${(editor.frame.aspect ?? 1).toFixed(2)}`}
+                tooltip="Stretches the Frame's width. 1.00 = regular; √2 ≈ 1.41 gives the A-series rectangle from a square."
+              />
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 10 }}>
+                <input
+                  type="range"
+                  min={0.5}
+                  max={2}
+                  step={0.01}
+                  value={editor.frame.aspect ?? 1}
+                  onChange={e => updateFrameGeom({ aspect: Number(e.target.value) })}
+                  style={{ flex: 1 }}
+                />
+                {([['1:1', 1], ['√2', SQRT2]] as const).map(([label, val]) => (
+                  <button
+                    key={label}
+                    onClick={() => updateFrameGeom({ aspect: val })}
+                    style={{
+                      padding: '3px 6px',
+                      fontFamily: "'EB Garamond', Georgia, serif",
+                      fontSize: 11,
+                      cursor: 'pointer',
+                      color: 'var(--text-muted)',
+                      background: 'transparent',
+                      border: '1px solid var(--border-subtle)',
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <FieldLabel
+                label={`Rotation — ${Math.round(((editor.frame.rotation ?? 0) * 180) / Math.PI)}°`}
+                tooltip="Turn the whole Frame about its origin."
+              />
+              <input
+                type="range"
+                min={0}
+                max={360}
+                step={1}
+                value={Math.round(((editor.frame.rotation ?? 0) * 180) / Math.PI)}
+                onChange={e => updateFrameGeom({ rotation: (Number(e.target.value) * Math.PI) / 180 })}
+                style={{ width: '100%', marginBottom: 10 }}
+              />
+              <FieldLabel
+                label={`Frame origin — (${Math.round(editor.frame.origin?.x ?? 0)}, ${Math.round(editor.frame.origin?.y ?? 0)})`}
+                tooltip="Centre of the Frame in world coordinates. (0, 0) = the seed Patch centre."
+              />
+              <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
+                <input
+                  type="range"
+                  min={-800}
+                  max={800}
+                  step={1}
+                  value={editor.frame.origin?.x ?? 0}
+                  onChange={e => updateFrameGeom({ origin: { x: Number(e.target.value), y: editor.frame!.origin?.y ?? 0 } })}
+                  style={{ flex: 1 }}
+                />
+                <input
+                  type="range"
+                  min={-800}
+                  max={800}
+                  step={1}
+                  value={editor.frame.origin?.y ?? 0}
+                  onChange={e => updateFrameGeom({ origin: { x: editor.frame!.origin?.x ?? 0, y: Number(e.target.value) } })}
+                  style={{ flex: 1 }}
+                />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, fontSize: 9, color: 'var(--text-muted)', fontFamily: "'Cinzel', Georgia, serif", letterSpacing: '0.08em' }}>
+                <span>X</span><span>Y</span>
+              </div>
               <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
                 <button
                   onClick={() => dispatch({

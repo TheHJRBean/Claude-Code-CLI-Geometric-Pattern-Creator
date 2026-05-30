@@ -20,8 +20,9 @@
 7. ✅ Field bounding (`7a8fc3d`) — keep stamped tiles whose centre is inside the frame (Q12), opening the gap completion fills (no overlap).
 8a. ✅ Auto-fill (`91f9ba3`) — `EDITOR_COMPLETE_TO_FRAME` fills every full section in one click; `Complete to Frame` + `Clear Tiles` buttons.
 
+8b. ✅ Aspect / rotation / origin controls (`1f985a5`) — aspect slider + 1:1/√2 snap, rotation 0–360°, origin X/Y sliders; `updateFrameGeom` clears the stale completion ring on geometry edits.
+
 **Remaining (← resume here):**
-- Aspect / rotation / `frameOrigin` picker UI (geometry already supports aspect+rotation; origin field exists).
 - n-ring clip-only frame type (`compositionOneRingStamps` + `exposedEdges`).
 - Irregular **stub** fallback (fill the < edgeLength remainder per edge via `complete.ts`).
 - **Wrap to nearest whole patch** (user idea, captured in framing memo open items — two readings A/B).

@@ -466,6 +466,26 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         editor: { ...state.editor, frame: { ...frame, completedTiles: [...existing, tile] } },
       }
     }
+    case 'EDITOR_COMPLETE_TO_FRAME': {
+      // Step 17 Framing — auto-fill: place the chosen n-gon flush to EVERY full
+      // Frame section in one gesture (a clean ring hugging the frame edge),
+      // replacing any prior completion Tiles (idempotent / re-runnable). Stub
+      // sections are skipped (irregular fallback, future slice).
+      if (!state.editor) return state
+      const frame = state.editor.frame
+      if (!frame) return state
+      const outline = frameOutlinePolygon(frame)
+      if (!outline) return state
+      const { sides } = action.payload
+      const stamp = Date.now()
+      const tiles = computeFrameSections(outline, state.editor.edgeLength)
+        .filter(s => !s.isStub)
+        .map((s, i) => placeRegularNGonOnFrameSection(sides, s, `frame-${i}-${stamp}`))
+      return {
+        ...state,
+        editor: { ...state.editor, frame: { ...frame, completedTiles: tiles } },
+      }
+    }
     case 'EDITOR_RUN_AUTO_COMPLETE': {
       if (!state.editor) return state
       return applyWrap(seedFigures(updateActiveCell(state, cell => {

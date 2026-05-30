@@ -15,6 +15,8 @@ import { BOUNDARY_SIZE_MAX_BY_SHAPE } from '../editor/createDefault'
 import { LAB_DEFAULT_CONFIG } from '../state/labDefaults'
 import type { BoundaryShape, ConfigurationId, FrameConfig, FrameShape, SymmetryMode } from '../types/editor'
 import { DEFAULT_FRAME_SIZE, MIN_FRAME_SIZE, MAX_FRAME_SIZE, SQRT2 } from '../editor/frame'
+import { DEFAULT_FRAME_RINGS, MIN_FRAME_RINGS, MAX_FRAME_RINGS } from '../editor/frameNRing'
+import type { FrameType } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import { validateMultiPick, multiPickValidityLabel } from '../editor/patchSelectable'
 import { editorTileTypes } from '../editor/tileTypes'
@@ -990,6 +992,9 @@ function EditorDesignControls({
   const originLocked = cell.tiles.some(t => t.source !== 'seed')
   const inStrand = editorPhase === 'strand'
   const inFraming = editorPhase === 'framing'
+  // n-ring Frames are single-cell-only (square / hexagon / triangle) in v1 —
+  // multi-cell Configurations + octagon/dodecagon are deferred.
+  const nRingSupported = !multiCell && (cell.shape === 'square' || cell.shape === 'hexagon' || cell.shape === 'triangle')
   // Framing — update a Frame geometry field. Geometry changes invalidate the
   // prior completion ring, so clear `completedTiles` (the user re-runs Complete
   // to Frame against the new outline).
@@ -1140,6 +1145,29 @@ function EditorDesignControls({
           ) : (
             <>
               <FieldLabel
+                label="Frame type"
+                tooltip="Shape = a parametric outline (square / √2 / hex / oct) the pattern is completed out to. n-Ring = the centre Patch plus N neighbour shells, clipped to whole patches (no completion)."
+              />
+              <select
+                className="pattern-select"
+                value={editor.frame.type}
+                onChange={e => {
+                  const type = e.target.value as FrameType
+                  if (type === editor.frame!.type) return
+                  dispatch({
+                    type: 'SET_FRAME',
+                    payload: type === 'n-ring'
+                      ? { type: 'n-ring', rings: editor.frame!.rings ?? DEFAULT_FRAME_RINGS }
+                      : { type: 'shape', shape: editor.frame!.shape ?? 'square', size: editor.frame!.size ?? DEFAULT_FRAME_SIZE, boundaryTreatment: 'complete' },
+                  })
+                }}
+                style={{ marginBottom: 10 }}
+              >
+                <option value="shape">Shape (parametric)</option>
+                <option value="n-ring" disabled={!nRingSupported}>n-Ring (whole patches)</option>
+              </select>
+              {editor.frame.type === 'shape' && (<>
+              <FieldLabel
                 label="Frame shape"
                 tooltip="Outline shape the Composition is clipped to. A square + aspect √2 gives the A-series rectangle."
               />
@@ -1283,6 +1311,37 @@ function EditorDesignControls({
                   Clear Tiles
                 </button>
               </div>
+              </>)}
+              {editor.frame.type === 'n-ring' && (
+                <>
+                  <div style={{
+                    padding: '6px 9px',
+                    marginBottom: 10,
+                    fontFamily: "'EB Garamond', Georgia, serif",
+                    fontSize: 11,
+                    color: 'var(--text-muted)',
+                    lineHeight: 1.4,
+                    border: '1px solid var(--border-subtle)',
+                  }}>
+                    Clips to the centre Patch plus <strong>{editor.frame.rings ?? DEFAULT_FRAME_RINGS}</strong> shell{(editor.frame.rings ?? DEFAULT_FRAME_RINGS) === 1 ? '' : 's'} of
+                    whole neighbour Patches — no completion (the field already
+                    tiles the region exactly).
+                  </div>
+                  <FieldLabel
+                    label={`Rings — ${editor.frame.rings ?? DEFAULT_FRAME_RINGS}`}
+                    tooltip="Number of neighbour-Patch shells around the centre Patch. 0 = the centre Patch alone; each ring adds one surrounding shell."
+                  />
+                  <input
+                    type="range"
+                    min={MIN_FRAME_RINGS}
+                    max={MAX_FRAME_RINGS}
+                    step={1}
+                    value={editor.frame.rings ?? DEFAULT_FRAME_RINGS}
+                    onChange={e => dispatch({ type: 'SET_FRAME', payload: { ...editor.frame!, rings: Number(e.target.value) } })}
+                    style={{ width: '100%', marginBottom: 10 }}
+                  />
+                </>
+              )}
               <button
                 onClick={() => dispatch({ type: 'SET_FRAME', payload: null })}
                 style={{

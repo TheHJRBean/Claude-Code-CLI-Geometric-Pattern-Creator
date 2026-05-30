@@ -192,7 +192,7 @@ export function TessellationLabMode({
   const [multiMode, setMultiMode] = useState(false)
   // Step 17.6 — Design Phase vs Composition Phase phase-switch (Decision 15).
   // Local UI state — not persisted; figures persist independently per Q15.
-  const [editorPhase, setEditorPhase] = useState<'design' | 'strand'>('design')
+  const [editorPhase, setEditorPhase] = useState<'design' | 'strand' | 'framing'>('design')
   // Step 17.6 — Composition Phase: show the Patch Boundary stamped on the lattice.
   const [showBoundaryLattice, setShowBoundaryLattice] = useState(false)
   // Step 17.6d — Design Phase: low-opacity ghost copies of the Patch at the
@@ -395,8 +395,9 @@ export function TessellationLabMode({
                     dispatch({ type: 'EDITOR_RUN_AUTO_COMPLETE' })
                   }
                   setEditorPhase(p)
-                  // Clear in-flight Design-Phase picks when entering Composition Phase.
-                  if (p === 'strand') {
+                  // Clear in-flight Design-Phase picks when leaving Design Phase
+                  // (entering Composition or Framing).
+                  if (p !== 'design') {
                     setSelectedEdge(null)
                     resetPicks()
                   }
@@ -508,7 +509,7 @@ export function TessellationLabMode({
                 // Design/Composition split, so the toggle is always
                 // available there.
                 const advancedAvailable =
-                  config.tiling.type !== 'editor' || editorPhase === 'strand'
+                  config.tiling.type !== 'editor' || editorPhase !== 'design'
                 const advancedActive = advancedAvailable && showAdvanced
                 return (
                   <>
@@ -692,7 +693,7 @@ export function TessellationLabMode({
             resetPicks()
           }
         }}
-        editorStrandMode={editorPhase === 'strand'}
+        editorStrandMode={editorPhase !== 'design'}
         showBoundaryLattice={showBoundaryLattice}
         editorNeighbourPreview={editorPhase === 'design' && showNeighbours && !(config.editor && activeCell(config.editor).wrapBoundary)}
         editorNeighbourBoundaries={showNeighbourBoundaries}
@@ -929,8 +930,8 @@ interface EditorDesignControlsProps {
   picks: Vec2[]
   multiMode: boolean
   onCancelComplete: () => void
-  editorPhase: 'design' | 'strand'
-  onSetEditorPhase: (p: 'design' | 'strand') => void
+  editorPhase: 'design' | 'strand' | 'framing'
+  onSetEditorPhase: (p: 'design' | 'strand' | 'framing') => void
   showBoundaryLattice: boolean
   onToggleShowBoundaryLattice: (next: boolean) => void
   showNeighbours: boolean
@@ -979,6 +980,7 @@ function EditorDesignControls({
   const multiCell = editor.cells.length > 1
   const originLocked = cell.tiles.some(t => t.source !== 'seed')
   const inStrand = editorPhase === 'strand'
+  const inFraming = editorPhase === 'framing'
   return (
     <>
       {/* Step 17.9 — Undo / Redo header (Q12). Visible in both phases:
@@ -1017,10 +1019,10 @@ function EditorDesignControls({
       {/* Step 17.6 — Design / Composition phase-switch (Decision 15). */}
       <FieldLabel
         label="Phase"
-        tooltip="Build workflow stage. Design = author Tiles into Cells of a Patch. Composition = see the Patch composed across the canvas with Strands rendered by PIC. Future Phases: Framing, Decoration."
+        tooltip="Build workflow stage. Design = author Tiles into Cells of a Patch. Composition = see the Patch composed across the canvas with Strands rendered by PIC. Framing = wrap the Composition in a Frame. Future Phase: Decoration."
       />
-      <div style={{ display: 'flex', gap: 0, marginBottom: inStrand ? 4 : 12 }}>
-        {(['design', 'strand'] as const).map(p => {
+      <div style={{ display: 'flex', gap: 0, marginBottom: inStrand || inFraming ? 4 : 12 }}>
+        {(['design', 'strand', 'framing'] as const).map(p => {
           const active = editorPhase === p
           return (
             <button
@@ -1032,7 +1034,7 @@ function EditorDesignControls({
                 fontFamily: "'Cinzel', Georgia, serif",
                 fontSize: 9,
                 fontWeight: 600,
-                letterSpacing: '0.10em',
+                letterSpacing: '0.08em',
                 textTransform: 'uppercase',
                 cursor: 'pointer',
                 border: `1px solid ${active ? 'var(--accent)' : 'var(--border-subtle)'}`,
@@ -1041,7 +1043,7 @@ function EditorDesignControls({
                 transition: 'all 0.15s',
               }}
             >
-              {p === 'design' ? 'Design' : 'Composition'}
+              {p === 'design' ? 'Design' : p === 'strand' ? 'Composition' : 'Framing'}
             </button>
           )
         })}
@@ -1080,7 +1082,27 @@ function EditorDesignControls({
         </div>
       )}
 
-      {!inStrand && <>
+      {inFraming && (
+        <div style={{
+          marginTop: 0,
+          marginBottom: 14,
+          padding: '8px 10px',
+          fontFamily: "'EB Garamond', Georgia, serif",
+          fontSize: 12,
+          color: 'var(--text-muted)',
+          lineHeight: 1.45,
+          border: '1px solid var(--border-subtle)',
+        }}>
+          <div>
+            Wrap the Composition in a <strong>Frame</strong>. A Shape frame
+            doubles as a completion boundary — the pattern is tiled out to the
+            frame edge, with nodes spaced one tile-edge apart. Frame controls
+            arrive in the next build slice.
+          </div>
+        </div>
+      )}
+
+      {editorPhase === 'design' && <>
       <FieldLabel
         label="Boundary"
         tooltip="Cell shape (or multi-cell Configuration) the Patch is built into. Single-cell options like Square/Hex/Triangle give one Cell; Configurations like 4.8.8 give a multi-cell Patch."

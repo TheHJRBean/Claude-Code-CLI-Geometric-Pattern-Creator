@@ -91,10 +91,14 @@ export interface FrameSection {
 }
 
 /**
- * Walk each edge of a Frame `outline` from its start corner, dropping a
- * **Frame node** every exact `edgeLength`. Returns the sections (segments
- * between adjacent nodes) edge by edge, CCW. The trailing remainder on each
- * edge becomes one `isStub` section (omitted if negligibly short).
+ * Walk each edge of a Frame `outline`, placing **Frame nodes** every exact
+ * `edgeLength`, **centred on the edge**: the full sections are centred about
+ * the edge midpoint and the remainder is split into two equal `isStub`
+ * half-sections, one at each corner. Centring keeps the node pattern symmetric
+ * about every edge's midpoint (and under the frame's own symmetry), so nodes
+ * grow symmetrically as the frame is resized rather than sliding toward one
+ * corner. Stubs (the < edgeLength remainders) are reserved for the irregular
+ * Complete fallback. Returns sections edge by edge, CCW.
  */
 export function computeFrameSections(outline: Vec2[], edgeLength: number): FrameSection[] {
   const sections: FrameSection[] = []
@@ -110,38 +114,31 @@ export function computeFrameSections(outline: Vec2[], edgeLength: number): Frame
     if (edgeLen <= eps) continue
     const ux = dx / edgeLen
     const uy = dy / edgeLen
+    const at = (d: number): Vec2 => ({ x: a.x + ux * d, y: a.y + uy * d })
+    const push = (d1: number, d2: number, isStub: boolean) => {
+      const p1 = at(d1)
+      const p2 = at(d2)
+      sections.push({
+        edgeIndex: i,
+        sectionIndex: sections.length, // overwritten below to be per-edge
+        p1,
+        p2,
+        midpoint: { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 },
+        length: d2 - d1,
+        isStub,
+      })
+    }
     const full = Math.floor(edgeLen / edgeLength)
-    let si = 0
-    for (let k = 0; k < full; k++) {
-      const d1 = k * edgeLength
-      const d2 = (k + 1) * edgeLength
-      const p1 = { x: a.x + ux * d1, y: a.y + uy * d1 }
-      const p2 = { x: a.x + ux * d2, y: a.y + uy * d2 }
-      sections.push({
-        edgeIndex: i,
-        sectionIndex: si++,
-        p1,
-        p2,
-        midpoint: { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 },
-        length: edgeLength,
-        isStub: false,
-      })
-    }
-    const remainder = edgeLen - full * edgeLength
-    if (remainder > eps) {
-      const d1 = full * edgeLength
-      const p1 = { x: a.x + ux * d1, y: a.y + uy * d1 }
-      const p2 = { x: b.x, y: b.y }
-      sections.push({
-        edgeIndex: i,
-        sectionIndex: si++,
-        p1,
-        p2,
-        midpoint: { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 },
-        length: remainder,
-        isStub: true,
-      })
-    }
+    const half = (edgeLen - full * edgeLength) / 2 // half-stub at each corner
+    const start = sections.length
+    // Leading half-stub (toward corner `a`).
+    if (half > eps) push(0, half, true)
+    // Full, centred sections.
+    for (let k = 0; k < full; k++) push(half + k * edgeLength, half + (k + 1) * edgeLength, false)
+    // Trailing half-stub (toward corner `b`).
+    if (half > eps) push(half + full * edgeLength, edgeLen, true)
+    // Re-index sectionIndex per edge (0..m-1).
+    for (let s = start; s < sections.length; s++) sections[s].sectionIndex = s - start
   }
   return sections
 }

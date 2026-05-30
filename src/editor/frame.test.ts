@@ -41,16 +41,33 @@ describe('frameOutlinePolygon', () => {
 })
 
 describe('computeFrameSections', () => {
-  it('spaces full sections at exactly edgeLength with one stub per edge', () => {
+  it('centres full sections with a half-stub at each corner', () => {
     const sections = computeFrameSections(square100, 30)
-    // Each 100-unit edge → 3 full (90) + 1 stub (10). 4 edges → 16 sections.
-    expect(sections.length).toBe(16)
+    // Each 100-unit edge → 3 full (90) centred + two 5-unit half-stubs.
+    // 5 sections/edge × 4 edges → 20.
+    expect(sections.length).toBe(20)
     const full = sections.filter(s => !s.isStub)
     const stubs = sections.filter(s => s.isStub)
     expect(full.length).toBe(12)
-    expect(stubs.length).toBe(4)
+    expect(stubs.length).toBe(8)
     for (const s of full) expect(s.length).toBeCloseTo(30, 6)
-    for (const s of stubs) expect(s.length).toBeCloseTo(10, 6)
+    for (const s of stubs) expect(s.length).toBeCloseTo(5, 6)
+  })
+
+  it('lays sections symmetrically about each edge midpoint', () => {
+    const sections = computeFrameSections(square100, 30).filter(s => s.edgeIndex === 0)
+    // First and last sections are the equal half-stubs; the full run is centred.
+    expect(sections[0].isStub).toBe(true)
+    expect(sections[sections.length - 1].isStub).toBe(true)
+    expect(sections[0].length).toBeCloseTo(sections[sections.length - 1].length, 6)
+    // The leading stub ends at the same distance the trailing stub begins from
+    // the opposite corner → symmetric layout.
+    const a = square100[0]
+    const b = square100[1]
+    const edgeLen = Math.hypot(b.x - a.x, b.y - a.y)
+    const dStart = Math.hypot(sections[0].p2.x - a.x, sections[0].p2.y - a.y)
+    const dEnd = edgeLen - Math.hypot(sections[sections.length - 1].p1.x - a.x, sections[sections.length - 1].p1.y - a.y)
+    expect(dStart).toBeCloseTo(dEnd, 6)
   })
 
   it('produces no stub when edgeLength divides the edge evenly', () => {

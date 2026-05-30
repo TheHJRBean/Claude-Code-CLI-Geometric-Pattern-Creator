@@ -25,7 +25,11 @@ A stage of the build workflow inside the Builder. The canonical sequence is **De
 _Avoid_: mode, tab, view (the Builder may have modes within a phase, but a phase is the higher-level stage)
 
 **Framing** _(Phase, reserved)_:
-Post-Composition Phase where the user wraps the **Composition** in a frame (n-ring, square, √2, hex, octagon, traditional). Not yet implemented — placeholder name only.
+Post-Composition Phase where the user wraps the **Composition** in a **Frame**. Not yet implemented — placeholder name only; design in progress.
+
+**Frame**:
+The finite, bounded region the **Framing** Phase wraps around the **Composition**, turning the otherwise-unbounded tiled field into a presentable artifact. A Frame is centered and parameter-driven (size / aspect / rotation) and has a *type* — either it follows whole repeat units (an n-ring of neighbouring **Patch** stamps; boundary = the outline of the stamped block) or it imposes a geometric shape (square, √2 rectangle, hexagon, octagon, or a traditional shape such as an arch). The Frame's region is what the **Decoration** Phase fills (ADR-0003). Framing is structural only: it defines the Frame's region and border *geometry* (whether a border exists and where the line sits), but all border *styling* (colour, width, weave) belongs to **Decoration**. There is a single noun — *Frame* — distinguished by its type; the variants are not separate families.
+_Avoid_: crop, mask, clip, window (those are mechanisms or metaphors, not the noun); "Tiling frame" / "Shape frame" (rejected — one noun, Frame, with a type)
 
 **Decoration** _(Phase, reserved)_:
 Final Phase where the user assigns line colours, gap fills, and reintroduced strand weaving. Not yet implemented — placeholder name only. The future **Fill** vocabulary lives here (colour-fill of gaps), which is why the Design-phase operation is called **Complete**, not Fill.

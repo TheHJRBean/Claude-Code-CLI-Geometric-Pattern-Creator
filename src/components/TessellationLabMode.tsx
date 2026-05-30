@@ -1121,27 +1121,56 @@ function EditorDesignControls({
             every corner.
           </div>
           {!editor.frame ? (
-            <button
-              onClick={() => dispatch({
-                type: 'SET_FRAME',
-                payload: { type: 'shape', shape: 'square', size: DEFAULT_FRAME_SIZE, boundaryTreatment: 'complete' },
-              })}
-              style={{
-                width: '100%',
-                padding: '7px 0',
-                fontFamily: "'Cinzel', Georgia, serif",
-                fontSize: 10,
-                fontWeight: 600,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                cursor: 'pointer',
-                color: 'var(--accent)',
-                background: 'var(--accent-bg)',
-                border: '1px solid var(--accent)',
-              }}
-            >
-              + Add Frame
-            </button>
+            // Default state on entering Framing: no Frame imposed (the phase
+            // stays non-destructive until the user opts in). Both Frame types
+            // are offered directly so the n-ring isn't buried behind a
+            // shape-frame-then-switch detour.
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <button
+                onClick={() => dispatch({
+                  type: 'SET_FRAME',
+                  payload: { type: 'shape', shape: 'square', size: DEFAULT_FRAME_SIZE, boundaryTreatment: 'complete' },
+                })}
+                style={{
+                  width: '100%',
+                  padding: '7px 0',
+                  fontFamily: "'Cinzel', Georgia, serif",
+                  fontSize: 10,
+                  fontWeight: 600,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  color: 'var(--accent)',
+                  background: 'var(--accent-bg)',
+                  border: '1px solid var(--accent)',
+                }}
+              >
+                + Shape Frame
+              </button>
+              <button
+                onClick={() => dispatch({
+                  type: 'SET_FRAME',
+                  payload: { type: 'n-ring', rings: DEFAULT_FRAME_RINGS },
+                })}
+                disabled={!nRingSupported}
+                title={nRingSupported ? undefined : 'n-Ring frames need a single-cell square, hexagon, or triangle Patch.'}
+                style={{
+                  width: '100%',
+                  padding: '7px 0',
+                  fontFamily: "'Cinzel', Georgia, serif",
+                  fontSize: 10,
+                  fontWeight: 600,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  cursor: nRingSupported ? 'pointer' : 'default',
+                  color: nRingSupported ? 'var(--accent)' : 'var(--border-subtle)',
+                  background: nRingSupported ? 'var(--accent-bg)' : 'transparent',
+                  border: `1px solid ${nRingSupported ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                }}
+              >
+                + n-Ring Frame
+              </button>
+            </div>
           ) : (
             <>
               <FieldLabel

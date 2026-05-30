@@ -6,39 +6,25 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
-**2026-05-30 — Framing Phase: design mapped + implementation started.** Builder Phase 3 (Design → Composition → **Framing** → Decoration). Full design grill in `memory/project_framing_stage_idea.md`; glossary in `CONTEXT.md` (**Frame** / **Frame node**); ADR-0004 (Framing is structural-only — border styling deferred to Decoration). ADR-0003 locks the phase sequence.
+**2026-05-30 — Framing Phase (Builder Phase 3: Design → Composition → **Framing** → Decoration).** Design rationale + full status live in `memory/project_framing_stage_idea.md` (**canonical**); glossary in `CONTEXT.md` (**Frame** / **Frame node**); ADR-0003 (phase sequence), ADR-0004 (Framing structural-only). Frame config on `PatternConfig.editor` (Builder-only). This block is the per-slice **commit log** only — see the memo for the why.
 
-**Design (Q1–Q11):** Builder-only (frame config on `PatternConfig.editor`, not root); one noun **Frame** distinguished by *type*; Frame **doubles as a completion boundary** — pattern tiled OUT to the edge, **Frame nodes** spaced at exact seed `edgeLength`, mid-edge stub → irregular Complete fallback, hard clip = fallback only; frame centred on `frameOrigin` (default `(0,0)`, pickable); v1 roster = parametric Shape frames (square / √2 / hexagon / octagon) + n-ring (clip-only). Boundary-completion tiles are **frame-scoped** (world space, NOT Cell Tiles — they don't repeat under the Lattice); PIC runs over them via tile-type Figure recipes so Strands reach the edge.
+**Slices shipped (WIP-committed on this branch):**
+1. Phase scaffold (`10a0ce8`) — `editorPhase` gains `'framing'`; renders the stamped Composition.
+2. Frame data model (`c554c08`) — `FrameConfig` on `EditorConfig`; `SET_FRAME` + history + `migrateFrame`.
+3. Outline + clip + UI (`637e384`) — `frame.ts::frameOutlinePolygon` (square/hex/oct); PatternSVG clips to it.
+4. Frame nodes (`41a24b2`) — `computeFrameSections` (exact edgeLength spacing + `isStub` remainder).
+5. Completion-to-frame (`4b30d64`+`ab68691`) — `placeRegularNGonOnFrameSection`; `EDITOR_PLACE_TILE_ON_FRAME_SECTION` → frame-scoped `completedTiles`.
+6. PIC over frame tiles (`4cc859c`) — `usePattern` appends `completedTiles` to the PIC input.
+7. Field bounding (`7a8fc3d`) — keep stamped tiles whose centre is inside the frame (Q12).
+8a. Auto-fill (`91f9ba3`) — `EDITOR_COMPLETE_TO_FRAME` + Complete/Clear buttons.
+8b. Aspect/rotation/origin (`1f985a5`) + node-symmetry fix (`d4ea3a2`, centred half-stubs).
+9. Irregular stub fallback (`a75620f`) — `frame.ts::frameCornerStubTiles`, one corner-notch tile per Frame corner.
+10. n-ring clip-only type (`3c1c31b`) — `editor/frameNRing.ts` (`nRingCellStamps` / `unionOutline` / `nRingOutline`); single-cell square/hex/triangle; Frame-type select + Rings slider. **Browser-verify pending.**
+11. Default-state UX (`ce5ba92`) — Framing is non-destructive; empty state offers both Frame types directly.
 
-**Implementation slices (WIP-committed):**
-1. ✅ Phase scaffold (`10a0ce8`) — `editorPhase` union gains `'framing'`, 3rd tab; framing renders the stamped Composition.
-2. ✅ Frame data model (`c554c08`) — `FrameConfig` on `EditorConfig`; `SET_FRAME` action + history + `migrateFrame`.
-3. ✅ Frame outline + clip render + basic UI (`637e384`) — `editor/frame.ts::frameOutlinePolygon` (square/hex/oct); PatternSVG clips pattern to the outline; Framing panel = Add Frame + shape select + size slider + Remove.
-4. ✅ Frame nodes (`41a24b2`) — `computeFrameSections` (exact edgeLength spacing + isStub remainder); nodes rendered as dots; 9 tests.
-5. ✅ Completion-to-frame (`4b30d64` + `ab68691`) — `placeRegularNGonOnFrameSection`; `EDITOR_PLACE_TILE_ON_FRAME_SECTION` → frame-scoped `completedTiles`; click a frame section to place the seed-sided Tile; rendered inside the clip. (Auto-fill + irregular stub fallback still TODO.)
-6. ✅ PIC over frame tiles (`4cc859c`) — `usePattern` editorFraming branch appends `frame.completedTiles` to the PIC input; strands flow through them.
-7. ✅ Field bounding (`7a8fc3d`) — keep stamped tiles whose centre is inside the frame (Q12), opening the gap completion fills (no overlap).
-8a. ✅ Auto-fill (`91f9ba3`) — `EDITOR_COMPLETE_TO_FRAME` fills every full section in one click; `Complete to Frame` + `Clear Tiles` buttons.
+**⏸ ON HOLD — complete-to-frame redesign.** User: "very janky — just overlays a single layer of tiles all around the edge." Full diagnosis + the options floated are in the memo ("Complete-to-frame — ON HOLD"). Root: the completion ring is **frame-edge-aligned** but the field is **lattice-aligned** → offset + overlap; clean tile-aligned completion needs the frame to match the lattice (the n-ring already is that). **User is writing a detailed spec — do NOT touch complete-to-frame or its dependents (wrap-to-whole-patch A/B, symmetry-orbit on completion) until it lands.**
 
-8b. ✅ Aspect / rotation / origin controls (`1f985a5`) — aspect slider + 1:1/√2 snap, rotation 0–360°, origin X/Y sliders; `updateFrameGeom` clears the stale completion ring on geometry edits.
-- ✅ Node-symmetry fix (`d4ea3a2`) — `computeFrameSections` now centres full sections per edge with two equal half-stubs (was: stub dumped at far corner → nodes clustered/slid asymmetrically on resize). Symmetric about each edge midpoint.
-
-9. ✅ Irregular **stub** fallback (slice 9, `a75620f`) — `frame.ts::frameCornerStubTiles(outline, edgeLength, idPrefix)`. With the centred-section model each edge leaves two equal half-stubs (one per corner); at every Frame corner the two incident half-stubs + the corner form a triangular notch `[B, C, A]` (C = corner; A = leading half-stub inner end = first full-section Tile's base vertex; B = trailing half-stub inner end). Emits one irregular `source:'completed'` Tile per corner (reuses `complete.ts::ensureCCW`), skipping corners where a stub vanishes (even division → degenerate). Wired into `EDITOR_COMPLETE_TO_FRAME` (appended after the full-section regular Tiles); PIC already runs over `frame.completedTiles` so Strands reach the corners. UI copy updated; 5 new tests.
-
-10. ✅ **n-ring** clip-only Frame type (slice 10) — design RESOLVED (see framing memo "n-ring frame — design RESOLVED") + built. `editor/frameNRing.ts`: `nRingCellStamps(cell, rings)` (square → box ring, hexagon → hex-distance ring, triangle → orientation-tracking edge-adjacency BFS), `unionOutline(polygons)` (directed-edge cancellation + cycle chaining + collinear merge — generalises `boundary.ts::computeAllCycles`, no polygon-boolean lib), `nRingOutline(cell, rings)`. v1 = single-cell square/hex/triangle (octagon/dodecagon + multi-cell return null). Clip-only: `frameOutlinePolygon` stays null for n-ring; Canvas `frameOutline` memo branches to `nRingOutline(activeCell, rings)`; `frameSections`/nodes gated to `type==='shape'`; `usePattern` framing branch untouched (clip is visual). UI: Frame-**type** select (Shape / n-Ring, n-Ring disabled unless single-cell sq/hex/tri) + Rings slider (0–6). `expandedLattice` exported from `lattice.ts`; `migrateFrame` rings floor loosened to ≥ 0. 11 new tests (195 total pass). **Browser verification pending** — sweep rings on square/hex/triangle single-cell patches in Framing.
-
-**⏸ ON HOLD — complete-to-frame redesign (user will spec).** 2026-05-30: user reports complete-to-frame is "very janky — just overlays a single layer of tiles all around the edge." Diagnosis: the completion ring is placed flush to the **frame edge** while the interior field is on the **lattice** (multiples of `edgeLength` from origin). A square frame size 400 has its edge at ≈283 — not a lattice multiple — so the ring is offset from the field. Worse, `usePattern` field-bounding keeps tiles whose **centre** is inside the outline, so edge-straddling tiles poke out and the full-size completion ring is laid on top of them → overlapping/doubled tiles. Root tension: a clean tile-aligned completion to a *parametric* frame edge is only possible when the frame matches the lattice (square↔square size = k·edgeLength; hex↔hex); the **n-ring frame already is** the clean tile-aligned option. Options floated (square-lattice-snap / shape=clip-only / fix-overlap-only / wrap-reading-B) — **user paused to write a detailed spec.** Do NOT change complete-to-frame until that spec arrives.
-
-11. ✅ Default-state-on-entering-Framing + Frame-type entry UX (slice 11) — resolved the open "default state" question: the Framing Phase stays **non-destructive** (no auto-imposed Frame) until the user opts in. Empty state now offers **two** direct buttons — "+ Shape Frame" and "+ n-Ring Frame" (latter disabled with a title hint unless single-cell sq/hex/tri) — so the n-ring isn't buried behind an add-shape-then-switch-type detour. tsc + build green.
-
-**Remaining (← resume here):** — everything below is BLOCKED on the held complete-to-frame spec (see ON HOLD above); do not build until it lands.
-- Complete-to-frame redesign — BLOCKED on user spec.
-- **Wrap to nearest whole patch** (two readings A/B) — reading A *is* the lattice-snap completion fix; reading B is field-bound-by-whole-patches. Both feed the completion edge → part of the held spec.
-- Symmetry-orbit on frame completion — completion-coupled → part of the held spec.
-- (Low-priority independent polish, not blocked: `frameOrigin` click-picker — X/Y sliders already exist; Frame node vs Frame section terminology pass.)
-- (Stub-fallback edge case for aspect ≠ 1 frames: a corner joining one even-dividing edge + one stubbed edge leaves a thin uncovered sliver — `frameCornerStubTiles` skips the degenerate notch. Acceptable for v1; revisit if visible.)
-
-**Resume:** continue from the latest `wip:` commit on this branch. `editorPhase` is local UI state (not persisted); frame *settings* persist on `EditorConfig`. Still-open: default state on entering Framing, `frameOrigin` picker UX, auto-complete-to-frame vs manual, symmetry-orbit on completion, **Frame node** vs **Frame section** term.
+**Resume:** continue from the latest `wip:` on this branch. `editorPhase` is local UI state (not persisted); frame *settings* persist on `EditorConfig`. Not blocked: `frameOrigin` click-picker (X/Y sliders already exist), Frame node/section terminology pass. Known minor: the stub fallback skips a thin corner sliver on aspect≠1 frames (degenerate notch; revisit if visible).
 
 ---
 

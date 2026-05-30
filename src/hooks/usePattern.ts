@@ -6,7 +6,7 @@ import type { ViewTransform } from './usePanZoom'
 import { TILINGS } from '../tilings/index'
 import { generateTiling } from '../tilings/archimedean'
 import { generateRosettePatch } from '../tilings/rosettePatch'
-import { editorBoundaryVertices, editorTilesToPolygons } from '../editor/buildEditorPolygons'
+import { editorBoundaryVertices, editorTilesToPolygons, tilesToPolygons } from '../editor/buildEditorPolygons'
 import { editorLatticeStamps, editorOneRingNeighbourStamps } from '../editor/lattice'
 import {
   compositionBoundaryOutlines,
@@ -69,6 +69,9 @@ export function usePattern(
   editorNeighbourBoundaries = false,
   /** Step 17.6d — Design-Phase neighbour preview: include ghosts in the PIC input so Strands flow across boundaries. */
   editorNeighbourStrands = false,
+  /** Step 17 Framing — when true, include the Frame's completion Tiles in the
+   * PIC input so Strands flow out to the frame edge through them. */
+  editorFraming = false,
 ): PatternData {
   // Visible viewport in world coordinates
   const vw = containerWidth / viewTransform.zoom
@@ -197,6 +200,13 @@ export function usePattern(
           })
         }
       }
+      // Step 17 Framing — include the Frame's completion Tiles (world space,
+      // added once — they don't repeat under the Lattice) in the PIC input so
+      // Strands flow out to the frame edge through them, using each Tile's
+      // own tile-type Figure recipe (already in `config.figures`).
+      if (editorFraming && patch.frame?.completedTiles?.length) {
+        polygons.push(...tilesToPolygons(patch.frame.completedTiles))
+      }
       const segments = runPIC(polygons, config)
       // Boundary outlines are opt-in in Composition Phase (showBoundaryLattice).
       // Multi-cell emits one outline per Cell per stamp (octagon + square × N
@@ -233,5 +243,5 @@ export function usePattern(
     const segments = runPIC(polygons, config)
 
     return { polygons, segments }
-  }, [config, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview, editorNeighbourBoundaries, editorNeighbourStrands])
+  }, [config, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview, editorNeighbourBoundaries, editorNeighbourStrands, editorFraming])
 }

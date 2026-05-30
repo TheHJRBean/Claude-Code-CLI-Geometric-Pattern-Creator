@@ -77,6 +77,7 @@ export type Action =
   | { type: 'SET_BUILDER_CONFIGURATION'; payload: ConfigurationId | null }
   | { type: 'SET_FRAME'; payload: FrameConfig | null }
   | { type: 'EDITOR_PLACE_TILE_ON_FRAME_SECTION'; payload: { edgeIndex: number; sectionIndex: number; sides: number } }
+  | { type: 'EDITOR_COMPLETE_TO_FRAME'; payload: { sides: number } }
   // Switch which Cell the user is editing in Design Phase (multi-Cell only).
   // Pure pane swap — does NOT push a history snapshot.
   | { type: 'SET_ACTIVE_CELL'; payload: { cellId: string } }

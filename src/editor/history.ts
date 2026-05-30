@@ -74,4 +74,5 @@ export const DESIGN_MODE_ACTIONS: ReadonlySet<string> = new Set([
   // placements are undoable.
   'SET_FRAME',
   'EDITOR_PLACE_TILE_ON_FRAME_SECTION',
+  'EDITOR_COMPLETE_TO_FRAME',
 ])

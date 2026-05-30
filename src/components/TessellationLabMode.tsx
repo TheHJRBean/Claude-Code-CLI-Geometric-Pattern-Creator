@@ -1165,6 +1165,51 @@ function EditorDesignControls({
                 })}
                 style={{ width: '100%', marginBottom: 10 }}
               />
+              <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+                <button
+                  onClick={() => dispatch({
+                    type: 'EDITOR_COMPLETE_TO_FRAME',
+                    payload: { sides: activeCell(editor).seedSides },
+                  })}
+                  style={{
+                    flex: 1,
+                    padding: '6px 0',
+                    fontFamily: "'Cinzel', Georgia, serif",
+                    fontSize: 9,
+                    fontWeight: 600,
+                    letterSpacing: '0.06em',
+                    textTransform: 'uppercase',
+                    cursor: 'pointer',
+                    color: 'var(--accent)',
+                    background: 'var(--accent-bg)',
+                    border: '1px solid var(--accent)',
+                  }}
+                >
+                  Complete to Frame
+                </button>
+                <button
+                  onClick={() => dispatch({
+                    type: 'SET_FRAME',
+                    payload: { ...editor.frame!, completedTiles: [] },
+                  })}
+                  disabled={!editor.frame.completedTiles?.length}
+                  style={{
+                    flex: 1,
+                    padding: '6px 0',
+                    fontFamily: "'Cinzel', Georgia, serif",
+                    fontSize: 9,
+                    fontWeight: 600,
+                    letterSpacing: '0.06em',
+                    textTransform: 'uppercase',
+                    cursor: editor.frame.completedTiles?.length ? 'pointer' : 'default',
+                    color: editor.frame.completedTiles?.length ? 'var(--text-muted)' : 'var(--border-subtle)',
+                    background: 'transparent',
+                    border: '1px solid var(--border-subtle)',
+                  }}
+                >
+                  Clear Tiles
+                </button>
+              </div>
               <button
                 onClick={() => dispatch({ type: 'SET_FRAME', payload: null })}
                 style={{

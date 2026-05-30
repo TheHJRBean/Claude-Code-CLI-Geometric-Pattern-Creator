@@ -1,5 +1,5 @@
 import type { Polygon } from '../types/geometry'
-import type { CellShape, EditorCell } from '../types/editor'
+import type { CellShape, EditorCell, EditorTile } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import { regularPolygonVertices } from './regularPolygon'
 import { centroid } from '../utils/math'
@@ -60,8 +60,18 @@ export function editorBoundaryVertices(cell: EditorCell): Vec2[] {
  * viewport awareness — the Cell is finite by construction.
  */
 export function editorTilesToPolygons(cell: EditorCell): Polygon[] {
+  return tilesToPolygons(cell.tiles)
+}
+
+/**
+ * Convert a list of (world-space) Tiles into runtime `Polygon[]`. Used by
+ * `editorTilesToPolygons` for a Cell's Tiles, and by the Framing Phase for
+ * frame-scoped completion Tiles (`frame.completedTiles`), which already live
+ * in world coordinates.
+ */
+export function tilesToPolygons(tiles: EditorTile[]): Polygon[] {
   const polys: Polygon[] = []
-  for (const tile of cell.tiles) {
+  for (const tile of tiles) {
     if (tile.kind === 'regular') {
       polys.push({
         id: tile.id,

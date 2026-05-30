@@ -696,6 +696,13 @@ export function TessellationLabMode({
         }}
         editorStrandMode={editorPhase !== 'design'}
         editorFraming={editorPhase === 'framing'}
+        onPlaceTileOnFrameSection={(edgeIndex, sectionIndex) => {
+          if (!config.editor) return
+          dispatch({
+            type: 'EDITOR_PLACE_TILE_ON_FRAME_SECTION',
+            payload: { edgeIndex, sectionIndex, sides: activeCell(config.editor).seedSides },
+          })
+        }}
         showBoundaryLattice={showBoundaryLattice}
         editorNeighbourPreview={editorPhase === 'design' && showNeighbours && !(config.editor && activeCell(config.editor).wrapBoundary)}
         editorNeighbourBoundaries={showNeighbourBoundaries}
@@ -1096,8 +1103,10 @@ function EditorDesignControls({
             border: '1px solid var(--border-subtle)',
           }}>
             Wrap the Composition in a <strong>Frame</strong> — the pattern is
-            clipped to its outline. Completion-to-frame (tiling out to the edge)
-            and aspect / rotation / origin controls arrive in later slices.
+            clipped to its outline. <strong>Click a frame edge</strong> (between
+            nodes) to tile a Seed-shaped Tile out to it. Auto-complete, the
+            irregular stub fallback, and aspect / rotation / origin controls
+            arrive in later slices.
           </div>
           {!editor.frame ? (
             <button

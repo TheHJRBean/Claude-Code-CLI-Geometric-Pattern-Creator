@@ -1,4 +1,13 @@
-import type { BoundarySection } from '../editor/boundaryInward'
+import type { Vec2 } from '../utils/math'
+
+/** Minimal section shape the layer renders — satisfied by both
+ * `BoundarySection` (boundary-inward) and `FrameSection` (Framing). */
+export interface SectionLike {
+  edgeIndex: number
+  sectionIndex: number
+  p1: Vec2
+  p2: Vec2
+}
 
 /**
  * Step 17.12c — interactive Boundary-section layer rendered above the Tile
@@ -23,14 +32,14 @@ export interface SectionKey {
 }
 
 interface Props {
-  sections: BoundarySection[]
+  sections: SectionLike[]
   selected: SectionKey | null
   onSelect: (section: SectionKey | null) => void
   hovered: SectionKey | null
   onHover: (section: SectionKey | null) => void
 }
 
-function sameSection(a: SectionKey | null, s: BoundarySection): boolean {
+function sameSection(a: SectionKey | null, s: SectionLike): boolean {
   return !!a && a.edgeIndex === s.edgeIndex && a.sectionIndex === s.sectionIndex
 }
 

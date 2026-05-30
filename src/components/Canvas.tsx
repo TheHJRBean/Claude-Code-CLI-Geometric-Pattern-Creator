@@ -4,6 +4,7 @@ import type { Segment } from '../types/geometry'
 import type { Vec2 } from '../utils/math'
 import { usePattern } from '../hooks/usePattern'
 import { frameOutlinePolygon, computeFrameSections, frameNodePoints } from '../editor/frame'
+import { tilesToPolygons } from '../editor/buildEditorPolygons'
 import { usePanZoom, type ViewTransform } from '../hooks/usePanZoom'
 import { PatternSVG } from '../rendering/PatternSVG'
 import { RotationDial } from './RotationDial'
@@ -135,11 +136,14 @@ interface Props {
   /** Step 17 Framing — when true (Framing Phase), clip the Composition to the
    * Patch's Shape Frame outline and draw the outline. */
   editorFraming?: boolean
+  /** Step 17 Framing — click a Frame section to place a completion Tile flush
+   * to it (the seed-sided n-gon). Edge / section index identify the section. */
+  onPlaceTileOnFrameSection?: (edgeIndex: number, sectionIndex: number) => void
 }
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, editorMode = 'place', picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFraming = false }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, editorMode = 'place', picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFraming = false, onPlaceTileOnFrameSection }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -183,15 +187,35 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     () => (editorFraming && config.editor?.frame ? frameOutlinePolygon(config.editor.frame) : null),
     [editorFraming, config.editor?.frame],
   )
-  // Frame nodes — spaced one seed edgeLength apart along the outline. The
-  // foundation for completion-to-frame (slice 5); rendered as dots for now.
+  // Frame sections — segments spaced one seed edgeLength apart along the
+  // outline. Nodes render as dots; full sections are click targets for
+  // completion-to-frame (slice 5).
   const editorEdgeLength = config.editor?.edgeLength
-  const frameNodes = useMemo(
-    () => (frameOutline && editorEdgeLength
-      ? frameNodePoints(computeFrameSections(frameOutline, editorEdgeLength))
-      : null),
+  const frameSections = useMemo(
+    () => (frameOutline && editorEdgeLength ? computeFrameSections(frameOutline, editorEdgeLength) : null),
     [frameOutline, editorEdgeLength],
   )
+  const frameNodes = useMemo(() => (frameSections ? frameNodePoints(frameSections) : null), [frameSections])
+  // Frame-scoped completion Tiles (world space) → render polygons.
+  const frameCompletedTiles = config.editor?.frame?.completedTiles
+  const frameTiles = useMemo(
+    () => (editorFraming && frameCompletedTiles && frameCompletedTiles.length > 0
+      ? tilesToPolygons(frameCompletedTiles)
+      : null),
+    [editorFraming, frameCompletedTiles],
+  )
+  const [frameHover, setFrameHover] = useState<SectionKey | null>(null)
+  // Interactive Frame-section overlay (full sections only; stubs are reserved
+  // for the irregular fallback). Clicking a section places the seed-sided Tile.
+  const frameOverlay = editorFraming && frameSections && onPlaceTileOnFrameSection ? (
+    <EditorBoundaryInwardLayer
+      sections={frameSections.filter(s => !s.isStub)}
+      selected={null}
+      onSelect={key => { if (key) onPlaceTileOnFrameSection(key.edgeIndex, key.sectionIndex) }}
+      hovered={frameHover}
+      onHover={setFrameHover}
+    />
+  ) : null
 
   const resetCamera = useCallback(() => {
     setViewTransform({
@@ -651,9 +675,10 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         ghostPolygons={ghostPolygons}
         seedOutlineCount={seedOutlineCount}
         ghostPolygonIds={ghostPolygonIds}
-        editorOverlay={editorOverlay}
+        editorOverlay={editorFraming ? frameOverlay : editorOverlay}
         frameOutline={frameOutline}
         frameNodes={frameNodes}
+        frameTiles={frameTiles}
       />
       {pickerScreenPos && onPlaceTile && onSelectEdge && selectedEdgeData && (
         <EditorPickerOverlay

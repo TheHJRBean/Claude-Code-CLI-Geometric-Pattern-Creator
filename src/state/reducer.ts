@@ -434,6 +434,15 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         editor: { ...state.editor, autoComplete: { ...prev, enabled: action.payload } },
       }
     }
+    case 'SET_FRAME': {
+      if (!state.editor) return state
+      // `null` clears the Frame. Setting / replacing stores it on the Patch.
+      const frame = action.payload ?? undefined
+      return {
+        ...state,
+        editor: { ...state.editor, frame },
+      }
+    }
     case 'EDITOR_RUN_AUTO_COMPLETE': {
       if (!state.editor) return state
       return applyWrap(seedFigures(updateActiveCell(state, cell => {

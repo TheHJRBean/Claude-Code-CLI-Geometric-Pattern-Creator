@@ -180,6 +180,53 @@ export interface EditorCell {
 }
 
 /**
+ * Step 17 Framing — Frame *type*. There is a single noun, **Frame**
+ * (CONTEXT.md), distinguished by its type:
+ * - `'shape'`  — an imposed geometric outline (square / hexagon / octagon;
+ *   `aspect` ≠ 1 gives the √2 rectangle). Doubles as a *completion boundary*:
+ *   the pattern is tiled out to the edge with **Frame nodes** spaced one seed
+ *   `edgeLength` apart; hard clip is the fallback.
+ * - `'n-ring'` — N shells of neighbouring Patch stamps; clip-only (no gap).
+ */
+export type FrameType = 'shape' | 'n-ring'
+
+/** Outline shape of a `'shape'`-type Frame. The √2 rectangle is `'square'`
+ * with `aspect = √2`. */
+export type FrameShape = 'square' | 'hexagon' | 'octagon'
+
+/** How the pattern meets a Shape Frame's edge: tiled out to it, or clipped. */
+export type FrameBoundaryTreatment = 'complete' | 'clip'
+
+/**
+ * Step 17 Framing — the **Frame** wrapped around the Composition in the
+ * Framing Phase. Lives on `PatternConfig.editor` (Builder-only). Optional;
+ * absent ⇒ no Frame. Structural only (ADR-0004): geometry lives here, border
+ * *styling* defers to Decoration.
+ */
+export interface FrameConfig {
+  type: FrameType
+  /** Frame centre in world coordinates. Default `(0, 0)` (`frameOrigin`). */
+  origin?: Vec2
+  // ── Shape frames ──
+  /** Outline shape. */
+  shape?: FrameShape
+  /** Half-extent in world units (centre → edge before aspect/rotation). */
+  size?: number
+  /** Width/height aspect ratio. `1` = regular; `√2` = A-series rectangle. */
+  aspect?: number
+  /** Rotation in radians about `origin`. */
+  rotation?: number
+  /** How the pattern meets the edge. Default `'complete'`. */
+  boundaryTreatment?: FrameBoundaryTreatment
+  /** Frame-scoped boundary-completion Tiles, in world space. NOT Cell Tiles —
+   * they don't repeat under the **Lattice**. Populated by completion-to-frame. */
+  completedTiles?: EditorTile[]
+  // ── n-ring frames ──
+  /** Number of Patch-stamp shells (≥ 1). */
+  rings?: number
+}
+
+/**
  * A Patch — one repeat unit of the tiled Composition. Always carries one or
  * more **Cells** (ADR-0001: every Patch always has Cells). The Patch level
  * holds the shared **Lattice** edge length, the active-Cell pointer for
@@ -203,6 +250,9 @@ export interface EditorPatch {
    * back-compat; absent / `enabled: false` means phase-switching to
    * Composition never mutates Tiles. Patch-level (applies to every Cell). */
   autoComplete?: EditorAutoCompleteSettings
+  /** Step 17 Framing — the **Frame** wrapping the Composition. Optional;
+   * absent ⇒ no Frame. Set in the Framing Phase. */
+  frame?: FrameConfig
 }
 
 export interface EditorConfig extends EditorPatch {

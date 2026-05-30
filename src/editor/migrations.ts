@@ -136,7 +136,8 @@ function migrateFrame(raw: unknown): FrameConfig | undefined {
   if (r.boundaryTreatment === 'complete' || r.boundaryTreatment === 'clip') {
     out.boundaryTreatment = r.boundaryTreatment
   }
-  if (typeof r.rings === 'number' && r.rings >= 1) out.rings = Math.floor(r.rings)
+  // 0 rings = the centre Patch alone (a single-Patch clip), still valid.
+  if (typeof r.rings === 'number' && r.rings >= 0) out.rings = Math.floor(r.rings)
   if (Array.isArray(r.completedTiles)) {
     const tiles: EditorTile[] = []
     for (const t of r.completedTiles) {

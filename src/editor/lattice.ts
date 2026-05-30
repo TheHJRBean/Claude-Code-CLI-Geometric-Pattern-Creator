@@ -80,7 +80,7 @@ interface ExpandedLattice {
   intraStamps: LatticeStamp[]
 }
 
-function expandedLattice(cell: EditorCell): ExpandedLattice | null {
+export function expandedLattice(cell: EditorCell): ExpandedLattice | null {
   if (cell.shape === 'triangle') {
     const verts = editorBoundaryVertices(cell)
     if (verts.length !== 3) return null

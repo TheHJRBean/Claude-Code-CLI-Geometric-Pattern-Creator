@@ -4,6 +4,7 @@ import type { Segment } from '../types/geometry'
 import type { Vec2 } from '../utils/math'
 import { usePattern } from '../hooks/usePattern'
 import { frameOutlinePolygon, computeFrameSections, frameNodePoints } from '../editor/frame'
+import { nRingOutline, DEFAULT_FRAME_RINGS } from '../editor/frameNRing'
 import { usePanZoom, type ViewTransform } from '../hooks/usePanZoom'
 import { PatternSVG } from '../rendering/PatternSVG'
 import { RotationDial } from './RotationDial'
@@ -180,20 +181,29 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     editorFraming,
   )
 
-  // Step 17 Framing — the Shape Frame outline to clip the Composition to.
-  // Pure geometry from the Patch's frame config; only shown in the Framing
-  // Phase. n-ring frames (and absent frames) yield null → no clip.
-  const frameOutline = useMemo(
-    () => (editorFraming && config.editor?.frame ? frameOutlinePolygon(config.editor.frame) : null),
-    [editorFraming, config.editor?.frame],
-  )
+  // Step 17 Framing — the Frame outline to clip the Composition to, only in
+  // the Framing Phase. Shape Frames give a parametric outline; n-ring Frames
+  // give the outer boundary of the centre Patch + N neighbour shells (clip
+  // only). Absent / unsupported frames yield null → no clip.
+  const frameOutline = useMemo(() => {
+    const frame = editorFraming ? config.editor?.frame : undefined
+    if (!frame || !config.editor) return null
+    if (frame.type === 'n-ring') {
+      const patch = config.editor
+      const active = patch.cells.find(c => c.id === patch.activeCellId) ?? patch.cells[0]
+      return active ? nRingOutline(active, frame.rings ?? DEFAULT_FRAME_RINGS) : null
+    }
+    return frameOutlinePolygon(frame)
+  }, [editorFraming, config.editor])
   // Frame sections — segments spaced one seed edgeLength apart along the
   // outline. Nodes render as dots; full sections are click targets for
-  // completion-to-frame (slice 5).
+  // completion-to-frame (slice 5). Shape Frames only — n-ring Frames are
+  // clip-only (no nodes, no completion).
   const editorEdgeLength = config.editor?.edgeLength
+  const isShapeFrame = editorFraming && config.editor?.frame?.type === 'shape'
   const frameSections = useMemo(
-    () => (frameOutline && editorEdgeLength ? computeFrameSections(frameOutline, editorEdgeLength) : null),
-    [frameOutline, editorEdgeLength],
+    () => (isShapeFrame && frameOutline && editorEdgeLength ? computeFrameSections(frameOutline, editorEdgeLength) : null),
+    [isShapeFrame, frameOutline, editorEdgeLength],
   )
   const frameNodes = useMemo(() => (frameSections ? frameNodePoints(frameSections) : null), [frameSections])
   // Frame-scoped completion Tiles render through usePattern's `polygons` (so

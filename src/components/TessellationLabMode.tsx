@@ -1111,8 +1111,9 @@ function EditorDesignControls({
           }}>
             Wrap the Composition in a <strong>Frame</strong> — the pattern is
             clipped to its outline. <strong>Complete to Frame</strong> (or click
-            individual frame edges) tiles the Seed shape out to the edge. The
-            irregular stub fallback arrives in a later slice.
+            individual frame edges) tiles the Seed shape out to the edge, with
+            irregular corner fills closing the remainders so the pattern reaches
+            every corner.
           </div>
           {!editor.frame ? (
             <button

@@ -27,7 +27,7 @@ import { completeNGap } from '../editor/completeN'
 import { boundarySymmetries, applySym } from '../editor/symmetry'
 import { autoCompleteCell, fitBoundarySize } from '../editor/autoComplete'
 import { computeBoundarySections, isBoundarySectionPlacementViable, placeRegularNGonOnBoundarySection, placeTilesOnBoundarySectionOrbit } from '../editor/boundaryInward'
-import { frameOutlinePolygon, computeFrameSections, placeRegularNGonOnFrameSection } from '../editor/frame'
+import { frameOutlinePolygon, computeFrameSections, placeRegularNGonOnFrameSection, frameCornerStubTiles } from '../editor/frame'
 import { DEFAULT_EDITOR_FIGURE, seedFiguresForEditor } from '../editor/tileTypes'
 import { activeCell, allCells, withActiveCell } from '../editor/active'
 import {
@@ -469,8 +469,9 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     case 'EDITOR_COMPLETE_TO_FRAME': {
       // Step 17 Framing — auto-fill: place the chosen n-gon flush to EVERY full
       // Frame section in one gesture (a clean ring hugging the frame edge),
-      // replacing any prior completion Tiles (idempotent / re-runnable). Stub
-      // sections are skipped (irregular fallback, future slice).
+      // replacing any prior completion Tiles (idempotent / re-runnable). The
+      // < edgeLength corner remainders are then closed by the irregular stub
+      // fallback (slice 9), so the pattern reaches every corner cleanly.
       if (!state.editor) return state
       const frame = state.editor.frame
       if (!frame) return state
@@ -481,9 +482,10 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       const tiles = computeFrameSections(outline, state.editor.edgeLength)
         .filter(s => !s.isStub)
         .map((s, i) => placeRegularNGonOnFrameSection(sides, s, `frame-${i}-${stamp}`))
+      const stubTiles = frameCornerStubTiles(outline, state.editor.edgeLength, `frame-stub-${stamp}`)
       return {
         ...state,
-        editor: { ...state.editor, frame: { ...frame, completedTiles: tiles } },
+        editor: { ...state.editor, frame: { ...frame, completedTiles: [...tiles, ...stubTiles] } },
       }
     }
     case 'EDITOR_RUN_AUTO_COMPLETE': {

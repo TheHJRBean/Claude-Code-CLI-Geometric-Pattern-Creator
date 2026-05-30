@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { Vec2 } from '../utils/math'
-import { frameOutlinePolygon, computeFrameSections, frameNodePoints, placeRegularNGonOnFrameSection } from './frame'
+import { frameOutlinePolygon, computeFrameSections, frameNodePoints, placeRegularNGonOnFrameSection, frameCornerStubTiles } from './frame'
 
 /** Axis-aligned 100×100 square outline (CCW). */
 const square100: Vec2[] = [
@@ -119,5 +119,55 @@ describe('placeRegularNGonOnFrameSection', () => {
     const midR = Math.hypot(full.midpoint.x, full.midpoint.y)
     const ctrR = Math.hypot(tile.center.x, tile.center.y)
     expect(ctrR).toBeLessThan(midR)
+  })
+})
+
+describe('frameCornerStubTiles', () => {
+  it('emits one irregular corner fill per Frame corner when stubs exist', () => {
+    // 100-unit edges, edgeLength 30 → 3 full (90) + 5-unit half-stub each corner.
+    const tiles = frameCornerStubTiles(square100, 30)
+    expect(tiles.length).toBe(4)
+    for (const t of tiles) {
+      expect(t.kind).toBe('irregular')
+      expect(t.source).toBe('completed')
+      expect(t.vertices.length).toBe(3)
+    }
+  })
+
+  it('builds right-isosceles corner notches with the expected area', () => {
+    // Each notch has legs = half-stub length (5) along the two incident edges.
+    const tiles = frameCornerStubTiles(square100, 30)
+    const area = (verts: Vec2[]) => {
+      let a2 = 0
+      for (let i = 0; i < verts.length; i++) {
+        const j = (i + 1) % verts.length
+        a2 += verts[i].x * verts[j].y - verts[j].x * verts[i].y
+      }
+      return Math.abs(a2) / 2
+    }
+    for (const t of tiles) expect(area(t.vertices)).toBeCloseTo(12.5, 6)
+  })
+
+  it('shares each notch vertex with the corner and the adjacent full sections', () => {
+    // Corner (0,0): leading stub on edge 0 ends at (5,0); trailing stub on
+    // edge 3 ends at (0,5). The notch must contain all three points.
+    const tiles = frameCornerStubTiles(square100, 30)
+    const corner0 = tiles.find(t =>
+      t.vertices.some(v => Math.hypot(v.x, v.y) < 1e-6),
+    )!
+    const has = (px: number, py: number) =>
+      corner0.vertices.some(v => Math.hypot(v.x - px, v.y - py) < 1e-6)
+    expect(has(0, 0)).toBe(true)
+    expect(has(5, 0)).toBe(true)
+    expect(has(0, 5)).toBe(true)
+  })
+
+  it('emits no corner fills when the edge divides evenly (no stub)', () => {
+    expect(frameCornerStubTiles(square100, 25)).toEqual([])
+  })
+
+  it('returns empty for degenerate input', () => {
+    expect(frameCornerStubTiles([], 10)).toEqual([])
+    expect(frameCornerStubTiles(square100, 0)).toEqual([])
   })
 })

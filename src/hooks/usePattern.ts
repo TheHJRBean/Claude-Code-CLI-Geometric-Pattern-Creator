@@ -15,6 +15,8 @@ import {
   compositionToPolygons,
 } from '../editor/compositionLattice'
 import { activeCell } from '../editor/active'
+import { frameOutlinePolygon } from '../editor/frame'
+import { pointInPolygon } from '../utils/math'
 import { runPIC } from '../pic/index'
 
 export interface PatternData {
@@ -200,14 +202,23 @@ export function usePattern(
           })
         }
       }
-      // Step 17 Framing — include the Frame's completion Tiles (world space,
-      // added once — they don't repeat under the Lattice) in the PIC input so
-      // Strands flow out to the frame edge through them, using each Tile's
+      // Step 17 Framing — bound the stamped field to the Frame so a gap opens
+      // for completion: keep only tiles whose centre is inside the outline
+      // (the field stops ~1 tile short of the edge), then add the completion
+      // Tiles (world space, added once — they don't repeat under the Lattice)
+      // so PIC Strands flow out to the frame edge through them via each Tile's
       // own tile-type Figure recipe (already in `config.figures`).
-      if (editorFraming && patch.frame?.completedTiles?.length) {
-        polygons.push(...tilesToPolygons(patch.frame.completedTiles))
+      let picPolygons = polygons
+      if (editorFraming && patch.frame) {
+        const outline = frameOutlinePolygon(patch.frame)
+        if (outline) {
+          picPolygons = polygons.filter(p => pointInPolygon(p.center, outline))
+          if (patch.frame.completedTiles?.length) {
+            picPolygons = [...picPolygons, ...tilesToPolygons(patch.frame.completedTiles)]
+          }
+        }
       }
-      const segments = runPIC(polygons, config)
+      const segments = runPIC(picPolygons, config)
       // Boundary outlines are opt-in in Composition Phase (showBoundaryLattice).
       // Multi-cell emits one outline per Cell per stamp (octagon + square × N
       // stamps); single-cell emits one outline per stamp.
@@ -229,7 +240,7 @@ export function usePattern(
           }
         }
       }
-      return { polygons, segments, boundaryOutlines }
+      return { polygons: picPolygons, segments, boundaryOutlines }
     }
 
     const def = TILINGS[config.tiling.type]

@@ -1,0 +1,9 @@
+# Framing is a structural-only Phase; styling lives in Decoration
+
+The **Framing** Phase produces geometry only: the **Frame**'s region and its border *geometry* (whether a border exists and where the line sits). All border *styling* — colour, width, weave/lacing — belongs to the **Decoration** Phase, alongside the gap fills and pattern line-colours Decoration already owns.
+
+This is deliberately inconsistent with the **Composition** Phase, which *does* style what it introduces (`StrandStyle { width, color, background }`). We accept that inconsistency in exchange for a clean contract: Framing answers "what is the bounded region and where is its edge?", Decoration answers "what does everything look like?". Decoration needs a defined region to fill (see ADR-0003); making Framing structural-only means the hand-off between the two Phases is a pure piece of geometry — a region polygon plus optional border path — with no styling state to reconcile across the Phase boundary.
+
+The decision is recorded because it is **surprising** (a reader will expect the Frame's border to be styled where the Frame is created, as strands are in Composition), it is the result of a **real trade-off** (UI convenience and Composition-consistency vs. a clean structure/style split), and it is **costly to reverse** — it defines what each Phase's UI contains and what data each Phase owns, so moving border styling between Phases later means moving both UI and config.
+
+Consequence for the v1 cut: the only v1 Frame type is the n-ring (whole **Patch** stamps), whose border is the outline of the stamped block, rendered as a neutral preview in Framing and styled in Decoration. Imposed **Shape** Frames (square / √2 / hexagon / octagon, then traditional arches) and their clip-path machinery are deferred to a later arc. See `CONTEXT.md` for the **Frame** definition and `project_framing_stage_idea.md` for the full design map.

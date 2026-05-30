@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { Vec2 } from '../utils/math'
-import { frameOutlinePolygon, computeFrameSections, frameNodePoints } from './frame'
+import { frameOutlinePolygon, computeFrameSections, frameNodePoints, placeRegularNGonOnFrameSection } from './frame'
 
 /** Axis-aligned 100×100 square outline (CCW). */
 const square100: Vec2[] = [
@@ -77,5 +77,30 @@ describe('computeFrameSections', () => {
   it('frameNodePoints yields one point per section', () => {
     const sections = computeFrameSections(square100, 30)
     expect(frameNodePoints(sections).length).toBe(sections.length)
+  })
+})
+
+describe('placeRegularNGonOnFrameSection', () => {
+  // A square Frame outline centred on origin (so "inward" = toward origin).
+  const frameOutline = frameOutlinePolygon({ type: 'shape', shape: 'square', size: 200 })!
+  const sections = computeFrameSections(frameOutline, 50)
+
+  it('places a Tile with edge length = section length, tagged completed', () => {
+    const full = sections.find(s => !s.isStub)!
+    const tile = placeRegularNGonOnFrameSection(4, full, 'frame-0')
+    expect(tile.kind).toBe('regular')
+    expect(tile.sides).toBe(4)
+    expect(tile.edgeLength).toBeCloseTo(full.length, 6)
+    expect(tile.source).toBe('completed')
+  })
+
+  it('places the Tile on the interior (inward) side of the section', () => {
+    const full = sections.find(s => !s.isStub)!
+    const tile = placeRegularNGonOnFrameSection(6, full, 'frame-1')
+    // Section midpoint sits on the outline; the Tile centre is pushed inward
+    // (toward the frame centre at origin), so it must be strictly closer.
+    const midR = Math.hypot(full.midpoint.x, full.midpoint.y)
+    const ctrR = Math.hypot(tile.center.x, tile.center.y)
+    expect(ctrR).toBeLessThan(midR)
   })
 })

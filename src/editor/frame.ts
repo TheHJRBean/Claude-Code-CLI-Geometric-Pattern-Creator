@@ -1,5 +1,5 @@
 import type { Vec2 } from '../utils/math'
-import type { FrameConfig, FrameShape } from '../types/editor'
+import type { EditorRegularTile, FrameConfig, FrameShape } from '../types/editor'
 
 /**
  * Step 17 Framing — Shape **Frame** outline geometry.
@@ -152,4 +152,43 @@ export function computeFrameSections(outline: Vec2[], edgeLength: number): Frame
  */
 export function frameNodePoints(sections: FrameSection[]): Vec2[] {
   return sections.map(s => s.p1)
+}
+
+/**
+ * Build a regular n-gon flush against a **Frame section**, on the interior
+ * (inward, toward the Frame centre) side, with one edge coincident with the
+ * section. Edge length = the section length (= seed `edgeLength` for full
+ * sections), so the placed Tile tessellates with the interior pattern.
+ *
+ * Mirrors `boundaryInward.ts::placeRegularNGonOnBoundarySection` — the Frame
+ * outline is CCW, so the interior sits to the LEFT of each `p1 → p2` edge, and
+ * the inward normal is the CCW-90° rotation of the edge direction. Tiles are
+ * tagged `source: 'completed'` (frame-scoped completion, ADR-0004).
+ */
+export function placeRegularNGonOnFrameSection(
+  sides: number,
+  section: FrameSection,
+  id: string,
+): EditorRegularTile {
+  const { p1, p2, length } = section
+  const midX = (p1.x + p2.x) / 2
+  const midY = (p1.y + p2.y) / 2
+  const ex = p2.x - p1.x
+  const ey = p2.y - p1.y
+  const elen = Math.hypot(ex, ey) || 1
+  // Inward (interior) normal: CCW-90° rotation of the edge direction.
+  const inX = -ey / elen
+  const inY = ex / elen
+  const apothem = length / (2 * Math.tan(Math.PI / sides))
+  const center: Vec2 = { x: midX + inX * apothem, y: midY + inY * apothem }
+  const rotation = Math.atan2(p1.y - center.y, p1.x - center.x)
+  return {
+    id,
+    kind: 'regular',
+    sides,
+    center,
+    edgeLength: length,
+    rotation,
+    source: 'completed',
+  }
 }

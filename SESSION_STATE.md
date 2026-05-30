@@ -23,11 +23,13 @@
 8b. ✅ Aspect / rotation / origin controls (`1f985a5`) — aspect slider + 1:1/√2 snap, rotation 0–360°, origin X/Y sliders; `updateFrameGeom` clears the stale completion ring on geometry edits.
 - ✅ Node-symmetry fix (`d4ea3a2`) — `computeFrameSections` now centres full sections per edge with two equal half-stubs (was: stub dumped at far corner → nodes clustered/slid asymmetrically on resize). Symmetric about each edge midpoint.
 
+9. ✅ Irregular **stub** fallback (slice 9) — `frame.ts::frameCornerStubTiles(outline, edgeLength, idPrefix)`. With the centred-section model each edge leaves two equal half-stubs (one per corner); at every Frame corner the two incident half-stubs + the corner form a triangular notch `[B, C, A]` (C = corner; A = leading half-stub inner end = first full-section Tile's base vertex; B = trailing half-stub inner end). Emits one irregular `source:'completed'` Tile per corner (reuses `complete.ts::ensureCCW`), skipping corners where a stub vanishes (even division → degenerate). Wired into `EDITOR_COMPLETE_TO_FRAME` (appended after the full-section regular Tiles); PIC already runs over `frame.completedTiles` so Strands reach the corners. UI copy updated; 5 new tests (184 total pass).
+
 **Remaining (← resume here):**
-- n-ring clip-only frame type (`compositionOneRingStamps` + `exposedEdges`).
-- Irregular **stub** fallback (fill the < edgeLength remainder per edge via `complete.ts`).
+- n-ring clip-only frame type (`compositionOneRingStamps` + `exposedEdges`). OPEN DESIGN Q: how to compute the region outline — no polygon-union helper exists; either union the stamped Patch outlines or derive a lattice-basis envelope (parallelogram/hex) × N; single-cell vs multi-cell envelope. Resolve before building.
 - **Wrap to nearest whole patch** (user idea, captured in framing memo open items — two readings A/B).
 - Symmetry-orbit on frame completion; default-state-on-entering-Framing.
+- (Edge case for aspect ≠ 1 frames: a corner joining one even-dividing edge + one stubbed edge leaves a thin uncovered sliver — `frameCornerStubTiles` skips it since the notch degenerates. Acceptable for v1; revisit if visible.)
 
 **Resume:** continue from the latest `wip:` commit on this branch. `editorPhase` is local UI state (not persisted); frame *settings* persist on `EditorConfig`. Still-open: default state on entering Framing, `frameOrigin` picker UX, auto-complete-to-frame vs manual, symmetry-orbit on completion, **Frame node** vs **Frame section** term.
 

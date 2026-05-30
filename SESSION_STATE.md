@@ -21,6 +21,7 @@
 8a. ✅ Auto-fill (`91f9ba3`) — `EDITOR_COMPLETE_TO_FRAME` fills every full section in one click; `Complete to Frame` + `Clear Tiles` buttons.
 
 8b. ✅ Aspect / rotation / origin controls (`1f985a5`) — aspect slider + 1:1/√2 snap, rotation 0–360°, origin X/Y sliders; `updateFrameGeom` clears the stale completion ring on geometry edits.
+- ✅ Node-symmetry fix (`d4ea3a2`) — `computeFrameSections` now centres full sections per edge with two equal half-stubs (was: stub dumped at far corner → nodes clustered/slid asymmetrically on resize). Symmetric about each edge midpoint.
 
 **Remaining (← resume here):**
 - n-ring clip-only frame type (`compositionOneRingStamps` + `exposedEdges`).

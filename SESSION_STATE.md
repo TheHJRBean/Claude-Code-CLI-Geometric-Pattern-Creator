@@ -6,6 +6,24 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
+**2026-05-30 — Framing Phase: design mapped + implementation started.** Builder Phase 3 (Design → Composition → **Framing** → Decoration). Full design grill in `memory/project_framing_stage_idea.md`; glossary in `CONTEXT.md` (**Frame** / **Frame node**); ADR-0004 (Framing is structural-only — border styling deferred to Decoration). ADR-0003 locks the phase sequence.
+
+**Design (Q1–Q11):** Builder-only (frame config on `PatternConfig.editor`, not root); one noun **Frame** distinguished by *type*; Frame **doubles as a completion boundary** — pattern tiled OUT to the edge, **Frame nodes** spaced at exact seed `edgeLength`, mid-edge stub → irregular Complete fallback, hard clip = fallback only; frame centred on `frameOrigin` (default `(0,0)`, pickable); v1 roster = parametric Shape frames (square / √2 / hexagon / octagon) + n-ring (clip-only). Boundary-completion tiles are **frame-scoped** (world space, NOT Cell Tiles — they don't repeat under the Lattice); PIC runs over them via tile-type Figure recipes so Strands reach the edge.
+
+**Implementation slices (WIP-committed):**
+1. Phase scaffold — `editorPhase` union gains `'framing'`, 3rd tab, placeholder panel; framing renders the stamped Composition.  ← IN PROGRESS
+2. Frame data model — `FrameConfig` on `EditorConfig`; reducer actions. Optional field (absent = no frame), no migration bump.
+3. Frame outline geometry (square→√2/hex/oct) centred on `frameOrigin`, size/aspect/rotation; render outline + clip Composition.
+4. Frame nodes — absolute `edgeLength` spacing along outline (NOT boundaryInward's fraction schedule).
+5. Completion-to-frame — reuse `complete.ts` + `boundaryInward.ts`; irregular stub fallback; frame-scoped tiles.
+6. PIC over frame tiles via tile-type recipes.
+7. n-ring clip-only type (`compositionOneRingStamps` + `exposedEdges`).
+8. UI — shape picker, size/aspect/rotation sliders, `frameOrigin` picker.
+
+**Resume:** continue from the latest `wip:` commit on this branch. `editorPhase` is local UI state (not persisted); frame *settings* persist on `EditorConfig`. Still-open: default state on entering Framing, `frameOrigin` picker UX, auto-complete-to-frame vs manual, symmetry-orbit on completion, **Frame node** vs **Frame section** term.
+
+---
+
 **2026-05-22 (session 6) — PIC `figureRouting` toggle.** User asked the honest meta-question: are these problems solvable or a product of the mathematics? Answer: partly mathematical (generic PIC has no canonical answer for degenerate pair-A meetings on irregular tilings; historical Islamic patterns on dual Laves tilings essentially don't exist and use bespoke rosette construction in Taprats, not generic PIC). Given the user can't have one "right" answer, surfaced the trade-off as a user-facing control.
 
 - `PatternConfig.figureRouting?: 'auto' | 'edge' | 'centroid'` (default `auto`). New `SET_FIGURE_ROUTING` action + reducer case. Persisted through `configValidation.readPatternConfig`.

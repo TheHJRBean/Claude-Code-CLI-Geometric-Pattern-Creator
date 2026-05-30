@@ -3,7 +3,7 @@ import type { PatternConfig } from '../types/pattern'
 import type { Segment } from '../types/geometry'
 import type { Vec2 } from '../utils/math'
 import { usePattern } from '../hooks/usePattern'
-import { frameOutlinePolygon } from '../editor/frame'
+import { frameOutlinePolygon, computeFrameSections, frameNodePoints } from '../editor/frame'
 import { usePanZoom, type ViewTransform } from '../hooks/usePanZoom'
 import { PatternSVG } from '../rendering/PatternSVG'
 import { RotationDial } from './RotationDial'
@@ -182,6 +182,15 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   const frameOutline = useMemo(
     () => (editorFraming && config.editor?.frame ? frameOutlinePolygon(config.editor.frame) : null),
     [editorFraming, config.editor?.frame],
+  )
+  // Frame nodes — spaced one seed edgeLength apart along the outline. The
+  // foundation for completion-to-frame (slice 5); rendered as dots for now.
+  const editorEdgeLength = config.editor?.edgeLength
+  const frameNodes = useMemo(
+    () => (frameOutline && editorEdgeLength
+      ? frameNodePoints(computeFrameSections(frameOutline, editorEdgeLength))
+      : null),
+    [frameOutline, editorEdgeLength],
   )
 
   const resetCamera = useCallback(() => {
@@ -644,6 +653,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         ghostPolygonIds={ghostPolygonIds}
         editorOverlay={editorOverlay}
         frameOutline={frameOutline}
+        frameNodes={frameNodes}
       />
       {pickerScreenPos && onPlaceTile && onSelectEdge && selectedEdgeData && (
         <EditorPickerOverlay

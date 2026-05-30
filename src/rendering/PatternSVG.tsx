@@ -54,10 +54,15 @@ interface Props {
    * stroked on top. Undefined / null ⇒ no Frame.
    */
   frameOutline?: Vec2[] | null
+  /**
+   * Step 17 Framing — **Frame node** points (seed-`edgeLength`-spaced division
+   * points along the Frame outline). Drawn as small dots over the outline.
+   */
+  frameNodes?: Vec2[] | null
 }
 
 export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
-  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, editorOverlay, frameOutline },
+  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, editorOverlay, frameOutline, frameNodes },
   ref
 ) {
   const { x, y, zoom, rotation } = viewTransform
@@ -126,6 +131,18 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
             pointerEvents="none"
           />
         )}
+        {hasFrame && frameNodes && frameNodes.map((p, i) => (
+          // Frame nodes — kept a constant ~3.5px on screen by dividing by zoom.
+          <circle
+            key={i}
+            cx={p.x}
+            cy={p.y}
+            r={3.5 / zoom}
+            fill="var(--accent)"
+            fillOpacity={0.9}
+            pointerEvents="none"
+          />
+        ))}
         {/* 17.11 — editorOverlay must be the topmost interactive layer so
             vertex dots at neighbour-stamp coordinates aren't blocked by
             strand strokes painted above. ControlPointLayer is already

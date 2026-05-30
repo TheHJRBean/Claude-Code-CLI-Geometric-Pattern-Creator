@@ -48,10 +48,16 @@ interface Props {
   ghostPolygonIds?: Set<string>
   /** Editor-mode interactive overlay (Step 17.3+). Rendered above the tile layer. */
   editorOverlay?: React.ReactNode
+  /**
+   * Step 17 Framing — Shape **Frame** outline (world space). When present, the
+   * pattern content (Tiles + Strands) is clipped to it and the outline is
+   * stroked on top. Undefined / null ⇒ no Frame.
+   */
+  frameOutline?: Vec2[] | null
 }
 
 export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
-  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, editorOverlay },
+  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, editorOverlay, frameOutline },
   ref
 ) {
   const { x, y, zoom, rotation } = viewTransform
@@ -60,6 +66,10 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
   const viewBox = `${x} ${y} ${vw} ${vh}`
   const cx = x + vw / 2
   const cy = y + vh / 2
+
+  const hasFrame = !!frameOutline && frameOutline.length >= 3
+  const framePoints = hasFrame ? frameOutline!.map(v => `${v.x},${v.y}`).join(' ') : ''
+  const frameClipId = 'pattern-frame-clip'
 
   return (
     <svg
@@ -73,27 +83,49 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
       onPointerUp={handlers.onPointerUp}
     >
       <g transform={rotation ? `rotate(${rotation} ${cx} ${cy})` : undefined}>
+        {hasFrame && (
+          <defs>
+            <clipPath id={frameClipId} clipPathUnits="userSpaceOnUse">
+              <polygon points={framePoints} />
+            </clipPath>
+          </defs>
+        )}
         {ghostPolygons && ghostPolygons.length > 0 && (
           <g opacity={0.18} pointerEvents="none">
             <TileLayer polygons={ghostPolygons} visible={showTileLayer} outlineWidth={outlineWidth} />
           </g>
         )}
-        {boundaryOutlines && boundaryOutlines.map((outline, i) => {
-          // Seed outlines (first `seedOutlineCount` entries when defined) get
-          // the prominent solid style so the active Patch reads as the focal
-          // area. Ghost outlines (the rest) stay in the original dimmed dash.
-          const isSeed = seedOutlineCount === undefined || i < seedOutlineCount
-          return <BoundaryOutline key={i} vertices={outline} variant={isSeed ? 'seed' : 'ghost'} />
-        })}
-        <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
-        {showLines && <StrandLayer segments={segments} config={config} ghostPolygonIds={ghostPolygonIds} />}
-        <ControlPointLayer
-          segments={segments}
-          config={config}
-          visible={cpVisible}
-          active={cpActive}
-          zoom={zoom}
-        />
+        {/* Step 17 Framing — pattern content is clipped to the Shape Frame
+            outline when one is set. */}
+        <g clipPath={hasFrame ? `url(#${frameClipId})` : undefined}>
+          {boundaryOutlines && boundaryOutlines.map((outline, i) => {
+            // Seed outlines (first `seedOutlineCount` entries when defined) get
+            // the prominent solid style so the active Patch reads as the focal
+            // area. Ghost outlines (the rest) stay in the original dimmed dash.
+            const isSeed = seedOutlineCount === undefined || i < seedOutlineCount
+            return <BoundaryOutline key={i} vertices={outline} variant={isSeed ? 'seed' : 'ghost'} />
+          })}
+          <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
+          {showLines && <StrandLayer segments={segments} config={config} ghostPolygonIds={ghostPolygonIds} />}
+          <ControlPointLayer
+            segments={segments}
+            config={config}
+            visible={cpVisible}
+            active={cpActive}
+            zoom={zoom}
+          />
+        </g>
+        {hasFrame && (
+          <polygon
+            points={framePoints}
+            fill="none"
+            stroke="var(--accent)"
+            strokeWidth={2.2}
+            strokeOpacity={0.95}
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+        )}
         {/* 17.11 — editorOverlay must be the topmost interactive layer so
             vertex dots at neighbour-stamp coordinates aren't blocked by
             strand strokes painted above. ControlPointLayer is already

@@ -13,7 +13,8 @@ import { useTheme } from '../theme/ThemeContext'
 import { SAMPLE_EDITOR_CONFIG } from '../editor/sampleConfig'
 import { BOUNDARY_SIZE_MAX_BY_SHAPE } from '../editor/createDefault'
 import { LAB_DEFAULT_CONFIG } from '../state/labDefaults'
-import type { BoundaryShape, ConfigurationId, SymmetryMode } from '../types/editor'
+import type { BoundaryShape, ConfigurationId, FrameShape, SymmetryMode } from '../types/editor'
+import { DEFAULT_FRAME_SIZE, MIN_FRAME_SIZE, MAX_FRAME_SIZE } from '../editor/frame'
 import type { Vec2 } from '../utils/math'
 import { validateMultiPick, multiPickValidityLabel } from '../editor/patchSelectable'
 import { editorTileTypes } from '../editor/tileTypes'
@@ -694,6 +695,7 @@ export function TessellationLabMode({
           }
         }}
         editorStrandMode={editorPhase !== 'design'}
+        editorFraming={editorPhase === 'framing'}
         showBoundaryLattice={showBoundaryLattice}
         editorNeighbourPreview={editorPhase === 'design' && showNeighbours && !(config.editor && activeCell(config.editor).wrapBoundary)}
         editorNeighbourBoundaries={showNeighbourBoundaries}
@@ -1083,22 +1085,97 @@ function EditorDesignControls({
       )}
 
       {inFraming && (
-        <div style={{
-          marginTop: 0,
-          marginBottom: 14,
-          padding: '8px 10px',
-          fontFamily: "'EB Garamond', Georgia, serif",
-          fontSize: 12,
-          color: 'var(--text-muted)',
-          lineHeight: 1.45,
-          border: '1px solid var(--border-subtle)',
-        }}>
-          <div>
-            Wrap the Composition in a <strong>Frame</strong>. A Shape frame
-            doubles as a completion boundary — the pattern is tiled out to the
-            frame edge, with nodes spaced one tile-edge apart. Frame controls
-            arrive in the next build slice.
+        <div style={{ marginTop: 0, marginBottom: 14 }}>
+          <div style={{
+            padding: '8px 10px',
+            marginBottom: 10,
+            fontFamily: "'EB Garamond', Georgia, serif",
+            fontSize: 12,
+            color: 'var(--text-muted)',
+            lineHeight: 1.45,
+            border: '1px solid var(--border-subtle)',
+          }}>
+            Wrap the Composition in a <strong>Frame</strong> — the pattern is
+            clipped to its outline. Completion-to-frame (tiling out to the edge)
+            and aspect / rotation / origin controls arrive in later slices.
           </div>
+          {!editor.frame ? (
+            <button
+              onClick={() => dispatch({
+                type: 'SET_FRAME',
+                payload: { type: 'shape', shape: 'square', size: DEFAULT_FRAME_SIZE, boundaryTreatment: 'complete' },
+              })}
+              style={{
+                width: '100%',
+                padding: '7px 0',
+                fontFamily: "'Cinzel', Georgia, serif",
+                fontSize: 10,
+                fontWeight: 600,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+                color: 'var(--accent)',
+                background: 'var(--accent-bg)',
+                border: '1px solid var(--accent)',
+              }}
+            >
+              + Add Frame
+            </button>
+          ) : (
+            <>
+              <FieldLabel
+                label="Frame shape"
+                tooltip="Outline shape the Composition is clipped to. √2 rectangle (square + aspect) and rotation arrive with the full controls."
+              />
+              <select
+                className="pattern-select"
+                value={editor.frame.shape ?? 'square'}
+                onChange={e => dispatch({
+                  type: 'SET_FRAME',
+                  payload: { ...editor.frame!, shape: e.target.value as FrameShape },
+                })}
+                style={{ marginBottom: 10 }}
+              >
+                <option value="square">Square</option>
+                <option value="hexagon">Hexagon</option>
+                <option value="octagon">Octagon</option>
+              </select>
+              <FieldLabel
+                label={`Frame size — ${Math.round(editor.frame.size ?? DEFAULT_FRAME_SIZE)}`}
+                tooltip="Half-extent (centre → corner) of the Frame in world units."
+              />
+              <input
+                type="range"
+                min={MIN_FRAME_SIZE}
+                max={MAX_FRAME_SIZE}
+                step={1}
+                value={editor.frame.size ?? DEFAULT_FRAME_SIZE}
+                onChange={e => dispatch({
+                  type: 'SET_FRAME',
+                  payload: { ...editor.frame!, size: Number(e.target.value) },
+                })}
+                style={{ width: '100%', marginBottom: 10 }}
+              />
+              <button
+                onClick={() => dispatch({ type: 'SET_FRAME', payload: null })}
+                style={{
+                  width: '100%',
+                  padding: '6px 0',
+                  fontFamily: "'Cinzel', Georgia, serif",
+                  fontSize: 9,
+                  fontWeight: 600,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  color: 'var(--text-muted)',
+                  background: 'transparent',
+                  border: '1px solid var(--border-subtle)',
+                }}
+              >
+                Remove Frame
+              </button>
+            </>
+          )}
         </div>
       )}
 

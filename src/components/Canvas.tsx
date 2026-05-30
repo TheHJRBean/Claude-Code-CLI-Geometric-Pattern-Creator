@@ -3,6 +3,7 @@ import type { PatternConfig } from '../types/pattern'
 import type { Segment } from '../types/geometry'
 import type { Vec2 } from '../utils/math'
 import { usePattern } from '../hooks/usePattern'
+import { frameOutlinePolygon } from '../editor/frame'
 import { usePanZoom, type ViewTransform } from '../hooks/usePanZoom'
 import { PatternSVG } from '../rendering/PatternSVG'
 import { RotationDial } from './RotationDial'
@@ -131,11 +132,14 @@ interface Props {
   editorNeighbourBoundaries?: boolean
   /** Step 17.6d — Design-Phase neighbour preview: include ghosts in PIC so Strands flow across boundaries. */
   editorNeighbourStrands?: boolean
+  /** Step 17 Framing — when true (Framing Phase), clip the Composition to the
+   * Patch's Shape Frame outline and draw the outline. */
+  editorFraming?: boolean
 }
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, editorMode = 'place', picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, editorMode = 'place', picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFraming = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -170,6 +174,14 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     editorNeighbourPreview,
     editorNeighbourBoundaries,
     editorNeighbourStrands,
+  )
+
+  // Step 17 Framing — the Shape Frame outline to clip the Composition to.
+  // Pure geometry from the Patch's frame config; only shown in the Framing
+  // Phase. n-ring frames (and absent frames) yield null → no clip.
+  const frameOutline = useMemo(
+    () => (editorFraming && config.editor?.frame ? frameOutlinePolygon(config.editor.frame) : null),
+    [editorFraming, config.editor?.frame],
   )
 
   const resetCamera = useCallback(() => {
@@ -631,6 +643,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         seedOutlineCount={seedOutlineCount}
         ghostPolygonIds={ghostPolygonIds}
         editorOverlay={editorOverlay}
+        frameOutline={frameOutline}
       />
       {pickerScreenPos && onPlaceTile && onSelectEdge && selectedEdgeData && (
         <EditorPickerOverlay

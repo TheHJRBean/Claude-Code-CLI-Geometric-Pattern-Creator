@@ -40,6 +40,7 @@ import {
   patchSelectableVertices,
   retargetTile,
 } from '../editor/patchSelectable'
+import { patchRotation } from '../editor/compositionLattice'
 import { overlapsExisting } from '../editor/tileOverlap'
 import { tileVertices } from '../editor/exposedEdges'
 import type { LatticeStamp } from '../editor/lattice'
@@ -250,16 +251,23 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       }))
     }
     case 'SET_EDITOR_ALTERNATE_BOUNDARY': {
-      // Flips Boundary outlines by π/n. Multi-cell Configurations: applies to
-      // every Cell in the Patch — a single-Cell flip would rotate that Cell
-      // out of phase with its siblings and break the shared lattice, creating
-      // visible discontinuities at Cell-Cell edges. Single-cell: applies to
-      // the sole Cell.
+      // Single-cell: flip the sole Cell's Boundary by π/n (`alternateBoundary`)
+      // — the Cell + its lattice rotate together (see `lattice.ts`).
+      //
+      // Multi-cell: a per-Cell flip would spin each Cell on the spot by its own
+      // π/n, breaking the shared lattice. Instead set a Patch-level flag and
+      // rotate the whole composite rigidly by one Configuration angle
+      // (`patchRotation`). Clear any stale per-Cell flags so the two mechanisms
+      // don't compound.
       if (!state.editor) return state
-      const cells = state.editor.cells.map(c => ({
-        ...c,
-        alternateBoundary: action.payload,
-      }))
+      if (state.editor.cells.length > 1) {
+        const cells = state.editor.cells.map(c => ({ ...c, alternateBoundary: false }))
+        return applyWrap({
+          ...state,
+          editor: { ...state.editor, cells, alternateOrientation: action.payload },
+        })
+      }
+      const cells = state.editor.cells.map(c => ({ ...c, alternateBoundary: action.payload }))
       return applyWrap({
         ...state,
         editor: { ...state.editor, cells },
@@ -621,18 +629,19 @@ function chordCompleteAcrossPatch(state: PatternConfig, pA: Vec2, pB: Vec2): Pat
     ...patch.cells.filter(c => c.id === patch.activeCellId),
     ...patch.cells.filter(c => c.id !== patch.activeCellId),
   ]
+  const patchRot = patchRotation(patch)
   const stamps: (LatticeStamp | null)[] = [null, ...patchNeighbourStamps(patch)]
   for (const stamp of stamps) {
     for (const cell of ordered) {
       const undo = (p: Vec2) =>
-        inverseCellTransform(stamp ? inverseRotateTranslate(p, stamp) : p, cell)
+        inverseCellTransform(stamp ? inverseRotateTranslate(p, stamp) : p, cell, patchRot)
       const localA = undo(pA)
       const localB = undo(pB)
       const host = stamp === null ? cell : active
       const id = `completed-${host.tiles.length}-${Date.now()}`
       const sourceTile = completeGap(cell, localA, localB, id)
       if (!sourceTile) continue
-      const newTile = retargetTile(sourceTile, cell, stamp, host)
+      const newTile = retargetTile(sourceTile, cell, stamp, host, patchRot)
       const candidate = tileVertices(newTile)
       // Overlap guard: a chord whose arc spans far enough to enclose existing
       // Tiles produces a gap polygon that overlaps them. Reject those — the
@@ -669,7 +678,8 @@ function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[], force
   const realVerts = patchSelectableVertices(patch, false)
   if (!picks.some(p => isSelectable(p, realVerts))) return state
 
-  const localPicks = picks.map(p => inverseCellTransform(p, active))
+  const patchRot = patchRotation(patch)
+  const localPicks = picks.map(p => inverseCellTransform(p, active, patchRot))
   const syms = boundarySymmetries(active.shape, active.symmetryMode ?? 'none')
   const seenCentroids: Vec2[] = []
   const placements: EditorTile[] = []
@@ -684,7 +694,7 @@ function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[], force
     const transformed = localPicks.map(p => applySym(syms[i], p))
     // Orbit image must also land on selectable vertices — drop silently for
     // asymmetric setups where the orbit branch has no real pick targets.
-    const patchLocal = transformed.map(p => applyCellTransform(p, active))
+    const patchLocal = transformed.map(p => applyCellTransform(p, active, patchRot))
     if (!patchLocal.every(p => isSelectable(p, selectable))) continue
     const c = centroidOf(transformed)
     if (seenCentroids.some(q => pointsEqual(c, q, EDITOR_EPS))) continue

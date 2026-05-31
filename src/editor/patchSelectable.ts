@@ -4,7 +4,7 @@ import type { EditorPatch, EditorCell, EditorTile } from '../types/editor'
 import { computeAllCycles, computeBoundaryCycle } from './boundary'
 import { EDITOR_EPS, tileVertices } from './exposedEdges'
 import { applyStamp, editorOneRingNeighbourStamps, type LatticeStamp } from './lattice'
-import { compositionOneRingStamps } from './compositionLattice'
+import { compositionOneRingStamps, patchRotation } from './compositionLattice'
 import { ensureCCW } from './complete'
 import { validateNGapPolygon } from './completeN'
 import { overlapsExistingDetail, type OverlapDetail } from './tileOverlap'
@@ -23,14 +23,31 @@ import { overlapsExistingDetail, type OverlapDetail } from './tileOverlap'
  * (same set the canvas uses in single-cell), no cross-Cell story.
  */
 
-/** Cell-local → Patch-local. Rotate about origin, then translate by centre. */
-export function applyCellTransform(p: Vec2, cell: { center: Vec2; rotation: number }): Vec2 {
-  if (cell.rotation === 0) return { x: p.x + cell.center.x, y: p.y + cell.center.y }
-  const c = Math.cos(cell.rotation), s = Math.sin(cell.rotation)
-  return {
-    x: p.x * c - p.y * s + cell.center.x,
-    y: p.x * s + p.y * c + cell.center.y,
-  }
+/** Rotate a `Vec2` about the origin by `theta`. */
+function rotateAboutOrigin(p: Vec2, theta: number): Vec2 {
+  if (theta === 0) return p
+  const c = Math.cos(theta), s = Math.sin(theta)
+  return { x: p.x * c - p.y * s, y: p.x * s + p.y * c }
+}
+
+/**
+ * Cell-local → Patch-world. Rotate about origin by the Cell rotation, translate
+ * by the Cell centre, then apply any rigid Patch-level alternate rotation
+ * (`patchRot`) about the Patch origin. `patchRot` defaults to 0 — single-cell
+ * and non-alternate composites are unchanged.
+ */
+export function applyCellTransform(
+  p: Vec2,
+  cell: { center: Vec2; rotation: number },
+  patchRot = 0,
+): Vec2 {
+  const base = cell.rotation === 0
+    ? { x: p.x + cell.center.x, y: p.y + cell.center.y }
+    : (() => {
+        const c = Math.cos(cell.rotation), s = Math.sin(cell.rotation)
+        return { x: p.x * c - p.y * s + cell.center.x, y: p.x * s + p.y * c + cell.center.y }
+      })()
+  return rotateAboutOrigin(base, patchRot)
 }
 
 /**
@@ -45,9 +62,15 @@ export function inverseRotateTranslate(p: Vec2, t: { translation: Vec2; rotation
   return { x: dx * c + dy * s, y: -dx * s + dy * c }
 }
 
-/** Patch-local → Cell-local. */
-export function inverseCellTransform(p: Vec2, cell: { center: Vec2; rotation: number }): Vec2 {
-  return inverseRotateTranslate(p, { translation: cell.center, rotation: cell.rotation })
+/** Patch-world → Cell-local. Inverse of `applyCellTransform` (un-rotates the
+ *  Patch-level rotation first, then the Cell transform). */
+export function inverseCellTransform(
+  p: Vec2,
+  cell: { center: Vec2; rotation: number },
+  patchRot = 0,
+): Vec2 {
+  const pre = rotateAboutOrigin(p, -patchRot)
+  return inverseRotateTranslate(pre, { translation: cell.center, rotation: cell.rotation })
 }
 
 /**
@@ -69,19 +92,20 @@ export function patchNeighbourStamps(patch: EditorPatch): LatticeStamp[] {
  * with what the user can click.
  */
 export function patchSelectableVertices(patch: EditorPatch, includeNeighbours: boolean): Vec2[] {
+  const patchRot = patchRotation(patch)
   const out: Vec2[] = []
   for (const cell of patch.cells) {
     const cycles = computeAllCycles(cell)
-    for (const v of cycles.outer) out.push(applyCellTransform(v.p, cell))
-    for (const cycle of cycles.pockets) for (const v of cycle) out.push(applyCellTransform(v.p, cell))
-    for (const v of computeBoundaryCycle(cell)) out.push(applyCellTransform(v.p, cell))
+    for (const v of cycles.outer) out.push(applyCellTransform(v.p, cell, patchRot))
+    for (const cycle of cycles.pockets) for (const v of cycle) out.push(applyCellTransform(v.p, cell, patchRot))
+    for (const v of computeBoundaryCycle(cell)) out.push(applyCellTransform(v.p, cell, patchRot))
   }
   if (includeNeighbours) {
     const stamps = patchNeighbourStamps(patch)
     for (const stamp of stamps) {
       for (const cell of patch.cells) {
         const outer = computeAllCycles(cell).outer
-        for (const v of outer) out.push(applyStamp(applyCellTransform(v.p, cell), stamp))
+        for (const v of outer) out.push(applyStamp(applyCellTransform(v.p, cell, patchRot), stamp))
       }
     }
   }
@@ -100,13 +124,14 @@ export function retargetTile(
   source: EditorCell,
   stamp: LatticeStamp | null,
   target: EditorCell,
+  patchRot = 0,
 ): EditorTile {
   const stampRot = stamp?.rotation ?? 0
   const netRot = source.rotation + stampRot - target.rotation
   const through = (p: Vec2): Vec2 => {
-    const afterCell = applyCellTransform(p, source)
+    const afterCell = applyCellTransform(p, source, patchRot)
     const afterStamp = stamp ? applyStamp(afterCell, stamp) : afterCell
-    return inverseCellTransform(afterStamp, target)
+    return inverseCellTransform(afterStamp, target, patchRot)
   }
   if (tile.kind === 'regular') {
     return { ...tile, center: through(tile.center), rotation: tile.rotation + netRot }
@@ -191,7 +216,8 @@ export function validateMultiPick(patch: EditorPatch, picks: Vec2[]): MultiPickV
   if (!picks.some(p => isSelectable(p, realVerts))) return { kind: 'no-real-cell-pick' }
 
   const active = patch.cells.find(c => c.id === patch.activeCellId) ?? patch.cells[0]
-  const localPicks = picks.map(p => inverseCellTransform(p, active))
+  const patchRot = patchRotation(patch)
+  const localPicks = picks.map(p => inverseCellTransform(p, active, patchRot))
   const ngap = validateNGapPolygon(localPicks, active)
   if (ngap.kind === 'too-few') return { kind: 'too-few' }
   if (ngap.kind === 'duplicate-vertex') return { kind: 'duplicate-vertex' }

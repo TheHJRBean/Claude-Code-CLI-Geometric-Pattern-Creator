@@ -253,6 +253,15 @@ export interface EditorPatch {
   /** Step 17 Framing — the **Frame** wrapping the Composition. Optional;
    * absent ⇒ no Frame. Set in the Framing Phase. */
   frame?: FrameConfig
+  /**
+   * Multi-cell "Alternate orientation": when true, the whole Patch is rotated
+   * *rigidly* by a Configuration-specific angle (`compositionAlternateAngle`) —
+   * every Cell, the lattice basis, the boundary outlines, and the Design-Phase
+   * picker overlays turn together. This is the composite analogue of the
+   * single-cell per-Cell `EditorCell.alternateBoundary` flip; single-cell
+   * Patches leave this absent and use the per-Cell flag instead. Optional for
+   * back-compat. */
+  alternateOrientation?: boolean
 }
 
 export interface EditorConfig extends EditorPatch {

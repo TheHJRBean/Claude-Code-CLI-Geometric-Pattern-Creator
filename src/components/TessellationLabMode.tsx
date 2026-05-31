@@ -1543,7 +1543,7 @@ function EditorDesignControls({
         type="range"
         className="pattern-slider"
         min={3}
-        max={12}
+        max={24}
         step={1}
         value={cell.seedSides}
         disabled={originLocked}

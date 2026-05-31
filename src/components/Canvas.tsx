@@ -10,7 +10,7 @@ import { PatternSVG } from '../rendering/PatternSVG'
 import { RotationDial } from './RotationDial'
 import type { ExposedEdge } from '../editor/exposedEdges'
 import { computeExposedEdges } from '../editor/exposedEdges'
-import { computeAllCycles, computeBoundaryCycle, computeOuterBoundary, type BoundaryVertex } from '../editor/boundary'
+import { computeAllCycles, computeBoundaryCycle, type BoundaryVertex } from '../editor/boundary'
 import { EDITOR_EPS } from '../editor/exposedEdges'
 import { applyStamp } from '../editor/lattice'
 import { patchRotation } from '../editor/compositionLattice'
@@ -359,14 +359,15 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       Math.abs(v.p.x - c.p.x) < EDITOR_EPS && Math.abs(v.p.y - c.p.y) < EDITOR_EPS,
     ))
   }, [editorActive, config.editor, editorMode, boundaryCycle])
-  // Step 17.11 — neighbour-stamp outer-cycle vertices, exposed only when
-  // "Show neighbours" is on so cross-boundary picks line up with the visible
-  // ghost geometry. The stamp set (full visible lattice minus the centre copy)
-  // comes straight from `usePattern.neighbourStamps`, the exact set the ghost
-  // polygons were drawn from — so every clickable dot sits on a rendered ghost.
-  // For each stamp we lift every Cell's outer cycle from Cell-local to
-  // Patch-local (Cell transform) then apply the stamp. Flatten to a single
-  // array since variant styling already tags them as ghosts.
+  // Step 17.11 — neighbour-stamp vertices, exposed only when "Show neighbours"
+  // is on so cross-boundary picks line up with the visible ghost geometry. The
+  // stamp set (full visible lattice minus the centre copy) comes straight from
+  // `usePattern.neighbourStamps`, the exact set the ghost polygons were drawn
+  // from. For each stamp we lift every Cell's full selectable set — outer tile
+  // cycle + interior pockets + Cell-Boundary corners — from Cell-local to
+  // Patch-local (Cell transform) then apply the stamp, mirroring the live
+  // Patch's exposure so neighbour Cell vertices are clickable too. Flatten to a
+  // single array since variant styling already tags them as ghosts.
   const neighbourVertices = useMemo(() => {
     if (!editorActive || !config.editor || editorMode !== 'complete') return []
     if (!editorNeighbourPreview || editorStrandMode || !neighbourStamps) return []
@@ -376,10 +377,14 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       const stamp = neighbourStamps[s]
       for (const cell of patch.cells) {
         const tx = cellTransform(cell, patchRot)
-        const cycle = computeOuterBoundary(cell)
-        for (let i = 0; i < cycle.length; i++) {
-          const v = cycle[i]
-          const patchLocal = applyTransform(v.p, tx)
+        const cycles = computeAllCycles(cell)
+        const cellLocal: Vec2[] = [
+          ...cycles.outer.map(v => v.p),
+          ...cycles.pockets.flat().map(v => v.p),
+          ...computeBoundaryCycle(cell).map(v => v.p),
+        ]
+        for (let i = 0; i < cellLocal.length; i++) {
+          const patchLocal = applyTransform(cellLocal[i], tx)
           out.push({
             p: applyStamp(patchLocal, stamp),
             tileId: `neighbour-${s}/${cell.id}`,

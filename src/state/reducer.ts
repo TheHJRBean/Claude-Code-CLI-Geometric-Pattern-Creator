@@ -319,17 +319,16 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       // works on the active Cell of a single-cell Patch OR a multi-cell
       // Configuration (the active-Cell pane swap picks which Cell is edited).
       //
-      // For SINGLE-CELL Patches, `patch.edgeLength` resets to the section
-      // length on the FIRST boundary-anchored placement (locked decision f).
-      // For MULTI-CELL Patches the edgeLength is the shared lattice edge —
-      // rescaling it would invalidate the other Cells' positions and seed
-      // Tile sizes — so the reset is skipped; placed Tiles just sit at the
-      // section size inside the Cell. "First" is proxied by
-      // `cell.tiles.length === (cell.noSeed ? 0 : 1)`.
+      // The placed Tile is sized to the Patch's shared seed/lattice edge length
+      // so every placement method (vertex / edge / section) stays one uniform
+      // size (user decision 2026-05-31). Placement no longer rescales
+      // `patch.edgeLength` — that earlier "first tile dictates edge length"
+      // reset is what made later vertex/edge placements drift from the seed.
       if (!state.editor) return state
       const { edgeIndex, sectionIndex, sides } = action.payload
       const patch = state.editor
       const cell = activeCell(patch)
+      const patchEdgeLength = patch.edgeLength
       const sections = computeBoundarySections(cell)
       const section = sections.find(s => s.edgeIndex === edgeIndex && s.sectionIndex === sectionIndex)
       if (!section) return state
@@ -337,20 +336,16 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       const idPrefix = `placed-${cell.tiles.length}-${Date.now()}`
       let nextTiles: EditorTile[]
       if (mode === 'none') {
-        if (!isBoundarySectionPlacementViable(sides, section, cell)) return state
-        const tile = placeRegularNGonOnBoundarySection(sides, section, `${idPrefix}-0`)
+        if (!isBoundarySectionPlacementViable(sides, section, cell, patchEdgeLength)) return state
+        const tile = placeRegularNGonOnBoundarySection(sides, section, `${idPrefix}-0`, patchEdgeLength)
         nextTiles = [...cell.tiles, tile]
       } else {
-        const placements = placeTilesOnBoundarySectionOrbit(cell, section, sides, idPrefix)
+        const placements = placeTilesOnBoundarySectionOrbit(cell, section, sides, idPrefix, patchEdgeLength)
         if (!placements) return state
         nextTiles = [...cell.tiles, ...placements]
       }
       const nextCell: EditorCell = { ...cell, tiles: nextTiles }
-      const multiCell = patch.cells.length > 1
-      const isFirstPlacement = !multiCell && cell.tiles.length === (cell.noSeed ? 0 : 1)
-      const nextEditor = isFirstPlacement
-        ? { ...withActiveCell(patch, nextCell), version: patch.version, edgeLength: section.sectionLength }
-        : { ...withActiveCell(patch, nextCell), version: patch.version }
+      const nextEditor = { ...withActiveCell(patch, nextCell), version: patch.version }
       return applyWrap(seedFigures({ ...state, editor: nextEditor }))
     }
     case 'EDITOR_PLACE_TILE_ON_VERTEX': {

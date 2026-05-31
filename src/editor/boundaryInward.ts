@@ -13,10 +13,11 @@ import { PICKER_SIDES } from './placement'
  * `project_editor_boundary_inward_mode_idea.md`).
  *
  * Divides each Boundary edge into highlighted sections; clicking a section
- * places a regular n-gon flush against that segment with edge length equal
- * to the section length. The first boundary-anchored Tile then dictates the
- * Patch's edge length for subsequent placements (the conflict with the
- * existing Seed Tile is resolved in the reducer — sub-step B).
+ * places a regular n-gon flush against that segment. The tile is sized to the
+ * Patch's shared seed/lattice edge length (NOT the section length) so every
+ * placement method stays one uniform size (user decision 2026-05-31); the
+ * section midpoint is just the anchor point along the boundary line, and the
+ * placement no longer rescales `patch.edgeLength`.
  *
  * Section length is a fraction of the Boundary edge length, scaled inversely
  * with boundary size (smaller boundary → fewer, larger targets; larger
@@ -100,47 +101,52 @@ export function computeBoundarySections(cell: EditorCell): BoundarySection[] {
 
 /**
  * Place a regular n-gon flush against a boundary section, on the interior
- * side of the boundary. The new tile's edge length equals the section length
- * — this is the "first tile dictates edge length" behaviour from the memo.
+ * side of the boundary. The new tile's edge length is `edgeLength` — the
+ * Patch's shared seed/lattice edge — so every placement (vertex / edge /
+ * section) stays one uniform size (user decision 2026-05-31). The section
+ * midpoint is used only as the anchor point along the boundary line; the
+ * tile's base edge of length `edgeLength` is centred on it.
  *
- * CCW convention: vertex 0 = `section.p1`, vertex 1 = `section.p2`. The
- * boundary is traced CCW around its own interior; the new tile sits inside
- * the boundary, so going CCW around the new tile from a vertex on the
- * shared edge runs in the SAME direction as the boundary's CCW at that
- * edge. (Contrast with `placeRegularNGonOnEdge`, which uses the opposite
- * convention because the new tile there sits OUTSIDE the source tile and
- * the CCW sense flips.)
+ * CCW convention: vertex 0 sits on the p1 (CCW-start) side of the section,
+ * vertex 1 on the p2 side. The boundary is traced CCW around its own
+ * interior; the new tile sits inside the boundary, so going CCW around the
+ * new tile from a vertex on the shared edge runs in the SAME direction as
+ * the boundary's CCW at that edge. (Contrast with `placeRegularNGonOnEdge`,
+ * which uses the opposite convention because the new tile there sits OUTSIDE
+ * the source tile and the CCW sense flips.)
  */
 export function placeRegularNGonOnBoundarySection(
   sides: number,
   section: BoundarySection,
   id: string,
+  edgeLength: number,
 ): EditorRegularTile {
-  const { p1, p2, sectionLength } = section
+  const { p1, p2 } = section
   const midX = (p1.x + p2.x) / 2
   const midY = (p1.y + p2.y) / 2
-  // Inward perpendicular to the section (p1 → p2). For a CCW boundary the
-  // interior sits to the LEFT of each edge direction, which is the CCW-90°
-  // rotation of the edge direction. Using `-midpoint` would happen to work
-  // only when the section midpoint coincides with the boundary edge midpoint
-  // (one section per edge) — for multi-section edges the line from the
-  // section midpoint toward origin isn't perpendicular to the boundary edge,
-  // which rotates the placed tile by the angular drift between the two
-  // directions.
+  // Unit vector along the boundary edge (p1 → p2) and the inward perpendicular.
+  // For a CCW boundary the interior sits to the LEFT of each edge direction,
+  // which is the CCW-90° rotation of the edge direction.
   const ex = p2.x - p1.x
   const ey = p2.y - p1.y
   const elen = Math.hypot(ex, ey) || 1
-  const inX = -ey / elen
-  const inY = ex / elen
-  const apothem = sectionLength / (2 * Math.tan(Math.PI / sides))
+  const dirX = ex / elen
+  const dirY = ey / elen
+  const inX = -dirY
+  const inY = dirX
+  // Base edge of length `edgeLength` centred on the section midpoint; vertex 0
+  // on the p1 side keeps the CCW convention above.
+  const half = edgeLength / 2
+  const v0: Vec2 = { x: midX - dirX * half, y: midY - dirY * half }
+  const apothem = edgeLength / (2 * Math.tan(Math.PI / sides))
   const center: Vec2 = { x: midX + inX * apothem, y: midY + inY * apothem }
-  const rotation = Math.atan2(p1.y - center.y, p1.x - center.x)
+  const rotation = Math.atan2(v0.y - center.y, v0.x - center.x)
   return {
     id,
     kind: 'regular',
     sides,
     center,
-    edgeLength: sectionLength,
+    edgeLength,
     rotation,
     source: 'placed',
   }
@@ -162,9 +168,10 @@ export function isBoundarySectionPlacementViable(
   sides: number,
   section: BoundarySection,
   cell: EditorCell,
+  edgeLength: number,
 ): boolean {
   if (sides < 3) return false
-  const candidate = placeRegularNGonOnBoundarySection(sides, section, '__probe__')
+  const candidate = placeRegularNGonOnBoundarySection(sides, section, '__probe__', edgeLength)
   const candidateVerts = regularPolygonVertices(
     candidate.sides, candidate.center, candidate.edgeLength, candidate.rotation,
   )
@@ -181,8 +188,9 @@ export function isBoundarySectionPlacementViable(
 export function viableSidesForBoundarySection(
   section: BoundarySection,
   cell: EditorCell,
+  edgeLength: number,
 ): number[] {
-  return PICKER_SIDES.filter(n => isBoundarySectionPlacementViable(n, section, cell))
+  return PICKER_SIDES.filter(n => isBoundarySectionPlacementViable(n, section, cell, edgeLength))
 }
 
 /**
@@ -205,6 +213,7 @@ export function placeTilesOnBoundarySectionOrbit(
   picked: BoundarySection,
   sides: number,
   idPrefix: string,
+  edgeLength: number,
 ): EditorTile[] | null {
   if (sides < 3) return null
   const sections = computeBoundarySections(cell)
@@ -225,8 +234,8 @@ export function placeTilesOnBoundarySectionOrbit(
     const midpoint = match.midpoint
     if (seenCentroids.some(q => pointsEqual(midpoint, q, EDITOR_EPS))) continue
     seenCentroids.push(midpoint)
-    if (!isBoundarySectionPlacementViable(sides, match, working)) return null
-    const tile = placeRegularNGonOnBoundarySection(sides, match, `${idPrefix}-${placedIndex}`)
+    if (!isBoundarySectionPlacementViable(sides, match, working, edgeLength)) return null
+    const tile = placeRegularNGonOnBoundarySection(sides, match, `${idPrefix}-${placedIndex}`, edgeLength)
     placements.push(tile)
     working = { ...working, tiles: [...working.tiles, tile] }
     placedIndex++

@@ -1117,3 +1117,38 @@ without needing an explicit reflex-vertex test.
       — Lagae & Dutré's corner-tile scheme (matching corner colours
       instead of edge colours; no "corner problem") is the cleanest
       published variant.
+- **2026-05-31** — **Vertex-strand (vertex-anchored PIC) angle geometry +
+  figures-map pollution.** Two findings from a "vertex strands misbehave"
+  debug.
+    * *Edge-collapse degeneracy.* Vertex rays leave each corner at
+      ±(90°−θ) from the interior-angle bisector. They lie **exactly along
+      the two incident edges** when 90°−θ equals the tile's interior
+      half-angle — i.e. at **θ = 180/n** for a regular n-gon: 3-gon 60°,
+      4-gon 45°, 6-gon 30°, 8-gon 22.5°, 12-gon 15°. At those angles the
+      "vertex strands" flatten onto the tile outline and the per-polygon
+      collinear-dedup drops half of them, so they read as patchy and as
+      "drawn on the neighbour tile" (they trace shared edges). Nudging θ a
+      few degrees off restores a proper vertex figure. Note the default
+      Gallery 3-gon angle is 60° — i.e. snub-square/triangular configs
+      ship *on* the degenerate angle for vertex strands.
+    * *Meeting-point leaves the cell.* Outside a usable θ band the two
+      vertex rays paired across an edge meet *outside* the polygon;
+      `emitVertexArms` clips each arm to the boundary independently, so at
+      shared vertices the arms from adjacent tile **types** (e.g. triangle
+      vs square, different bisectors) diverge into a "double V". This is
+      inherent to bisector-anchored vertex rays in mixed tilings and is
+      **left as a known limitation** (user decision 2026-05-31 — not
+      remedied). Contrast: edge contact rays have cross-edge mirror
+      symmetry (Kaplan) and meet cleanly; vertex rays do not.
+    * *Generalisable state lesson (fix 5e9ce0b).* Per-tile config keyed by
+      `tileTypeId` (`config.figures`) must be **reconciled to the active
+      tiling's tile types** on every tiling-switch and on load. The old
+      `SET_TILING_TYPE` merged new defaults *over* the existing map without
+      pruning, so figures accumulated every tile-type key ever visited and
+      baked them into saved patterns (a `3.3.4.3.4` save carrying `5/6/
+      4.1/4.2` figures with `vertexLinesEnabled`); shared ids like `"4"`
+      also leaked settings across tilings. Now: switch resets to the new
+      tiling's defaults, load prunes foreign keys (no-op for Builder
+      configs). Any future per-tile-type state map needs the same
+      tiling-scoped reconciliation. See memory
+      `feedback_figures_map_pollution`.

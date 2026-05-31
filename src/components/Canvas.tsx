@@ -194,15 +194,26 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // give the outer boundary of the centre Patch + N neighbour shells (clip
   // only). Absent / unsupported frames yield null → no clip.
   const frameOutline = useMemo(() => {
-    const frame = editorFraming ? config.editor?.frame : undefined
-    if (!frame || !config.editor) return null
-    if (frame.type === 'n-ring') {
-      const patch = config.editor
-      const active = patch.cells.find(c => c.id === patch.activeCellId) ?? patch.cells[0]
-      return active ? nRingOutline(active, frame.rings ?? DEFAULT_FRAME_RINGS) : null
+    // In the Builder's Framing Phase the Frame lives on `editor.frame` (and may
+    // be an n-ring); in the Gallery it's the top-level clip-only Shape Frame.
+    if (editorFraming) {
+      const frame = config.editor?.frame
+      if (!frame || !config.editor) return null
+      if (frame.type === 'n-ring') {
+        const patch = config.editor
+        const active = patch.cells.find(c => c.id === patch.activeCellId) ?? patch.cells[0]
+        return active ? nRingOutline(active, frame.rings ?? DEFAULT_FRAME_RINGS) : null
+      }
+      return frameOutlinePolygon(frame)
     }
-    return frameOutlinePolygon(frame)
-  }, [editorFraming, config.editor])
+    // Gallery Frame — only parametric Shape Frames are ever stored here, and
+    // only the Gallery (non-editor tiling) clips to it; the Lab's own framing
+    // lives on `editor.frame` and is handled above.
+    if (config.tiling.type === 'editor') return null
+    const gFrame = config.frame
+    if (!gFrame || gFrame.type !== 'shape') return null
+    return frameOutlinePolygon(gFrame)
+  }, [editorFraming, config.editor, config.frame, config.tiling.type])
   // Frame sections — segments spaced one seed edgeLength apart along the
   // outline. Nodes render as dots; full sections are click targets for
   // completion-to-frame (slice 5). Shape Frames only — n-ring Frames are

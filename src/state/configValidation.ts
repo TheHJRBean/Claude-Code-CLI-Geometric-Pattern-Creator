@@ -1,5 +1,7 @@
 import type { FigureConfig, PatternConfig, StrandStyle, TilingConfig } from '../types/pattern'
+import type { FrameConfig, FrameShape } from '../types/editor'
 import { migrateEditorConfig } from '../editor/migrations'
+import { MIN_FRAME_SIZE, MAX_FRAME_SIZE, DEFAULT_FRAME_SIZE } from '../editor/frame'
 
 /**
  * Step 17.8 — load-time validation for `PatternConfig`. Used by `loadJSON`
@@ -87,6 +89,35 @@ function readStrandStyle(r: Record<string, unknown>): StrandStyle | null {
   return null
 }
 
+const FRAME_SHAPES = new Set<FrameShape>(['square', 'hexagon', 'octagon'])
+
+/**
+ * Read the top-level Gallery `frame`. Only clip-only **Shape Frames** are
+ * valid here — n-ring / unknown shapes are dropped silently (unlike the
+ * editor patch, a missing Gallery Frame is harmless, so we degrade rather
+ * than throw). Fields are clamped/defaulted so a hand-edited save can't feed
+ * a degenerate outline into the clip path.
+ */
+function readGalleryFrame(v: unknown): FrameConfig | undefined {
+  if (typeof v !== 'object' || v === null) return undefined
+  const f = v as Record<string, unknown>
+  if (f.type !== 'shape') return undefined
+  if (typeof f.shape !== 'string' || !FRAME_SHAPES.has(f.shape as FrameShape)) return undefined
+  const rawSize = typeof f.size === 'number' ? f.size : DEFAULT_FRAME_SIZE
+  const out: FrameConfig = {
+    type: 'shape',
+    shape: f.shape as FrameShape,
+    size: Math.min(MAX_FRAME_SIZE, Math.max(MIN_FRAME_SIZE, rawSize)),
+    aspect: typeof f.aspect === 'number' && f.aspect > 0 ? f.aspect : 1,
+    rotation: typeof f.rotation === 'number' ? f.rotation : 0,
+  }
+  if (f.origin && typeof f.origin === 'object') {
+    const o = f.origin as Record<string, unknown>
+    if (typeof o.x === 'number' && typeof o.y === 'number') out.origin = { x: o.x, y: o.y }
+  }
+  return out
+}
+
 /**
  * Validate an unvalidated value as a `PatternConfig`. Throws
  * `ConfigValidationError` with a human-readable message on failure.
@@ -143,5 +174,7 @@ export function loadPatternConfig(raw: unknown): PatternConfig {
   if (r.tiling.type === 'editor' && !out.editor) {
     throw new ConfigValidationError('Editor tiling missing `editor` payload.')
   }
+  const frame = readGalleryFrame(r.frame)
+  if (frame) out.frame = frame
   return out
 }

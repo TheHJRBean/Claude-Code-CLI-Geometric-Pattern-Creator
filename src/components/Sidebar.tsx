@@ -7,6 +7,8 @@ import { useTheme } from '../theme/ThemeContext'
 import { FigureControls } from './strands/FigureControls'
 import { mainConfigLibrary } from '../state/mainConfigs'
 import { ConfigLibraryPanel } from './ConfigLibraryPanel'
+import type { FrameConfig, FrameShape } from '../types/editor'
+import { DEFAULT_FRAME_SIZE, MIN_FRAME_SIZE, MAX_FRAME_SIZE } from '../editor/frame'
 
 interface Props {
   mode: 'main' | 'lab'
@@ -333,6 +335,19 @@ export function Sidebar({
   // vertex Rays, decoupled vertex angle, snap, and curve recipe sections.
   const [showAdvanced, setShowAdvanced] = useState(false)
 
+  // Gallery clip-only Frame — only `type: 'shape'` is ever stored here. The
+  // shape `select`'s empty value clears the Frame; choosing a shape seeds
+  // sensible defaults. Slider edits merge into the existing config.
+  const galleryFrame = config.frame
+  const frameShape: FrameShape | '' = galleryFrame?.type === 'shape' ? (galleryFrame.shape ?? 'square') : ''
+  const setGalleryFrame = (patch: Partial<FrameConfig> | null) => {
+    if (patch === null) { dispatch({ type: 'SET_GALLERY_FRAME', payload: null }); return }
+    const base: FrameConfig = galleryFrame ?? {
+      type: 'shape', shape: 'square', size: DEFAULT_FRAME_SIZE, aspect: 1, rotation: 0,
+    }
+    dispatch({ type: 'SET_GALLERY_FRAME', payload: { ...base, type: 'shape', ...patch } })
+  }
+
   return (
     <div className={`sidebar ${open ? 'sidebar--open' : ''} ${desktopCollapsed ? 'sidebar--desktop-collapsed' : ''}`}>
       {/* ── Header ──────────────────────────────────────── */}
@@ -488,6 +503,65 @@ export function Sidebar({
             </>
           )}
         </div>
+
+        {/* Frame (Gallery only) — clip the pattern to a parametric Shape Frame. */}
+        {mode === 'main' && (
+          <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
+            <LotusDivider />
+            <SectionTitle open={isOpen('frame')} onToggle={() => toggleSection('frame')}>Frame</SectionTitle>
+            {isOpen('frame') && (
+              <>
+                <FieldLabel label="Shape" />
+                <select
+                  value={frameShape}
+                  onChange={e => {
+                    const v = e.target.value
+                    if (v === '') setGalleryFrame(null)
+                    else setGalleryFrame({ shape: v as FrameShape })
+                  }}
+                  className="pattern-select"
+                >
+                  <option value="">None</option>
+                  <option value="square">Square</option>
+                  <option value="hexagon">Hexagon</option>
+                  <option value="octagon">Octagon</option>
+                </select>
+
+                {galleryFrame && (
+                  <>
+                    <FieldLabel label="Size" value={String(Math.round(galleryFrame.size ?? DEFAULT_FRAME_SIZE))} unit=" px" />
+                    <input
+                      type="range"
+                      className="pattern-slider"
+                      min={MIN_FRAME_SIZE} max={MAX_FRAME_SIZE} step={10}
+                      value={galleryFrame.size ?? DEFAULT_FRAME_SIZE}
+                      onChange={e => setGalleryFrame({ size: Number(e.target.value) })}
+                    />
+
+                    <FieldLabel label="Aspect" value={(galleryFrame.aspect ?? 1).toFixed(2)} unit="×" />
+                    <input
+                      type="range"
+                      className="pattern-slider"
+                      min={0.5} max={2} step={0.01}
+                      value={galleryFrame.aspect ?? 1}
+                      onChange={e => setGalleryFrame({ aspect: Number(e.target.value) })}
+                    />
+
+                    <FieldLabel label="Rotation" value={String(Math.round(((galleryFrame.rotation ?? 0) * 180) / Math.PI))} unit="°" />
+                    <input
+                      type="range"
+                      className="pattern-slider"
+                      min={0} max={360} step={1}
+                      value={Math.round(((galleryFrame.rotation ?? 0) * 180) / Math.PI)}
+                      onChange={e => setGalleryFrame({ rotation: (Number(e.target.value) * Math.PI) / 180 })}
+                    />
+                    <div style={{ marginBottom: 4 }} />
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        )}
 
         {/* Figures */}
         <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>

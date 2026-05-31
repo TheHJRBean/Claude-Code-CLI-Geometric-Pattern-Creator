@@ -1,4 +1,4 @@
-import type { EditorConfig } from './editor'
+import type { EditorConfig, FrameConfig } from './editor'
 
 export interface TilingConfig {
   type: string
@@ -102,4 +102,13 @@ export interface PatternConfig {
    * carries an inner `version` independent of the outer storage envelope.
    */
   editor?: EditorConfig
+  /**
+   * Gallery-mode **Frame** (clip-only). A parametric Shape Frame wrapped
+   * around the infinite tiling: the pattern is clipped to its outline and the
+   * outline is stroked on top. Distinct from Builder framing, which lives on
+   * `editor.frame` and carries node/completion machinery. Gallery only ever
+   * uses `type: 'shape'` — n-ring frames have no fundamental-domain outline in
+   * the Gallery's infinite field. Absent ⇒ no Frame.
+   */
+  frame?: FrameConfig
 }

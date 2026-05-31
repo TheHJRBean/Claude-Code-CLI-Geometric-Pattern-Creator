@@ -491,6 +491,12 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         editor: { ...state.editor, frame },
       }
     }
+    case 'SET_GALLERY_FRAME': {
+      // Gallery clip-only Frame on the top-level `config.frame`. `null` clears
+      // it. Independent of the Builder's `editor.frame`.
+      const frame = action.payload ?? undefined
+      return { ...state, frame }
+    }
     case 'EDITOR_PLACE_TILE_ON_FRAME_SECTION': {
       // Step 17 Framing slice 5 — place a regular n-gon flush to a Frame
       // section, tiling the pattern OUT to the frame edge. The Tile is

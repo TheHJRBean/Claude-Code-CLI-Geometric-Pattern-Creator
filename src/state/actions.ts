@@ -76,6 +76,9 @@ export type Action =
   // seeds a fresh Cell set for that Configuration.
   | { type: 'SET_BUILDER_CONFIGURATION'; payload: ConfigurationId | null }
   | { type: 'SET_FRAME'; payload: FrameConfig | null }
+  // Gallery-mode Frame (clip-only, top-level `config.frame`). Distinct from
+  // SET_FRAME, which targets the Builder's `editor.frame`. `null` clears it.
+  | { type: 'SET_GALLERY_FRAME'; payload: FrameConfig | null }
   | { type: 'EDITOR_PLACE_TILE_ON_FRAME_SECTION'; payload: { edgeIndex: number; sectionIndex: number; sides: number } }
   | { type: 'EDITOR_COMPLETE_TO_FRAME'; payload: { sides: number } }
   // Switch which Cell the user is editing in Design Phase (multi-Cell only).

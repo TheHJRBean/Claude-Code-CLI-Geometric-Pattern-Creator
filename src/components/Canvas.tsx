@@ -12,8 +12,8 @@ import type { ExposedEdge } from '../editor/exposedEdges'
 import { computeExposedEdges } from '../editor/exposedEdges'
 import { computeAllCycles, computeBoundaryCycle, computeOuterBoundary, type BoundaryVertex } from '../editor/boundary'
 import { EDITOR_EPS } from '../editor/exposedEdges'
-import { applyStamp, editorOneRingNeighbourStamps } from '../editor/lattice'
-import { compositionOneRingStamps, patchRotation } from '../editor/compositionLattice'
+import { applyStamp } from '../editor/lattice'
+import { patchRotation } from '../editor/compositionLattice'
 import { viableSidesForEdge } from '../editor/orbit'
 import { EditorEdgeLayer } from './EditorEdgeLayer'
 import { EditorPickerOverlay } from './EditorPickerOverlay'
@@ -176,7 +176,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   )
   // Defer the heavy tiling computation so pointer events stay responsive
   const deferredVT = useDeferredValue(viewTransform)
-  const { polygons, segments, boundaryOutlines, ghostPolygons, seedOutlineCount, ghostPolygonIds } = usePattern(
+  const { polygons, segments, boundaryOutlines, ghostPolygons, neighbourStamps, seedOutlineCount, ghostPolygonIds } = usePattern(
     config,
     deferredVT,
     size.width,
@@ -359,28 +359,21 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       Math.abs(v.p.x - c.p.x) < EDITOR_EPS && Math.abs(v.p.y - c.p.y) < EDITOR_EPS,
     ))
   }, [editorActive, config.editor, editorMode, boundaryCycle])
-  // Step 17.11.1 — neighbour-stamp outer-cycle vertices, exposed only when
+  // Step 17.11 — neighbour-stamp outer-cycle vertices, exposed only when
   // "Show neighbours" is on so cross-boundary picks line up with the visible
-  // ghost geometry. Flatten to a single array since variant styling already
-  // tags them as ghosts.
-  // Multi-cell: each lattice-cell-level neighbour stamp brings every Cell's
-  // outer cycle along (1 octagon + 1 square per stamp for 4.8.8). We compute
-  // each Cell's outer cycle in Cell-local, lift to Patch-local via the
-  // Cell transform, then translate by the neighbour stamp.
+  // ghost geometry. The stamp set (full visible lattice minus the centre copy)
+  // comes straight from `usePattern.neighbourStamps`, the exact set the ghost
+  // polygons were drawn from — so every clickable dot sits on a rendered ghost.
+  // For each stamp we lift every Cell's outer cycle from Cell-local to
+  // Patch-local (Cell transform) then apply the stamp. Flatten to a single
+  // array since variant styling already tags them as ghosts.
   const neighbourVertices = useMemo(() => {
     if (!editorActive || !config.editor || editorMode !== 'complete') return []
-    if (!editorNeighbourPreview || editorStrandMode) return []
+    if (!editorNeighbourPreview || editorStrandMode || !neighbourStamps) return []
     const patch = config.editor
-    const multi = patch.cells.length > 1
-    const active = patch.cells.find(c => c.id === patch.activeCellId) ?? patch.cells[0]
-    // Multi-cell stamps tile the unit cell as a whole (always 8 neighbours);
-    // single-cell stamps come from the active Cell's shape-aware one-ring.
-    const ringStamps = multi
-      ? compositionOneRingStamps(patch)
-      : editorOneRingNeighbourStamps(active)
     const out: BoundaryVertex[] = []
-    for (let s = 0; s < ringStamps.length; s++) {
-      const stamp = ringStamps[s]
+    for (let s = 0; s < neighbourStamps.length; s++) {
+      const stamp = neighbourStamps[s]
       for (const cell of patch.cells) {
         const tx = cellTransform(cell, patchRot)
         const cycle = computeOuterBoundary(cell)
@@ -396,7 +389,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       }
     }
     return out
-  }, [editorActive, config.editor, editorMode, editorNeighbourPreview, editorStrandMode])
+  }, [editorActive, config.editor, editorMode, editorNeighbourPreview, editorStrandMode, neighbourStamps, patchRot])
 
   // Step 17.12 — Boundary-section highlights, always rendered in Design
   // Phase Place mode (no enabling toggle — boundary-section placement is a

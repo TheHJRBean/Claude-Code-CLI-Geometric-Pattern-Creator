@@ -3,8 +3,8 @@ import { pointsEqual } from '../utils/math'
 import type { EditorPatch, EditorCell, EditorTile } from '../types/editor'
 import { computeAllCycles, computeBoundaryCycle } from './boundary'
 import { EDITOR_EPS, tileVertices } from './exposedEdges'
-import { applyStamp, editorOneRingNeighbourStamps, type LatticeStamp } from './lattice'
-import { compositionOneRingStamps, patchRotation } from './compositionLattice'
+import { applyStamp, editorNeighbourStamps, type LatticeStamp } from './lattice'
+import { compositionNeighbourStamps, patchRotation } from './compositionLattice'
 import { ensureCCW } from './complete'
 import { validateNGapPolygon } from './completeN'
 import { overlapsExistingDetail, type OverlapDetail } from './tileOverlap'
@@ -73,43 +73,67 @@ export function inverseCellTransform(
   return inverseRotateTranslate(pre, { translation: cell.center, rotation: cell.rotation })
 }
 
-/**
- * One-ring lattice neighbour stamps for the Patch. Multi-cell uses the
- * Configuration's composition stamps; single-cell uses the Cell's own
- * lattice. Matches the canvas's neighbour-pick set exactly.
- */
-export function patchNeighbourStamps(patch: EditorPatch): LatticeStamp[] {
-  if (patch.cells.length > 1) return compositionOneRingStamps(patch)
-  if (patch.cells.length === 1) return editorOneRingNeighbourStamps(patch.cells[0])
-  return []
+/** Axis-aligned bounding box (world coords) enclosing `points`. */
+function boundingBox(points: Vec2[]): { x: number; y: number; width: number; height: number } {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  for (const p of points) {
+    if (p.x < minX) minX = p.x
+    if (p.x > maxX) maxX = p.x
+    if (p.y < minY) minY = p.y
+    if (p.y > maxY) maxY = p.y
+  }
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
 }
 
 /**
- * Every vertex the user can click in Complete mode, in Patch-local coords.
- * Aggregates each Cell's outer + pocket + boundary cycles, optionally with
- * one-ring neighbour stamps applied to the outer cycles. Mirrors the canvas
- * pick-target build in `Canvas.tsx` so picks validated here always agree
- * with what the user can click.
+ * Neighbour-stamp set local to the given `points` (Complete-mode picks).
+ *
+ * The canvas exposes the *full visible lattice* of neighbour copies, which is
+ * viewport-dependent — but the reducer has no viewport. Instead of a fixed
+ * ring we generate just the lattice stamps in a small box around the picks
+ * (the lattice generators add a one-cell margin, so the stamp each pick sits
+ * on is always covered). This accepts any neighbour copy the user can click,
+ * however far they've panned, while staying viewport-free.
  */
-export function patchSelectableVertices(patch: EditorPatch, includeNeighbours: boolean): Vec2[] {
+export function neighbourStampsNear(patch: EditorPatch, points: Vec2[]): LatticeStamp[] {
+  if (points.length === 0) return []
+  const box = boundingBox(points)
+  return patch.cells.length > 1
+    ? compositionNeighbourStamps(patch, box)
+    : editorNeighbourStamps(patch.cells[0], box)
+}
+
+/**
+ * True if `p` is a vertex the user can legitimately click in Complete mode:
+ * any Cell's outer / pocket / boundary cycle vertex, or — when
+ * `includeNeighbours` — any neighbour-stamp copy of an outer-cycle vertex.
+ * The neighbour test is pick-local (see `neighbourStampsNear`) so it matches
+ * the canvas's full-lattice exposure without enumerating a viewport. Mirrors
+ * the canvas pick-target build in `Canvas.tsx`.
+ */
+export function isPatchSelectableVertex(patch: EditorPatch, p: Vec2, includeNeighbours: boolean): boolean {
   const patchRot = patchRotation(patch)
-  const out: Vec2[] = []
   for (const cell of patch.cells) {
     const cycles = computeAllCycles(cell)
-    for (const v of cycles.outer) out.push(applyCellTransform(v.p, cell, patchRot))
-    for (const cycle of cycles.pockets) for (const v of cycle) out.push(applyCellTransform(v.p, cell, patchRot))
-    for (const v of computeBoundaryCycle(cell)) out.push(applyCellTransform(v.p, cell, patchRot))
+    for (const v of cycles.outer) {
+      if (pointsEqual(p, applyCellTransform(v.p, cell, patchRot), EDITOR_EPS)) return true
+    }
+    for (const cycle of cycles.pockets) for (const v of cycle) {
+      if (pointsEqual(p, applyCellTransform(v.p, cell, patchRot), EDITOR_EPS)) return true
+    }
+    for (const v of computeBoundaryCycle(cell)) {
+      if (pointsEqual(p, applyCellTransform(v.p, cell, patchRot), EDITOR_EPS)) return true
+    }
   }
-  if (includeNeighbours) {
-    const stamps = patchNeighbourStamps(patch)
-    for (const stamp of stamps) {
-      for (const cell of patch.cells) {
-        const outer = computeAllCycles(cell).outer
-        for (const v of outer) out.push(applyStamp(applyCellTransform(v.p, cell, patchRot), stamp))
+  if (!includeNeighbours) return false
+  for (const stamp of neighbourStampsNear(patch, [p])) {
+    for (const cell of patch.cells) {
+      for (const v of computeAllCycles(cell).outer) {
+        if (pointsEqual(p, applyStamp(applyCellTransform(v.p, cell, patchRot), stamp), EDITOR_EPS)) return true
       }
     }
   }
-  return out
+  return false
 }
 
 /**
@@ -210,10 +234,8 @@ export function multiPickValidityLabel(v: MultiPickValidity): string | null {
  */
 export function validateMultiPick(patch: EditorPatch, picks: Vec2[]): MultiPickValidity {
   if (picks.length < 3) return { kind: 'too-few' }
-  const selectable = patchSelectableVertices(patch, true)
-  if (!picks.every(p => isSelectable(p, selectable))) return { kind: 'pick-not-selectable' }
-  const realVerts = patchSelectableVertices(patch, false)
-  if (!picks.some(p => isSelectable(p, realVerts))) return { kind: 'no-real-cell-pick' }
+  if (!picks.every(p => isPatchSelectableVertex(patch, p, true))) return { kind: 'pick-not-selectable' }
+  if (!picks.some(p => isPatchSelectableVertex(patch, p, false))) return { kind: 'no-real-cell-pick' }
 
   const active = patch.cells.find(c => c.id === patch.activeCellId) ?? patch.cells[0]
   const patchRot = patchRotation(patch)

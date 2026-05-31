@@ -286,3 +286,19 @@ export function compositionLatticeStamps(
   }
   return stamps
 }
+
+/**
+ * Multi-cell sibling of `editorNeighbourStamps` — the full visible lattice of
+ * unit-cell stamps minus the centre copy (the live Patch). Drives both the
+ * "Show neighbours" ghost preview and the Complete-mode clickable vertices in
+ * multi-cell Configurations, replacing the fixed `compositionOneRingStamps`.
+ * Stamps are pure translations, so the centre copy is simply (0, 0).
+ */
+export function compositionNeighbourStamps(
+  patch: EditorPatch,
+  viewport: { x: number; y: number; width: number; height: number },
+): LatticeStamp[] {
+  return compositionLatticeStamps(patch, viewport).filter(
+    s => Math.abs(s.translation.x) > 1e-6 || Math.abs(s.translation.y) > 1e-6,
+  )
+}

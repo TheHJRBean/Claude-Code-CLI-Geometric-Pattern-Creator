@@ -40,8 +40,79 @@ function transformPolygon(poly: Polygon, translation: Vec2, rotation: number): P
   }
 }
 
-/** Lattice basis vectors `(u, v)` for a Configuration's translation lattice. */
+/** Rotate a `Vec2` about the origin by `theta` radians. */
+function rotateVec(p: Vec2, theta: number): Vec2 {
+  if (theta === 0) return p
+  const c = Math.cos(theta), s = Math.sin(theta)
+  return { x: p.x * c - p.y * s, y: p.x * s + p.y * c }
+}
+
+/**
+ * Patch-level "alternate orientation" angle for a multi-cell **Configuration**.
+ *
+ * Unlike single-cell alternate (which rotates one Cell's outline + lattice by
+ * π/n *in place*), a composite Patch must reorient *rigidly* — every Cell, the
+ * lattice basis, and the outlines turn together by one angle about the Patch
+ * origin, so the whole tiling reads as a genuinely different orientation
+ * instead of each Cell spinning on the spot. The angle is a half-step of the
+ * lattice's rotational symmetry, matching single-cell semantics: π/4 for the
+ * square lattice (4.8.8) → diamond; π/6 for the hex lattices → flat-top ↔
+ * point-up.
+ */
+export function compositionAlternateAngle(configuration: EditorPatch['configuration']): number {
+  switch (configuration) {
+    case '4.8.8':
+      return Math.PI / 4
+    case '3.12.12':
+    case '4.6.12':
+    case '3.6.3.6':
+    case '3.4.6.4':
+      return Math.PI / 6
+    default:
+      return 0
+  }
+}
+
+/**
+ * Effective rigid rotation applied to the whole Patch. Non-zero only for a
+ * multi-cell Patch flagged `alternateOrientation`. Single-cell Patches reorient
+ * per-Cell via `cell.alternateBoundary` (see `editorBoundaryVertices` +
+ * `lattice.ts`), so this returns 0 for them.
+ */
+export function patchRotation(patch: EditorPatch): number {
+  if (patch.cells.length <= 1 || !patch.alternateOrientation) return 0
+  return compositionAlternateAngle(patch.configuration)
+}
+
+/**
+ * The transform that places `cell` into Patch-local coords, including any
+ * patch-level rigid rotation. Composing the Patch rotation `θ` with the Cell's
+ * own transform: `p' = R(θ)·(R(cell.rotation)·p + cell.center)`, i.e. rotate
+ * the Cell's centre by θ and add θ to its rotation. Used by both the geometry
+ * pipeline here and the Canvas picker overlays so tiles and overlays stay
+ * aligned when the Patch reorients.
+ */
+export function patchCellTransform(
+  patch: EditorPatch,
+  cell: { center: Vec2; rotation: number },
+): { translation: Vec2; rotation: number } {
+  const theta = patchRotation(patch)
+  if (theta === 0) return { translation: cell.center, rotation: cell.rotation }
+  return { translation: rotateVec(cell.center, theta), rotation: cell.rotation + theta }
+}
+
+/**
+ * Lattice basis vectors `(u, v)` for a Configuration's translation lattice,
+ * rotated by any patch-level alternate orientation so the stamped field tracks
+ * the rigidly-rotated unit cell.
+ */
 export function compositionCellBasis(patch: EditorPatch): { u: Vec2; v: Vec2 } {
+  const { u, v } = unrotatedCompositionCellBasis(patch)
+  const theta = patchRotation(patch)
+  return { u: rotateVec(u, theta), v: rotateVec(v, theta) }
+}
+
+function unrotatedCompositionCellBasis(patch: EditorPatch): { u: Vec2; v: Vec2 } {
   const L = patch.edgeLength
   switch (patch.configuration) {
     case '4.8.8': {
@@ -117,9 +188,10 @@ export function compositionCellBasis(patch: EditorPatch): { u: Vec2; v: Vec2 } {
 export function compositionToPolygons(patch: EditorPatch): Polygon[] {
   const polys: Polygon[] = []
   for (const cell of patch.cells) {
+    const tx = patchCellTransform(patch, cell)
     const inner = editorTilesToPolygons(cell)
     for (const poly of inner) {
-      const transformed = transformPolygon(poly, cell.center, cell.rotation)
+      const transformed = transformPolygon(poly, tx.translation, tx.rotation)
       polys.push({ ...transformed, id: `${cell.id}/${poly.id}` })
     }
   }
@@ -133,8 +205,12 @@ export function compositionToPolygons(patch: EditorPatch): Polygon[] {
  */
 export function compositionBoundaryOutlines(patch: EditorPatch): Vec2[][] {
   return patch.cells.map(cell => {
-    const local = editorBoundaryVertices(cell)
-    return local.map(v => transformPoint(v, cell.center, cell.rotation))
+    const tx = patchCellTransform(patch, cell)
+    // Multi-cell alternate reorients the whole Patch rigidly via `tx`, so the
+    // per-Cell π/n flip must NOT also fire here — strip `alternateBoundary`
+    // before reading the Cell-local outline.
+    const local = editorBoundaryVertices({ ...cell, alternateBoundary: false })
+    return local.map(v => transformPoint(v, tx.translation, tx.rotation))
   })
 }
 

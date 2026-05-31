@@ -13,7 +13,7 @@ import { computeExposedEdges } from '../editor/exposedEdges'
 import { computeAllCycles, computeBoundaryCycle, computeOuterBoundary, type BoundaryVertex } from '../editor/boundary'
 import { EDITOR_EPS } from '../editor/exposedEdges'
 import { applyStamp, editorOneRingNeighbourStamps } from '../editor/lattice'
-import { compositionOneRingStamps } from '../editor/compositionLattice'
+import { compositionOneRingStamps, patchRotation } from '../editor/compositionLattice'
 import { viableSidesForEdge } from '../editor/orbit'
 import { EditorEdgeLayer } from './EditorEdgeLayer'
 import { EditorPickerOverlay } from './EditorPickerOverlay'
@@ -41,8 +41,16 @@ import { regularPolygonVertices } from '../editor/regularPolygon'
  * Returns the Cell's transform. For a single-cell Patch with the lone Cell
  * at the Patch origin this is the identity.
  */
-function cellTransform(cell: { center: Vec2; rotation: number }): { translation: Vec2; rotation: number } {
-  return { translation: cell.center, rotation: cell.rotation }
+function cellTransform(
+  cell: { center: Vec2; rotation: number },
+  patchRot = 0,
+): { translation: Vec2; rotation: number } {
+  if (patchRot === 0) return { translation: cell.center, rotation: cell.rotation }
+  const c = Math.cos(patchRot), s = Math.sin(patchRot)
+  return {
+    translation: { x: cell.center.x * c - cell.center.y * s, y: cell.center.x * s + cell.center.y * c },
+    rotation: cell.rotation + patchRot,
+  }
 }
 
 function applyTransform(p: Vec2, tx: { translation: Vec2; rotation: number }): Vec2 {
@@ -251,6 +259,10 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
 
   // ── Builder overlay (Step 17.3) ──────────────────────
   const editorActive = config.tiling.type === 'editor' && config.editor != null
+  // Multi-cell "Alternate orientation" rotates the whole Patch rigidly; the
+  // picker overlays must turn with the tiles, so fold the Patch rotation into
+  // every Cell transform (0 for single-cell + non-alternate Patches).
+  const patchRot = editorActive && config.editor ? patchRotation(config.editor) : 0
   // Per-Cell picker geometry: edges/vertices are computed per Cell in Cell-local
   // coords; the canvas renders Cells at Patch-local coords. We keep the raw
   // (Cell-local) edges as the source of truth for validation + dispatch, and
@@ -273,7 +285,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     if (!editorActive || !config.editor) return exposedEdges
     const txByHost = new Map<string, { translation: Vec2; rotation: number }>()
     for (const cell of config.editor.cells) {
-      txByHost.set(cell.id, cellTransform(cell))
+      txByHost.set(cell.id, cellTransform(cell, patchRot))
     }
     return exposedEdges.map(e => {
       const tx = e.hostCellId ? txByHost.get(e.hostCellId) : undefined
@@ -306,7 +318,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       const outer: BoundaryVertex[] = []
       const pockets: BoundaryVertex[][] = []
       for (const cell of config.editor.cells) {
-        const tx = cellTransform(cell)
+        const tx = cellTransform(cell, patchRot)
         const cycles = computeAllCycles(cell)
         for (const v of cycles.outer) {
           outer.push({ ...transformBoundaryVertex(v, tx), tileId: `${cell.id}/${v.tileId}` })
@@ -337,7 +349,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     if (!editorActive || !config.editor || editorMode !== 'complete') return []
     const collected: BoundaryVertex[] = []
     for (const cell of config.editor.cells) {
-      const tx = cellTransform(cell)
+      const tx = cellTransform(cell, patchRot)
       const raw = computeBoundaryCycle(cell)
       for (const v of raw) {
         collected.push({ ...transformBoundaryVertex(v, tx), tileId: `${cell.id}/${v.tileId}` })
@@ -370,7 +382,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     for (let s = 0; s < ringStamps.length; s++) {
       const stamp = ringStamps[s]
       for (const cell of patch.cells) {
-        const tx = cellTransform(cell)
+        const tx = cellTransform(cell, patchRot)
         const cycle = computeOuterBoundary(cell)
         for (let i = 0; i < cycle.length; i++) {
           const v = cycle[i]
@@ -408,7 +420,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   }, [sectionsActive, activeCellForSections])
   const renderedSections = useMemo(() => {
     if (!sectionsActive || !activeCellForSections) return cellLocalSections
-    const tx = cellTransform(activeCellForSections)
+    const tx = cellTransform(activeCellForSections, patchRot)
     return cellLocalSections.map(s => ({
       ...s,
       p1: applyTransform(s.p1, tx),
@@ -441,7 +453,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   }, [vertexPlacementActive, activeCellForSections])
   const renderedVertices = useMemo<ExposedVertex[]>(() => {
     if (!vertexPlacementActive || !activeCellForSections) return cellLocalVertices
-    const tx = cellTransform(activeCellForSections)
+    const tx = cellTransform(activeCellForSections, patchRot)
     return cellLocalVertices.map(v => ({ ...v, p: applyTransform(v.p, tx) }))
   }, [vertexPlacementActive, activeCellForSections, cellLocalVertices])
   const [selectedVertexKey, setSelectedVertexKey] = useState<VertexKey | null>(null)
@@ -514,7 +526,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       '__preview__',
     )
     const verts = regularPolygonVertices(tile.sides, tile.center, tile.edgeLength, tile.rotation)
-    const tx = cellTransform(activeCellForSections)
+    const tx = cellTransform(activeCellForSections, patchRot)
     return verts.map(v => {
       const w = applyTransform(v, tx)
       return `${w.x},${w.y}`
@@ -629,7 +641,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       ?? config.editor.cells[0]
     : null
   const pickerWorldPos = selectedEdgeData
-    ? (selectedHostCell ? applyTransform(selectedEdgeData.midpoint, cellTransform(selectedHostCell)) : selectedEdgeData.midpoint)
+    ? (selectedHostCell ? applyTransform(selectedEdgeData.midpoint, cellTransform(selectedHostCell, patchRot)) : selectedEdgeData.midpoint)
     : null
   const pickerScreenPos = pickerWorldPos && editorMode === 'place' && !editorStrandMode
     ? worldToScreen(pickerWorldPos, viewTransform, size.width, size.height)
@@ -641,7 +653,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // Step 17.12c — boundary-section picker. Mirrors the edge picker: world →
   // screen via `worldToScreen`, viable sides via `viableSidesForBoundarySection`.
   const sectionPickerWorldPos = selectedSectionData && activeCellForSections
-    ? applyTransform(selectedSectionData.midpoint, cellTransform(activeCellForSections))
+    ? applyTransform(selectedSectionData.midpoint, cellTransform(activeCellForSections, patchRot))
     : null
   const sectionPickerScreenPos = sectionPickerWorldPos && sectionsActive
     ? worldToScreen(sectionPickerWorldPos, viewTransform, size.width, size.height)
@@ -653,7 +665,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // Step 17.13c — vertex picker. World pos = anchor vertex transformed into
   // Patch-local coords. Vertex placement is single-cell only in v1.
   const vertexPickerWorldPos = selectedVertexData && activeCellForSections
-    ? applyTransform(selectedVertexData.p, cellTransform(activeCellForSections))
+    ? applyTransform(selectedVertexData.p, cellTransform(activeCellForSections, patchRot))
     : null
   const vertexPickerScreenPos = vertexPickerWorldPos && vertexPlacementActive
     ? worldToScreen(vertexPickerWorldPos, viewTransform, size.width, size.height)

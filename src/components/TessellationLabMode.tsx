@@ -1462,12 +1462,12 @@ function EditorDesignControls({
         cursor: 'pointer',
         fontFamily: "'EB Garamond', Georgia, serif",
         fontSize: 13,
-        color: cell.alternateBoundary ? 'var(--text)' : 'var(--text-muted)',
+        color: (multiCell ? editor.alternateOrientation : cell.alternateBoundary) ? 'var(--text)' : 'var(--text-muted)',
         transition: 'color 0.15s',
       }}>
         <input
           type="checkbox"
-          checked={!!cell.alternateBoundary}
+          checked={multiCell ? !!editor.alternateOrientation : !!cell.alternateBoundary}
           onChange={e => dispatch({ type: 'SET_EDITOR_ALTERNATE_BOUNDARY', payload: e.target.checked })}
         />
         Alternate orientation

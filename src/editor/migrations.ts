@@ -297,6 +297,17 @@ function migrateV3(r: Record<string, unknown>): EditorConfig | null {
   if (ac) out.autoComplete = ac
   const frame = migrateFrame(r.frame)
   if (frame) out.frame = frame
+  // Multi-cell alternate moved from per-Cell `alternateBoundary` to the
+  // Patch-level `alternateOrientation` (rigid whole-Patch rotation). Convert
+  // legacy multi-cell patches that still carry the per-Cell flag, and clear it
+  // so the two mechanisms don't compound.
+  if (cells.length > 1) {
+    const legacyAlternate = cells.some(c => c.alternateBoundary)
+    if (r.alternateOrientation === true || legacyAlternate) {
+      out.alternateOrientation = true
+      out.cells = cells.map(c => ({ ...c, alternateBoundary: false }))
+    }
+  }
   return out
 }
 

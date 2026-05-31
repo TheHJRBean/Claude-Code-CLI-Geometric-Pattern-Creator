@@ -104,32 +104,39 @@ export function neighbourStampsNear(patch: EditorPatch, points: Vec2[]): Lattice
 }
 
 /**
+ * Every vertex of a single Cell the user can click, in Cell-local coords:
+ * the outer tile cycle, interior pocket cycles, and the Cell-Boundary corners.
+ * Shared by the live-Patch and neighbour-stamp membership tests so the two
+ * always agree, and mirrors the canvas pick-target build in `Canvas.tsx`.
+ */
+export function cellLocalSelectableVertices(cell: EditorCell): Vec2[] {
+  const cycles = computeAllCycles(cell)
+  return [
+    ...cycles.outer.map(v => v.p),
+    ...cycles.pockets.flat().map(v => v.p),
+    ...computeBoundaryCycle(cell).map(v => v.p),
+  ]
+}
+
+/**
  * True if `p` is a vertex the user can legitimately click in Complete mode:
- * any Cell's outer / pocket / boundary cycle vertex, or — when
- * `includeNeighbours` — any neighbour-stamp copy of an outer-cycle vertex.
- * The neighbour test is pick-local (see `neighbourStampsNear`) so it matches
- * the canvas's full-lattice exposure without enumerating a viewport. Mirrors
- * the canvas pick-target build in `Canvas.tsx`.
+ * any Cell's outer / pocket / Boundary-corner vertex, or — when
+ * `includeNeighbours` — any neighbour-stamp copy of one. The neighbour test is
+ * pick-local (see `neighbourStampsNear`) so it matches the canvas's
+ * full-lattice exposure without enumerating a viewport.
  */
 export function isPatchSelectableVertex(patch: EditorPatch, p: Vec2, includeNeighbours: boolean): boolean {
   const patchRot = patchRotation(patch)
   for (const cell of patch.cells) {
-    const cycles = computeAllCycles(cell)
-    for (const v of cycles.outer) {
-      if (pointsEqual(p, applyCellTransform(v.p, cell, patchRot), EDITOR_EPS)) return true
-    }
-    for (const cycle of cycles.pockets) for (const v of cycle) {
-      if (pointsEqual(p, applyCellTransform(v.p, cell, patchRot), EDITOR_EPS)) return true
-    }
-    for (const v of computeBoundaryCycle(cell)) {
-      if (pointsEqual(p, applyCellTransform(v.p, cell, patchRot), EDITOR_EPS)) return true
+    for (const v of cellLocalSelectableVertices(cell)) {
+      if (pointsEqual(p, applyCellTransform(v, cell, patchRot), EDITOR_EPS)) return true
     }
   }
   if (!includeNeighbours) return false
   for (const stamp of neighbourStampsNear(patch, [p])) {
     for (const cell of patch.cells) {
-      for (const v of computeAllCycles(cell).outer) {
-        if (pointsEqual(p, applyStamp(applyCellTransform(v.p, cell, patchRot), stamp), EDITOR_EPS)) return true
+      for (const v of cellLocalSelectableVertices(cell)) {
+        if (pointsEqual(p, applyStamp(applyCellTransform(v, cell, patchRot), stamp), EDITOR_EPS)) return true
       }
     }
   }

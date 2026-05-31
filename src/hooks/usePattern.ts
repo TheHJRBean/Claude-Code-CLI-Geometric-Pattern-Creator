@@ -7,11 +7,11 @@ import { TILINGS } from '../tilings/index'
 import { generateTiling } from '../tilings/archimedean'
 import { generateRosettePatch } from '../tilings/rosettePatch'
 import { editorBoundaryVertices, editorTilesToPolygons, tilesToPolygons } from '../editor/buildEditorPolygons'
-import { editorLatticeStamps, editorOneRingNeighbourStamps } from '../editor/lattice'
+import { editorLatticeStamps, editorNeighbourStamps, type LatticeStamp } from '../editor/lattice'
 import {
   compositionBoundaryOutlines,
   compositionLatticeStamps,
-  compositionOneRingStamps,
+  compositionNeighbourStamps,
   compositionToPolygons,
 } from '../editor/compositionLattice'
 import { activeCell } from '../editor/active'
@@ -36,6 +36,14 @@ export interface PatternData {
    * user can see how their Patch joins its neighbours. Excluded from PIC.
    */
   ghostPolygons?: Polygon[]
+  /**
+   * Step 17.11 — the neighbour-stamp set (full visible lattice minus the
+   * centre copy) used to build `ghostPolygons`. Returned so Canvas can derive
+   * Complete-mode clickable vertices from the *same* stamps the ghosts were
+   * drawn from — guaranteeing every clickable dot sits on a rendered ghost.
+   * Undefined when the neighbour preview is off.
+   */
+  neighbourStamps?: LatticeStamp[]
   /**
    * Count of leading entries in `boundaryOutlines` that belong to the seed
    * Patch (vs neighbour-stamp ghosts). Lets the renderer style seed Cell
@@ -110,14 +118,18 @@ export function usePattern(
           : [editorBoundaryVertices(cell)]
         let ghostPolygons: typeof basePolys | undefined
         let boundaryOutlines: Vec2[][] = [...baseOutlines]
-        // Neighbour preview: single-Cell uses the per-Cell one-ring;
-        // multi-cell uses the Configuration one-ring (8 surrounding cells via
-        // the Configuration's translation basis, each carrying every Cell —
-        // so for 4.8.8, every neighbour stamp brings 1 octagon + 1 square).
+        // Neighbour preview: the full visible lattice of neighbour stamps minus
+        // the centre copy (single-cell uses the per-Cell lattice — triangle has
+        // a 2-orientation cell; multi-cell uses the Configuration lattice, each
+        // stamp carrying every Cell — e.g. 1 octagon + 1 square for 4.8.8). The
+        // same `ringStamps` set is returned so Complete-mode clickable vertices
+        // sit exactly on these ghosts.
+        let ringStamps: LatticeStamp[] | undefined
         if (editorNeighbourPreview) {
-          const ringStamps = multiCell
-            ? compositionOneRingStamps(patch)
-            : editorOneRingNeighbourStamps(cell)
+          const viewport = { x: genX, y: genY, width: genW, height: genH }
+          ringStamps = multiCell
+            ? compositionNeighbourStamps(patch, viewport)
+            : editorNeighbourStamps(cell, viewport)
           if (ringStamps.length > 0) {
             ghostPolygons = []
             for (let s = 0; s < ringStamps.length; s++) {
@@ -169,6 +181,7 @@ export function usePattern(
           segments,
           boundaryOutlines,
           ghostPolygons,
+          neighbourStamps: ringStamps,
           seedOutlineCount: baseOutlines.length,
           ghostPolygonIds,
         }

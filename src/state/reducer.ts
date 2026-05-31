@@ -35,9 +35,8 @@ import {
   existingTilesInHostFrame,
   inverseCellTransform,
   inverseRotateTranslate,
-  isSelectable,
-  patchNeighbourStamps,
-  patchSelectableVertices,
+  isPatchSelectableVertex,
+  neighbourStampsNear,
   retargetTile,
 } from '../editor/patchSelectable'
 import { patchRotation } from '../editor/compositionLattice'
@@ -625,7 +624,7 @@ function chordCompleteAcrossPatch(state: PatternConfig, pA: Vec2, pB: Vec2): Pat
     ...patch.cells.filter(c => c.id !== patch.activeCellId),
   ]
   const patchRot = patchRotation(patch)
-  const stamps: (LatticeStamp | null)[] = [null, ...patchNeighbourStamps(patch)]
+  const stamps: (LatticeStamp | null)[] = [null, ...neighbourStampsNear(patch, [pA, pB])]
   for (const stamp of stamps) {
     for (const cell of ordered) {
       const undo = (p: Vec2) =>
@@ -665,13 +664,11 @@ function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[], force
   if (!state.editor) return state
   const patch = state.editor
   const active = activeCell(patch)
-  const selectable = patchSelectableVertices(patch, true)
-  if (!picks.every(p => isSelectable(p, selectable))) return state
+  if (!picks.every(p => isPatchSelectableVertex(patch, p, true))) return state
   // Non-floating rule: at least one pick must be on a vertex from the user's
   // actual Patch (no neighbour stamps). Rejects polygons built entirely on
   // ghost-stamp vertices.
-  const realVerts = patchSelectableVertices(patch, false)
-  if (!picks.some(p => isSelectable(p, realVerts))) return state
+  if (!picks.some(p => isPatchSelectableVertex(patch, p, false))) return state
 
   const patchRot = patchRotation(patch)
   const localPicks = picks.map(p => inverseCellTransform(p, active, patchRot))
@@ -690,7 +687,7 @@ function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[], force
     // Orbit image must also land on selectable vertices — drop silently for
     // asymmetric setups where the orbit branch has no real pick targets.
     const patchLocal = transformed.map(p => applyCellTransform(p, active, patchRot))
-    if (!patchLocal.every(p => isSelectable(p, selectable))) continue
+    if (!patchLocal.every(p => isPatchSelectableVertex(patch, p, true))) continue
     const c = centroidOf(transformed)
     if (seenCentroids.some(q => pointsEqual(c, q, EDITOR_EPS))) continue
     seenCentroids.push(c)

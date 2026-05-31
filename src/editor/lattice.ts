@@ -255,3 +255,38 @@ export function editorLatticeStamps(
   }
   return stamps
 }
+
+const TAU = Math.PI * 2
+
+/**
+ * True for the lattice stamp that reproduces the source Cell in place — zero
+ * translation and zero rotation (mod 2π). Used to peel the centre copy off a
+ * full-viewport lattice so what remains is purely *neighbour* stamps. Note
+ * the triangle lattice puts two intra-cell stamps on point (0, 0): the
+ * identity (the source) and a π-rotated partner (a genuine edge-neighbour) —
+ * only the former is dropped.
+ */
+function isIdentityStamp(s: LatticeStamp): boolean {
+  const r = ((s.rotation % TAU) + TAU) % TAU
+  return (
+    Math.abs(s.translation.x) < 1e-6
+    && Math.abs(s.translation.y) < 1e-6
+    && (r < 1e-6 || Math.abs(r - TAU) < 1e-6)
+  )
+}
+
+/**
+ * Step 17.11 (revised) — the neighbour Cells exposed in Complete mode and the
+ * "Show neighbours" ghost preview. Originally a fixed first ring
+ * (`editorOneRingNeighbourStamps`); now the *full visible lattice* minus the
+ * centre copy, so the user can complete gaps against any neighbour they can
+ * see and pan to (validation alerts gate bad picks). The ghost preview and
+ * the clickable vertices share this single set so dots always sit on a drawn
+ * ghost.
+ */
+export function editorNeighbourStamps(
+  cell: EditorCell,
+  viewport: { x: number; y: number; width: number; height: number },
+): LatticeStamp[] {
+  return editorLatticeStamps(cell, viewport).filter(s => !isIdentityStamp(s))
+}

@@ -53,6 +53,39 @@ function getFigure(state: PatternConfig, tileTypeId: string): FigureConfig {
   return state.figures[tileTypeId] ?? FALLBACK_FIGURE
 }
 
+/**
+ * The figure-map keys legitimate for a given gallery tiling: its tile-type
+ * ids (explicit `tileTypes`, else derived from `vertexConfig`) plus any keys
+ * its default figures ship with. Returns null for tilings not in TILINGS
+ * (e.g. Builder/editor configs, `tiling.type === 'editor'`) — that signals
+ * "don't prune", since Builder tile-type ids come from the Patch, not here.
+ */
+function validFigureKeys(tilingType: string): Set<string> | null {
+  const def = TILINGS[tilingType]
+  if (!def) return null
+  const ids = def.tileTypes
+    ? def.tileTypes.map(t => t.id)
+    : [...new Set(def.vertexConfig)].map(String)
+  const keys = new Set(ids)
+  for (const k of Object.keys(def.defaultConfig.figures ?? {})) keys.add(k)
+  return keys
+}
+
+/**
+ * Drop figure entries whose key isn't a tile type of `tilingType`. Stops
+ * stale per-tile figures from a previously-selected tiling leaking into the
+ * current one (e.g. a "5"/"4.1" figure surviving a switch to 3.3.4.3.4),
+ * which otherwise renders / toggles on tile types the user never intended.
+ * No-op for Builder/editor configs (validFigureKeys → null).
+ */
+function pruneFigures(figures: Record<string, FigureConfig>, tilingType: string): Record<string, FigureConfig> {
+  const valid = validFigureKeys(tilingType)
+  if (!valid) return figures
+  const next: Record<string, FigureConfig> = {}
+  for (const [k, v] of Object.entries(figures)) if (valid.has(k)) next[k] = v
+  return next
+}
+
 /** Return new state with a single figure field updated. */
 function updateFigure(state: PatternConfig, tileTypeId: string, patch: Partial<FigureConfig>): PatternConfig {
   return {
@@ -69,10 +102,18 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     case 'SET_TILING_TYPE': {
       const def = TILINGS[action.payload]
       if (!def) return state
+      // Re-selecting the current tiling is a no-op so the user keeps their
+      // tweaks. Switching to a *different* tiling resets `figures` to that
+      // tiling's own defaults — no carryover. The old code merged the
+      // previous tiling's figures in, which both accumulated stale keys
+      // (e.g. a "5" surviving onto a snub square) AND leaked shared-id
+      // settings across tilings (vertex strands enabled on a `square`'s "4"
+      // bleeding onto 3.3.4.3.4's squares). Both are the reported bug.
+      if (action.payload === state.tiling.type) return state
       return {
         ...state,
         tiling: { ...state.tiling, type: action.payload },
-        figures: { ...state.figures, ...(def.defaultConfig.figures ?? {}) },
+        figures: { ...(def.defaultConfig.figures ?? {}) },
       }
     }
     case 'RESET_FIGURES': {
@@ -178,8 +219,12 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       return { ...state, smoothTransitions: action.payload }
     case 'SET_FIGURE_ROUTING':
       return { ...state, figureRouting: action.payload }
-    case 'LOAD_CONFIG':
-      return action.payload
+    case 'LOAD_CONFIG': {
+      // Clean up already-polluted saves on load: drop figure keys that
+      // aren't tile types of the loaded tiling. No-op for Builder configs.
+      const cfg = action.payload
+      return { ...cfg, figures: pruneFigures(cfg.figures, cfg.tiling.type) }
+    }
     case 'EDITOR_NEW': {
       const editor = createDefaultEditorConfig()
       return seedFigures({

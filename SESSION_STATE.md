@@ -6,6 +6,16 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
+**2026-05-31 — Gallery Frame (Tier A, SHIPPED `aedfecc`).** Clip-only parametric Shape Frame in **Gallery** mode (distinct from the Builder's Framing Phase). The infinite tiling is clipped to a square/hex/octagon outline + visible accent stroke, driven by a new Gallery-only sidebar **Frame** section (shape / size / aspect / rotation). Reuses the existing `editor/frame.ts::frameOutlinePolygon` geometry + PatternSVG's clip+stroke path verbatim — **no completion machinery** (the BFS field already fills the frame, so the janky complete-to-frame problem doesn't arise here).
+
+Files: `types/pattern.ts` (`PatternConfig.frame?: FrameConfig`, shape-only) · `state/actions.ts` + `state/reducer.ts` (`SET_GALLERY_FRAME` → top-level `config.frame`, distinct from the Builder's `SET_FRAME`→`editor.frame`) · `components/Canvas.tsx` (`frameOutline` memo reads `config.frame` when `tiling.type !== 'editor'`; gated off the Lab so it can't leak across workspaces) · `components/Sidebar.tsx` (Gallery `mode === 'main'` Frame section) · `state/configValidation.ts` (`readGalleryFrame` clamps size to `[MIN,MAX]`, defaults aspect/rotation, **drops non-`shape` frames silently** — a missing Gallery frame is harmless).
+
+Build + `tsc --noEmit` green. **Known v1 caveat:** Strands hard-clip at the frame edge (clean cut, no edge resolution) — that's a Decoration-stage follow-up, intentionally out of scope. Placement defaults to world origin (0,0); reposition by panning the pattern under the frame. **Not browser-verified yet** (verify via `npm run dev` → Gallery → Frame section).
+
+**⏭ NEXT — Tier B fast-follow (RAW, ~1–2h):** lattice-unit sizing so the frame is measured in **whole repeat units** (the affordable "patch-based like the Builder" feel). `archimedean.ts` already computes translation vectors internally via `getTilingLattice` (line ~239, private, used for pan-stability seed-snapping) — export it, then convert the Size slider to lattice-cell multiples (size = N × |t1|). Note: Gallery has **no fundamental-domain outline polygon**, only the two vectors — a true Builder-style n-ring patch frame (Tier C) would need to derive + union a domain per tiling and is a much larger, separate piece. Verdict from this session: Tier B is the right stopping point; Tier C not worth it.
+
+---
+
 **2026-05-30 — Framing Phase (Builder Phase 3: Design → Composition → **Framing** → Decoration).** Design rationale + full status live in `memory/project_framing_stage_idea.md` (**canonical**); glossary in `CONTEXT.md` (**Frame** / **Frame node**); ADR-0003 (phase sequence), ADR-0004 (Framing structural-only). Frame config on `PatternConfig.editor` (Builder-only). This block is the per-slice **commit log** only — see the memo for the why.
 
 **Slices shipped (WIP-committed on this branch):**

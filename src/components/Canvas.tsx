@@ -658,8 +658,8 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   const sectionPickerScreenPos = sectionPickerWorldPos && sectionsActive
     ? worldToScreen(sectionPickerWorldPos, viewTransform, size.width, size.height)
     : null
-  const sectionPickerViable = selectedSectionData && activeCellForSections
-    ? viableSidesForBoundarySection(selectedSectionData, activeCellForSections)
+  const sectionPickerViable = selectedSectionData && activeCellForSections && config.editor
+    ? viableSidesForBoundarySection(selectedSectionData, activeCellForSections, config.editor.edgeLength)
     : []
 
   // Step 17.13c — vertex picker. World pos = anchor vertex transformed into

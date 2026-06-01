@@ -214,6 +214,7 @@ export function placeTilesOnBoundarySectionOrbit(
   sides: number,
   idPrefix: string,
   edgeLength: number,
+  force = false,
 ): EditorTile[] | null {
   if (sides < 3) return null
   const sections = computeBoundarySections(cell)
@@ -234,7 +235,7 @@ export function placeTilesOnBoundarySectionOrbit(
     const midpoint = match.midpoint
     if (seenCentroids.some(q => pointsEqual(midpoint, q, EDITOR_EPS))) continue
     seenCentroids.push(midpoint)
-    if (!isBoundarySectionPlacementViable(sides, match, working, edgeLength)) return null
+    if (!force && !isBoundarySectionPlacementViable(sides, match, working, edgeLength)) return null
     const tile = placeRegularNGonOnBoundarySection(sides, match, `${idPrefix}-${placedIndex}`, edgeLength)
     placements.push(tile)
     working = { ...working, tiles: [...working.tiles, tile] }

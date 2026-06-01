@@ -62,6 +62,11 @@ export function orbitEdges(cell: EditorCell, edgeLength: number, picked: Exposed
  * against `isPlacementViable`, and either appends every resulting tile or
  * returns `null` (if any orbit image fails — symmetry must never partially
  * break).
+ *
+ * `force` (flexible-placement, 2026-06-01): skip the overlap viability gate so
+ * the whole orbit is placed even when an image overlaps an existing Tile or an
+ * earlier orbit sibling. Structural resolution (each orbit edge must still map
+ * to a real exposed edge) is preserved — overlap is the only thing overridden.
  */
 export function placeTilesOnOrbit(
   cell: EditorCell,
@@ -69,6 +74,7 @@ export function placeTilesOnOrbit(
   picked: ExposedEdge,
   sides: number,
   idPrefix: string,
+  force = false,
 ): EditorTile[] | null {
   const edges = orbitEdges(cell, edgeLength, picked)
   if (edges.length === 0) return null
@@ -86,7 +92,7 @@ export function placeTilesOnOrbit(
         || (pointsEqual(e.p1, edges[i].p2, EDITOR_EPS) && pointsEqual(e.p2, edges[i].p1, EDITOR_EPS)),
     )
     if (!fresh) return null
-    if (!isPlacementViable(fresh, sides, working, edgeLength)) return null
+    if (!force && !isPlacementViable(fresh, sides, working, edgeLength)) return null
     const tile = placeRegularNGonOnEdge(
       sides,
       edgeLength,
@@ -256,6 +262,7 @@ export function placeTilesOnVertexOrbit(
   sides: number,
   rotation: number,
   idPrefix: string,
+  force = false,
 ): EditorTile[] | null {
   const syms = boundarySymmetries(cell.shape, cell.symmetryMode ?? 'none')
   // Snapshot the exposed vertex set against the initial Cell — positions
@@ -278,7 +285,7 @@ export function placeTilesOnVertexOrbit(
     const candidate = placeRegularNGonOnVertex(sides, edgeLength, matched, newRotation, '__probe__')
     if (seenCenters.some(c => pointsEqual(c, candidate.center, EDITOR_EPS))) continue
 
-    if (!isVertexPlacementViable(matched, sides, newRotation, edgeLength, working)) return null
+    if (!force && !isVertexPlacementViable(matched, sides, newRotation, edgeLength, working)) return null
 
     const tile = placeRegularNGonOnVertex(sides, edgeLength, matched, newRotation, `${idPrefix}-${i}`)
     placements.push(tile)

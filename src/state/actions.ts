@@ -41,20 +41,23 @@ export type Action =
   | { type: 'SET_CELL_BOUNDARY_SIZE'; payload: number }
   | { type: 'SET_EDITOR_ALTERNATE_BOUNDARY'; payload: boolean }
   | { type: 'SET_CELL_SEED_SIDES'; payload: number }
-  | { type: 'EDITOR_PLACE_TILE_ON_EDGE'; payload: { tileId: string; edgeIndex: number; sides: number } }
+  // `force` (2026-06-01 flexible-placement) commits the placement even when it
+  // would overlap an existing Tile (or, under symmetry, an orbit sibling) —
+  // the user accepted a skippable overlap warning in the picker.
+  | { type: 'EDITOR_PLACE_TILE_ON_EDGE'; payload: { tileId: string; edgeIndex: number; sides: number; force?: boolean } }
   // Step 17.12b — Boundary-inward placement. Drops a regular n-gon flush
   // against the picked Boundary section; the new Tile's edge length becomes
   // the Patch's `edgeLength` on the FIRST boundary placement (so the lattice
   // tracks the boundary-anchored Tile). Single-cell only in v1 (per locked
   // decision b). Always-available in Design Phase — no enabling flag.
-  | { type: 'EDITOR_PLACE_TILE_ON_BOUNDARY_SECTION'; payload: { edgeIndex: number; sectionIndex: number; sides: number } }
+  | { type: 'EDITOR_PLACE_TILE_ON_BOUNDARY_SECTION'; payload: { edgeIndex: number; sectionIndex: number; sides: number; force?: boolean } }
   // Step 17.13b — Vertex placement. Anchors a regular n-gon at an exposed
   // Cell corner (or an inward-only Boundary corner). `vertexKey` is the
   // stable rounded-coord identifier produced by `vertexKeyOf`; `rotation`
   // is the angle of the new Tile's edge 0→1 leaving the anchor (radians)
   // — picked from `vertexPlacementOrientations`. Symmetry-orbit aware:
   // propagates under the Cell's `symmetryMode` via `placeTilesOnVertexOrbit`.
-  | { type: 'EDITOR_PLACE_TILE_ON_VERTEX'; payload: { vertexKey: string; sides: number; rotation: number } }
+  | { type: 'EDITOR_PLACE_TILE_ON_VERTEX'; payload: { vertexKey: string; sides: number; rotation: number; force?: boolean } }
   // Toggle the auto-placed Seed Tile on/off for the active Cell. When on
   // (default), the Cell carries a Seed Tile at the centre. When off, the
   // Cell starts empty and the user builds from the boundary inward (or via

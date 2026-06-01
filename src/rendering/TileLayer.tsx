@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import type { Polygon } from '../types/geometry'
 
 interface Props {
@@ -7,7 +8,11 @@ interface Props {
   outlineWidth?: number
 }
 
-export function TileLayer({ polygons, visible, outlineWidth = 0.8 }: Props) {
+// Memoised: PatternSVG re-renders on every pan/zoom frame (live viewTransform →
+// viewBox), but the polygon set only changes when the geometry does. Bailing on
+// referentially-stable props keeps panning a large field from re-creating
+// thousands of <polygon> nodes each frame.
+export const TileLayer = memo(function TileLayer({ polygons, visible, outlineWidth = 0.8 }: Props) {
   if (!visible) return null
   return (
     <g id="tile-layer" opacity={0.45}>
@@ -23,4 +28,4 @@ export function TileLayer({ polygons, visible, outlineWidth = 0.8 }: Props) {
       ))}
     </g>
   )
-}
+})

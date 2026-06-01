@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import type { Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
 import { buildStrands } from '../strand/buildStrands'
@@ -27,7 +27,7 @@ interface Props {
  * Lacing returns under the Decoration Phase per ADR-0003 and
  * `project_decoration_stage_idea.md`.
  */
-export function StrandLayer({ segments, config, ghostPolygonIds }: Props) {
+export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPolygonIds }: Props) {
   const { strand } = config
 
   const strandData = useMemo(() => buildStrands(segments), [segments])
@@ -89,4 +89,4 @@ export function StrandLayer({ segments, config, ghostPolygonIds }: Props) {
       ))}
     </g>
   )
-}
+})

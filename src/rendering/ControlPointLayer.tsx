@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import type { Segment } from '../types/geometry'
 import type { PatternConfig, CurveConfig } from '../types/pattern'
 import { sub, normalize, perp, scale, add, dist, lerp, dot, type Vec2 } from '../utils/math'
@@ -55,7 +55,7 @@ function computeSegmentCPs(seg: Segment, curve: CurveConfig): Vec2[] {
   })
 }
 
-export function ControlPointLayer({ segments, config, visible, active, zoom }: Props) {
+export const ControlPointLayer = memo(function ControlPointLayer({ segments, config, visible, active, zoom }: Props) {
   const markers = useMemo<Marker[]>(() => {
     const out: Marker[] = []
     for (const seg of segments) {
@@ -110,4 +110,4 @@ export function ControlPointLayer({ segments, config, visible, active, zoom }: P
       ))}
     </g>
   )
-}
+})

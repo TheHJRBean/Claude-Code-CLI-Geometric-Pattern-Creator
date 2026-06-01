@@ -32,7 +32,13 @@ const SHAPE_PHASE: Record<FrameShape, number> = {
 /** Default Shape-Frame size (circumradius in world units). */
 export const DEFAULT_FRAME_SIZE = 400
 export const MIN_FRAME_SIZE = 80
-export const MAX_FRAME_SIZE = 1600
+/** Generous world-unit ceiling for the Frame circumradius. The Gallery sizes
+ * the Frame in whole repeat units capped at `MAX_FRAME_UNITS`; this px ceiling
+ * just needs enough headroom that the top unit never clamps (which would make
+ * the unit slider snap back). 8000 = 16 units of a 500-unit repeat. */
+export const MAX_FRAME_SIZE = 8000
+/** Maximum Frame size in tiling repeat units (the Gallery unit-sizing cap). */
+export const MAX_FRAME_UNITS = 16
 
 /** √2 rectangle aspect — A-series, paper-friendly. */
 export const SQRT2 = Math.SQRT2

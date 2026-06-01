@@ -163,9 +163,14 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
           vertexContactAngle: existing.vertexContactAngle ?? existing.contactAngle,
           vertexLineLength: existing.vertexLineLength ?? existing.lineLength,
           vertexAutoLineLength: existing.vertexAutoLineLength ?? existing.autoLineLength,
+          // Inherit the current (coupled) curve state so decoupling doesn't
+          // silently turn vertex curves off until the user diverges.
+          vertexCurveEnabled: existing.vertexCurveEnabled ?? (existing.curve?.enabled ?? false),
         } : {}),
       })
     }
+    case 'SET_VERTEX_CURVE_ENABLED':
+      return updateFigure(state, action.payload.tileTypeId, { vertexCurveEnabled: action.payload.enabled })
     case 'SET_VERTEX_CONTACT_ANGLE':
       return updateFigure(state, action.payload.tileTypeId, { vertexContactAngle: action.payload.angle })
     case 'SET_VERTEX_LINE_LENGTH':

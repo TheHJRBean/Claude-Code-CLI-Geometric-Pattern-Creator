@@ -602,6 +602,7 @@ export function Sidebar({
             const vertexAngle = fig?.vertexContactAngle ?? angle
             const vertexLineLength = fig?.vertexLineLength ?? lineLength
             const vertexAutoLen = fig?.vertexAutoLineLength ?? autoLen
+            const vertexCurveEnabled = fig?.vertexCurveEnabled ?? (fig?.curve?.enabled ?? false)
             const curveEnabled = fig?.curve?.enabled ?? false
             const curvePoints = fig?.curve?.points ?? [{ position: 0.5, offset: 0.2 }]
             const curveAlternating = fig?.curve?.alternating ?? false
@@ -622,6 +623,7 @@ export function Sidebar({
                 vertexAngle={vertexAngle}
                 vertexLineLength={vertexLineLength}
                 vertexAutoLen={vertexAutoLen}
+                vertexCurveEnabled={vertexCurveEnabled}
                 curveEnabled={curveEnabled}
                 curvePoints={curvePoints}
                 curveAlternating={curveAlternating}

@@ -52,7 +52,17 @@ export function computeCurves(
 
       const fig = config.figures[seg.tileTypeId]
       const curve = fig?.curve
-      if (!curve?.enabled || !curve.points.length) {
+      if (!curve || !curve.points.length) {
+        curves.push(null)
+        continue
+      }
+      // Curve shape (points/mode/direction) is always shared. The on/off gate
+      // decouples for vertex lines when `vertexLinesDecoupled` is set: edge
+      // (star-arm) segments follow `curve.enabled`; vertex-line segments follow
+      // `vertexCurveEnabled`. Coupled, both follow `curve.enabled`.
+      const decoupledVertex = (fig?.vertexLinesDecoupled ?? false) && seg.kind === 'vertex-line'
+      const curveOn = decoupledVertex ? (fig?.vertexCurveEnabled ?? false) : curve.enabled
+      if (!curveOn) {
         curves.push(null)
         continue
       }

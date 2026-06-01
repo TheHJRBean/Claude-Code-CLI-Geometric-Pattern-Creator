@@ -345,7 +345,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     }
     case 'EDITOR_PLACE_TILE_ON_EDGE': {
       if (!state.editor) return state
-      const { tileId, edgeIndex, sides } = action.payload
+      const { tileId, edgeIndex, sides, force } = action.payload
       const patchEdgeLength = state.editor.edgeLength
       return applyWrap(seedFigures(updateActiveCell(state, cell => {
         const edges = computeExposedEdges(cell, patchEdgeLength)
@@ -358,13 +358,14 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         const placementEdge = edge.length
         const mode = cell.symmetryMode ?? 'none'
         if (mode === 'none') {
-          if (!isPlacementViable(edge, sides, cell, placementEdge)) return cell
+          // `force` (flexible-placement): user accepted the overlap warning.
+          if (!force && !isPlacementViable(edge, sides, cell, placementEdge)) return cell
           const id = `placed-${cell.tiles.length}-${Date.now()}`
           const tile = placeRegularNGonOnEdge(sides, placementEdge, edge.p1, edge.p2, edge.sourceCenter, id)
           return { ...cell, tiles: [...cell.tiles, tile] }
         }
         const idPrefix = `placed-${cell.tiles.length}-${Date.now()}`
-        const placements = placeTilesOnOrbit(cell, placementEdge, edge, sides, idPrefix)
+        const placements = placeTilesOnOrbit(cell, placementEdge, edge, sides, idPrefix, force)
         if (!placements) return cell
         return { ...cell, tiles: [...cell.tiles, ...placements] }
       })))
@@ -380,7 +381,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       // `patch.edgeLength` — that earlier "first tile dictates edge length"
       // reset is what made later vertex/edge placements drift from the seed.
       if (!state.editor) return state
-      const { edgeIndex, sectionIndex, sides } = action.payload
+      const { edgeIndex, sectionIndex, sides, force } = action.payload
       const patch = state.editor
       const cell = activeCell(patch)
       const patchEdgeLength = patch.edgeLength
@@ -391,11 +392,12 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       const idPrefix = `placed-${cell.tiles.length}-${Date.now()}`
       let nextTiles: EditorTile[]
       if (mode === 'none') {
-        if (!isBoundarySectionPlacementViable(sides, section, cell, patchEdgeLength)) return state
+        // `force` (flexible-placement): user accepted the overlap warning.
+        if (!force && !isBoundarySectionPlacementViable(sides, section, cell, patchEdgeLength)) return state
         const tile = placeRegularNGonOnBoundarySection(sides, section, `${idPrefix}-0`, patchEdgeLength)
         nextTiles = [...cell.tiles, tile]
       } else {
-        const placements = placeTilesOnBoundarySectionOrbit(cell, section, sides, idPrefix, patchEdgeLength)
+        const placements = placeTilesOnBoundarySectionOrbit(cell, section, sides, idPrefix, patchEdgeLength, force)
         if (!placements) return state
         nextTiles = [...cell.tiles, ...placements]
       }
@@ -411,7 +413,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       // boundary-inward (17.12) — multi-Cell composition support deferred.
       if (!state.editor) return state
       if (state.editor.cells.length > 1) return state
-      const { vertexKey, sides, rotation } = action.payload
+      const { vertexKey, sides, rotation, force } = action.payload
       const patchEdgeLength = state.editor.edgeLength
       return applyWrap(seedFigures(updateActiveCell(state, cell => {
         const vertices = computeExposedVertices(cell)
@@ -420,11 +422,12 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         const mode = cell.symmetryMode ?? 'none'
         const idPrefix = `placed-${cell.tiles.length}-${Date.now()}`
         if (mode === 'none') {
-          if (!isVertexPlacementViable(vertex, sides, rotation, patchEdgeLength, cell)) return cell
+          // `force` (flexible-placement): user accepted the overlap warning.
+          if (!force && !isVertexPlacementViable(vertex, sides, rotation, patchEdgeLength, cell)) return cell
           const tile = placeRegularNGonOnVertex(sides, patchEdgeLength, vertex, rotation, `${idPrefix}-0`)
           return { ...cell, tiles: [...cell.tiles, tile] }
         }
-        const placements = placeTilesOnVertexOrbit(cell, patchEdgeLength, vertex, sides, rotation, idPrefix)
+        const placements = placeTilesOnVertexOrbit(cell, patchEdgeLength, vertex, sides, rotation, idPrefix, force)
         if (!placements) return cell
         return { ...cell, tiles: [...cell.tiles, ...placements] }
       })))

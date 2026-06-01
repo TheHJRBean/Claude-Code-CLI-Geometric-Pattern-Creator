@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Builder** _(UI label)_ = the tessellation-authoring tool inside the Lab (legacy code: "Tessellation Lab" / "Editor"). The code namespace stays `src/editor/`.
 - **Patch / Cell / Boundary / Tile** = the Builder data hierarchy. A **Patch** holds one or more **Cells**; each Cell has a **Boundary** (closed perimeter) and carries the user's **Tiles**.
 - **Configuration** = the named tessellation family (`"4.8.8"` etc.); same word in Gallery (drives BFS) and Builder (multi-cell Patch identifier).
-- **Phase** = a stage of the Builder workflow; sequence: **Design → Composition → Framing → Decoration** (last two reserved). **Phase-switch** = the verb for moving between them.
+- **Phase** = a stage of the Builder workflow; sequence: **Design → Composition → Decoration** (Decoration reserved). **Phase-switch** = the verb for moving between them. **Frame** is a persistent overlay spanning both live phases, not a Phase (Framing was demoted — see ADR-0003 amendment + CONTEXT Frame).
 - **Ray** = the atomic visible line piece (legacy code: `Segment` / "line"). **Strand** = a chain of Rays across polygons. **Figure** = the per-polygon assembly of Rays; driven by a per-tile-type **Figure recipe** (`FigureConfig`).
 - **Contact Ray** = the pre-trim parametric ray from `pic/stellation.ts`; code-internal only.
 - **Tiling** = bare polygon coverage (no Strands). **Composition** = Tiling + Strands rendered.

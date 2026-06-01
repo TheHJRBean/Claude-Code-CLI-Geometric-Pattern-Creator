@@ -35,12 +35,21 @@ const ORIENTATION_LABEL: Record<VertexOrientation['kind'], string> = {
   'flush-ccw': 'Flush ⟳',
 }
 
+/** Amber used for the overlap "place anyway" warning state across the picker —
+ *  distinct from the gold accent so a forceable size reads as a caution, not a
+ *  clean choice. */
+const WARN_COLOR = '#d99a4a'
+
 /* ── Edge / section variant (single-page) ──────────────────────────────── */
 
 interface EdgePickerProps {
   mode?: 'edge'
   position: { x: number; y: number }
   viableSides: number[]
+  /** Sizes that don't fit cleanly but can still be placed through a skippable
+   *  overlap warning (flexible-placement, 2026-06-01). Shown with a ⚠ badge;
+   *  picking one is the user accepting the overlap. */
+  forceableSides?: number[]
   onPick: (sides: number) => void
   onClose: () => void
   onDeleteOwningTile?: () => void
@@ -51,8 +60,11 @@ interface EdgePickerProps {
 interface VertexPickerProps {
   mode: 'vertex'
   position: { x: number; y: number }
-  /** Shapes that produce at least one viable orientation. */
+  /** Shapes that produce at least one overlap-free orientation. */
   viableSides: number[]
+  /** Shapes that only produce overlapping orientations — placeable through a
+   *  skippable warning (flexible-placement, 2026-06-01). */
+  forceableSides?: number[]
   /** Picked shape (page 2 active). `null` = page 1 active. */
   pickedSides: number | null
   /** Orientations for the picked shape (empty when pickedSides is null). */
@@ -139,23 +151,19 @@ export function EditorPickerOverlay(props: Props) {
 
 /* ── Bodies ────────────────────────────────────────────────────────────── */
 
-function EdgePickerBody({ viableSides, onPick, onDeleteOwningTile }: EdgePickerProps) {
+function EdgePickerBody({ viableSides, forceableSides, onPick, onDeleteOwningTile }: EdgePickerProps) {
   const [hoveredN, setHoveredN] = useState<number | null>(null)
   const viableSet = new Set(viableSides)
-  const empty = viableSides.length === 0
+  const forceableSet = new Set(forceableSides ?? [])
+  const empty = viableSet.size === 0 && forceableSet.size === 0
   return (
     <>
       <HeaderRow title="Add Polygon" />
-      <HoverHint
-        text={empty
-          ? 'No polygon fits here.'
-          : hoveredN
-            ? `${NGON_LABEL[hoveredN] ?? `${hoveredN}-gon`} (${hoveredN} sides)`
-            : 'Choose a regular polygon to place.'}
-      />
+      <HoverHint text={pickerHint(hoveredN, viableSet, forceableSet, empty, 'here')} />
       {!empty && (
         <ShapeGrid
           viableSet={viableSet}
+          forceableSet={forceableSet}
           hoveredN={hoveredN}
           onHover={setHoveredN}
           onPick={onPick}
@@ -171,29 +179,48 @@ function EdgePickerBody({ viableSides, onPick, onDeleteOwningTile }: EdgePickerP
   )
 }
 
+/** Shared hover-hint text for the shape grid across edge / section / vertex
+ *  pages. Highlights the overlap-warning state when a forceable size is
+ *  hovered. `where` reads "here" (edge/section) or "at this vertex". */
+function pickerHint(
+  hoveredN: number | null,
+  viableSet: Set<number>,
+  forceableSet: Set<number>,
+  empty: boolean,
+  where: string,
+): string {
+  if (empty) return `No polygon fits ${where}.`
+  if (hoveredN === null) return `Choose a regular polygon to place.`
+  const label = `${NGON_LABEL[hoveredN] ?? `${hoveredN}-gon`} (${hoveredN} sides)`
+  if (!viableSet.has(hoveredN) && forceableSet.has(hoveredN)) {
+    return `⚠ ${label} overlaps — click to place anyway.`
+  }
+  return label
+}
+
 function VertexPickerBody(props: VertexPickerProps) {
   const {
-    viableSides, pickedSides, orientations, orientationIndex,
+    viableSides, forceableSides, pickedSides, orientations, orientationIndex,
     onPickShape, onBackToShapes, onCycleOrientation, onCommit,
   } = props
   const [hoveredN, setHoveredN] = useState<number | null>(null)
   const viableSet = new Set(viableSides)
-  const empty = viableSides.length === 0
+  const forceableSet = new Set(forceableSides ?? [])
+  const empty = viableSet.size === 0 && forceableSet.size === 0
 
   if (pickedSides === null) {
     return (
       <>
         <HeaderRow title="Anchor at Vertex" />
-        <HoverHint
-          text={empty
-            ? 'No polygon fits at this vertex.'
-            : hoveredN
-              ? `${NGON_LABEL[hoveredN] ?? `${hoveredN}-gon`} (${hoveredN} sides)`
-              : 'Choose a shape, then pick its orientation.'}
-        />
+        <HoverHint text={
+          empty ? 'No polygon fits at this vertex.'
+            : hoveredN === null ? 'Choose a shape, then pick its orientation.'
+              : pickerHint(hoveredN, viableSet, forceableSet, empty, 'at this vertex')
+        } />
         {!empty && (
           <ShapeGrid
             viableSet={viableSet}
+            forceableSet={forceableSet}
             hoveredN={hoveredN}
             onHover={setHoveredN}
             onPick={onPickShape}
@@ -207,10 +234,13 @@ function VertexPickerBody(props: VertexPickerProps) {
   const current = orientations[orientationIndex]
   const total = orientations.length
   const orientationLabel = current ? ORIENTATION_LABEL[current.kind] : '—'
+  const overlaps = !!current?.overlaps
   return (
     <>
       <HeaderRow title={`${NGON_LABEL[pickedSides] ?? `${pickedSides}-gon`}`} />
-      <HoverHint text="Rotate to the orientation you want, then place." />
+      <HoverHint text={overlaps
+        ? '⚠ This orientation overlaps — place anyway, or rotate to a clear one.'
+        : 'Rotate to the orientation you want, then place.'} />
       <div style={{
         display: 'grid',
         gridTemplateColumns: '40px 1fr 40px',
@@ -227,10 +257,10 @@ function VertexPickerBody(props: VertexPickerProps) {
           textAlign: 'center',
           fontFamily: "'EB Garamond', Georgia, serif",
           fontSize: 14,
-          color: 'var(--accent)',
+          color: overlaps ? WARN_COLOR : 'var(--accent)',
           letterSpacing: '0.04em',
         }}>
-          <div>{orientationLabel}</div>
+          <div>{overlaps ? `⚠ ${orientationLabel}` : orientationLabel}</div>
           <div style={{
             fontFamily: "'JetBrains Mono', monospace",
             fontSize: 11,
@@ -249,7 +279,9 @@ function VertexPickerBody(props: VertexPickerProps) {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         <PickerTextButton variant="ghost" onClick={onBackToShapes}>← Shape</PickerTextButton>
-        <PickerTextButton variant="solid" disabled={!current} onClick={onCommit}>Place</PickerTextButton>
+        <PickerTextButton variant="solid" warn={overlaps} disabled={!current} onClick={onCommit}>
+          {overlaps ? 'Place anyway' : 'Place'}
+        </PickerTextButton>
       </div>
     </>
   )
@@ -299,9 +331,10 @@ function Divider({ extraTop = 14 }: { extraTop?: number }) {
 }
 
 function ShapeGrid({
-  viableSet, hoveredN, onHover, onPick,
+  viableSet, forceableSet, hoveredN, onHover, onPick,
 }: {
   viableSet: Set<number>
+  forceableSet: Set<number>
   hoveredN: number | null
   onHover: (n: number | null) => void
   onPick: (n: number) => void
@@ -313,8 +346,13 @@ function ShapeGrid({
       gap: 6,
     }}>
       {PICKER_SIDES.map(n => {
-        const enabled = viableSet.has(n)
+        const clean = viableSet.has(n)
+        // "overlap" = placeable only through the skippable warning; still
+        // clickable (flexible placement), badged ⚠ in amber.
+        const overlap = !clean && forceableSet.has(n)
+        const enabled = clean || overlap
         const hovered = hoveredN === n && enabled
+        const tint = overlap ? WARN_COLOR : 'var(--accent, #e6c97a)'
         return (
           <button
             key={n}
@@ -322,9 +360,12 @@ function ShapeGrid({
             onClick={() => enabled && onPick(n)}
             onMouseEnter={() => onHover(n)}
             onMouseLeave={() => onHover(null)}
-            title={NGON_LABEL[n] ?? `${n}-gon`}
+            title={overlap
+              ? `${NGON_LABEL[n] ?? `${n}-gon`} — overlaps, place anyway`
+              : NGON_LABEL[n] ?? `${n}-gon`}
             aria-label={NGON_LABEL[n] ?? `${n}-gon`}
             style={{
+              position: 'relative',
               aspectRatio: '1 / 1',
               display: 'flex',
               flexDirection: 'column',
@@ -332,19 +373,33 @@ function ShapeGrid({
               justifyContent: 'center',
               gap: 4,
               padding: 4,
-              border: `1px solid ${enabled ? 'var(--accent)' : 'var(--border-subtle)'}`,
+              border: `1px solid ${enabled ? (overlap ? WARN_COLOR : 'var(--accent)') : 'var(--border-subtle)'}`,
+              borderStyle: overlap ? 'dashed' : 'solid',
               background: enabled
                 ? hovered
-                  ? 'var(--accent-bg, rgba(230,201,122,0.14))'
+                  ? overlap ? 'rgba(217,154,74,0.16)' : 'var(--accent-bg, rgba(230,201,122,0.14))'
                   : 'rgba(255,255,255,0.02)'
                 : 'transparent',
-              color: enabled ? 'var(--accent, #e6c97a)' : 'var(--text-muted)',
+              color: enabled ? tint : 'var(--text-muted)',
               cursor: enabled ? 'pointer' : 'not-allowed',
-              opacity: enabled ? 1 : 0.32,
+              opacity: enabled ? (overlap ? 0.85 : 1) : 0.32,
               transition: 'background 0.12s, transform 0.12s',
               transform: hovered ? 'translateY(-1px)' : undefined,
             }}
           >
+            {overlap && (
+              <span
+                aria-hidden
+                style={{
+                  position: 'absolute',
+                  top: 2,
+                  right: 3,
+                  fontSize: 10,
+                  lineHeight: 1,
+                  color: WARN_COLOR,
+                }}
+              >⚠</span>
+            )}
             <NgonIcon sides={n} size={28} />
             <span style={{
               fontFamily: "'JetBrains Mono', monospace",
@@ -389,14 +444,16 @@ function PickerIconButton({
 }
 
 function PickerTextButton({
-  children, variant, disabled, onClick,
+  children, variant, warn, disabled, onClick,
 }: {
   children: React.ReactNode
   variant: 'solid' | 'ghost'
+  warn?: boolean
   disabled?: boolean
   onClick: () => void
 }) {
   const solid = variant === 'solid'
+  const edge = disabled ? 'var(--border-subtle)' : warn ? WARN_COLOR : 'var(--accent)'
   return (
     <button
       disabled={disabled}
@@ -404,11 +461,11 @@ function PickerTextButton({
       style={{
         height: 36,
         padding: '0 12px',
-        border: `1px solid ${disabled ? 'var(--border-subtle)' : 'var(--accent)'}`,
+        border: `1px solid ${edge}`,
         background: solid && !disabled
-          ? 'var(--accent-bg, rgba(230,201,122,0.18))'
+          ? warn ? 'rgba(217,154,74,0.18)' : 'var(--accent-bg, rgba(230,201,122,0.18))'
           : 'transparent',
-        color: disabled ? 'var(--text-muted)' : 'var(--accent)',
+        color: disabled ? 'var(--text-muted)' : warn ? WARN_COLOR : 'var(--accent)',
         cursor: disabled ? 'not-allowed' : 'pointer',
         fontFamily: "'Cinzel', Georgia, serif",
         fontSize: 11,

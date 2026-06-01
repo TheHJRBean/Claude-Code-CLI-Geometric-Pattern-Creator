@@ -26,6 +26,7 @@ import {
   placeRegularNGonOnVertex,
   vertexPlacementOrientations,
   viableSidesForVertex,
+  placeableSidesForVertex,
   type ExposedVertex,
   type VertexKey,
 } from '../editor/vertexPlacement'
@@ -101,17 +102,17 @@ interface Props {
   /** Step 17.3 — editor-mode interaction handlers. Active only when an editor patch is loaded. */
   selectedEdge?: SelectedEdge | null
   onSelectEdge?: (edge: SelectedEdge | null) => void
-  onPlaceTile?: (sides: number) => void
+  onPlaceTile?: (sides: number, force?: boolean) => void
   onDeleteTile?: (tileId: string) => void
   /** Step 17.12 — boundary-inward placement. Always available in Design
    *  Phase + Place mode (single-cell Patches only — locked decision b). */
   selectedSection?: SectionKey | null
   onSelectSection?: (section: SectionKey | null) => void
-  onPlaceTileOnBoundarySection?: (sides: number) => void
+  onPlaceTileOnBoundarySection?: (sides: number, force?: boolean) => void
   /** Step 17.13c — vertex-anchored placement. Always available in Design
    *  Phase + Place mode (single-cell only). The picker is two-page: shape
    *  grid → orientation arrows + live preview. */
-  onPlaceTileOnVertex?: (payload: { vertexKey: VertexKey; sides: number; rotation: number }) => void
+  onPlaceTileOnVertex?: (payload: { vertexKey: VertexKey; sides: number; rotation: number; force?: boolean }) => void
   /** Step 17.5 — Complete mode: 'place' shows the edge picker, 'complete' shows the vertex picker. */
   editorMode?: 'place' | 'complete'
   /** Step 17.11 — accumulated picks (chord mode: 0–1; multi mode: 0+). */
@@ -499,6 +500,19 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       PICKER_SIDES,
     )
   }, [selectedVertexData, activeCellForSections, config.editor])
+  // Sizes that only produce overlapping orientations — placeable via the
+  // skippable warning. The complement of clean within the angularly-placeable
+  // set (sizes with no fitting sector at all stay disabled).
+  const vertexPickerForceableSides = useMemo<number[]>(() => {
+    if (!selectedVertexData || !activeCellForSections || !config.editor) return []
+    const placeable = placeableSidesForVertex(
+      selectedVertexData,
+      config.editor.edgeLength,
+      activeCellForSections,
+      PICKER_SIDES,
+    )
+    return placeable.filter(n => !vertexPickerViableSides.includes(n))
+  }, [selectedVertexData, activeCellForSections, config.editor, vertexPickerViableSides])
   const vertexOrientations = useMemo(() => {
     if (!selectedVertexData || vertexPickedSides === null || !activeCellForSections || !config.editor) {
       return []
@@ -658,6 +672,12 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   const pickerViable = selectedEdgeData && selectedHostCell && config.editor
     ? viableSidesForEdge(selectedEdgeData, selectedHostCell, config.editor.edgeLength)
     : []
+  // Flexible placement: every other size is placeable through the overlap
+  // warning — an edge placement (and its symmetry orbit) always constructs, so
+  // "forceable" is simply the complement of the clean set.
+  const pickerForceable = selectedEdgeData && selectedHostCell && config.editor
+    ? PICKER_SIDES.filter(n => !pickerViable.includes(n))
+    : []
 
   // Step 17.12c — boundary-section picker. Mirrors the edge picker: world →
   // screen via `worldToScreen`, viable sides via `viableSidesForBoundarySection`.
@@ -669,6 +689,10 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     : null
   const sectionPickerViable = selectedSectionData && activeCellForSections && config.editor
     ? viableSidesForBoundarySection(selectedSectionData, activeCellForSections, config.editor.edgeLength)
+    : []
+  // Boundary-section placement always constructs, so forceable = complement.
+  const sectionPickerForceable = selectedSectionData && activeCellForSections && config.editor
+    ? PICKER_SIDES.filter(n => !sectionPickerViable.includes(n))
     : []
 
   // Step 17.13c — vertex picker. World pos = anchor vertex transformed into
@@ -708,7 +732,8 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         <EditorPickerOverlay
           position={pickerScreenPos}
           viableSides={pickerViable}
-          onPick={n => { onPlaceTile(n); onSelectEdge(null) }}
+          forceableSides={pickerForceable}
+          onPick={n => { onPlaceTile(n, !pickerViable.includes(n)); onSelectEdge(null) }}
           onClose={() => onSelectEdge(null)}
           onDeleteOwningTile={
             onDeleteTile && isDeletableTile(config.editor, selectedEdgeData.tileId)
@@ -721,7 +746,8 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         <EditorPickerOverlay
           position={sectionPickerScreenPos}
           viableSides={sectionPickerViable}
-          onPick={n => { onPlaceTileOnBoundarySection(n); onSelectSection(null) }}
+          forceableSides={sectionPickerForceable}
+          onPick={n => { onPlaceTileOnBoundarySection(n, !sectionPickerViable.includes(n)); onSelectSection(null) }}
           onClose={() => onSelectSection(null)}
         />
       )}
@@ -730,6 +756,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
           mode="vertex"
           position={vertexPickerScreenPos}
           viableSides={vertexPickerViableSides}
+          forceableSides={vertexPickerForceableSides}
           pickedSides={vertexPickedSides}
           orientations={vertexOrientations}
           orientationIndex={vertexOrientationIdx}
@@ -755,6 +782,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
               vertexKey: selectedVertexData.key,
               sides: vertexPickedSides,
               rotation: orientation.rotation,
+              force: orientation.overlaps,
             })
             closeVertexPicker()
           }}

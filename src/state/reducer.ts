@@ -34,9 +34,11 @@ import { activeCell, allCells, withActiveCell } from '../editor/active'
 import {
   applyCellTransform,
   existingTilesInHostFrame,
+  frameSelectablePoints,
   inverseCellTransform,
   inverseRotateTranslate,
   isPatchSelectableVertex,
+  isSelectable,
   neighbourStampsNear,
   retargetTile,
 } from '../editor/patchSelectable'
@@ -684,6 +686,11 @@ function chordCompleteAcrossPatch(state: PatternConfig, pA: Vec2, pB: Vec2): Pat
   if (!state.editor) return state
   const patch = state.editor
   const active = activeCell(patch)
+  // Frame completion is multi-pick only in v1: a 2-pick chord touching a Frame
+  // node has no sensible Cell host (the tile would repeat under the Lattice),
+  // so reject it. The user encloses a frame gap with a ≥3-pick polygon instead.
+  const framePoints = frameSelectablePoints(patch)
+  if (isSelectable(pA, framePoints) || isSelectable(pB, framePoints)) return state
   const ordered = [
     ...patch.cells.filter(c => c.id === patch.activeCellId),
     ...patch.cells.filter(c => c.id !== patch.activeCellId),
@@ -736,6 +743,33 @@ function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[], force
   if (!picks.some(p => isPatchSelectableVertex(patch, p, false))) return state
 
   const patchRot = patchRotation(patch)
+
+  // Frame-scoped completion: if any pick is a Frame node, the completed Tile
+  // sits at the frame edge in world space and must NOT repeat under the Lattice
+  // — store it on `frame.completedTiles`, not in a Cell. No symmetry orbit in
+  // v1 (frame symmetry-orbit is deferred). Picks are already Patch-world, so
+  // the Tile is built directly in world coords.
+  if (patch.frame && picks.some(p => isSelectable(p, frameSelectablePoints(patch)))) {
+    // World-space vertex arrays of every existing Tile (all Cells) + prior
+    // frame completions, for completeNGap's centroid-inside check and the
+    // overlap guard.
+    const worldTiles: Vec2[][] = []
+    for (const cell of patch.cells) {
+      for (const t of cell.tiles) worldTiles.push(tileVertices(t).map(v => applyCellTransform(v, cell, patchRot)))
+    }
+    for (const ft of patch.frame.completedTiles ?? []) worldTiles.push(tileVertices(ft))
+    const probeCell: EditorCell = {
+      ...active,
+      tiles: worldTiles.map((vs, i): EditorTile => ({ id: `world-${i}`, kind: 'irregular', vertices: vs, source: 'completed' })),
+    }
+    const id = `frame-${(patch.frame.completedTiles?.length ?? 0)}-${Date.now()}`
+    const tile = completeNGap(probeCell, picks, id, force)
+    if (!tile) return state
+    if (!force && overlapsExisting(tileVertices(tile), worldTiles)) return state
+    const completedTiles = [...(patch.frame.completedTiles ?? []), tile]
+    return seedFigures({ ...state, editor: { ...patch, frame: { ...patch.frame, completedTiles } } })
+  }
+
   const localPicks = picks.map(p => inverseCellTransform(p, active, patchRot))
   const syms = boundarySymmetries(active.shape, active.symmetryMode ?? 'none')
   const seenCentroids: Vec2[] = []
@@ -788,7 +822,7 @@ function centroidOf(verts: Vec2[]): Vec2 {
 function seedFigures(state: PatternConfig): PatternConfig {
   if (!state.editor) return state
   void allCells // imported for parity with the v2 reducer; the walker lives inside seedFiguresForEditor now
-  const figures = seedFiguresForEditor(state.figures, state.editor)
+  const figures = seedFiguresForEditor(state.figures, state.editor, state.editor.frame?.completedTiles ?? [])
   return figures === state.figures ? state : { ...state, figures }
 }
 

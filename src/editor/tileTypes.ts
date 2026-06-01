@@ -55,16 +55,21 @@ export function editorTileTypes(patch: EditorPatch): TileTypeInfo[] {
 export function seedFiguresForEditor(
   figures: Record<string, FigureConfig>,
   patch: EditorPatch,
+  extraTiles: EditorTile[] = [],
 ): Record<string, FigureConfig> {
   let out = figures
   let changed = false
-  for (const cell of patch.cells) {
-    for (const tile of cell.tiles) {
-      const id = tileTypeIdFor(tile)
-      if (id in out) continue
-      if (!changed) { out = { ...figures }; changed = true }
-      out[id] = { ...DEFAULT_EDITOR_FIGURE }
-    }
+  const seed = (tile: EditorTile) => {
+    const id = tileTypeIdFor(tile)
+    if (id in out) return
+    if (!changed) { out = { ...figures }; changed = true }
+    out[id] = { ...DEFAULT_EDITOR_FIGURE }
   }
+  for (const cell of patch.cells) {
+    for (const tile of cell.tiles) seed(tile)
+  }
+  // Frame-scoped completion Tiles (world space, off-lattice) carry their own
+  // tile types — seed them too so PIC has a recipe and Strands reach the edge.
+  for (const tile of extraTiles) seed(tile)
   return out
 }

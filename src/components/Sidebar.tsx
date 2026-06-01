@@ -9,7 +9,7 @@ import { FigureControls } from './strands/FigureControls'
 import { mainConfigLibrary } from '../state/mainConfigs'
 import { ConfigLibraryPanel } from './ConfigLibraryPanel'
 import type { FrameConfig, FrameShape } from '../types/editor'
-import { DEFAULT_FRAME_SIZE, MIN_FRAME_SIZE, MAX_FRAME_SIZE } from '../editor/frame'
+import { DEFAULT_FRAME_SIZE, MIN_FRAME_SIZE, MAX_FRAME_SIZE, MAX_FRAME_UNITS } from '../editor/frame'
 
 interface Props {
   mode: 'main' | 'lab'
@@ -360,7 +360,10 @@ export function Sidebar({
     : config.tiling.scale
   const frameSizePx = galleryFrame?.size ?? DEFAULT_FRAME_SIZE
   const frameMinUnits = Math.max(1, Math.ceil(MIN_FRAME_SIZE / frameRepeat))
-  const frameMaxUnits = Math.max(frameMinUnits + 1, Math.floor(MAX_FRAME_SIZE / frameRepeat))
+  // Cap at MAX_FRAME_UNITS, and never above what the px ceiling allows — so the
+  // top unit's px (units × repeat) is always ≤ MAX_FRAME_SIZE and the setter's
+  // clamp can't round it back (which would freeze the slider).
+  const frameMaxUnits = Math.max(frameMinUnits, Math.min(MAX_FRAME_UNITS, Math.floor(MAX_FRAME_SIZE / frameRepeat)))
   const frameUnits = Math.min(frameMaxUnits, Math.max(frameMinUnits, Math.round(frameSizePx / frameRepeat)))
   const setFrameUnits = (units: number) => {
     const px = Math.min(MAX_FRAME_SIZE, Math.max(MIN_FRAME_SIZE, units * frameRepeat))

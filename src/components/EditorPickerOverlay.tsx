@@ -280,7 +280,7 @@ function VertexPickerBody(props: VertexPickerProps) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         <PickerTextButton variant="ghost" onClick={onBackToShapes}>← Shape</PickerTextButton>
         <PickerTextButton variant="solid" warn={overlaps} disabled={!current} onClick={onCommit}>
-          {overlaps ? 'Place anyway' : 'Place'}
+          Place
         </PickerTextButton>
       </div>
     </>

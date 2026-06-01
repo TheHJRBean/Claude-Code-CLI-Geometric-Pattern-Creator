@@ -17,6 +17,7 @@ import { patchRotation } from '../editor/compositionLattice'
 import { viableSidesForEdge } from '../editor/orbit'
 import { EditorEdgeLayer } from './EditorEdgeLayer'
 import { EditorPickerOverlay } from './EditorPickerOverlay'
+import { OverlapConfirmModal } from './OverlapConfirmModal'
 import { EditorVertexLayer } from './EditorVertexLayer'
 import { EditorBoundaryInwardLayer, type SectionKey } from './EditorBoundaryInwardLayer'
 import { EditorVertexPlacementLayer } from './EditorVertexPlacementLayer'
@@ -470,6 +471,11 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   const [hoveredVertexKey, setHoveredVertexKey] = useState<VertexKey | null>(null)
   const [vertexPickedSides, setVertexPickedSides] = useState<number | null>(null)
   const [vertexOrientationIdx, setVertexOrientationIdx] = useState(0)
+  // Flexible-placement overlap confirmation. Set when the user picks a size /
+  // orientation that would overlap; the modal's "Place anyway" runs `commit`.
+  const [overlapConfirm, setOverlapConfirm] = useState<
+    { sides: number; symmetry: boolean; commit: () => void } | null
+  >(null)
   useEffect(() => {
     if (!vertexPlacementActive) {
       setSelectedVertexKey(null)
@@ -733,7 +739,15 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
           position={pickerScreenPos}
           viableSides={pickerViable}
           forceableSides={pickerForceable}
-          onPick={n => { onPlaceTile(n, !pickerViable.includes(n)); onSelectEdge(null) }}
+          onPick={n => {
+            onSelectEdge(null)
+            if (pickerViable.includes(n)) { onPlaceTile(n, false); return }
+            setOverlapConfirm({
+              sides: n,
+              symmetry: (selectedHostCell?.symmetryMode ?? 'none') !== 'none',
+              commit: () => onPlaceTile(n, true),
+            })
+          }}
           onClose={() => onSelectEdge(null)}
           onDeleteOwningTile={
             onDeleteTile && isDeletableTile(config.editor, selectedEdgeData.tileId)
@@ -747,7 +761,15 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
           position={sectionPickerScreenPos}
           viableSides={sectionPickerViable}
           forceableSides={sectionPickerForceable}
-          onPick={n => { onPlaceTileOnBoundarySection(n, !sectionPickerViable.includes(n)); onSelectSection(null) }}
+          onPick={n => {
+            onSelectSection(null)
+            if (sectionPickerViable.includes(n)) { onPlaceTileOnBoundarySection(n, false); return }
+            setOverlapConfirm({
+              sides: n,
+              symmetry: (activeCellForSections?.symmetryMode ?? 'none') !== 'none',
+              commit: () => onPlaceTileOnBoundarySection(n, true),
+            })
+          }}
           onClose={() => onSelectSection(null)}
         />
       )}
@@ -778,15 +800,30 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
           onCommit={() => {
             const orientation = vertexOrientations[vertexOrientationIdx]
             if (!orientation || vertexPickedSides === null) return
-            onPlaceTileOnVertex({
+            const sides = vertexPickedSides
+            const place = (force: boolean) => onPlaceTileOnVertex({
               vertexKey: selectedVertexData.key,
-              sides: vertexPickedSides,
+              sides,
               rotation: orientation.rotation,
-              force: orientation.overlaps,
+              force,
             })
             closeVertexPicker()
+            if (!orientation.overlaps) { place(false); return }
+            setOverlapConfirm({
+              sides,
+              symmetry: (activeCellForSections?.symmetryMode ?? 'none') !== 'none',
+              commit: () => place(true),
+            })
           }}
           onClose={closeVertexPicker}
+        />
+      )}
+      {overlapConfirm && (
+        <OverlapConfirmModal
+          sides={overlapConfirm.sides}
+          symmetry={overlapConfirm.symmetry}
+          onConfirm={() => { overlapConfirm.commit(); setOverlapConfirm(null) }}
+          onCancel={() => setOverlapConfirm(null)}
         />
       )}
       <button

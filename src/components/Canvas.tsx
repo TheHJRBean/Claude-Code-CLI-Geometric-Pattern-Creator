@@ -143,17 +143,15 @@ interface Props {
   editorNeighbourBoundaries?: boolean
   /** Step 17.6d — Design-Phase neighbour preview: include ghosts in PIC so Strands flow across boundaries. */
   editorNeighbourStrands?: boolean
-  /** Step 17 Framing — when true (Framing Phase), clip the Composition to the
-   * Patch's Shape Frame outline and draw the outline. */
-  editorFraming?: boolean
-  /** Step 17 Framing — click a Frame section to place a completion Tile flush
-   * to it (the seed-sided n-gon). Edge / section index identify the section. */
-  onPlaceTileOnFrameSection?: (edgeIndex: number, sectionIndex: number) => void
+  /** Frame overlay present — clip the Composition to the Patch's Shape Frame
+   * outline, draw the outline, and expose its edge nodes as Complete-mode pick
+   * targets. Persistent across Design + Composition. */
+  editorFrame?: boolean
 }
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, editorMode = 'place', picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFraming = false, onPlaceTileOnFrameSection }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, editorMode = 'place', picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -188,17 +186,17 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     editorNeighbourPreview,
     editorNeighbourBoundaries,
     editorNeighbourStrands,
-    editorFraming,
+    editorFrame,
   )
 
-  // Step 17 Framing — the Frame outline to clip the Composition to, only in
-  // the Framing Phase. Shape Frames give a parametric outline; n-ring Frames
-  // give the outer boundary of the centre Patch + N neighbour shells (clip
-  // only). Absent / unsupported frames yield null → no clip.
+  // The Frame outline to clip the Composition to — a persistent overlay across
+  // Design + Composition (read later by Decoration). Shape Frames give a
+  // parametric outline; n-ring Frames give the outer boundary of the centre
+  // Patch + N neighbour shells (clip only). Absent frames yield null → no clip.
   const frameOutline = useMemo(() => {
-    // In the Builder's Framing Phase the Frame lives on `editor.frame` (and may
-    // be an n-ring); in the Gallery it's the top-level clip-only Shape Frame.
-    if (editorFraming) {
+    // In the Builder the Frame lives on `editor.frame` (and may be an n-ring);
+    // in the Gallery it's the top-level clip-only Shape Frame.
+    if (editorFrame) {
       const frame = config.editor?.frame
       if (!frame || !config.editor) return null
       if (frame.type === 'n-ring') {
@@ -209,38 +207,25 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       return frameOutlinePolygon(frame)
     }
     // Gallery Frame — only parametric Shape Frames are ever stored here, and
-    // only the Gallery (non-editor tiling) clips to it; the Lab's own framing
+    // only the Gallery (non-editor tiling) clips to it; the Lab's own frame
     // lives on `editor.frame` and is handled above.
     if (config.tiling.type === 'editor') return null
     const gFrame = config.frame
     if (!gFrame || gFrame.type !== 'shape') return null
     return frameOutlinePolygon(gFrame)
-  }, [editorFraming, config.editor, config.frame, config.tiling.type])
-  // Frame sections — segments spaced one seed edgeLength apart along the
-  // outline. Nodes render as dots; full sections are click targets for
-  // completion-to-frame (slice 5). Shape Frames only — n-ring Frames are
-  // clip-only (no nodes, no completion).
+  }, [editorFrame, config.editor, config.frame, config.tiling.type])
+  // Frame nodes — points spaced one seed edgeLength apart along the outline
+  // (including corners). In Complete mode these become clickable completion
+  // pick targets (see `frameVertices`). Shape Frames only — n-ring Frames are
+  // clip-only (no nodes). Frame-scoped completion Tiles render through
+  // usePattern's `polygons` so PIC emits Strands through them.
   const editorEdgeLength = config.editor?.edgeLength
-  const isShapeFrame = editorFraming && config.editor?.frame?.type === 'shape'
+  const isShapeFrame = editorFrame && config.editor?.frame?.type === 'shape'
   const frameSections = useMemo(
     () => (isShapeFrame && frameOutline && editorEdgeLength ? computeFrameSections(frameOutline, editorEdgeLength) : null),
     [isShapeFrame, frameOutline, editorEdgeLength],
   )
   const frameNodes = useMemo(() => (frameSections ? frameNodePoints(frameSections) : null), [frameSections])
-  // Frame-scoped completion Tiles render through usePattern's `polygons` (so
-  // PIC emits Strands through them) — see the editorFraming branch there.
-  const [frameHover, setFrameHover] = useState<SectionKey | null>(null)
-  // Interactive Frame-section overlay (full sections only; stubs are reserved
-  // for the irregular fallback). Clicking a section places the seed-sided Tile.
-  const frameOverlay = editorFraming && frameSections && onPlaceTileOnFrameSection ? (
-    <EditorBoundaryInwardLayer
-      sections={frameSections.filter(s => !s.isStub)}
-      selected={null}
-      onSelect={key => { if (key) onPlaceTileOnFrameSection(key.edgeIndex, key.sectionIndex) }}
-      hovered={frameHover}
-      onHover={setFrameHover}
-    />
-  ) : null
 
   const resetCamera = useCallback(() => {
     setViewTransform({
@@ -732,7 +717,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         ghostPolygons={ghostPolygons}
         seedOutlineCount={seedOutlineCount}
         ghostPolygonIds={ghostPolygonIds}
-        editorOverlay={editorFraming ? frameOverlay : editorOverlay}
+        editorOverlay={editorOverlay}
         frameOutline={frameOutline}
         frameNodes={frameNodes}
       />

@@ -79,9 +79,10 @@ export function usePattern(
   editorNeighbourBoundaries = false,
   /** Step 17.6d — Design-Phase neighbour preview: include ghosts in the PIC input so Strands flow across boundaries. */
   editorNeighbourStrands = false,
-  /** Step 17 Framing — when true, include the Frame's completion Tiles in the
-   * PIC input so Strands flow out to the frame edge through them. */
-  editorFraming = false,
+  /** Frame overlay present — clip the field to the Frame outline and include
+   * the Frame's completion Tiles in the PIC input so Strands flow out to the
+   * frame edge through them. Persistent across Design + Composition. */
+  editorFrame = false,
 ): PatternData {
   // Visible viewport in world coordinates
   const vw = containerWidth / viewTransform.zoom
@@ -222,7 +223,7 @@ export function usePattern(
       // so PIC Strands flow out to the frame edge through them via each Tile's
       // own tile-type Figure recipe (already in `config.figures`).
       let picPolygons = polygons
-      if (editorFraming && patch.frame) {
+      if (editorFrame && patch.frame) {
         const outline = frameOutlinePolygon(patch.frame)
         if (outline) {
           picPolygons = polygons.filter(p => pointInPolygon(p.center, outline))
@@ -267,5 +268,5 @@ export function usePattern(
     const segments = runPIC(polygons, config)
 
     return { polygons, segments }
-  }, [config, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview, editorNeighbourBoundaries, editorNeighbourStrands, editorFraming])
+  }, [config, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview, editorNeighbourBoundaries, editorNeighbourStrands, editorFrame])
 }

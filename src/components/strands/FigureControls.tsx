@@ -23,6 +23,7 @@ interface FigureControlsProps {
   vertexAngle: number
   vertexLineLength: number
   vertexAutoLen: boolean
+  vertexCurveEnabled: boolean
   curveEnabled: boolean
   curvePoints: { position: number; offset: number }[]
   curveAlternating: boolean
@@ -45,6 +46,7 @@ interface FigureControlsProps {
 export function FigureControls({
   tileTypeId, sides, displayLabel, angle, lineLength, autoLen, snapEnabled,
   edgeEnabled, vertexEnabled, vertexDecoupled, vertexAngle, vertexLineLength, vertexAutoLen,
+  vertexCurveEnabled,
   curveEnabled, curvePoints, curveAlternating, curveDirection,
   cpShown, onToggleCpShown,
   tilingType, allFigures, dispatch, onCurvePointActivity,
@@ -185,7 +187,7 @@ export function FigureControls({
           <Toggle
             checked={vertexDecoupled}
             onChange={v => dispatch({ type: 'SET_VERTEX_LINES_DECOUPLED', payload: { tileTypeId, decoupled: v } })}
-            label="Decouple vertex params"
+            label="Decouple vertex parameters"
           />
           {vertexDecoupled && (
             <div style={{ marginTop: 8 }}>
@@ -217,6 +219,23 @@ export function FigureControls({
                   />
                 </>
               )}
+
+              <div style={{ marginTop: 10 }}>
+                <Toggle
+                  checked={vertexCurveEnabled}
+                  onChange={v => dispatch({ type: 'SET_VERTEX_CURVE_ENABLED', payload: { tileTypeId, enabled: v } })}
+                  label="Curve vertex strands"
+                />
+                <div style={{
+                  fontFamily: "'EB Garamond', Georgia, serif",
+                  fontSize: 11.5,
+                  color: 'var(--text-muted)',
+                  letterSpacing: '0.02em',
+                  marginTop: 3,
+                }}>
+                  reuses the edge curve shape
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -232,7 +251,7 @@ export function FigureControls({
         </div>
       )}
 
-      {advanced && curveEnabled && (
+      {advanced && (curveEnabled || (vertexEnabled && vertexDecoupled && vertexCurveEnabled)) && (
         <div style={{ marginTop: 8 }}>
           <div style={{ marginBottom: 8 }}>
             <Toggle

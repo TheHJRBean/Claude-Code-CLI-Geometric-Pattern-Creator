@@ -535,6 +535,7 @@ export function TessellationLabMode({
                           vertexAngle={fig.vertexContactAngle ?? fig.contactAngle}
                           vertexLineLength={fig.vertexLineLength ?? fig.lineLength}
                           vertexAutoLen={fig.vertexAutoLineLength ?? fig.autoLineLength}
+                          vertexCurveEnabled={fig.vertexCurveEnabled ?? (fig.curve?.enabled ?? false)}
                           curveEnabled={fig.curve?.enabled ?? false}
                           curvePoints={fig.curve?.points ?? [{ position: 0.5, offset: 0.2 }]}
                           curveAlternating={fig.curve?.alternating ?? false}

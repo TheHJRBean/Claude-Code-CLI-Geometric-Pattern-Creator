@@ -43,6 +43,10 @@ export interface FigureConfig {
   vertexLineLength?: number
   /** Auto line length for vertex lines (used only when decoupled) */
   vertexAutoLineLength?: boolean
+  /** Whether vertex lines curve (used only when decoupled). When coupled,
+   *  vertex lines follow `curve.enabled` like edge lines. The curve *shape*
+   *  (points/mode/direction) is always shared with `curve`. */
+  vertexCurveEnabled?: boolean
   /** Curve configuration for bending straight segments into Bezier curves */
   curve?: CurveConfig
 }

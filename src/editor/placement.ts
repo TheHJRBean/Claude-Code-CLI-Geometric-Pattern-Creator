@@ -3,6 +3,7 @@ import { pointInPolygon, pointsEqual } from '../utils/math'
 import type { EditorCell, EditorRegularTile, EditorTile } from '../types/editor'
 import { regularPolygonVertices } from './regularPolygon'
 import { EDITOR_EPS, tileVertices, type ExposedEdge } from './exposedEdges'
+import { overlapsExisting } from './tileOverlap'
 
 /**
  * The candidate set for the viable-polygon picker (Q10).
@@ -88,12 +89,19 @@ export function isPlacementViable(
   // contains the candidate's centre.
   const candidate = placeRegularNGonOnEdge(sides, edge.length, edge.p1, edge.p2, edge.sourceCenter, '__probe__')
   const candidateVerts = regularPolygonVertices(candidate.sides, candidate.center, candidate.edgeLength, candidate.rotation)
-  for (const tile of cell.tiles) {
-    const tv = tileVertices(tile)
-    const tc = tile.kind === 'regular' ? tile.center : avgCenter(tv)
+  const tileVerts = cell.tiles.map(tileVertices)
+  for (let i = 0; i < cell.tiles.length; i++) {
+    const tv = tileVerts[i]
+    const tc = cell.tiles[i].kind === 'regular'
+      ? (cell.tiles[i] as EditorRegularTile).center
+      : avgCenter(tv)
     if (pointInPolygon(tc, candidateVerts)) return false
     if (pointInPolygon(candidate.center, tv)) return false
   }
+  // Edge-crossing / vertex-intrusion probe (catches partial overlaps where
+  // neither centre lands inside the other — the false-negative the centre-only
+  // test misses). Shared with the boundary-section and Complete validators.
+  if (overlapsExisting(candidateVerts, tileVerts)) return false
   return true
 }
 

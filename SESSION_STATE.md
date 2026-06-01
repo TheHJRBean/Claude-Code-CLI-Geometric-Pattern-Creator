@@ -6,6 +6,14 @@
 
 **Current branch:** `feat/art-deco-egypt-theme-revamp`.
 
+**2026-06-01 — Gallery Frame Tier B (lattice-unit sizing) + SCOPE LOCK.** The Gallery **Frame** Size slider now reads in **whole tiling repeat units** instead of raw px. One unit = `|t1|`, the tiling's nearest same-orientation translate at the current scale. `archimedean.ts` now exports `tilingRepeatLength(def, edgeLen)` (thin wrapper over the still-private `getTilingLattice`). `Sidebar.tsx` derives `frameRepeat` from `TILINGS[config.tiling.type]` + `config.tiling.scale`, drives the slider min/max/value in units, and `setFrameUnits` converts back to px. `size` is still **stored in px** — no schema or `readGalleryFrame` change; the slider just snaps to integer multiples of the live repeat. Label reads "N units · Mpx". Aspect + rotation sliders unchanged. Build + `tsc --noEmit` green.
+
+**🔒 SCOPE LOCK (user, 2026-06-01):** Gallery framing is **shape + size ONLY — no tile-completion features.** The clip-only design already meets this (BFS fills the frame; strands hard-clip at the edge). Do NOT port the Builder's completion machinery (`computeFrameSections` / `placeRegularNGonOnFrameSection` / `frameCornerStubTiles` in `editor/frame.ts`) into the Gallery path. Edge resolution stays a future Decoration-stage job. With Tier B done, Gallery framing is considered **feature-complete** per this scope.
+
+**Still pending:** browser-verify Tier A + Tier B (`npm run dev` → Gallery → Frame section: pick a shape, drag Size and confirm it snaps in repeat units across square/hex/octagon tilings; confirm aspect/rotation still work).
+
+---
+
 **2026-05-31 — Gallery Frame (Tier A, SHIPPED `aedfecc`).** Clip-only parametric Shape Frame in **Gallery** mode (distinct from the Builder's Framing Phase). The infinite tiling is clipped to a square/hex/octagon outline + visible accent stroke, driven by a new Gallery-only sidebar **Frame** section (shape / size / aspect / rotation). Reuses the existing `editor/frame.ts::frameOutlinePolygon` geometry + PatternSVG's clip+stroke path verbatim — **no completion machinery** (the BFS field already fills the frame, so the janky complete-to-frame problem doesn't arise here).
 
 Files: `types/pattern.ts` (`PatternConfig.frame?: FrameConfig`, shape-only) · `state/actions.ts` + `state/reducer.ts` (`SET_GALLERY_FRAME` → top-level `config.frame`, distinct from the Builder's `SET_FRAME`→`editor.frame`) · `components/Canvas.tsx` (`frameOutline` memo reads `config.frame` when `tiling.type !== 'editor'`; gated off the Lab so it can't leak across workspaces) · `components/Sidebar.tsx` (Gallery `mode === 'main'` Frame section) · `state/configValidation.ts` (`readGalleryFrame` clamps size to `[MIN,MAX]`, defaults aspect/rotation, **drops non-`shape` frames silently** — a missing Gallery frame is harmless).

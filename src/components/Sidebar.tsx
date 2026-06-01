@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { PatternConfig } from '../types/pattern'
 import type { Action } from '../state/actions'
 import { TILINGS, SYMMETRY_GROUPS } from '../tilings/index'
+import { tilingRepeatLength } from '../tilings/archimedean'
 import type { TileTypeInfo } from '../types/tiling'
 import { useTheme } from '../theme/ThemeContext'
 import { FigureControls } from './strands/FigureControls'
@@ -347,6 +348,24 @@ export function Sidebar({
     }
     dispatch({ type: 'SET_GALLERY_FRAME', payload: { ...base, type: 'shape', ...patch } })
   }
+  // Tier B — size the Frame in whole tiling **repeat units** rather than raw
+  // px. One unit = the tiling's nearest same-orientation translate `|t1|` at
+  // the current scale; `size` stays stored in px so the world geometry and
+  // validation are unchanged — the slider just snaps to integer multiples of
+  // the live repeat. `mode === 'main'` guarantees a real (non-editor) tiling;
+  // fall back to the edge length if the definition is somehow missing.
+  const frameTilingDef = TILINGS[config.tiling.type]
+  const frameRepeat = frameTilingDef
+    ? tilingRepeatLength(frameTilingDef, config.tiling.scale)
+    : config.tiling.scale
+  const frameSizePx = galleryFrame?.size ?? DEFAULT_FRAME_SIZE
+  const frameMinUnits = Math.max(1, Math.ceil(MIN_FRAME_SIZE / frameRepeat))
+  const frameMaxUnits = Math.max(frameMinUnits + 1, Math.floor(MAX_FRAME_SIZE / frameRepeat))
+  const frameUnits = Math.min(frameMaxUnits, Math.max(frameMinUnits, Math.round(frameSizePx / frameRepeat)))
+  const setFrameUnits = (units: number) => {
+    const px = Math.min(MAX_FRAME_SIZE, Math.max(MIN_FRAME_SIZE, units * frameRepeat))
+    setGalleryFrame({ size: px })
+  }
 
   return (
     <div className={`sidebar ${open ? 'sidebar--open' : ''} ${desktopCollapsed ? 'sidebar--desktop-collapsed' : ''}`}>
@@ -529,13 +548,13 @@ export function Sidebar({
 
                 {galleryFrame && (
                   <>
-                    <FieldLabel label="Size" value={String(Math.round(galleryFrame.size ?? DEFAULT_FRAME_SIZE))} unit=" px" />
+                    <FieldLabel label="Size" value={String(frameUnits)} unit={`${frameUnits === 1 ? ' unit' : ' units'} · ${Math.round(frameSizePx)} px`} tooltip="Frame size in whole tiling repeat units (one unit = one lattice translate)." />
                     <input
                       type="range"
                       className="pattern-slider"
-                      min={MIN_FRAME_SIZE} max={MAX_FRAME_SIZE} step={10}
-                      value={galleryFrame.size ?? DEFAULT_FRAME_SIZE}
-                      onChange={e => setGalleryFrame({ size: Number(e.target.value) })}
+                      min={frameMinUnits} max={frameMaxUnits} step={1}
+                      value={frameUnits}
+                      onChange={e => setFrameUnits(Number(e.target.value))}
                     />
 
                     <FieldLabel label="Aspect" value={(galleryFrame.aspect ?? 1).toFixed(2)} unit="×" />

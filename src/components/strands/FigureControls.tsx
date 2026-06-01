@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import type { Action } from '../../state/actions'
+import { useMemo, useState } from 'react'
+import type { Action, CurveTarget } from '../../state/actions'
 import { computeSnapPoints, snapToNearest } from '../../pic/snapPoints'
 
 /**
@@ -23,11 +23,15 @@ interface FigureControlsProps {
   vertexAngle: number
   vertexLineLength: number
   vertexAutoLen: boolean
-  vertexCurveEnabled: boolean
   curveEnabled: boolean
   curvePoints: { position: number; offset: number }[]
   curveAlternating: boolean
   curveDirection: 'left' | 'right'
+  /** Vertex strand curve recipe (used when `vertexDecoupled`). */
+  vertexCurveEnabled: boolean
+  vertexCurvePoints: { position: number; offset: number }[]
+  vertexCurveAlternating: boolean
+  vertexCurveDirection: 'left' | 'right'
   cpShown: boolean
   onToggleCpShown: () => void
   tilingType: string
@@ -46,12 +50,20 @@ interface FigureControlsProps {
 export function FigureControls({
   tileTypeId, sides, displayLabel, angle, lineLength, autoLen, snapEnabled,
   edgeEnabled, vertexEnabled, vertexDecoupled, vertexAngle, vertexLineLength, vertexAutoLen,
-  vertexCurveEnabled,
   curveEnabled, curvePoints, curveAlternating, curveDirection,
+  vertexCurveEnabled, vertexCurvePoints, vertexCurveAlternating, vertexCurveDirection,
   cpShown, onToggleCpShown,
   tilingType, allFigures, dispatch, onCurvePointActivity,
   advanced = false,
 }: FigureControlsProps) {
+  // Which strand type the curve-shape editor is currently editing. Only
+  // meaningful when decoupled; coupled always targets the (shared) edge curve.
+  const [curveTarget, setCurveTarget] = useState<CurveTarget>('edge')
+  const activeCurveTarget: CurveTarget = vertexDecoupled ? curveTarget : 'edge'
+  const shape = activeCurveTarget === 'vertex'
+    ? { points: vertexCurvePoints, alternating: vertexCurveAlternating, direction: vertexCurveDirection }
+    : { points: curvePoints, alternating: curveAlternating, direction: curveDirection }
+  const curveShapeVisible = curveEnabled || (vertexEnabled && vertexDecoupled && vertexCurveEnabled)
   const anglesKey = Object.entries(allFigures)
     .map(([s, f]) => `${s}:${f.contactAngle}`)
     .join(',')
@@ -223,18 +235,9 @@ export function FigureControls({
               <div style={{ marginTop: 10 }}>
                 <Toggle
                   checked={vertexCurveEnabled}
-                  onChange={v => dispatch({ type: 'SET_VERTEX_CURVE_ENABLED', payload: { tileTypeId, enabled: v } })}
+                  onChange={v => dispatch({ type: 'SET_CURVE_ENABLED', payload: { tileTypeId, enabled: v, target: 'vertex' } })}
                   label="Curve vertex strands"
                 />
-                <div style={{
-                  fontFamily: "'EB Garamond', Georgia, serif",
-                  fontSize: 11.5,
-                  color: 'var(--text-muted)',
-                  letterSpacing: '0.02em',
-                  marginTop: 3,
-                }}>
-                  reuses the edge curve shape
-                </div>
               </div>
             </div>
           )}
@@ -245,14 +248,46 @@ export function FigureControls({
         <div style={{ marginTop: 12 }}>
           <Toggle
             checked={curveEnabled}
-            onChange={v => dispatch({ type: 'SET_CURVE_ENABLED', payload: { tileTypeId, enabled: v } })}
-            label="Curve strands"
+            onChange={v => dispatch({ type: 'SET_CURVE_ENABLED', payload: { tileTypeId, enabled: v, target: 'edge' } })}
+            label={vertexDecoupled ? 'Curve edge strands' : 'Curve strands'}
           />
         </div>
       )}
 
-      {advanced && (curveEnabled || (vertexEnabled && vertexDecoupled && vertexCurveEnabled)) && (
+      {advanced && curveShapeVisible && (
         <div style={{ marginTop: 8 }}>
+          {vertexDecoupled && (
+            <>
+              <FieldLabel label="Curve shape for" />
+              <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
+                {(['edge', 'vertex'] as const).map(t => {
+                  const isActive = activeCurveTarget === t
+                  return (
+                    <button
+                      key={t}
+                      onClick={() => setCurveTarget(t)}
+                      style={{
+                        flex: 1,
+                        padding: '5px 0',
+                        fontFamily: "'Cinzel', Georgia, serif",
+                        fontSize: 9,
+                        fontWeight: 600,
+                        letterSpacing: '0.08em',
+                        textTransform: 'uppercase' as const,
+                        cursor: 'pointer',
+                        border: `1px solid ${isActive ? 'var(--accent)' : 'var(--border)'}`,
+                        background: isActive ? 'var(--accent-bg)' : 'transparent',
+                        color: isActive ? 'var(--accent)' : 'var(--text-muted)',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      {t}
+                    </button>
+                  )
+                })}
+              </div>
+            </>
+          )}
           <div style={{ marginBottom: 8 }}>
             <Toggle
               checked={cpShown}
@@ -265,11 +300,11 @@ export function FigureControls({
               <FieldLabel label="Curve mode" />
               <div style={{ display: 'flex', gap: 0, marginBottom: 8 }}>
                 {(['same', 'alternating'] as const).map(mode => {
-                  const isActive = mode === 'alternating' ? curveAlternating : !curveAlternating
+                  const isActive = mode === 'alternating' ? shape.alternating : !shape.alternating
                   return (
                     <button
                       key={mode}
-                      onClick={() => dispatch({ type: 'SET_CURVE_ALTERNATING', payload: { tileTypeId, alternating: mode === 'alternating' } })}
+                      onClick={() => dispatch({ type: 'SET_CURVE_ALTERNATING', payload: { tileTypeId, alternating: mode === 'alternating', target: activeCurveTarget } })}
                       style={{
                         flex: 1,
                         padding: '5px 0',
@@ -293,16 +328,16 @@ export function FigureControls({
             </>
           )}
 
-          {sides !== 3 && curveAlternating && (
+          {sides !== 3 && shape.alternating && (
             <>
               <FieldLabel label="Direction" />
               <div style={{ display: 'flex', gap: 0, marginBottom: 8 }}>
                 {(['left', 'right'] as const).map(dir => {
-                  const isActive = curveDirection === dir
+                  const isActive = shape.direction === dir
                   return (
                     <button
                       key={dir}
-                      onClick={() => dispatch({ type: 'SET_CURVE_DIRECTION', payload: { tileTypeId, direction: dir } })}
+                      onClick={() => dispatch({ type: 'SET_CURVE_DIRECTION', payload: { tileTypeId, direction: dir, target: activeCurveTarget } })}
                       style={{
                         flex: 1,
                         padding: '5px 0',
@@ -326,12 +361,12 @@ export function FigureControls({
             </>
           )}
 
-          <FieldLabel label="Control points" value={String(curvePoints.length)} />
+          <FieldLabel label="Control points" value={String(shape.points.length)} />
           <div style={{ display: 'flex', gap: 0, marginBottom: 8 }}>
             {[1, 2, 3].map(n => (
               <button
                 key={n}
-                onClick={() => dispatch({ type: 'SET_CURVE_POINT_COUNT', payload: { tileTypeId, count: n } })}
+                onClick={() => dispatch({ type: 'SET_CURVE_POINT_COUNT', payload: { tileTypeId, count: n, target: activeCurveTarget } })}
                 style={{
                   flex: 1,
                   padding: '5px 0',
@@ -340,9 +375,9 @@ export function FigureControls({
                   fontWeight: 600,
                   letterSpacing: '0.08em',
                   cursor: 'pointer',
-                  border: `1px solid ${curvePoints.length === n ? 'var(--accent)' : 'var(--border)'}`,
-                  background: curvePoints.length === n ? 'var(--accent-bg)' : 'transparent',
-                  color: curvePoints.length === n ? 'var(--accent)' : 'var(--text-muted)',
+                  border: `1px solid ${shape.points.length === n ? 'var(--accent)' : 'var(--border)'}`,
+                  background: shape.points.length === n ? 'var(--accent-bg)' : 'transparent',
+                  color: shape.points.length === n ? 'var(--accent)' : 'var(--text-muted)',
                   transition: 'all 0.15s',
                 }}
               >
@@ -351,9 +386,9 @@ export function FigureControls({
             ))}
           </div>
 
-          {curvePoints.map((cp, i) => (
-            <div key={i} style={{ marginBottom: i < curvePoints.length - 1 ? 10 : 0 }}>
-              {curvePoints.length > 1 && (
+          {shape.points.map((cp, i) => (
+            <div key={i} style={{ marginBottom: i < shape.points.length - 1 ? 10 : 0 }}>
+              {shape.points.length > 1 && (
                 <span style={{
                   fontFamily: "'EB Garamond', Georgia, serif",
                   fontSize: 12,
@@ -374,7 +409,7 @@ export function FigureControls({
                   onCurvePointActivity(tileTypeId, i)
                   dispatch({
                     type: 'SET_CURVE_POINT',
-                    payload: { tileTypeId, index: i, point: { position: Number(e.target.value) / 100 } },
+                    payload: { tileTypeId, index: i, point: { position: Number(e.target.value) / 100 }, target: activeCurveTarget },
                   })
                 }}
               />
@@ -389,7 +424,7 @@ export function FigureControls({
                   onCurvePointActivity(tileTypeId, i)
                   dispatch({
                     type: 'SET_CURVE_POINT',
-                    payload: { tileTypeId, index: i, point: { offset: Number(e.target.value) / 100 } },
+                    payload: { tileTypeId, index: i, point: { offset: Number(e.target.value) / 100 }, target: activeCurveTarget },
                   })
                 }}
               />

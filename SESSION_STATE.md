@@ -10,7 +10,9 @@
 
 **🔒 SCOPE LOCK (user, 2026-06-01):** Gallery framing is **shape + size ONLY — no tile-completion features.** The clip-only design already meets this (BFS fills the frame; strands hard-clip at the edge). Do NOT port the Builder's completion machinery (`computeFrameSections` / `placeRegularNGonOnFrameSection` / `frameCornerStubTiles` in `editor/frame.ts`) into the Gallery path. Edge resolution stays a future Decoration-stage job. With Tier B done, Gallery framing is considered **feature-complete** per this scope.
 
-**Still pending:** browser-verify Tier A + Tier B (`npm run dev` → Gallery → Frame section: pick a shape, drag Size and confirm it snaps in repeat units across square/hex/octagon tilings; confirm aspect/rotation still work).
+**Fix `6f4574d`** — Size slider froze at large tiling repeats. Cause: `frameMaxUnits` forced `minUnits+1` even when one repeat unit already neared the old 1600 px ceiling, so dragging to that max clamped back under the cap and rounded to the same unit (frozen thumb). Hit on hex/octagon/4.8.8 at raised scale (repeat ≥ ~800). Fix: cap units at `MAX_FRAME_UNITS = 16` and raise `MAX_FRAME_SIZE` 1600 → 8000 so the top unit's px never clamps. Round-trip verified across scales 40–3000 (only absurd scale 3000 collapses to 1 unit — a degenerate huge frame). `MAX_FRAME_SIZE` is also the `readGalleryFrame` clamp ceiling, now 8000.
+
+**Still pending:** browser-verify Tier A + Tier B (`npm run dev` → Gallery → Frame: pick a shape, drag Size and confirm it moves + snaps in repeat units across square/hex/octagon tilings at default and raised scale; confirm aspect/rotation work).
 
 ---
 

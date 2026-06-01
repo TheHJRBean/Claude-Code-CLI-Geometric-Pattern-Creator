@@ -8,6 +8,7 @@ import { compositionNeighbourStamps, patchRotation } from './compositionLattice'
 import { ensureCCW } from './complete'
 import { validateNGapPolygon } from './completeN'
 import { overlapsExistingDetail, type OverlapDetail } from './tileOverlap'
+import { frameOutlinePolygon, computeFrameSections, frameNodePoints } from './frame'
 
 /**
  * Patch-frame helpers for Complete mode.
@@ -119,11 +120,29 @@ export function cellLocalSelectableVertices(cell: EditorCell): Vec2[] {
 }
 
 /**
+ * The distinct **Frame node** points (edge nodes + corners) the user can click
+ * in Complete mode, in Patch-world coords. Only Shape Frames expose nodes —
+ * n-ring Frames are clip-only. Returns [] when no Shape Frame is present. The
+ * Frame has its own origin/rotation independent of the Cells, so these are
+ * already world-space and need no Cell transform.
+ */
+export function frameSelectablePoints(patch: EditorPatch): Vec2[] {
+  const frame = patch.frame
+  if (!frame || frame.type !== 'shape') return []
+  const outline = frameOutlinePolygon(frame)
+  if (!outline) return []
+  return frameNodePoints(computeFrameSections(outline, patch.edgeLength))
+}
+
+/**
  * True if `p` is a vertex the user can legitimately click in Complete mode:
  * any Cell's outer / pocket / Boundary-corner vertex, or — when
- * `includeNeighbours` — any neighbour-stamp copy of one. The neighbour test is
- * pick-local (see `neighbourStampsNear`) so it matches the canvas's
- * full-lattice exposure without enumerating a viewport.
+ * `includeNeighbours` — any neighbour-stamp copy of one, or a Frame node. The
+ * neighbour test is pick-local (see `neighbourStampsNear`) so it matches the
+ * canvas's full-lattice exposure without enumerating a viewport. Frame nodes
+ * count only under `includeNeighbours`, i.e. they are "floating": the
+ * non-floating rule still forces ≥1 real Patch vertex per completion, so a
+ * polygon can't be built purely from Frame nodes.
  */
 export function isPatchSelectableVertex(patch: EditorPatch, p: Vec2, includeNeighbours: boolean): boolean {
   const patchRot = patchRotation(patch)
@@ -133,6 +152,9 @@ export function isPatchSelectableVertex(patch: EditorPatch, p: Vec2, includeNeig
     }
   }
   if (!includeNeighbours) return false
+  for (const fp of frameSelectablePoints(patch)) {
+    if (pointsEqual(p, fp, EDITOR_EPS)) return true
+  }
   for (const stamp of neighbourStampsNear(patch, [p])) {
     for (const cell of patch.cells) {
       for (const v of cellLocalSelectableVertices(cell)) {

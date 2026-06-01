@@ -19,13 +19,15 @@ import { EDITOR_EPS } from '../editor/exposedEdges'
  * Dots use `vectorEffect="non-scaling-stroke"` so they stay the same size at
  * any zoom, mirroring the edge layer's behaviour.
  */
-type DotVariant = 'patch' | 'boundary' | 'pocket' | 'neighbour'
+type DotVariant = 'patch' | 'boundary' | 'pocket' | 'neighbour' | 'frame'
 
 interface Props {
   vertices: BoundaryVertex[]
   boundaryCorners?: BoundaryVertex[]
   pocketVertices?: BoundaryVertex[]
   neighbourVertices?: BoundaryVertex[]
+  /** Frame edge nodes — clickable completion targets when a Frame overlay is present. */
+  frameVertices?: BoundaryVertex[]
   /** Step 17.11.3 — accumulated picks. Length 0 or 1 in chord mode; arbitrary in multi mode. */
   picks: Vec2[]
   /** Step 17.11.4 — `null` = no preview, `true|false` = valid/invalid tint. */
@@ -84,6 +86,11 @@ function styleFor(variant: DotVariant, isPicked: boolean): DotStyle {
         strokeOpacity: 0.45,
         strokeWidth: 1.4,
       }
+    case 'frame':
+      // Solid accent dot rimmed in bg — reads as a distinct "frame node" target
+      // sitting on the frame outline, set apart from the hollow patch dots and
+      // the faint neighbour ghosts.
+      return { radius: DOT_RADIUS + 1, fill: 'var(--accent)', stroke: 'var(--bg)', strokeWidth: 2 }
   }
 }
 
@@ -173,6 +180,7 @@ export function EditorVertexLayer({
   boundaryCorners = [],
   pocketVertices = [],
   neighbourVertices = [],
+  frameVertices = [],
   picks,
   previewValid = null,
   previewMessage = null,
@@ -213,6 +221,15 @@ export function EditorVertexLayer({
           key={`n-${v.tileId}#${v.vertexIndex}#${i}`}
           v={v}
           variant="neighbour"
+          picks={picks}
+          onPickVertex={onPickVertex}
+        />
+      ))}
+      {frameVertices.map((v, i) => (
+        <VertexDot
+          key={`f-${v.tileId}#${v.vertexIndex}#${i}`}
+          v={v}
+          variant="frame"
           picks={picks}
           onPickVertex={onPickVertex}
         />

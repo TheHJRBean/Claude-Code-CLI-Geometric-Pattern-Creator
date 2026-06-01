@@ -394,6 +394,16 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     return out
   }, [editorActive, config.editor, editorMode, editorNeighbourPreview, editorStrandMode, neighbourStamps, patchRot])
 
+  // Frame nodes are clickable completion targets in Complete mode (the Frame
+  // is a persistent overlay). Picking a frame node together with interior
+  // vertices completes a tile out to the frame edge; the reducer stores such
+  // completions frame-scoped (world space, non-repeating). Shape Frames only —
+  // `frameNodes` is null for n-ring / no frame.
+  const frameVertices = useMemo<BoundaryVertex[]>(() => {
+    if (!editorActive || editorMode !== 'complete' || editorStrandMode || !frameNodes) return []
+    return frameNodes.map((p, i) => ({ p, tileId: `frame/${i}`, vertexIndex: i }))
+  }, [editorActive, editorMode, editorStrandMode, frameNodes])
+
   // Step 17.12 — Boundary-section highlights, always rendered in Design
   // Phase Place mode (no enabling toggle — boundary-section placement is a
   // standard part of design functionality). Sections are computed in
@@ -573,6 +583,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
           boundaryCorners={boundaryCorners}
           pocketVertices={pocketVertices}
           neighbourVertices={neighbourVertices}
+          frameVertices={frameVertices}
           picks={picks ?? []}
           previewValid={previewValid}
           previewMessage={previewMessage}

@@ -602,11 +602,15 @@ export function Sidebar({
             const vertexAngle = fig?.vertexContactAngle ?? angle
             const vertexLineLength = fig?.vertexLineLength ?? lineLength
             const vertexAutoLen = fig?.vertexAutoLineLength ?? autoLen
-            const vertexCurveEnabled = fig?.vertexCurveEnabled ?? (fig?.curve?.enabled ?? false)
             const curveEnabled = fig?.curve?.enabled ?? false
             const curvePoints = fig?.curve?.points ?? [{ position: 0.5, offset: 0.2 }]
             const curveAlternating = fig?.curve?.alternating ?? false
             const curveDirection = fig?.curve?.direction ?? 'left'
+            const vertexCurve = fig?.vertexCurve ?? fig?.curve
+            const vertexCurveEnabled = vertexCurve?.enabled ?? false
+            const vertexCurvePoints = vertexCurve?.points ?? curvePoints
+            const vertexCurveAlternating = vertexCurve?.alternating ?? false
+            const vertexCurveDirection = vertexCurve?.direction ?? 'left'
             return (
               <FigureControls
                 key={tt.id}
@@ -623,11 +627,14 @@ export function Sidebar({
                 vertexAngle={vertexAngle}
                 vertexLineLength={vertexLineLength}
                 vertexAutoLen={vertexAutoLen}
-                vertexCurveEnabled={vertexCurveEnabled}
                 curveEnabled={curveEnabled}
                 curvePoints={curvePoints}
                 curveAlternating={curveAlternating}
                 curveDirection={curveDirection}
+                vertexCurveEnabled={vertexCurveEnabled}
+                vertexCurvePoints={vertexCurvePoints}
+                vertexCurveAlternating={vertexCurveAlternating}
+                vertexCurveDirection={vertexCurveDirection}
                 cpShown={cpVisible[tt.id] ?? false}
                 onToggleCpShown={() => onToggleCpVisible(tt.id)}
                 tilingType={config.tiling.type}

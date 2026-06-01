@@ -61,7 +61,8 @@ export function ControlPointLayer({ segments, config, visible, active, zoom }: P
     for (const seg of segments) {
       if (!visible[seg.tileTypeId]) continue
       const fig = config.figures[seg.tileTypeId]
-      const curve = fig?.curve
+      const decoupledVertex = (fig?.vertexLinesDecoupled ?? false) && seg.kind === 'vertex-line'
+      const curve = decoupledVertex ? fig?.vertexCurve : fig?.curve
       if (!curve?.enabled || !curve.points.length) continue
       const cps = computeSegmentCPs(seg, curve)
       const activeIdx = active[seg.tileTypeId] ?? 0

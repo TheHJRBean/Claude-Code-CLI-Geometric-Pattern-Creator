@@ -535,11 +535,14 @@ export function TessellationLabMode({
                           vertexAngle={fig.vertexContactAngle ?? fig.contactAngle}
                           vertexLineLength={fig.vertexLineLength ?? fig.lineLength}
                           vertexAutoLen={fig.vertexAutoLineLength ?? fig.autoLineLength}
-                          vertexCurveEnabled={fig.vertexCurveEnabled ?? (fig.curve?.enabled ?? false)}
                           curveEnabled={fig.curve?.enabled ?? false}
                           curvePoints={fig.curve?.points ?? [{ position: 0.5, offset: 0.2 }]}
                           curveAlternating={fig.curve?.alternating ?? false}
                           curveDirection={fig.curve?.direction ?? 'left'}
+                          vertexCurveEnabled={(fig.vertexCurve ?? fig.curve)?.enabled ?? false}
+                          vertexCurvePoints={(fig.vertexCurve ?? fig.curve)?.points ?? [{ position: 0.5, offset: 0.2 }]}
+                          vertexCurveAlternating={(fig.vertexCurve ?? fig.curve)?.alternating ?? false}
+                          vertexCurveDirection={(fig.vertexCurve ?? fig.curve)?.direction ?? 'left'}
                           cpShown={cpVisible[tt.id] ?? false}
                           onToggleCpShown={() => toggleCpVisible(tt.id)}
                           tilingType={config.tiling.type}

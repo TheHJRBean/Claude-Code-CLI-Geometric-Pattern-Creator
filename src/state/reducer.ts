@@ -1,4 +1,5 @@
-import type { CurvePoint, FigureConfig, PatternConfig } from '../types/pattern'
+import type { CurveConfig, CurvePoint, FigureConfig, PatternConfig } from '../types/pattern'
+import type { CurveTarget } from './actions'
 import type { EditorCell, EditorConfig, EditorTile } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import type { Action } from './actions'
@@ -97,6 +98,30 @@ function updateFigure(state: PatternConfig, tileTypeId: string, patch: Partial<F
   }
 }
 
+/** Which FigureConfig field a curve mutation writes to. */
+function curveField(target: CurveTarget | undefined): 'curve' | 'vertexCurve' {
+  return target === 'vertex' ? 'vertexCurve' : 'curve'
+}
+
+/** Read the targeted curve config, falling back to a fresh one. */
+function curveBase(fig: FigureConfig, target: CurveTarget | undefined, defaultEnabled: boolean): CurveConfig {
+  const existing = target === 'vertex' ? fig.vertexCurve : fig.curve
+  return existing ?? { enabled: defaultEnabled, points: [{ position: 0.5, offset: 0.2 }] }
+}
+
+/** Apply a mutation to the targeted curve config and write it back. */
+function updateCurve(
+  state: PatternConfig,
+  tileTypeId: string,
+  target: CurveTarget | undefined,
+  defaultEnabled: boolean,
+  mutate: (c: CurveConfig) => CurveConfig,
+): PatternConfig {
+  const fig = getFigure(state, tileTypeId)
+  const base = curveBase(fig, target, defaultEnabled)
+  return updateFigure(state, tileTypeId, { [curveField(target)]: mutate(base) })
+}
+
 export function reducer(state: PatternConfig, action: Action): PatternConfig {
   switch (action.type) {
     case 'SET_TILING_TYPE': {
@@ -163,63 +188,44 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
           vertexContactAngle: existing.vertexContactAngle ?? existing.contactAngle,
           vertexLineLength: existing.vertexLineLength ?? existing.lineLength,
           vertexAutoLineLength: existing.vertexAutoLineLength ?? existing.autoLineLength,
-          // Inherit the current (coupled) curve state so decoupling doesn't
-          // silently turn vertex curves off until the user diverges.
-          vertexCurveEnabled: existing.vertexCurveEnabled ?? (existing.curve?.enabled ?? false),
+          // Seed the vertex curve from the current (coupled) curve so the
+          // switch is seamless and the user can then diverge it.
+          vertexCurve: existing.vertexCurve ?? (existing.curve
+            ? { ...existing.curve, points: existing.curve.points.map(p => ({ ...p })) }
+            : undefined),
         } : {}),
       })
     }
-    case 'SET_VERTEX_CURVE_ENABLED':
-      return updateFigure(state, action.payload.tileTypeId, { vertexCurveEnabled: action.payload.enabled })
     case 'SET_VERTEX_CONTACT_ANGLE':
       return updateFigure(state, action.payload.tileTypeId, { vertexContactAngle: action.payload.angle })
     case 'SET_VERTEX_LINE_LENGTH':
       return updateFigure(state, action.payload.tileTypeId, { vertexLineLength: action.payload.lineLength })
     case 'SET_VERTEX_AUTO_LINE_LENGTH':
       return updateFigure(state, action.payload.tileTypeId, { vertexAutoLineLength: action.payload.auto })
-    case 'SET_CURVE_ENABLED': {
-      const fig = getFigure(state, action.payload.tileTypeId)
-      const curve = fig.curve ?? { enabled: false, points: [{ position: 0.5, offset: 0.2 }] }
-      return updateFigure(state, action.payload.tileTypeId, {
-        curve: { ...curve, enabled: action.payload.enabled },
+    case 'SET_CURVE_ENABLED':
+      return updateCurve(state, action.payload.tileTypeId, action.payload.target, false,
+        curve => ({ ...curve, enabled: action.payload.enabled }))
+    case 'SET_CURVE_POINT_COUNT':
+      return updateCurve(state, action.payload.tileTypeId, action.payload.target, true, curve => {
+        const count = Math.max(1, Math.min(3, action.payload.count))
+        const existing = curve.points
+        const points: CurvePoint[] = []
+        for (let i = 0; i < count; i++) {
+          points.push(existing[i] ?? { position: (i + 1) / (count + 1), offset: 0.2 })
+        }
+        return { ...curve, points }
       })
-    }
-    case 'SET_CURVE_POINT_COUNT': {
-      const fig = getFigure(state, action.payload.tileTypeId)
-      const curve = fig.curve ?? { enabled: true, points: [{ position: 0.5, offset: 0.2 }] }
-      const count = Math.max(1, Math.min(3, action.payload.count))
-      const existing = curve.points
-      const points: CurvePoint[] = []
-      for (let i = 0; i < count; i++) {
-        points.push(existing[i] ?? { position: (i + 1) / (count + 1), offset: 0.2 })
-      }
-      return updateFigure(state, action.payload.tileTypeId, {
-        curve: { ...curve, points },
-      })
-    }
-    case 'SET_CURVE_POINT': {
-      const { tileTypeId, index, point } = action.payload
-      const fig = getFigure(state, tileTypeId)
-      const curve = fig.curve ?? { enabled: true, points: [{ position: 0.5, offset: 0.2 }] }
-      const points = curve.points.map((p, i) =>
-        i === index ? { ...p, ...point } : p,
-      )
-      return updateFigure(state, tileTypeId, { curve: { ...curve, points } })
-    }
-    case 'SET_CURVE_ALTERNATING': {
-      const fig = getFigure(state, action.payload.tileTypeId)
-      const curve = fig.curve ?? { enabled: true, points: [{ position: 0.5, offset: 0.2 }] }
-      return updateFigure(state, action.payload.tileTypeId, {
-        curve: { ...curve, alternating: action.payload.alternating },
-      })
-    }
-    case 'SET_CURVE_DIRECTION': {
-      const fig = getFigure(state, action.payload.tileTypeId)
-      const curve = fig.curve ?? { enabled: true, points: [{ position: 0.5, offset: 0.2 }] }
-      return updateFigure(state, action.payload.tileTypeId, {
-        curve: { ...curve, direction: action.payload.direction },
-      })
-    }
+    case 'SET_CURVE_POINT':
+      return updateCurve(state, action.payload.tileTypeId, action.payload.target, true, curve => ({
+        ...curve,
+        points: curve.points.map((p, i) => (i === action.payload.index ? { ...p, ...action.payload.point } : p)),
+      }))
+    case 'SET_CURVE_ALTERNATING':
+      return updateCurve(state, action.payload.tileTypeId, action.payload.target, true,
+        curve => ({ ...curve, alternating: action.payload.alternating }))
+    case 'SET_CURVE_DIRECTION':
+      return updateCurve(state, action.payload.tileTypeId, action.payload.target, true,
+        curve => ({ ...curve, direction: action.payload.direction }))
     case 'SET_SMOOTH_TRANSITIONS':
       return { ...state, smoothTransitions: action.payload }
     case 'SET_FIGURE_ROUTING':

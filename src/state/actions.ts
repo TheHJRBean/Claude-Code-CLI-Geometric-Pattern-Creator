@@ -2,6 +2,10 @@ import type { FigureRouting, PatternConfig, StrandStyle } from '../types/pattern
 import type { BoundaryShape, ConfigurationId, EditorConfig, FrameConfig, SymmetryMode } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 
+/** Which strand type a curve mutation targets. 'edge' = star-arm lines (the
+ *  shared `curve`); 'vertex' = vertex lines' own `vertexCurve` (decoupled). */
+export type CurveTarget = 'edge' | 'vertex'
+
 export type Action =
   | { type: 'SET_TILING_TYPE'; payload: string }
   | { type: 'SET_SCALE'; payload: number }
@@ -16,12 +20,11 @@ export type Action =
   | { type: 'SET_VERTEX_CONTACT_ANGLE'; payload: { tileTypeId: string; angle: number } }
   | { type: 'SET_VERTEX_LINE_LENGTH'; payload: { tileTypeId: string; lineLength: number } }
   | { type: 'SET_VERTEX_AUTO_LINE_LENGTH'; payload: { tileTypeId: string; auto: boolean } }
-  | { type: 'SET_VERTEX_CURVE_ENABLED'; payload: { tileTypeId: string; enabled: boolean } }
-  | { type: 'SET_CURVE_ENABLED'; payload: { tileTypeId: string; enabled: boolean } }
-  | { type: 'SET_CURVE_POINT_COUNT'; payload: { tileTypeId: string; count: number } }
-  | { type: 'SET_CURVE_POINT'; payload: { tileTypeId: string; index: number; point: Partial<{ position: number; offset: number }> } }
-  | { type: 'SET_CURVE_ALTERNATING'; payload: { tileTypeId: string; alternating: boolean } }
-  | { type: 'SET_CURVE_DIRECTION'; payload: { tileTypeId: string; direction: 'left' | 'right' } }
+  | { type: 'SET_CURVE_ENABLED'; payload: { tileTypeId: string; enabled: boolean; target?: CurveTarget } }
+  | { type: 'SET_CURVE_POINT_COUNT'; payload: { tileTypeId: string; count: number; target?: CurveTarget } }
+  | { type: 'SET_CURVE_POINT'; payload: { tileTypeId: string; index: number; point: Partial<{ position: number; offset: number }>; target?: CurveTarget } }
+  | { type: 'SET_CURVE_ALTERNATING'; payload: { tileTypeId: string; alternating: boolean; target?: CurveTarget } }
+  | { type: 'SET_CURVE_DIRECTION'; payload: { tileTypeId: string; direction: 'left' | 'right'; target?: CurveTarget } }
   | { type: 'SET_SMOOTH_TRANSITIONS'; payload: boolean }
   | { type: 'SET_FIGURE_ROUTING'; payload: FigureRouting }
   // Reset every FigureConfig in `figures` back to its tiling default

@@ -48,7 +48,7 @@ export function OverlapConfirmModal({ sides, symmetry, onConfirm, onCancel }: Pr
       role="dialog"
       aria-modal="true"
       aria-label="Confirm overlapping placement"
-      onPointerDown={onCancel}
+      onClick={onCancel}
       style={{
         position: 'absolute',
         inset: 0,
@@ -62,7 +62,7 @@ export function OverlapConfirmModal({ sides, symmetry, onConfirm, onCancel }: Pr
       }}
     >
       <div
-        onPointerDown={e => e.stopPropagation()}
+        onClick={e => e.stopPropagation()}
         style={{
           width: 'min(420px, calc(100vw - 48px))',
           background: 'var(--surface, var(--bg, #1a1a1a))',

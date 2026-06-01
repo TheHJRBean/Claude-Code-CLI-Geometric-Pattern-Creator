@@ -16,7 +16,7 @@
 
 Gallery Frame shapes are now **square / pentagon / hexagon / octagon**. To add more: extend `FrameShape`, the two `Record<FrameShape, …>` tables in `frame.ts` (TS enforces exhaustiveness), the Sidebar `<option>`s, and both `FRAME_SHAPES` sets.
 
-**Still pending:** browser-verify Tier A + Tier B + pentagon (`npm run dev` → Gallery → Frame: pick each shape incl. Pentagon, drag Size and confirm it moves + snaps in repeat units across square/hex/octagon tilings at default and raised scale; confirm aspect/rotation work).
+**✅ Browser-verified by user 2026-06-01** — Tier A + Tier B + pentagon all confirmed working in-browser ("looks all good"). Gallery Frame (shape + size, clip-only) is **feature-complete** per the scope lock. Not yet merged to `main` (lives on `feat/art-deco-egypt-theme-revamp`).
 
 ---
 

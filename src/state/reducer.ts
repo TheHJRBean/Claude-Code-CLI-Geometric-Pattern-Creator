@@ -28,7 +28,6 @@ import { completeNGap } from '../editor/completeN'
 import { boundarySymmetries, applySym } from '../editor/symmetry'
 import { autoCompleteCell, fitBoundarySize } from '../editor/autoComplete'
 import { computeBoundarySections, isBoundarySectionPlacementViable, placeRegularNGonOnBoundarySection, placeTilesOnBoundarySectionOrbit } from '../editor/boundaryInward'
-import { frameOutlinePolygon, computeFrameSections, placeRegularNGonOnFrameSection, frameCornerStubTiles } from '../editor/frame'
 import { DEFAULT_EDITOR_FIGURE, seedFiguresForEditor } from '../editor/tileTypes'
 import { activeCell, allCells, withActiveCell } from '../editor/active'
 import {
@@ -512,50 +511,6 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       // it. Independent of the Builder's `editor.frame`.
       const frame = action.payload ?? undefined
       return { ...state, frame }
-    }
-    case 'EDITOR_PLACE_TILE_ON_FRAME_SECTION': {
-      // Step 17 Framing slice 5 — place a regular n-gon flush to a Frame
-      // section, tiling the pattern OUT to the frame edge. The Tile is
-      // frame-scoped (world space, stored on `frame.completedTiles`) — NOT a
-      // Cell Tile, since it doesn't repeat under the Lattice. Stub sections
-      // (the < edgeLength remainder) are reserved for the irregular fallback.
-      if (!state.editor) return state
-      const frame = state.editor.frame
-      if (!frame) return state
-      const outline = frameOutlinePolygon(frame)
-      if (!outline) return state
-      const { edgeIndex, sectionIndex, sides } = action.payload
-      const sections = computeFrameSections(outline, state.editor.edgeLength)
-      const section = sections.find(s => s.edgeIndex === edgeIndex && s.sectionIndex === sectionIndex)
-      if (!section || section.isStub) return state
-      const existing = frame.completedTiles ?? []
-      const tile = placeRegularNGonOnFrameSection(sides, section, `frame-${existing.length}-${Date.now()}`)
-      return {
-        ...state,
-        editor: { ...state.editor, frame: { ...frame, completedTiles: [...existing, tile] } },
-      }
-    }
-    case 'EDITOR_COMPLETE_TO_FRAME': {
-      // Step 17 Framing — auto-fill: place the chosen n-gon flush to EVERY full
-      // Frame section in one gesture (a clean ring hugging the frame edge),
-      // replacing any prior completion Tiles (idempotent / re-runnable). The
-      // < edgeLength corner remainders are then closed by the irregular stub
-      // fallback (slice 9), so the pattern reaches every corner cleanly.
-      if (!state.editor) return state
-      const frame = state.editor.frame
-      if (!frame) return state
-      const outline = frameOutlinePolygon(frame)
-      if (!outline) return state
-      const { sides } = action.payload
-      const stamp = Date.now()
-      const tiles = computeFrameSections(outline, state.editor.edgeLength)
-        .filter(s => !s.isStub)
-        .map((s, i) => placeRegularNGonOnFrameSection(sides, s, `frame-${i}-${stamp}`))
-      const stubTiles = frameCornerStubTiles(outline, state.editor.edgeLength, `frame-stub-${stamp}`)
-      return {
-        ...state,
-        editor: { ...state.editor, frame: { ...frame, completedTiles: [...tiles, ...stubTiles] } },
-      }
     }
     case 'EDITOR_RUN_AUTO_COMPLETE': {
       if (!state.editor) return state

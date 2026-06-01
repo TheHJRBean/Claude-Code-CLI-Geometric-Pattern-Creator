@@ -4,6 +4,7 @@ import type { EditorCell, EditorRegularTile, EditorTile } from '../types/editor'
 import { EDITOR_EPS, tileVertices } from './exposedEdges'
 import { editorBoundaryVertices } from './buildEditorPolygons'
 import { regularPolygonVertices } from './regularPolygon'
+import { overlapsExisting } from './tileOverlap'
 
 /**
  * Step 17.13 — vertex placement (sub-step A: geometry foundation).
@@ -94,6 +95,11 @@ export interface VertexOrientation {
   rotation: number
   /** Tag identifying the snap kind — used by the picker to label arrows. */
   kind: 'flush-cw' | 'centred' | 'flush-ccw'
+  /** True when this orientation's body overlaps an existing Tile. The
+   *  orientation is still offered (flexible placement) but the picker badges
+   *  it and the commit dispatches with `force: true`. Sector-fit failures are
+   *  NOT included here — those orientations aren't emitted at all. */
+  overlaps: boolean
 }
 
 /* ── Angle helpers ─────────────────────────────────────────────────────── */
@@ -342,12 +348,16 @@ export function isVertexPlacementViable(
     candidate.edgeLength,
     candidate.rotation,
   )
-  for (const tile of cell.tiles) {
-    const tv = tileVertices(tile)
-    const tc = tile.kind === 'regular' ? tile.center : centroidOf(tv)
+  const tileVerts = cell.tiles.map(tileVertices)
+  for (let i = 0; i < cell.tiles.length; i++) {
+    const tv = tileVerts[i]
+    const tc = cell.tiles[i].kind === 'regular' ? (cell.tiles[i] as { center: Vec2 }).center : centroidOf(tv)
     if (pointInPolygon(tc, candidateVerts)) return false
     if (pointInPolygon(candidate.center, tv)) return false
   }
+  // Edge-crossing / vertex-intrusion probe — catches partial overlaps the
+  // centre-only test misses (shared with edge + boundary-section validators).
+  if (overlapsExisting(candidateVerts, tileVerts)) return false
   // Boundary corner — verify the candidate centre lies inside the Boundary
   // polygon (inward-only constraint). For interior vertices this is always
   // true given the open-sector gate so we skip it.
@@ -369,10 +379,16 @@ function centroidOf(verts: Vec2[]): Vec2 {
  *
  * Per open sector: flush-CW (new Tile's first edge coincides with the CW
  * end of the sector), centred-in-sector (only when the sector strictly
- * exceeds the candidate's interior angle), and flush-CCW. Orientations
- * that fail the body-overlap probe are dropped. When a sector exactly fits
- * the candidate (sweep ≈ interiorAngle), the three snaps collapse to one
- * (kind = 'centred').
+ * exceeds the candidate's interior angle), and flush-CCW. When a sector
+ * exactly fits the candidate (sweep ≈ interiorAngle), the three snaps
+ * collapse to one (kind = 'centred').
+ *
+ * Flexible-placement model (2026-06-01): orientations whose body overlaps an
+ * existing Tile are STILL emitted, tagged `overlaps: true`, so the user can
+ * place them through a skippable warning. Only orientations whose sector is
+ * too narrow to contain the candidate's interior angle are omitted (there is
+ * no sensible rotation to offer there). Callers wanting overlap-free
+ * orientations filter on `!o.overlaps`.
  *
  * The picker arrows (17.13c) cycle through this array in order.
  */
@@ -394,7 +410,7 @@ export function vertexPlacementOrientations(
     if (sec.sweep < interior - EDITOR_EPS) continue
 
     const fits = sec.sweep - interior
-    const candidates: VertexOrientation[] = []
+    const candidates: Array<Omit<VertexOrientation, 'overlaps'>> = []
     if (fits < EDITOR_EPS * 10) {
       candidates.push({ sectorIndex: si, rotation: sec.startAngle, kind: 'centred' })
     } else {
@@ -403,18 +419,32 @@ export function vertexPlacementOrientations(
       candidates.push({ sectorIndex: si, rotation: sec.startAngle + fits, kind: 'flush-ccw' })
     }
     for (const c of candidates) {
-      if (isVertexPlacementViable(vertex, sides, c.rotation, edgeLength, cell)) {
-        result.push(c)
-      }
+      const overlaps = !isVertexPlacementViable(vertex, sides, c.rotation, edgeLength, cell)
+      result.push({ ...c, overlaps })
     }
   }
   return result
 }
 
-/** Subset of `PICKER_SIDES` that produce at least one viable orientation at
- *  `vertex`. Used by the picker to grey out shapes that can't fit anywhere
- *  in the vertex's open sectors. */
+/** Subset of `pickerSides` that produce at least one overlap-free orientation
+ *  at `vertex` — the "clean" set. Sizes that can only be placed with an
+ *  overlap warning are excluded here (see `placeableSidesForVertex`). */
 export function viableSidesForVertex(
+  vertex: ExposedVertex,
+  edgeLength: number,
+  cell: EditorCell,
+  pickerSides: readonly number[],
+): number[] {
+  return pickerSides.filter(n =>
+    vertexPlacementOrientations(vertex, n, edgeLength, cell).some(o => !o.overlaps),
+  )
+}
+
+/** Subset of `pickerSides` that produce at least one orientation at all
+ *  (overlapping or not). The picker shows these; sizes in this set but NOT in
+ *  `viableSidesForVertex` are the force-with-warning candidates. Sizes absent
+ *  here have no angularly-fitting sector and stay disabled. */
+export function placeableSidesForVertex(
   vertex: ExposedVertex,
   edgeLength: number,
   cell: EditorCell,

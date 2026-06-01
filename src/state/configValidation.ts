@@ -89,7 +89,7 @@ function readStrandStyle(r: Record<string, unknown>): StrandStyle | null {
   return null
 }
 
-const FRAME_SHAPES = new Set<FrameShape>(['square', 'hexagon', 'octagon'])
+const FRAME_SHAPES = new Set<FrameShape>(['square', 'pentagon', 'hexagon', 'octagon'])
 
 /**
  * Read the top-level Gallery `frame`. Only clip-only **Shape Frames** are

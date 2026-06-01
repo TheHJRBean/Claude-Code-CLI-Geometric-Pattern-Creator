@@ -15,7 +15,7 @@ import type {
 
 const SYMMETRY_MODES = new Set<SymmetryMode>(['full', 'rotation', 'vertical', 'horizontal', 'none'])
 const FRAME_TYPES = new Set<FrameType>(['shape', 'n-ring'])
-const FRAME_SHAPES = new Set<FrameShape>(['square', 'hexagon', 'octagon'])
+const FRAME_SHAPES = new Set<FrameShape>(['square', 'pentagon', 'hexagon', 'octagon'])
 
 /**
  * Step 17.8 — load-time validation + migration for `EditorConfig`.

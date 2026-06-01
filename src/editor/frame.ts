@@ -6,7 +6,7 @@ import { ensureCCW } from './complete'
  * Step 17 Framing — Shape **Frame** outline geometry.
  *
  * Computes the world-space outline polygon for a `'shape'`-type Frame
- * (square / hexagon / octagon), centred on `frame.origin` (default world
+ * (square / pentagon / hexagon / octagon), centred on `frame.origin` (default world
  * origin), scaled by `size`, stretched by `aspect`, and rotated by
  * `rotation`. The polygon is the clip region the Composition is wrapped in,
  * and (slice 4+) the boundary that **Frame nodes** are walked along.
@@ -16,15 +16,18 @@ import { ensureCCW } from './complete'
  * returns `null` for them.
  */
 
-const SHAPE_SIDES: Record<FrameShape, number> = { square: 4, hexagon: 6, octagon: 8 }
+const SHAPE_SIDES: Record<FrameShape, number> = { square: 4, pentagon: 5, hexagon: 6, octagon: 8 }
 
 /**
  * Per-shape base phase (radians) so each shape sits "upright" at
- * `rotation = 0`: a square with axis-aligned edges, a flat-top hexagon, and
- * an axis-aligned octagon (stop-sign orientation).
+ * `rotation = 0`: a square with axis-aligned edges, a point-up pentagon (one
+ * vertex at the top, flat base), a flat-top hexagon, and an axis-aligned
+ * octagon (stop-sign orientation). The vertex loop uses screen coords (y
+ * down), so a vertex points up at angle −π/2.
  */
 const SHAPE_PHASE: Record<FrameShape, number> = {
   square: Math.PI / 4,
+  pentagon: -Math.PI / 2,
   hexagon: 0,
   octagon: Math.PI / 8,
 }

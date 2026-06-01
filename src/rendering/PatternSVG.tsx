@@ -49,20 +49,27 @@ interface Props {
   /** Editor-mode interactive overlay (Step 17.3+). Rendered above the tile layer. */
   editorOverlay?: React.ReactNode
   /**
-   * Step 17 Framing — Shape **Frame** outline (world space). When present, the
-   * pattern content (Tiles + Strands) is clipped to it and the outline is
-   * stroked on top. Undefined / null ⇒ no Frame.
+   * Shape **Frame** outline (world space). When present the outline is stroked
+   * on top and its nodes drawn. Whether the pattern content is *clipped* to it
+   * is controlled separately by `clipToFrame`. Undefined / null ⇒ no Frame.
    */
   frameOutline?: Vec2[] | null
   /**
-   * Step 17 Framing — **Frame node** points (seed-`edgeLength`-spaced division
-   * points along the Frame outline). Drawn as small dots over the outline.
+   * Clip the pattern content (Tiles + Strands) to the Frame outline. True for
+   * the Gallery and the Builder's Composition phase (the framed artifact); kept
+   * false in the Builder's Design phase so neighbour-preview ghosts + their
+   * Strands aren't cut off at the frame edge. The outline/nodes still draw.
+   */
+  clipToFrame?: boolean
+  /**
+   * **Frame node** points (seed-`edgeLength`-spaced division points along the
+   * Frame outline, incl. corners). Drawn as small dots over the outline.
    */
   frameNodes?: Vec2[] | null
 }
 
 export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
-  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, editorOverlay, frameOutline, frameNodes },
+  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, editorOverlay, frameOutline, clipToFrame = true, frameNodes },
   ref
 ) {
   const { x, y, zoom, rotation } = viewTransform
@@ -75,6 +82,9 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
   const hasFrame = !!frameOutline && frameOutline.length >= 3
   const framePoints = hasFrame ? frameOutline!.map(v => `${v.x},${v.y}`).join(' ') : ''
   const frameClipId = 'pattern-frame-clip'
+  // Clip only when asked (Gallery / Builder Composition). In Builder Design the
+  // frame is a non-clipping overlay so neighbour ghosts + Strands stay visible.
+  const clipActive = hasFrame && clipToFrame
 
   return (
     <svg
@@ -88,7 +98,7 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
       onPointerUp={handlers.onPointerUp}
     >
       <g transform={rotation ? `rotate(${rotation} ${cx} ${cy})` : undefined}>
-        {hasFrame && (
+        {clipActive && (
           <defs>
             <clipPath id={frameClipId} clipPathUnits="userSpaceOnUse">
               <polygon points={framePoints} />
@@ -100,9 +110,9 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
             <TileLayer polygons={ghostPolygons} visible={showTileLayer} outlineWidth={outlineWidth} />
           </g>
         )}
-        {/* Step 17 Framing — pattern content is clipped to the Shape Frame
-            outline when one is set. */}
-        <g clipPath={hasFrame ? `url(#${frameClipId})` : undefined}>
+        {/* Pattern content is clipped to the Shape Frame outline only when
+            clipping is active (Gallery / Composition); see `clipActive`. */}
+        <g clipPath={clipActive ? `url(#${frameClipId})` : undefined}>
           {boundaryOutlines && boundaryOutlines.map((outline, i) => {
             // Seed outlines (first `seedOutlineCount` entries when defined) get
             // the prominent solid style so the active Patch reads as the focal

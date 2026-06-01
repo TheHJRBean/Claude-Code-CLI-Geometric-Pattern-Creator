@@ -730,6 +730,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         ghostPolygonIds={ghostPolygonIds}
         editorOverlay={editorOverlay}
         frameOutline={frameOutline}
+        clipToFrame={config.tiling.type !== 'editor' || editorStrandMode}
         frameNodes={frameNodes}
       />
       {pickerScreenPos && onPlaceTile && onSelectEdge && selectedEdgeData && (

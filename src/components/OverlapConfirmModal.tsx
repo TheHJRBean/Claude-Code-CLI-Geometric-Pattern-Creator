@@ -1,17 +1,18 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 /**
- * Flexible-placement (2026-06-01) — overlap confirmation modal.
+ * Flexible-placement (2026-06-01) — overlap confirmation popover.
  *
  * Shown when the user picks a polygon size / orientation that would overlap an
  * already-placed Tile (or, under symmetry, an orbit sibling). The picker no
- * longer hard-blocks these; this modal explains the overlap and asks for an
+ * longer hard-blocks these; this popover explains the overlap and asks for an
  * explicit "Accept and continue" before committing with `force: true`.
  *
- * Styled to mirror the Complete-mode rejection pill / soft-override button
- * (`EditorVertexLayer.tsx`): `--bg-elevated` ground, Art-Deco double-line
- * border, flanking diamond ornaments, EB Garamond type, danger-toned caution
- * with a gold-accent accept action.
+ * A LOCAL floating popover anchored at the picker's screen position (not a
+ * screen overlay) — same anchoring + arrow as `EditorPickerOverlay`. Styled to
+ * mirror the Complete-mode rejection pill / soft-override button: `--bg-elevated`
+ * ground, Art-Deco double-line border, flanking diamond ornaments, EB Garamond
+ * type, danger-toned caution with a gold-accent accept action.
  */
 
 const NGON_LABEL: Record<number, string> = {
@@ -22,6 +23,8 @@ const NGON_LABEL: Record<number, string> = {
 const DANGER_COLOR = '#a85050'
 
 interface Props {
+  /** Screen-space anchor (picker position the overlap was triggered from). */
+  position: { x: number; y: number }
   /** Polygon being placed — names the shape in the prompt. */
   sides: number
   /** True when symmetry mode is on, so the copy mentions orbit siblings. */
@@ -30,98 +33,114 @@ interface Props {
   onCancel: () => void
 }
 
-export function OverlapConfirmModal({ sides, symmetry, onConfirm, onCancel }: Props) {
+export function OverlapConfirmModal({ position, sides, symmetry, onConfirm, onCancel }: Props) {
+  const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { e.preventDefault(); onCancel() }
       if (e.key === 'Enter') { e.preventDefault(); onConfirm() }
     }
+    const onPointerDown = (e: PointerEvent) => {
+      const t = e.target as Node | null
+      if (t && ref.current && ref.current.contains(t)) return
+      onCancel()
+    }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('pointerdown', onPointerDown)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('pointerdown', onPointerDown)
+    }
   }, [onConfirm, onCancel])
 
   const name = NGON_LABEL[sides] ?? `${sides}-gon`
   const body = symmetry
-    ? `This ${name} overlaps a Tile that's already placed, or one of the symmetry copies it would create.`
+    ? `This ${name} overlaps a Tile already placed, or one of its symmetry copies.`
     : `This ${name} overlaps a Tile that's already placed.`
 
   return (
     <div
+      ref={ref}
       role="dialog"
-      aria-modal="true"
       aria-label="Confirm overlapping placement"
-      onClick={onCancel}
+      onPointerDown={e => e.stopPropagation()}
       style={{
         position: 'absolute',
-        inset: 0,
-        zIndex: 40,
+        left: position.x,
+        top: position.y,
+        transform: 'translate(-50%, calc(-100% - 18px))',
+        width: 300,
+        maxWidth: 'calc(100vw - 32px)',
+        zIndex: 30,
+        background: 'var(--bg-elevated, #161620)',
+        border: '1px solid var(--accent, #c9943a)',
+        boxShadow: '0 10px 32px rgba(0,0,0,0.55)',
+        padding: 18,
+      }}
+    >
+      {/* Inset hairline — Art-Deco double-line border. */}
+      <div aria-hidden style={{
+        position: 'absolute',
+        inset: 4,
+        border: '1px solid var(--accent-line, rgba(201,148,58,0.4))',
+        pointerEvents: 'none',
+      }} />
+
+      {/* Header — diamond · CAUTION · diamond. */}
+      <div style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'rgba(0, 0, 0, 0.5)',
-        backdropFilter: 'blur(2px)',
-        WebkitBackdropFilter: 'blur(2px)',
-      }}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          position: 'relative',
-          width: 'min(440px, calc(100vw - 48px))',
-          background: 'var(--bg-elevated, #161620)',
-          border: '1px solid var(--accent, #c9943a)',
-          boxShadow: '0 14px 44px rgba(0,0,0,0.6)',
-          padding: 26,
-        }}
-      >
-        {/* Inset hairline — Art-Deco double-line border. */}
-        <div aria-hidden style={{
-          position: 'absolute',
-          inset: 5,
-          border: '1px solid var(--accent-line, rgba(201,148,58,0.4))',
-          pointerEvents: 'none',
-        }} />
-
-        {/* Header — diamond · CAUTION · diamond. */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 12,
-          marginBottom: 16,
-        }}>
-          <Diamond color={DANGER_COLOR} />
-          <span style={{
-            fontFamily: "'EB Garamond', Georgia, serif",
-            fontSize: 12,
-            fontWeight: 600,
-            color: DANGER_COLOR,
-            letterSpacing: '0.22em',
-            textTransform: 'uppercase',
-          }}>Overlapping placement</span>
-          <Diamond color={DANGER_COLOR} />
-        </div>
-
-        <p style={{
-          margin: '0 0 22px',
-          textAlign: 'center',
+        gap: 10,
+        marginBottom: 10,
+      }}>
+        <Diamond color={DANGER_COLOR} />
+        <span style={{
           fontFamily: "'EB Garamond', Georgia, serif",
-          fontSize: 15.5,
-          lineHeight: 1.5,
-          color: 'var(--text, #d8cfbf)',
-          letterSpacing: '0.01em',
-        }}>
-          {body}<br />
-          <span style={{ color: 'var(--text-muted, #8a7e6c)', fontSize: 14 }}>
-            You can place it anyway and delete it later.
-          </span>
-        </p>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 12 }}>
-          <DecoButton variant="ghost" onClick={onCancel}>Cancel</DecoButton>
-          <DecoButton variant="accent" onClick={onConfirm}>Accept and continue</DecoButton>
-        </div>
+          fontSize: 11,
+          fontWeight: 600,
+          color: DANGER_COLOR,
+          letterSpacing: '0.2em',
+          textTransform: 'uppercase',
+        }}>Overlapping placement</span>
+        <Diamond color={DANGER_COLOR} />
       </div>
+
+      <p style={{
+        margin: '0 0 16px',
+        textAlign: 'center',
+        fontFamily: "'EB Garamond', Georgia, serif",
+        fontSize: 14,
+        lineHeight: 1.45,
+        color: 'var(--text, #d8cfbf)',
+        letterSpacing: '0.01em',
+      }}>
+        {body}{' '}
+        <span style={{ color: 'var(--text-muted, #8a7e6c)' }}>
+          You can place it anyway and delete it later.
+        </span>
+      </p>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: 8 }}>
+        <DecoButton variant="ghost" onClick={onCancel}>Cancel</DecoButton>
+        <DecoButton variant="accent" onClick={onConfirm}>Accept</DecoButton>
+      </div>
+
+      {/* Down-pointing arrow toward the anchor, matching the picker popover. */}
+      <div
+        aria-hidden
+        style={{
+          position: 'absolute',
+          left: '50%',
+          bottom: -7,
+          transform: 'translateX(-50%) rotate(45deg)',
+          width: 12,
+          height: 12,
+          background: 'var(--bg-elevated, #161620)',
+          borderRight: '1px solid var(--accent, #c9943a)',
+          borderBottom: '1px solid var(--accent, #c9943a)',
+        }}
+      />
     </div>
   )
 }
@@ -133,8 +152,8 @@ function Diamond({ color }: { color: string }) {
       aria-hidden
       style={{
         display: 'inline-block',
-        width: 6,
-        height: 6,
+        width: 5,
+        height: 5,
         background: color,
         transform: 'rotate(45deg)',
         flex: 'none',
@@ -160,20 +179,20 @@ function DecoButton({
       onClick={onClick}
       style={{
         position: 'relative',
-        height: 40,
+        height: 34,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 12,
-        padding: '0 14px',
-        border: `1.5px solid ${border}`,
+        gap: 8,
+        padding: '0 10px',
+        border: `1.4px solid ${border}`,
         background: accent ? 'var(--accent-bg, rgba(201,148,58,0.12))' : 'transparent',
         color,
         cursor: 'pointer',
         fontFamily: "'EB Garamond', Georgia, serif",
-        fontSize: 12,
+        fontSize: 11.5,
         fontWeight: 600,
-        letterSpacing: '0.18em',
+        letterSpacing: '0.16em',
         textTransform: 'uppercase',
       }}
     >

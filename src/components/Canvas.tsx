@@ -472,9 +472,11 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   const [vertexPickedSides, setVertexPickedSides] = useState<number | null>(null)
   const [vertexOrientationIdx, setVertexOrientationIdx] = useState(0)
   // Flexible-placement overlap confirmation. Set when the user picks a size /
-  // orientation that would overlap; the modal's "Place anyway" runs `commit`.
+  // orientation that would overlap; the popover's "Accept and continue" runs
+  // `commit`. `pos` anchors the popover at the picker's screen position so it
+  // reads as a local confirmation, not a screen overlay.
   const [overlapConfirm, setOverlapConfirm] = useState<
-    { sides: number; symmetry: boolean; commit: () => void } | null
+    { sides: number; symmetry: boolean; pos: { x: number; y: number }; commit: () => void } | null
   >(null)
   useEffect(() => {
     if (!vertexPlacementActive) {
@@ -740,11 +742,13 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
           viableSides={pickerViable}
           forceableSides={pickerForceable}
           onPick={n => {
+            const anchor = pickerScreenPos
             onSelectEdge(null)
             if (pickerViable.includes(n)) { onPlaceTile(n, false); return }
             setOverlapConfirm({
               sides: n,
               symmetry: (selectedHostCell?.symmetryMode ?? 'none') !== 'none',
+              pos: anchor ?? { x: 0, y: 0 },
               commit: () => onPlaceTile(n, true),
             })
           }}
@@ -762,11 +766,13 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
           viableSides={sectionPickerViable}
           forceableSides={sectionPickerForceable}
           onPick={n => {
+            const anchor = sectionPickerScreenPos
             onSelectSection(null)
             if (sectionPickerViable.includes(n)) { onPlaceTileOnBoundarySection(n, false); return }
             setOverlapConfirm({
               sides: n,
               symmetry: (activeCellForSections?.symmetryMode ?? 'none') !== 'none',
+              pos: anchor ?? { x: 0, y: 0 },
               commit: () => onPlaceTileOnBoundarySection(n, true),
             })
           }}
@@ -801,6 +807,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
             const orientation = vertexOrientations[vertexOrientationIdx]
             if (!orientation || vertexPickedSides === null) return
             const sides = vertexPickedSides
+            const anchor = vertexPickerScreenPos
             const place = (force: boolean) => onPlaceTileOnVertex({
               vertexKey: selectedVertexData.key,
               sides,
@@ -812,6 +819,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
             setOverlapConfirm({
               sides,
               symmetry: (activeCellForSections?.symmetryMode ?? 'none') !== 'none',
+              pos: anchor ?? { x: 0, y: 0 },
               commit: () => place(true),
             })
           }}
@@ -820,6 +828,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       )}
       {overlapConfirm && (
         <OverlapConfirmModal
+          position={overlapConfirm.pos}
           sides={overlapConfirm.sides}
           symmetry={overlapConfirm.symmetry}
           onConfirm={() => { overlapConfirm.commit(); setOverlapConfirm(null) }}

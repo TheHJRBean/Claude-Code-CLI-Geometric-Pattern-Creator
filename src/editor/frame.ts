@@ -1,6 +1,5 @@
 import type { Vec2 } from '../utils/math'
-import type { EditorIrregularTile, EditorRegularTile, FrameConfig, FrameShape } from '../types/editor'
-import { ensureCCW } from './complete'
+import type { FrameConfig, FrameShape } from '../types/editor'
 
 /**
  * Step 17 Framing — Shape **Frame** outline geometry.
@@ -159,100 +158,4 @@ export function computeFrameSections(outline: Vec2[], edgeLength: number): Frame
  */
 export function frameNodePoints(sections: FrameSection[]): Vec2[] {
   return sections.map(s => s.p1)
-}
-
-/**
- * Build a regular n-gon flush against a **Frame section**, on the interior
- * (inward, toward the Frame centre) side, with one edge coincident with the
- * section. Edge length = the section length (= seed `edgeLength` for full
- * sections), so the placed Tile tessellates with the interior pattern.
- *
- * Mirrors `boundaryInward.ts::placeRegularNGonOnBoundarySection` — the Frame
- * outline is CCW, so the interior sits to the LEFT of each `p1 → p2` edge, and
- * the inward normal is the CCW-90° rotation of the edge direction. Tiles are
- * tagged `source: 'completed'` (frame-scoped completion, ADR-0004).
- */
-export function placeRegularNGonOnFrameSection(
-  sides: number,
-  section: FrameSection,
-  id: string,
-): EditorRegularTile {
-  const { p1, p2, length } = section
-  const midX = (p1.x + p2.x) / 2
-  const midY = (p1.y + p2.y) / 2
-  const ex = p2.x - p1.x
-  const ey = p2.y - p1.y
-  const elen = Math.hypot(ex, ey) || 1
-  // Inward (interior) normal: CCW-90° rotation of the edge direction.
-  const inX = -ey / elen
-  const inY = ex / elen
-  const apothem = length / (2 * Math.tan(Math.PI / sides))
-  const center: Vec2 = { x: midX + inX * apothem, y: midY + inY * apothem }
-  const rotation = Math.atan2(p1.y - center.y, p1.x - center.x)
-  return {
-    id,
-    kind: 'regular',
-    sides,
-    center,
-    edgeLength: length,
-    rotation,
-    source: 'completed',
-  }
-}
-
-/**
- * Step 17 Framing slice 9 — the irregular **stub** fallback.
- *
- * `computeFrameSections` covers each Frame edge with full `edgeLength`
- * sections (filled by `placeRegularNGonOnFrameSection`) and leaves the
- * < edgeLength remainder as two equal half-stubs, one at each corner. At
- * every Frame corner the two incident half-stubs + the corner form a
- * triangular notch `[B, C, A]` — the only part of the frame edge not covered
- * by a full-section Tile — where:
- *   - `C` = the corner vertex,
- *   - `A` = the inner end of the leading half-stub on the outgoing edge
- *           (coincides exactly with the first full-section Tile's base vertex),
- *   - `B` = the inner end of the trailing half-stub on the incoming edge
- *           (coincides with the last full-section Tile's base vertex there).
- *
- * Filling those notches tiles the pattern cleanly out to each corner. The
- * fills are irregular Tiles tagged `source: 'completed'` (frame-scoped,
- * world space, ADR-0004) — the same data model as `complete.ts`'s irregular
- * gap fallback, so PIC runs over them via their tile-type Figure recipe.
- *
- * Corners where either half-stub vanishes (the edge divides evenly, so the
- * notch collapses to a degenerate sliver) are skipped.
- */
-export function frameCornerStubTiles(
-  outline: Vec2[],
-  edgeLength: number,
-  idPrefix = 'frame-stub',
-): EditorIrregularTile[] {
-  const tiles: EditorIrregularTile[] = []
-  if (outline.length < 3 || edgeLength <= 0) return tiles
-  const sections = computeFrameSections(outline, edgeLength)
-  const n = outline.length
-  const eps = edgeLength * 1e-3
-  const near = (p: Vec2, q: Vec2) => Math.hypot(p.x - q.x, p.y - q.y) <= eps
-  for (let i = 0; i < n; i++) {
-    const C = outline[i]
-    const prevEdge = (i - 1 + n) % n
-    // Leading half-stub on edge i starts at corner C; its p2 is the inner end A.
-    const lead = sections.find(s => s.edgeIndex === i && s.isStub && near(s.p1, C))
-    // Trailing half-stub on the previous edge ends at corner C; its p1 is B.
-    const trail = sections.find(s => s.edgeIndex === prevEdge && s.isStub && near(s.p2, C))
-    if (!lead || !trail) continue
-    const A = lead.p2
-    const B = trail.p1
-    // Reject degenerate slivers (near-collinear B, C, A).
-    const area = Math.abs((B.x - C.x) * (A.y - C.y) - (B.y - C.y) * (A.x - C.x)) / 2
-    if (area <= eps * edgeLength) continue
-    tiles.push({
-      id: `${idPrefix}-${i}`,
-      kind: 'irregular',
-      vertices: ensureCCW([B, C, A]),
-      source: 'completed',
-    })
-  }
-  return tiles
 }

@@ -70,9 +70,7 @@ export const DESIGN_MODE_ACTIONS: ReadonlySet<string> = new Set([
   // swaps within a multi-Cell Patch are pure UI (excluded — never push a
   // snapshot).
   'SET_BUILDER_CONFIGURATION',
-  // Framing Phase — setting / clearing the Frame + completion-to-frame
-  // placements are undoable.
+  // Frame overlay — setting / clearing the Frame is undoable. Frame-node
+  // completions land via EDITOR_COMPLETE_N_GAP (already in this set).
   'SET_FRAME',
-  'EDITOR_PLACE_TILE_ON_FRAME_SECTION',
-  'EDITOR_COMPLETE_TO_FRAME',
 ])

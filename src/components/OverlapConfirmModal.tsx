@@ -5,11 +5,13 @@ import { useEffect } from 'react'
  *
  * Shown when the user picks a polygon size / orientation that would overlap an
  * already-placed Tile (or, under symmetry, an orbit sibling). The picker no
- * longer hard-blocks these; instead this modal explains the overlap and asks
- * for an explicit "Place anyway" before committing with `force: true`.
+ * longer hard-blocks these; this modal explains the overlap and asks for an
+ * explicit "Accept and continue" before committing with `force: true`.
  *
- * Centred over the canvas with a dimmed backdrop. Escape or backdrop click
- * cancels; the accent "Place anyway" button confirms.
+ * Styled to mirror the Complete-mode rejection pill / soft-override button
+ * (`EditorVertexLayer.tsx`): `--bg-elevated` ground, Art-Deco double-line
+ * border, flanking diamond ornaments, EB Garamond type, danger-toned caution
+ * with a gold-accent accept action.
  */
 
 const NGON_LABEL: Record<number, string> = {
@@ -17,7 +19,7 @@ const NGON_LABEL: Record<number, string> = {
   7: 'Heptagon', 8: 'Octagon', 9: 'Nonagon', 10: 'Decagon', 12: 'Dodecagon',
 }
 
-const WARN_COLOR = '#d99a4a'
+const DANGER_COLOR = '#a85050'
 
 interface Props {
   /** Polygon being placed — names the shape in the prompt. */
@@ -40,8 +42,8 @@ export function OverlapConfirmModal({ sides, symmetry, onConfirm, onCancel }: Pr
 
   const name = NGON_LABEL[sides] ?? `${sides}-gon`
   const body = symmetry
-    ? `This ${name} overlaps a Tile that's already placed, or one of the symmetry copies it would create. Placing it anyway keeps the overlap — you can delete it afterwards if it's not what you wanted.`
-    : `This ${name} overlaps a Tile that's already placed. Placing it anyway keeps the overlap — you can delete it afterwards if it's not what you wanted.`
+    ? `This ${name} overlaps a Tile that's already placed, or one of the symmetry copies it would create.`
+    : `This ${name} overlaps a Tile that's already placed.`
 
   return (
     <div
@@ -56,7 +58,7 @@ export function OverlapConfirmModal({ sides, symmetry, onConfirm, onCancel }: Pr
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'rgba(0, 0, 0, 0.45)',
+        background: 'rgba(0, 0, 0, 0.5)',
         backdropFilter: 'blur(2px)',
         WebkitBackdropFilter: 'blur(2px)',
       }}
@@ -64,68 +66,120 @@ export function OverlapConfirmModal({ sides, symmetry, onConfirm, onCancel }: Pr
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          width: 'min(420px, calc(100vw - 48px))',
-          background: 'var(--surface, var(--bg, #1a1a1a))',
-          border: `1px solid ${WARN_COLOR}`,
-          boxShadow: '0 12px 40px rgba(0,0,0,0.6)',
-          padding: 22,
+          position: 'relative',
+          width: 'min(440px, calc(100vw - 48px))',
+          background: 'var(--bg-elevated, #161620)',
+          border: '1px solid var(--accent, #c9943a)',
+          boxShadow: '0 14px 44px rgba(0,0,0,0.6)',
+          padding: 26,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-          <span aria-hidden style={{ fontSize: 18, color: WARN_COLOR, lineHeight: 1 }}>⚠</span>
+        {/* Inset hairline — Art-Deco double-line border. */}
+        <div aria-hidden style={{
+          position: 'absolute',
+          inset: 5,
+          border: '1px solid var(--accent-line, rgba(201,148,58,0.4))',
+          pointerEvents: 'none',
+        }} />
+
+        {/* Header — diamond · CAUTION · diamond. */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 12,
+          marginBottom: 16,
+        }}>
+          <Diamond color={DANGER_COLOR} />
           <span style={{
-            fontFamily: "'Cinzel', Georgia, serif",
+            fontFamily: "'EB Garamond', Georgia, serif",
             fontSize: 12,
             fontWeight: 600,
-            color: WARN_COLOR,
-            letterSpacing: '0.18em',
+            color: DANGER_COLOR,
+            letterSpacing: '0.22em',
             textTransform: 'uppercase',
           }}>Overlapping placement</span>
+          <Diamond color={DANGER_COLOR} />
         </div>
 
         <p style={{
-          margin: '0 0 20px',
+          margin: '0 0 22px',
+          textAlign: 'center',
           fontFamily: "'EB Garamond', Georgia, serif",
-          fontSize: 15,
+          fontSize: 15.5,
           lineHeight: 1.5,
-          color: 'var(--text, #e8e0d0)',
+          color: 'var(--text, #d8cfbf)',
           letterSpacing: '0.01em',
-        }}>{body}</p>
+        }}>
+          {body}<br />
+          <span style={{ color: 'var(--text-muted, #8a7e6c)', fontSize: 14 }}>
+            You can place it anyway and delete it later.
+          </span>
+        </p>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <ModalButton variant="ghost" onClick={onCancel}>Cancel</ModalButton>
-          <ModalButton variant="warn" onClick={onConfirm}>Place anyway</ModalButton>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 12 }}>
+          <DecoButton variant="ghost" onClick={onCancel}>Cancel</DecoButton>
+          <DecoButton variant="accent" onClick={onConfirm}>Accept and continue</DecoButton>
         </div>
       </div>
     </div>
   )
 }
 
-function ModalButton({
+/** Small Art-Deco diamond ornament (rotated square). */
+function Diamond({ color }: { color: string }) {
+  return (
+    <span
+      aria-hidden
+      style={{
+        display: 'inline-block',
+        width: 6,
+        height: 6,
+        background: color,
+        transform: 'rotate(45deg)',
+        flex: 'none',
+      }}
+    />
+  )
+}
+
+/** Art-Deco button mirroring the Complete-mode soft-override button: ground +
+ *  accent rule, flanking diamonds on the primary action, EB Garamond uppercase. */
+function DecoButton({
   children, variant, onClick,
 }: {
   children: React.ReactNode
-  variant: 'warn' | 'ghost'
+  variant: 'accent' | 'ghost'
   onClick: () => void
 }) {
-  const warn = variant === 'warn'
+  const accent = variant === 'accent'
+  const color = accent ? 'var(--accent, #c9943a)' : 'var(--text-muted, #8a7e6c)'
+  const border = accent ? 'var(--accent, #c9943a)' : 'var(--border-accent, #2c2418)'
   return (
     <button
       onClick={onClick}
       style={{
+        position: 'relative',
         height: 40,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 12,
         padding: '0 14px',
-        border: `1px solid ${warn ? WARN_COLOR : 'var(--border-subtle, rgba(255,255,255,0.25))'}`,
-        background: warn ? 'rgba(217,154,74,0.18)' : 'transparent',
-        color: warn ? WARN_COLOR : 'var(--text-muted, #b8ad97)',
+        border: `1.5px solid ${border}`,
+        background: accent ? 'var(--accent-bg, rgba(201,148,58,0.12))' : 'transparent',
+        color,
         cursor: 'pointer',
-        fontFamily: "'Cinzel', Georgia, serif",
-        fontSize: 11,
+        fontFamily: "'EB Garamond', Georgia, serif",
+        fontSize: 12,
         fontWeight: 600,
-        letterSpacing: '0.14em',
+        letterSpacing: '0.18em',
         textTransform: 'uppercase',
-        transition: 'background 0.14s',
       }}
-    >{children}</button>
+    >
+      {accent && <Diamond color="var(--accent, #c9943a)" />}
+      {children}
+      {accent && <Diamond color="var(--accent, #c9943a)" />}
+    </button>
   )
 }

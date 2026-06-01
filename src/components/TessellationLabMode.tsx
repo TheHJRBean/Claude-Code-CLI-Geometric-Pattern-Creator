@@ -199,7 +199,7 @@ export function TessellationLabMode({
   const [multiMode, setMultiMode] = useState(false)
   // Step 17.6 — Design Phase vs Composition Phase phase-switch (Decision 15).
   // Local UI state — not persisted; figures persist independently per Q15.
-  const [editorPhase, setEditorPhase] = useState<'design' | 'strand' | 'framing'>('design')
+  const [editorPhase, setEditorPhase] = useState<'design' | 'strand'>('design')
   // Step 17.6 — Composition Phase: show the Patch Boundary stamped on the lattice.
   const [showBoundaryLattice, setShowBoundaryLattice] = useState(false)
   // Step 17.6d — Design Phase: low-opacity ghost copies of the Patch at the
@@ -403,7 +403,7 @@ export function TessellationLabMode({
                   }
                   setEditorPhase(p)
                   // Clear in-flight Design-Phase picks when leaving Design Phase
-                  // (entering Composition or Framing).
+                  // (entering Composition).
                   if (p !== 'design') {
                     setSelectedEdge(null)
                     resetPicks()
@@ -705,14 +705,7 @@ export function TessellationLabMode({
           }
         }}
         editorStrandMode={editorPhase !== 'design'}
-        editorFraming={editorPhase === 'framing'}
-        onPlaceTileOnFrameSection={(edgeIndex, sectionIndex) => {
-          if (!config.editor) return
-          dispatch({
-            type: 'EDITOR_PLACE_TILE_ON_FRAME_SECTION',
-            payload: { edgeIndex, sectionIndex, sides: activeCell(config.editor).seedSides },
-          })
-        }}
+        editorFrame={!!config.editor?.frame}
         showBoundaryLattice={showBoundaryLattice}
         editorNeighbourPreview={editorPhase === 'design' && showNeighbours && !(config.editor && activeCell(config.editor).wrapBoundary)}
         editorNeighbourBoundaries={showNeighbourBoundaries}
@@ -949,8 +942,8 @@ interface EditorDesignControlsProps {
   picks: Vec2[]
   multiMode: boolean
   onCancelComplete: () => void
-  editorPhase: 'design' | 'strand' | 'framing'
-  onSetEditorPhase: (p: 'design' | 'strand' | 'framing') => void
+  editorPhase: 'design' | 'strand'
+  onSetEditorPhase: (p: 'design' | 'strand') => void
   showBoundaryLattice: boolean
   onToggleShowBoundaryLattice: (next: boolean) => void
   showNeighbours: boolean
@@ -999,13 +992,12 @@ function EditorDesignControls({
   const multiCell = editor.cells.length > 1
   const originLocked = cell.tiles.some(t => t.source !== 'seed')
   const inStrand = editorPhase === 'strand'
-  const inFraming = editorPhase === 'framing'
   // n-ring Frames are single-cell-only (square / hexagon / triangle) in v1 —
   // multi-cell Configurations + octagon/dodecagon are deferred.
   const nRingSupported = !multiCell && (cell.shape === 'square' || cell.shape === 'hexagon' || cell.shape === 'triangle')
-  // Framing — update a Frame geometry field. Geometry changes invalidate the
-  // prior completion ring, so clear `completedTiles` (the user re-runs Complete
-  // to Frame against the new outline).
+  // Frame — update a Frame geometry field. Geometry changes move the frame
+  // nodes, so clear `completedTiles` (frame-scoped completions are anchored to
+  // the old outline; the user re-completes against the new edge).
   const updateFrameGeom = (partial: Partial<FrameConfig>) => {
     if (!editor.frame) return
     dispatch({ type: 'SET_FRAME', payload: { ...editor.frame, ...partial, completedTiles: [] } })
@@ -1048,10 +1040,10 @@ function EditorDesignControls({
       {/* Step 17.6 — Design / Composition phase-switch (Decision 15). */}
       <FieldLabel
         label="Phase"
-        tooltip="Build workflow stage. Design = author Tiles into Cells of a Patch. Composition = see the Patch composed across the canvas with Strands rendered by PIC. Framing = wrap the Composition in a Frame. Future Phase: Decoration."
+        tooltip="Build workflow stage. Design = author Tiles into Cells of a Patch. Composition = see the Patch composed across the canvas with Strands rendered by PIC. Future Phase: Decoration. The Frame is a persistent overlay across both phases (see below)."
       />
-      <div style={{ display: 'flex', gap: 0, marginBottom: inStrand || inFraming ? 4 : 12 }}>
-        {(['design', 'strand', 'framing'] as const).map(p => {
+      <div style={{ display: 'flex', gap: 0, marginBottom: inStrand ? 4 : 12 }}>
+        {(['design', 'strand'] as const).map(p => {
           const active = editorPhase === p
           return (
             <button
@@ -1072,7 +1064,7 @@ function EditorDesignControls({
                 transition: 'all 0.15s',
               }}
             >
-              {p === 'design' ? 'Design' : p === 'strand' ? 'Composition' : 'Framing'}
+              {p === 'design' ? 'Design' : 'Composition'}
             </button>
           )
         })}
@@ -1111,8 +1103,16 @@ function EditorDesignControls({
         </div>
       )}
 
-      {inFraming && (
+      {/* Frame — a persistent bounded-region overlay, present in both Design
+          and Composition (read later by Decoration). The pattern clips to its
+          outline. In Design + Complete mode, the frame's edge nodes become
+          clickable completion targets (see Complete). */}
+      {(
         <div style={{ marginTop: 0, marginBottom: 14 }}>
+          <FieldLabel
+            label="Frame"
+            tooltip="A persistent bounded region the pattern clips to. In Complete mode, the frame's edge nodes are clickable targets so you can complete tiles out to the edge. Shape = parametric outline; n-Ring = whole-patch shells (clip-only)."
+          />
           <div style={{
             padding: '8px 10px',
             marginBottom: 10,
@@ -1122,15 +1122,13 @@ function EditorDesignControls({
             lineHeight: 1.45,
             border: '1px solid var(--border-subtle)',
           }}>
-            Wrap the Composition in a <strong>Frame</strong> — the pattern is
-            clipped to its outline. <strong>Complete to Frame</strong> (or click
-            individual frame edges) tiles the Seed shape out to the edge, with
-            irregular corner fills closing the remainders so the pattern reaches
-            every corner.
+            A <strong>Frame</strong> bounds the pattern — it's clipped to the
+            outline. Switch to <strong>Complete</strong> mode and the frame's
+            edge <strong>nodes</strong> become clickable: pick frame nodes plus
+            interior vertices to complete tiles out to the edge.
           </div>
           {!editor.frame ? (
-            // Default state on entering Framing: no Frame imposed (the phase
-            // stays non-destructive until the user opts in). Both Frame types
+            // No Frame imposed yet (the overlay stays opt-in). Both Frame types
             // are offered directly so the n-ring isn't buried behind a
             // shape-frame-then-switch detour.
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1303,51 +1301,29 @@ function EditorDesignControls({
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, fontSize: 9, color: 'var(--text-muted)', fontFamily: "'Cinzel', Georgia, serif", letterSpacing: '0.08em' }}>
                 <span>X</span><span>Y</span>
               </div>
-              <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-                <button
-                  onClick={() => dispatch({
-                    type: 'EDITOR_COMPLETE_TO_FRAME',
-                    payload: { sides: activeCell(editor).seedSides },
-                  })}
-                  style={{
-                    flex: 1,
-                    padding: '6px 0',
-                    fontFamily: "'Cinzel', Georgia, serif",
-                    fontSize: 9,
-                    fontWeight: 600,
-                    letterSpacing: '0.06em',
-                    textTransform: 'uppercase',
-                    cursor: 'pointer',
-                    color: 'var(--accent)',
-                    background: 'var(--accent-bg)',
-                    border: '1px solid var(--accent)',
-                  }}
-                >
-                  Complete to Frame
-                </button>
-                <button
-                  onClick={() => dispatch({
-                    type: 'SET_FRAME',
-                    payload: { ...editor.frame!, completedTiles: [] },
-                  })}
-                  disabled={!editor.frame.completedTiles?.length}
-                  style={{
-                    flex: 1,
-                    padding: '6px 0',
-                    fontFamily: "'Cinzel', Georgia, serif",
-                    fontSize: 9,
-                    fontWeight: 600,
-                    letterSpacing: '0.06em',
-                    textTransform: 'uppercase',
-                    cursor: editor.frame.completedTiles?.length ? 'pointer' : 'default',
-                    color: editor.frame.completedTiles?.length ? 'var(--text-muted)' : 'var(--border-subtle)',
-                    background: 'transparent',
-                    border: '1px solid var(--border-subtle)',
-                  }}
-                >
-                  Clear Tiles
-                </button>
-              </div>
+              <button
+                onClick={() => dispatch({
+                  type: 'SET_FRAME',
+                  payload: { ...editor.frame!, completedTiles: [] },
+                })}
+                disabled={!editor.frame.completedTiles?.length}
+                style={{
+                  width: '100%',
+                  padding: '6px 0',
+                  marginBottom: 10,
+                  fontFamily: "'Cinzel', Georgia, serif",
+                  fontSize: 9,
+                  fontWeight: 600,
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                  cursor: editor.frame.completedTiles?.length ? 'pointer' : 'default',
+                  color: editor.frame.completedTiles?.length ? 'var(--text-muted)' : 'var(--border-subtle)',
+                  background: 'transparent',
+                  border: '1px solid var(--border-subtle)',
+                }}
+              >
+                Clear frame tiles
+              </button>
               </>)}
               {editor.frame.type === 'n-ring' && (
                 <>

@@ -157,7 +157,9 @@ export function TessellationLabMode({
     setSelectedSection(section)
     if (section) setSelectedEdge(null)
   }
-  const handlePlaceTile = (sides: number) => {
+  // `force` (flexible-placement): the user accepted the picker's overlap
+  // warning, so the reducer skips the viability gate and places anyway.
+  const handlePlaceTile = (sides: number, force?: boolean) => {
     if (!selectedEdge) return
     // EDITOR_PLACE_TILE_ON_EDGE routes through the active Cell, so by this
     // point the host Cell must be the active one (handleSelectEdge guarantees).
@@ -165,20 +167,22 @@ export function TessellationLabMode({
       tileId: selectedEdge.tileId,
       edgeIndex: selectedEdge.edgeIndex,
       sides,
+      force,
     } })
   }
-  const handlePlaceTileOnBoundarySection = (sides: number) => {
+  const handlePlaceTileOnBoundarySection = (sides: number, force?: boolean) => {
     if (!selectedSection) return
     dispatch({ type: 'EDITOR_PLACE_TILE_ON_BOUNDARY_SECTION', payload: {
       edgeIndex: selectedSection.edgeIndex,
       sectionIndex: selectedSection.sectionIndex,
       sides,
+      force,
     } })
   }
   // Step 17.13c — vertex placement. Canvas owns the (selectedVertex,
-  // pickedSides, orientationIndex) picker state and resolves the rotation
-  // before dispatching; we just relay the payload to the reducer.
-  const handlePlaceTileOnVertex = (payload: { vertexKey: string; sides: number; rotation: number }) => {
+  // pickedSides, orientationIndex) picker state and resolves the rotation +
+  // force flag before dispatching; we just relay the payload to the reducer.
+  const handlePlaceTileOnVertex = (payload: { vertexKey: string; sides: number; rotation: number; force?: boolean }) => {
     dispatch({ type: 'EDITOR_PLACE_TILE_ON_VERTEX', payload })
   }
   const handleDeleteTile = (tileId: string) => {

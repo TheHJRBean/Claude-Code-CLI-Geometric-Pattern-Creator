@@ -281,6 +281,18 @@ function getTilingLattice(def: TilingDefinition, edgeLen: number): [Vec2, Vec2] 
 }
 
 /**
+ * Length (world units) of one tiling **repeat** — the magnitude of the
+ * nearest same-orientation translation vector `|t1|`. Used by the Gallery
+ * **Frame** to express its size in whole repeat units (`N × repeat`) rather
+ * than raw pixels, giving the "patch-based" feel without deriving a
+ * fundamental-domain outline. Cached transitively via `getTilingLattice`.
+ */
+export function tilingRepeatLength(def: TilingDefinition, edgeLen: number): number {
+  const [t1] = getTilingLattice(def, edgeLen)
+  return Math.hypot(t1.x, t1.y)
+}
+
+/**
  * Generate all polygons visible in the given viewport for a tiling.
  *
  * The seed centre is snapped to the tiling's translation lattice so that

@@ -192,7 +192,7 @@ export type FrameType = 'shape' | 'n-ring'
 
 /** Outline shape of a `'shape'`-type Frame. The √2 rectangle is `'square'`
  * with `aspect = √2`. */
-export type FrameShape = 'square' | 'hexagon' | 'octagon'
+export type FrameShape = 'square' | 'pentagon' | 'hexagon' | 'octagon'
 
 /** How the pattern meets a Shape Frame's edge: tiled out to it, or clipped. */
 export type FrameBoundaryTreatment = 'complete' | 'clip'

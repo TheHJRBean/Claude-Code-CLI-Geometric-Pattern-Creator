@@ -545,6 +545,7 @@ export function Sidebar({
                 >
                   <option value="">None</option>
                   <option value="square">Square</option>
+                  <option value="pentagon">Pentagon</option>
                   <option value="hexagon">Hexagon</option>
                   <option value="octagon">Octagon</option>
                 </select>

@@ -4,6 +4,7 @@ import type { PatternConfig } from '../types/pattern'
 import type { Vec2 } from '../utils/math'
 import type { ViewTransform } from '../hooks/usePanZoom'
 import type { PanZoomHandlers } from '../hooks/usePanZoom'
+import type { LatticeStamp } from '../editor/lattice'
 import { TileLayer } from './TileLayer'
 import { StrandLayer } from './StrandLayer'
 import { ControlPointLayer } from './ControlPointLayer'
@@ -46,6 +47,14 @@ interface Props {
    * seed polygon (the cross-boundary ones) stay full colour.
    */
   ghostPolygonIds?: Set<string>
+  /**
+   * Lever A periodicity fast-path (flagged). When present, `polygons` +
+   * `segments` are ONE fundamental domain and the Composition field is rendered
+   * by tiling that domain at these stamp translations via SVG `<use>` — so the
+   * heavy TileLayer/StrandLayer render once and the browser clones them. Pure
+   * translations only (usePattern guarantees `rotation === 0`).
+   */
+  compositionStamps?: LatticeStamp[]
   /** Editor-mode interactive overlay (Step 17.3+). Rendered above the tile layer. */
   editorOverlay?: React.ReactNode
   /**
@@ -69,7 +78,7 @@ interface Props {
 }
 
 export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
-  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, editorOverlay, frameOutline, clipToFrame = true, frameNodes },
+  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, compositionStamps, editorOverlay, frameOutline, clipToFrame = true, frameNodes },
   ref
 ) {
   const { x, y, zoom, rotation } = viewTransform
@@ -113,22 +122,47 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
         {/* Pattern content is clipped to the Shape Frame outline only when
             clipping is active (Gallery / Composition); see `clipActive`. */}
         <g clipPath={clipActive ? `url(#${frameClipId})` : undefined}>
-          {boundaryOutlines && boundaryOutlines.map((outline, i) => {
-            // Seed outlines (first `seedOutlineCount` entries when defined) get
-            // the prominent solid style so the active Patch reads as the focal
-            // area. Ghost outlines (the rest) stay in the original dimmed dash.
-            const isSeed = seedOutlineCount === undefined || i < seedOutlineCount
-            return <BoundaryOutline key={i} vertices={outline} variant={isSeed ? 'seed' : 'ghost'} />
-          })}
-          <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
-          {showLines && <StrandLayer segments={segments} config={config} ghostPolygonIds={ghostPolygonIds} />}
-          <ControlPointLayer
-            segments={segments}
-            config={config}
-            visible={cpVisible}
-            active={cpActive}
-            zoom={zoom}
-          />
+          {compositionStamps ? (
+            // Lever A periodic fast-path: render one fundamental domain into a
+            // <defs> fragment, then tile it with <use> (x/y = pure-translation
+            // stamp). TileLayer + StrandLayer render once; the browser clones.
+            <>
+              <defs>
+                <g id="composition-fragment">
+                  <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
+                  {showLines && <StrandLayer segments={segments} config={config} />}
+                </g>
+              </defs>
+              {compositionStamps.map((st, i) => (
+                <use
+                  key={i}
+                  href="#composition-fragment"
+                  x={st.translation.x}
+                  y={st.translation.y}
+                />
+              ))}
+              <ControlPointLayer segments={segments} config={config} visible={cpVisible} active={cpActive} zoom={zoom} />
+            </>
+          ) : (
+            <>
+              {boundaryOutlines && boundaryOutlines.map((outline, i) => {
+                // Seed outlines (first `seedOutlineCount` entries when defined) get
+                // the prominent solid style so the active Patch reads as the focal
+                // area. Ghost outlines (the rest) stay in the original dimmed dash.
+                const isSeed = seedOutlineCount === undefined || i < seedOutlineCount
+                return <BoundaryOutline key={i} vertices={outline} variant={isSeed ? 'seed' : 'ghost'} />
+              })}
+              <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
+              {showLines && <StrandLayer segments={segments} config={config} ghostPolygonIds={ghostPolygonIds} />}
+              <ControlPointLayer
+                segments={segments}
+                config={config}
+                visible={cpVisible}
+                active={cpActive}
+                zoom={zoom}
+              />
+            </>
+          )}
         </g>
         {hasFrame && (
           <polygon

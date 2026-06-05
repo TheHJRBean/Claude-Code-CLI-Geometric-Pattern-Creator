@@ -41,6 +41,28 @@ export function perfEnabled(): boolean {
   return enabled
 }
 
+/**
+ * Lever A opt-in flag (off by default). When set, the Builder's Composition
+ * phase renders ONE fundamental domain (runPIC + buildStrands over the base
+ * patch only) tiled across the viewport via SVG `<use>`, instead of running
+ * the whole pipeline over the stamped field every regeneration. Exact +
+ * seamless only on a pure-translation lattice with no vertex-lines/frame, so
+ * usePattern gates it to those cases and falls back otherwise. Enable with
+ * `localStorage.perfPeriodicity = '1'` (or `?perfPeriodicity`) + reload.
+ */
+let periodicity: boolean | null = null
+export function periodicityEnabled(): boolean {
+  if (periodicity === null) {
+    try {
+      periodicity = localStorage.getItem('perfPeriodicity') === '1'
+        || (typeof location !== 'undefined' && location.search.includes('perfPeriodicity'))
+    } catch {
+      periodicity = false
+    }
+  }
+  return periodicity
+}
+
 let last: PerfSample = {
   phase: '—', polygons: 0, ghosts: 0, stamps: 0, segments: 0, picMs: 0, strandMs: 0, at: 0,
 }

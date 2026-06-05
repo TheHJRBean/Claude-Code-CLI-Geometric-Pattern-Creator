@@ -18,7 +18,7 @@ import { activeCell } from '../editor/active'
 import { frameOutlinePolygon } from '../editor/frame'
 import { pointInPolygon } from '../utils/math'
 import { runPIC } from '../pic/index'
-import { recordPerf } from '../utils/perf'
+import { recordPerf, periodicityEnabled } from '../utils/perf'
 
 export interface PatternData {
   polygons: Polygon[]
@@ -63,6 +63,16 @@ export interface PatternData {
    * Undefined when ghost polygons aren't in the PIC input.
    */
   ghostPolygonIds?: Set<string>
+  /**
+   * Lever A (periodicity fast-path, flagged). When present, the Composition
+   * field is periodic: `polygons` + `segments` are ONE fundamental domain (the
+   * base patch) and the renderer tiles them at these stamp translations via
+   * SVG `<use>`, so runPIC + buildStrands ran only once. Only emitted when the
+   * tiling is exact + seamless this way (single-cell, pure-translation stamps,
+   * no vertex-lines / frame / boundary-lattice); otherwise undefined and the
+   * normal pre-stamped `polygons`/`segments` are used.
+   */
+  compositionStamps?: LatticeStamp[]
 }
 
 export function usePattern(
@@ -226,6 +236,33 @@ export function usePattern(
       const stamps = multiCell
         ? compositionLatticeStamps(patch, { x: genX, y: genY, width: genW, height: genH })
         : editorLatticeStamps(cell, { x: genX, y: genY, width: genW, height: genH })
+      // Lever A (flagged): periodic fast-path. Tile ONE fundamental domain via
+      // <use> instead of PIC-ing the whole stamped field every regeneration —
+      // runPIC + buildStrands then run once on the base patch. Exact + seamless
+      // only when: single-cell, pure-translation stamps (no rotation; tangents
+      // match at seams by lattice symmetry), no vertex-lines (base PIC would
+      // miss stamp-boundary internal edges), no frame (completedTiles don't
+      // repeat), no boundary-lattice overlay. Otherwise fall through to the
+      // exact stamped path below.
+      if (
+        periodicityEnabled()
+        && !multiCell
+        && !editorFrame
+        && !showBoundaryLattice
+        && !Object.values(config.figures).some(f => f?.vertexLinesEnabled)
+        && stamps.every(s => s.rotation === 0)
+      ) {
+        recordPerf({
+          phase: 'composition·periodic',
+          polygons: basePolys.length,
+          ghosts: 0,
+          stamps: stamps.length,
+          segments: editorBase.baseSegments.length,
+          picMs: 0,
+          strandMs: 0,
+        })
+        return { polygons: basePolys, segments: editorBase.baseSegments, compositionStamps: stamps }
+      }
       const polygons: typeof basePolys = []
       for (let s = 0; s < stamps.length; s++) {
         const stamp = stamps[s]

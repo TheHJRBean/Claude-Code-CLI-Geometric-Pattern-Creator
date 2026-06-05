@@ -173,10 +173,17 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   const { viewTransform, handlers, setViewTransform } = usePanZoom(
     INITIAL_ZOOM, svgRef, initialX, initialY,
   )
-  // Defer the heavy tiling computation so pointer events stay responsive
+  // Defer the heavy tiling computation so pointer events stay responsive.
+  // viewTransform → pan/zoom; config → parameter edits (contact angle, line
+  // length, curves, …). Deferring config keeps the sidebar sliders + overlays
+  // (which read the LIVE config below) responsive while the geometry — which
+  // re-runs PIC over the whole field, the stamped field in Composition — catches
+  // up at low priority instead of blocking each slider tick. The geometry lags
+  // the controls by a frame or two; everything else stays live.
   const deferredVT = useDeferredValue(viewTransform)
+  const deferredConfig = useDeferredValue(config)
   const { polygons, segments, boundaryOutlines, ghostPolygons, neighbourStamps, seedOutlineCount, ghostPolygonIds } = usePattern(
-    config,
+    deferredConfig,
     deferredVT,
     size.width,
     size.height,

@@ -14,7 +14,7 @@ import { computeAllCycles, computeBoundaryCycle, type BoundaryVertex } from '../
 import { EDITOR_EPS } from '../editor/exposedEdges'
 import { applyStamp } from '../editor/lattice'
 import { patchRotation } from '../editor/compositionLattice'
-import { viableSidesForEdge } from '../editor/orbit'
+import { viableSidesForEdge, viableSidesForVertexOrbit, vertexOrientationsWithOrbit } from '../editor/orbit'
 import { EditorEdgeLayer } from './EditorEdgeLayer'
 import { EditorPickerOverlay } from './EditorPickerOverlay'
 import { OverlapConfirmModal } from './OverlapConfirmModal'
@@ -25,8 +25,6 @@ import { computeBoundarySections, viableSidesForBoundarySection } from '../edito
 import {
   computeExposedVertices,
   placeRegularNGonOnVertex,
-  vertexPlacementOrientations,
-  viableSidesForVertex,
   placeableSidesForVertex,
   type ExposedVertex,
   type VertexKey,
@@ -496,7 +494,9 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     : null
   const vertexPickerViableSides = useMemo<number[]>(() => {
     if (!selectedVertexData || !activeCellForSections || !config.editor) return []
-    return viableSidesForVertex(
+    // Orbit-aware: under symmetry a size is only "clean" if its full orbit
+    // places without force. Mirrors the edge picker's viableSidesForEdge.
+    return viableSidesForVertexOrbit(
       selectedVertexData,
       config.editor.edgeLength,
       activeCellForSections,
@@ -520,7 +520,9 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     if (!selectedVertexData || vertexPickedSides === null || !activeCellForSections || !config.editor) {
       return []
     }
-    return vertexPlacementOrientations(
+    // Orbit-aware overlap flags so page-2 orientation badges + the commit's
+    // force routing match what the reducer's all-or-nothing orbit placer does.
+    return vertexOrientationsWithOrbit(
       selectedVertexData,
       vertexPickedSides,
       config.editor.edgeLength,

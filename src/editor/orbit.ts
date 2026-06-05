@@ -11,7 +11,9 @@ import {
   computeExposedVertices,
   isVertexPlacementViable,
   placeRegularNGonOnVertex,
+  vertexPlacementOrientations,
   type ExposedVertex,
+  type VertexOrientation,
 } from './vertexPlacement'
 
 /**
@@ -294,4 +296,47 @@ export function placeTilesOnVertexOrbit(
   }
 
   return placements.length > 0 ? placements : null
+}
+
+/**
+ * Orbit-aware vertex orientations. Mirrors how `viableSidesForEdge` folds the
+ * orbit probe into edge viability: the single-tile `vertexPlacementOrientations`
+ * only knows whether the clicked Tile overlaps, but under a non-trivial
+ * symmetry mode the reducer places the whole orbit all-or-nothing. An
+ * orientation that's single-tile-clean can still collide with an orbit sibling,
+ * so the picker must badge it ⚠ (forceable) rather than commit it directly —
+ * otherwise `placeTilesOnVertexOrbit` returns null and the Place silently
+ * no-ops.
+ *
+ * For each emitted orientation we recompute `overlaps` as "the force-free orbit
+ * fails to place" (`placeTilesOnVertexOrbit(..., force=false) === null`). In
+ * `none` mode this collapses to the single-tile flag and we delegate untouched.
+ */
+export function vertexOrientationsWithOrbit(
+  vertex: ExposedVertex,
+  sides: number,
+  edgeLength: number,
+  cell: EditorCell,
+): VertexOrientation[] {
+  const base = vertexPlacementOrientations(vertex, sides, edgeLength, cell)
+  const mode = cell.symmetryMode ?? 'none'
+  if (mode === 'none') return base
+  return base.map(o => ({
+    ...o,
+    overlaps:
+      placeTilesOnVertexOrbit(cell, edgeLength, vertex, sides, o.rotation, '__probe__') === null,
+  }))
+}
+
+/** Orbit-aware "clean" size set for the vertex picker — a size is clean only
+ *  when at least one orientation places its full orbit without `force`. */
+export function viableSidesForVertexOrbit(
+  vertex: ExposedVertex,
+  edgeLength: number,
+  cell: EditorCell,
+  pickerSides: readonly number[],
+): number[] {
+  return pickerSides.filter(n =>
+    vertexOrientationsWithOrbit(vertex, n, edgeLength, cell).some(o => !o.overlaps),
+  )
 }

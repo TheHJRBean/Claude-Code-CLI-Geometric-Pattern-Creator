@@ -18,6 +18,7 @@ import { activeCell } from '../editor/active'
 import { frameOutlinePolygon } from '../editor/frame'
 import { pointInPolygon } from '../utils/math'
 import { runPIC } from '../pic/index'
+import { recordPerf } from '../utils/perf'
 
 export interface PatternData {
   polygons: Polygon[]
@@ -194,7 +195,17 @@ export function usePattern(
         // Reuse the viewport-independent base PIC run when no ghosts feed it
         // (Finding 2). Only the neighbour-ghost case needs a fresh, viewport-
         // dependent PIC over the stamped ghost ring.
+        const tPic = performance.now()
         const segments = ghostsInPic ? runPIC(picInput, config) : editorBase.baseSegments
+        recordPerf({
+          phase: editorNeighbourPreview ? 'design+neighbours' : 'design',
+          polygons: basePolys.length,
+          ghosts: ghostPolygons?.length ?? 0,
+          stamps: ringStamps?.length ?? 0,
+          segments: segments.length,
+          picMs: ghostsInPic ? performance.now() - tPic : 0,
+          strandMs: 0,
+        })
         const ghostPolygonIds = ghostsInPic && ghostPolygons
           ? new Set(ghostPolygons.map(p => p.id))
           : undefined
@@ -253,7 +264,17 @@ export function usePattern(
           }
         }
       }
+      const tPic = performance.now()
       const segments = runPIC(picPolygons, config)
+      recordPerf({
+        phase: 'composition',
+        polygons: picPolygons.length,
+        ghosts: 0,
+        stamps: stamps.length,
+        segments: segments.length,
+        picMs: performance.now() - tPic,
+        strandMs: 0,
+      })
       // Boundary outlines are opt-in in Composition Phase (showBoundaryLattice).
       // Multi-cell emits one outline per Cell per stamp (octagon + square × N
       // stamps); single-cell emits one outline per stamp.

@@ -31,6 +31,7 @@ import {
 } from '../editor/vertexPlacement'
 import { PICKER_SIDES } from '../editor/placement'
 import { regularPolygonVertices } from '../editor/regularPolygon'
+import { PerfHud } from './PerfHud'
 
 /**
  * Each **Cell** in a Patch lives in Patch-local coords via its own `center` +
@@ -860,6 +861,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         Reset View
       </button>
       <RotationDial rotation={viewTransform.rotation} onChange={onRotation} />
+      <PerfHud />
     </div>
   )
 }

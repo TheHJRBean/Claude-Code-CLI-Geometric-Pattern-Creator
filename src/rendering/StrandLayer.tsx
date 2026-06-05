@@ -4,6 +4,7 @@ import type { PatternConfig } from '../types/pattern'
 import { buildStrands } from '../strand/buildStrands'
 import { computeCurves, smoothCurves } from '../strand/computeCurves'
 import { curvedPathD, curvedPathDSplit } from '../strand/curvedPathD'
+import { recordPerf } from '../utils/perf'
 
 interface Props {
   segments: Segment[]
@@ -30,7 +31,12 @@ interface Props {
 export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPolygonIds }: Props) {
   const { strand } = config
 
-  const strandData = useMemo(() => buildStrands(segments), [segments])
+  const strandData = useMemo(() => {
+    const t0 = performance.now()
+    const r = buildStrands(segments)
+    recordPerf({ strandMs: performance.now() - t0 })
+    return r
+  }, [segments])
   const curvedStrands = useMemo(() => {
     const raw = computeCurves(strandData, segments, config)
     return config.smoothTransitions ? raw.map(smoothCurves) : raw

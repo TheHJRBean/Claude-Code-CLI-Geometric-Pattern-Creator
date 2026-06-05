@@ -181,7 +181,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // stay synchronous for a live preview; the real fix for their cost is the
   // periodicity-PIC lever (cheap recompute), not deferral.
   const deferredVT = useDeferredValue(viewTransform)
-  const { polygons, segments, boundaryOutlines, ghostPolygons, neighbourStamps, seedOutlineCount, ghostPolygonIds } = usePattern(
+  const { polygons, segments, boundaryOutlines, ghostPolygons, neighbourStamps, seedOutlineCount, ghostPolygonIds, compositionStamps } = usePattern(
     config,
     deferredVT,
     size.width,
@@ -742,6 +742,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         ghostPolygons={ghostPolygons}
         seedOutlineCount={seedOutlineCount}
         ghostPolygonIds={ghostPolygonIds}
+        compositionStamps={compositionStamps}
         editorOverlay={editorOverlay}
         frameOutline={frameOutline}
         clipToFrame={config.tiling.type !== 'editor' || editorStrandMode}

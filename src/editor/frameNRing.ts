@@ -192,14 +192,24 @@ export function unionOutline(polygons: Vec2[][]): Vec2[] | null {
 
 /**
  * World-space clip outline for an n-ring Frame: the outer boundary of the
- * centre Patch + `rings` shells of lattice neighbours. Returns `null` for
+ * centre Patch + `rings` shells of lattice neighbours, optionally turned by
+ * `rotation` radians about the world origin (the active Cell's Boundary is
+ * built at `(0, 0)`, so this spins the outline in place). Returns `null` for
  * unsupported shapes (octagon / dodecagon) or degenerate input.
+ *
+ * Like the Shape Frame, rotation is a clip-only transform — the union still
+ * follows whole Patch edges, it's just oriented; the lattice field underneath
+ * is unchanged, so the rotated outline cuts across tiles at the edge.
  */
-export function nRingOutline(cell: EditorCell, rings: number): Vec2[] | null {
+export function nRingOutline(cell: EditorCell, rings: number, rotation = 0): Vec2[] | null {
   const stamps = nRingCellStamps(cell, rings)
   if (!stamps || stamps.length === 0) return null
   const base = editorBoundaryVertices(cell)
   if (base.length < 3) return null
   const polys = stamps.map(s => base.map(v => applyStamp(v, s)))
-  return unionOutline(polys)
+  const outline = unionOutline(polys)
+  if (!outline || rotation === 0) return outline
+  const cos = Math.cos(rotation)
+  const sin = Math.sin(rotation)
+  return outline.map(p => ({ x: p.x * cos - p.y * sin, y: p.x * sin + p.y * cos }))
 }

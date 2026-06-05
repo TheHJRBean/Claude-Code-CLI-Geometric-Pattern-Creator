@@ -102,21 +102,39 @@ export function usePattern(
   const genW = vw * (1 + 2 * pad)
   const genH = vh * (1 + 2 * pad)
 
+  // Finding 2 (2026-06-05) — viewport-independent Builder base geometry.
+  // The Patch tiles (`basePolys`), their Boundary outlines, and the no-ghost
+  // PIC run depend only on `config`, not the viewport, yet the main memo below
+  // re-keys on the quantised viewport and so rebuilds them on every ~12% pan
+  // step. Hoisting them into a config-keyed memo means panning a Design-phase
+  // Patch reuses these refs: no polygon rebuild, no runPIC, and — because
+  // `polygons`/`segments` stay referentially stable — the memoised render
+  // layers (TileLayer/StrandLayer) bail too. Null outside the Builder.
+  // `baseSegments` is the PIC over the unstamped Patch only; the Composition
+  // and neighbour-ghost paths still run their own viewport-dependent PIC.
+  const editorBase = useMemo(() => {
+    if (config.tiling.type !== 'editor' || !config.editor) return null
+    const patch = config.editor
+    const multiCell = patch.cells.length > 1
+    const cell = activeCell(patch)
+    const basePolys = multiCell
+      ? compositionToPolygons(patch)
+      : editorTilesToPolygons(cell)
+    const baseOutlines: Vec2[][] = multiCell
+      ? compositionBoundaryOutlines(patch)
+      : [editorBoundaryVertices(cell)]
+    const baseSegments = runPIC(basePolys, config)
+    return { patch, multiCell, cell, basePolys, baseOutlines, baseSegments }
+  }, [config])
+
   return useMemo(() => {
     // Step 17 Builder: when a Patch is active, render its Tiles directly.
     // Design Phase = single Patch; Composition Phase = lattice-stamped across
     // the viewport so the user sees how Strands flow across boundaries.
-    if (config.tiling.type === 'editor' && config.editor) {
-      const patch = config.editor
-      const multiCell = patch.cells.length > 1
-      const cell = activeCell(patch)
-      const basePolys = multiCell
-        ? compositionToPolygons(patch)
-        : editorTilesToPolygons(cell)
+    if (config.tiling.type === 'editor' && config.editor && editorBase) {
+      const { patch, multiCell, cell, basePolys } = editorBase
       if (!editorStrandMode) {
-        const baseOutlines: Vec2[][] = multiCell
-          ? compositionBoundaryOutlines(patch)
-          : [editorBoundaryVertices(cell)]
+        const baseOutlines = editorBase.baseOutlines
         let ghostPolygons: typeof basePolys | undefined
         let boundaryOutlines: Vec2[][] = [...baseOutlines]
         // Neighbour preview: the full visible lattice of neighbour stamps minus
@@ -173,7 +191,10 @@ export function usePattern(
         const picInput = ghostsInPic && ghostPolygons
           ? [...basePolys, ...ghostPolygons]
           : basePolys
-        const segments = runPIC(picInput, config)
+        // Reuse the viewport-independent base PIC run when no ghosts feed it
+        // (Finding 2). Only the neighbour-ghost case needs a fresh, viewport-
+        // dependent PIC over the stamped ghost ring.
+        const segments = ghostsInPic ? runPIC(picInput, config) : editorBase.baseSegments
         const ghostPolygonIds = ghostsInPic && ghostPolygons
           ? new Set(ghostPolygons.map(p => p.id))
           : undefined
@@ -238,9 +259,7 @@ export function usePattern(
       // stamps); single-cell emits one outline per stamp.
       let boundaryOutlines: Vec2[][] | undefined
       if (showBoundaryLattice) {
-        const baseOutlines: Vec2[][] = multiCell
-          ? compositionBoundaryOutlines(patch)
-          : [editorBoundaryVertices(cell)]
+        const baseOutlines = editorBase.baseOutlines
         boundaryOutlines = []
         for (const stamp of stamps) {
           const cos = Math.cos(stamp.rotation)
@@ -268,5 +287,5 @@ export function usePattern(
     const segments = runPIC(polygons, config)
 
     return { polygons, segments }
-  }, [config, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview, editorNeighbourBoundaries, editorNeighbourStrands, editorFrame])
+  }, [config, editorBase, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview, editorNeighbourBoundaries, editorNeighbourStrands, editorFrame])
 }

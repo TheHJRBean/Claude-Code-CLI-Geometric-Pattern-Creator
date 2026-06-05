@@ -562,11 +562,27 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   }, [selectedVertexData, vertexPickedSides, vertexOrientations, vertexOrientationIdx, activeCellForSections, config.editor])
 
   // Closing the picker without committing — also clears the page-2 state.
-  const closeVertexPicker = () => {
+  // useCallback so the memoised EditorVertexPlacementLayer (whose onSelect
+  // depends on this) bails on pan frames (Finding 1, 2026-06-05).
+  const closeVertexPicker = useCallback(() => {
     setSelectedVertexKey(null)
     setVertexPickedSides(null)
     setVertexOrientationIdx(0)
-  }
+  }, [])
+  // Vertex-dot selection. Extracted from the inline overlay prop + useCallback'd
+  // so the memoised EditorVertexPlacementLayer bails when nothing changed.
+  const handleSelectVertexPlacement = useCallback((v: ExposedVertex | null) => {
+    // Clear sibling pickers so only one overlay is open.
+    if (v) {
+      onSelectEdge?.(null)
+      onSelectSection?.(null)
+      setSelectedVertexKey(v.key)
+      setVertexPickedSides(null)
+      setVertexOrientationIdx(0)
+    } else {
+      closeVertexPicker()
+    }
+  }, [onSelectEdge, onSelectSection, closeVertexPicker])
 
   // Composition Phase hides every Design-Phase overlay — the canvas is the
   // lattice preview only, and Strand controls in the side panel drive what
@@ -641,18 +657,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
             <EditorVertexPlacementLayer
               vertices={renderedVertices}
               selectedKey={selectedVertexKey}
-              onSelect={(v) => {
-                // Clear sibling pickers so only one overlay is open.
-                if (v) {
-                  onSelectEdge?.(null)
-                  onSelectSection?.(null)
-                  setSelectedVertexKey(v.key)
-                  setVertexPickedSides(null)
-                  setVertexOrientationIdx(0)
-                } else {
-                  closeVertexPicker()
-                }
-              }}
+              onSelect={handleSelectVertexPlacement}
               hoveredKey={hoveredVertexKey}
               onHover={setHoveredVertexKey}
             />

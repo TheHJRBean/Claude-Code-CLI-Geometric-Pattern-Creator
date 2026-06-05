@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import type { ExposedVertex } from '../editor/vertexPlacement'
 import type { VertexKey } from '../editor/vertexPlacement'
 
@@ -32,7 +33,10 @@ interface Props {
 const DOT_HALF = 5
 const HIT_HALF = 11
 
-export function EditorVertexPlacementLayer({
+// Memoised alongside the other editor overlay layers (see EditorEdgeLayer) so
+// pan/zoom frames don't re-create every diamond glyph. Bails on stable props —
+// `vertices` is memoised in Canvas; `onSelect` is a useCallback there.
+export const EditorVertexPlacementLayer = memo(function EditorVertexPlacementLayer({
   vertices, selectedKey, onSelect, hoveredKey, onHover,
 }: Props) {
   return (
@@ -93,4 +97,4 @@ export function EditorVertexPlacementLayer({
       })}
     </g>
   )
-}
+})

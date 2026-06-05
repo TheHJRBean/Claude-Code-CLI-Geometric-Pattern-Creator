@@ -141,7 +141,9 @@ export function TessellationLabMode({
   // auto-switches the active Cell first (pure pane swap, not undoable) so the
   // existing place / delete flow targets the right Cell via the reducer's
   // updateActiveCell routing. Single-cell: just sets the selection.
-  const handleSelectEdge = (edge: SelectedEdge | null) => {
+  // useCallback so the memoised EditorEdgeLayer / EditorBoundaryInwardLayer
+  // bail on pan/zoom frames instead of re-rendering (Finding 1, 2026-06-05).
+  const handleSelectEdge = useCallback((edge: SelectedEdge | null) => {
     if (
       edge?.hostCellId
       && config.editor
@@ -152,11 +154,11 @@ export function TessellationLabMode({
     }
     setSelectedEdge(edge)
     if (edge) setSelectedSection(null)
-  }
-  const handleSelectSection = (section: SectionKey | null) => {
+  }, [config.editor, dispatch])
+  const handleSelectSection = useCallback((section: SectionKey | null) => {
     setSelectedSection(section)
     if (section) setSelectedEdge(null)
-  }
+  }, [])
   // `force` (flexible-placement): the user accepted the picker's overlap
   // warning, so the reducer skips the viability gate and places anyway.
   const handlePlaceTile = (sides: number, force?: boolean) => {
@@ -249,7 +251,10 @@ export function TessellationLabMode({
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [dispatch, multiMode, picks])
-  const handlePickVertex = (p: Vec2, ctrlOrCmd: boolean) => {
+  // useCallback so the memoised (Complete-mode) EditorVertexLayer bails on
+  // pan/zoom frames. Identity changes only when `multiMode`/`picks` change —
+  // i.e. on an actual pick, when the layer must re-render anyway.
+  const handlePickVertex = useCallback((p: Vec2, ctrlOrCmd: boolean) => {
     // Ctrl/Cmd-click: engage / extend multi mode. Append the pick to whatever
     // is already there (a single chord-mode pick is promoted into the
     // multi-pick polygon).
@@ -275,7 +280,17 @@ export function TessellationLabMode({
     }
     dispatch({ type: 'EDITOR_COMPLETE_GAP', payload: { pA: picks[0], pB: p } })
     setPicks([])
-  }
+  }, [multiMode, picks, dispatch])
+  // Extracted from the inline Canvas prop + useCallback'd so the memoised
+  // EditorVertexLayer bails on pan frames. Reset is inlined (not via the
+  // unstable `resetPicks`) to keep this identity stable across frames.
+  const handleForceCommitMulti = useCallback(() => {
+    if (multiMode && picks.length >= 3) {
+      dispatch({ type: 'EDITOR_COMPLETE_N_GAP', payload: { picks, force: true } })
+      setPicks([])
+      setMultiMode(false)
+    }
+  }, [multiMode, picks, dispatch])
 
   // ── Library ────────────────────────────────────────────
   // Active-entry selection lives here so external buttons (Clear / New /
@@ -698,12 +713,7 @@ export function TessellationLabMode({
           // failures (self-intersecting, duplicate vertex, etc.) stay blocked.
           validity ? validity.kind === 'overlaps-existing' || validity.kind === 'inside-tile' : false
         }
-        onForceCommitMulti={() => {
-          if (multiMode && picks.length >= 3) {
-            dispatch({ type: 'EDITOR_COMPLETE_N_GAP', payload: { picks, force: true } })
-            resetPicks()
-          }
-        }}
+        onForceCommitMulti={handleForceCommitMulti}
         editorStrandMode={editorPhase !== 'design'}
         editorFrame={!!config.editor?.frame}
         showBoundaryLattice={showBoundaryLattice}

@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import type { ExposedEdge } from '../editor/exposedEdges'
 
 /**
@@ -36,7 +37,11 @@ function sameEdge(a: EdgeKey | null | undefined, e: ExposedEdge): boolean {
     && (a.hostCellId ?? null) === (e.hostCellId ?? null)
 }
 
-export function EditorEdgeLayer({ edges, selected, onSelect, hovered, onHover }: Props) {
+// Memoised: the editor overlay re-renders on every pan/zoom frame (Canvas owns
+// the live viewTransform), but the exposed-edge set only changes on edits. With
+// referentially-stable props (memoised `edges`, useCallback'd `onSelect`) this
+// bails instead of re-creating every edge's hit-line node each frame.
+export const EditorEdgeLayer = memo(function EditorEdgeLayer({ edges, selected, onSelect, hovered, onHover }: Props) {
   return (
     <g id="editor-edge-layer">
       {edges.map(e => {
@@ -90,4 +95,4 @@ export function EditorEdgeLayer({ edges, selected, onSelect, hovered, onHover }:
       })}
     </g>
   )
-}
+})

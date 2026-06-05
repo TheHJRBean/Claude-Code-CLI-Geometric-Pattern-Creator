@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import type { Vec2 } from '../utils/math'
 
 /** Minimal section shape the layer renders — satisfied by both
@@ -43,7 +44,10 @@ function sameSection(a: SectionKey | null, s: SectionLike): boolean {
   return !!a && a.edgeIndex === s.edgeIndex && a.sectionIndex === s.sectionIndex
 }
 
-export function EditorBoundaryInwardLayer({ sections, selected, onSelect, hovered, onHover }: Props) {
+// Memoised alongside the other editor overlay layers so panning a large Patch
+// doesn't re-create every section hit-line each frame. Bails on stable props
+// (memoised `sections`, useCallback'd `onSelect`).
+export const EditorBoundaryInwardLayer = memo(function EditorBoundaryInwardLayer({ sections, selected, onSelect, hovered, onHover }: Props) {
   return (
     <g id="editor-boundary-inward-layer">
       {sections.map(s => {
@@ -82,4 +86,4 @@ export function EditorBoundaryInwardLayer({ sections, selected, onSelect, hovere
       })}
     </g>
   )
-}
+})

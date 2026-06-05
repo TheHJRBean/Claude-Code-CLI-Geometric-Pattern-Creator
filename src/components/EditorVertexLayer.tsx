@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import type React from 'react'
 import type { Vec2 } from '../utils/math'
 import type { BoundaryVertex } from '../editor/boundary'
@@ -175,7 +176,12 @@ function VertexDot({ v, variant, picks, onPickVertex }: DotProps) {
   )
 }
 
-export function EditorVertexLayer({
+// Memoised: the Complete-mode vertex layer is the heaviest overlay — in
+// Show-neighbours it renders `neighbourVertices` across the whole visible
+// lattice. Bailing on stable props (all vertex sets are memoised in Canvas;
+// `onPickVertex` / `onForceCommitMulti` are useCallback'd in the Lab) stops it
+// re-creating every dot each pan frame.
+export const EditorVertexLayer = memo(function EditorVertexLayer({
   vertices,
   boundaryCorners = [],
   pocketVertices = [],
@@ -276,7 +282,7 @@ export function EditorVertexLayer({
       )}
     </g>
   )
-}
+})
 
 /* ── Rejection pill + Art-Deco override button ─────────────── */
 

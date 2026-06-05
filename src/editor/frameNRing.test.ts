@@ -78,6 +78,16 @@ describe('nRingOutline', () => {
   it('returns null for unsupported shapes', () => {
     expect(nRingOutline(cell('octagon'), 1)).toBeNull()
   })
+
+  it('rotation preserves area and turns the outline about the origin', () => {
+    const plain = nRingOutline(cell('square', 100), 1)!
+    const turned = nRingOutline(cell('square', 100), 1, Math.PI / 4)!
+    // Clip-only spin about (0,0): same shape (area), just oriented.
+    expect(polyArea(turned)).toBeCloseTo(polyArea(plain), 3)
+    // A 45°-turned 3×3 square block reaches its corner at 150·√2 on an axis.
+    const xs = turned.map(v => v.x)
+    expect(Math.max(...xs)).toBeCloseTo(150 * Math.SQRT2, 2)
+  })
 })
 
 describe('unionOutline', () => {

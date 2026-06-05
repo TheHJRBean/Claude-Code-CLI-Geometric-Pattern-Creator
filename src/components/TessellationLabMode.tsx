@@ -1353,6 +1353,19 @@ function EditorDesignControls({
                     onChange={e => dispatch({ type: 'SET_FRAME', payload: { ...editor.frame!, rings: Number(e.target.value) } })}
                     style={{ width: '100%', marginBottom: 10 }}
                   />
+                  <FieldLabel
+                    label={`Rotation — ${Math.round(((editor.frame.rotation ?? 0) * 180) / Math.PI)}°`}
+                    tooltip="Turn the whole Frame outline about its centre. Clip-only — the outline still follows whole Patch edges, just oriented."
+                  />
+                  <input
+                    type="range"
+                    min={0}
+                    max={360}
+                    step={1}
+                    value={Math.round(((editor.frame.rotation ?? 0) * 180) / Math.PI)}
+                    onChange={e => updateFrameGeom({ rotation: (Number(e.target.value) * Math.PI) / 180 })}
+                    style={{ width: '100%', marginBottom: 10 }}
+                  />
                 </>
               )}
               <button

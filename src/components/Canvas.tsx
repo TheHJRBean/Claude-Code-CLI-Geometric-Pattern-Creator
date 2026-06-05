@@ -202,7 +202,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       if (frame.type === 'n-ring') {
         const patch = config.editor
         const active = patch.cells.find(c => c.id === patch.activeCellId) ?? patch.cells[0]
-        return active ? nRingOutline(active, frame.rings ?? DEFAULT_FRAME_RINGS) : null
+        return active ? nRingOutline(active, frame.rings ?? DEFAULT_FRAME_RINGS, frame.rotation ?? 0) : null
       }
       return frameOutlinePolygon(frame)
     }

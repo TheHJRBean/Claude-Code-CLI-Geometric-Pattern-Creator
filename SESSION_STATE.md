@@ -4,7 +4,7 @@
 
 ## ▶ RESUME HERE
 
-**2026-06-05 — Builder perf, Findings 1 + 2 (IN PROGRESS, branch `perf/builder-render-memoization` off `main`).**
+**2026-06-05 — Builder perf, Findings 1 + 2 (COMMITTED on branch `perf/builder-render-memoization` off `main`; ⏳ browser-verify + merge pending).** Commits: **`1e44950`** (Finding 1), **`aa42d66`** (Finding 2). `tsc` + 201 vitest + vite build green after each.
 Investigation in chat identified two cost axes: (1) per-frame React re-render during pan/zoom (Canvas holds live `viewTransform`), (2) per-pan-step geometry regeneration (usePattern memoised on quantised viewport). `runPIC` confirmed linear; not the culprit. Implementing the two low-risk levers from `memory/project_builder_performance_idea.md`:
 
 - **Finding 1 — memoise editor overlay layers + stabilise their callbacks.** `EditorEdgeLayer` / `EditorVertexLayer` / `EditorVertexPlacementLayer` / `EditorBoundaryInwardLayer` were NOT `React.memo`'d, so they re-create all edge/vertex DOM nodes every pan frame (worst in Complete-mode + Show-neighbours where `neighbourVertices` spans the whole lattice). Wrap each in `React.memo`; stabilise the callbacks that feed them — `handleSelectEdge` / `handleSelectSection` / `handlePickVertex` + extracted `handleForceCommitMulti` in `TessellationLabMode` (was inline), and `closeVertexPicker` + the `EditorVertexPlacementLayer` `onSelect` arrow in `Canvas` — via `useCallback`. Picker-overlay handlers (`handlePlaceTile` etc.) left unstable on purpose: those overlays are small + mount transiently, not part of the per-frame hot path. Memoised render layers (`TileLayer`/`StrandLayer`/`ControlPointLayer`) already bail; this extends the same to the overlay.

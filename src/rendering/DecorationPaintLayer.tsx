@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { Vec2 } from '../utils/math'
 import type { Segment } from '../types/geometry'
 import type { VoidRegion } from '../decoration/voids'
@@ -19,6 +19,11 @@ export type PaintTarget = 'off' | 'voids' | 'strands'
  *
  * Rendered topmost (PatternSVG's overlay slot) and uses `onPointerDown` so the
  * click beats the pan handler and the strokes painted below.
+ *
+ * The hit-targets are memoised separately from the hover highlight, so moving
+ * the cursor (which updates `hovered` on every pointer event) only re-renders
+ * the small highlight set — not the hundreds of hit paths (which were the lag
+ * at high zoom).
  */
 export function DecorationPaintLayer({
   target,
@@ -40,41 +45,58 @@ export function DecorationPaintLayer({
   const [hoveredSig, setHoveredSig] = useState<string | null>(null)
   const [hoverStrands, setHoverStrands] = useState(false)
 
+  const voidHits = useMemo(() => voids.map((v, i) => (
+    <path
+      key={i}
+      d={polygonPath(v.polygon)}
+      fill="transparent"
+      stroke="none"
+      style={{ cursor: BUCKET_CURSOR }}
+      onPointerEnter={() => setHoveredSig(v.signature)}
+      onPointerLeave={() => setHoveredSig(h => (h === v.signature ? null : h))}
+      onPointerDown={e => { e.stopPropagation(); onPaintVoid(v.signature) }}
+    />
+  )), [voids, onPaintVoid])
+
+  const voidHighlight = useMemo(() => {
+    if (hoveredSig === null) return null
+    return voids.filter(v => v.signature === hoveredSig).map((v, i) => (
+      <path
+        key={`hl-${i}`}
+        d={polygonPath(v.polygon)}
+        fill={activeColor}
+        fillOpacity={0.35}
+        stroke={activeColor}
+        strokeOpacity={0.95}
+        strokeWidth={1.5}
+        vectorEffect="non-scaling-stroke"
+        pointerEvents="none"
+      />
+    ))
+  }, [hoveredSig, voids, activeColor])
+
+  const strandHits = useMemo(() => {
+    const hitWidth = 10 / zoom // constant ~10px screen hit width
+    return segments.map((s, i) => (
+      <line
+        key={i}
+        x1={s.from.x} y1={s.from.y} x2={s.to.x} y2={s.to.y}
+        stroke="transparent"
+        strokeWidth={hitWidth}
+        strokeLinecap="round"
+        style={{ cursor: BUCKET_CURSOR }}
+        onPointerEnter={() => setHoverStrands(true)}
+        onPointerLeave={() => setHoverStrands(false)}
+        onPointerDown={e => { e.stopPropagation(); onPaintStrands() }}
+      />
+    ))
+  }, [segments, zoom, onPaintStrands])
+
   if (target === 'voids') {
-    return (
-      <g id="decoration-paint-layer">
-        {hoveredSig !== null && voids.filter(v => v.signature === hoveredSig).map((v, i) => (
-          <path
-            key={`hl-${i}`}
-            d={polygonPath(v.polygon)}
-            fill={activeColor}
-            fillOpacity={0.35}
-            stroke={activeColor}
-            strokeOpacity={0.95}
-            strokeWidth={1.5}
-            vectorEffect="non-scaling-stroke"
-            pointerEvents="none"
-          />
-        ))}
-        {voids.map((v, i) => (
-          <path
-            key={i}
-            d={polygonPath(v.polygon)}
-            fill="transparent"
-            stroke="none"
-            style={{ cursor: BUCKET_CURSOR }}
-            onPointerEnter={() => setHoveredSig(v.signature)}
-            onPointerLeave={() => setHoveredSig(h => (h === v.signature ? null : h))}
-            onPointerDown={e => { e.stopPropagation(); onPaintVoid(v.signature) }}
-          />
-        ))}
-      </g>
-    )
+    return <g id="decoration-paint-layer">{voidHighlight}{voidHits}</g>
   }
 
   if (target === 'strands') {
-    // Constant ~10px screen hit width regardless of zoom.
-    const hitWidth = 10 / zoom
     return (
       <g id="decoration-paint-layer">
         {hoverStrands && segments.map((s, i) => (
@@ -89,19 +111,7 @@ export function DecorationPaintLayer({
             pointerEvents="none"
           />
         ))}
-        {segments.map((s, i) => (
-          <line
-            key={i}
-            x1={s.from.x} y1={s.from.y} x2={s.to.x} y2={s.to.y}
-            stroke="transparent"
-            strokeWidth={hitWidth}
-            strokeLinecap="round"
-            style={{ cursor: BUCKET_CURSOR }}
-            onPointerEnter={() => setHoverStrands(true)}
-            onPointerLeave={() => setHoverStrands(false)}
-            onPointerDown={e => { e.stopPropagation(); onPaintStrands() }}
-          />
-        ))}
+        {strandHits}
       </g>
     )
   }

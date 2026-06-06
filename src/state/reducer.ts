@@ -1,6 +1,6 @@
 import type { CurveConfig, CurvePoint, FigureConfig, PatternConfig } from '../types/pattern'
 import type { CurveTarget } from './actions'
-import type { EditorCell, EditorConfig, EditorTile } from '../types/editor'
+import type { EditorCell, EditorConfig, EditorRegularTile, EditorTile } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import type { Action } from './actions'
 import { TILINGS } from '../tilings/index'
@@ -337,12 +337,25 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       // Seed Tile only. With `noSeed` on, the Cell stays empty — the field
       // still tracks `seedSides` so toggling no-Seed back off restores the
       // user's preferred Seed shape.
-      const edgeLength = state.editor.edgeLength
-      return applyWrap(seedFigures(updateActiveCell(state, cell => ({
-        ...cell,
-        seedSides: sides,
-        tiles: cell.noSeed ? [] : [createSeedTile(sides, edgeLength)],
-      }))))
+      return applyWrap(seedFigures(updateActiveCell(state, cell => {
+        if (cell.noSeed) return { ...cell, seedSides: sides, tiles: [] }
+        // Preserve the current Seed Tile's own edge length + rotation rather
+        // than snapping to `patch.edgeLength`. In a composite Patch the
+        // boundary-size slider rescales `patch.edgeLength` while leaving each
+        // Cell's Seed Tile size untouched (see SET_CELL_BOUNDARY_SIZE), so the
+        // two drift apart; reading `patch.edgeLength` here would resize the
+        // Seed on a sides change. Fall back to `patch.edgeLength` only when
+        // there's no existing Seed to read from.
+        const prevSeed = cell.tiles.find(
+          (t): t is EditorRegularTile => t.kind === 'regular' && t.source === 'seed',
+        )
+        const seed = createSeedTile(sides, prevSeed?.edgeLength ?? state.editor!.edgeLength)
+        return {
+          ...cell,
+          seedSides: sides,
+          tiles: [{ ...seed, rotation: prevSeed?.rotation ?? seed.rotation }],
+        }
+      })))
     }
     case 'EDITOR_PLACE_TILE_ON_EDGE': {
       if (!state.editor) return state

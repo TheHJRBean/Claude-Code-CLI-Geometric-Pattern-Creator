@@ -227,6 +227,65 @@ export interface FrameConfig {
 }
 
 /**
+ * Step 19 — Decoration Phase **Grouping scope** (CONTEXT.md, ADR-0005).
+ *
+ * The rung deciding how many targets share one colour, coarse → fine:
+ * - `'congruent'` — every same-shape target, anywhere (Stage 1).
+ * - `'patch'`     — targets at the same position in the Patch repeat unit
+ *                   (Lattice orbit). *Stage 2.*
+ * - `'cell'`      — targets within a Cell, grouped by that Cell's symmetry
+ *                   orbit. *Stage 2.*
+ * - `'instance'`  — one specific target, no grouping. *Stage 3.*
+ *
+ * Stage 1 only ever emits `'congruent'`; the others are reserved so the
+ * schema doesn't change when the later rungs land.
+ */
+export type GroupingScope = 'congruent' | 'patch' | 'cell' | 'instance'
+
+/**
+ * Step 19 — one Decoration colour assignment (ADR-0005). The same shape backs
+ * every rung of the **Grouping scope** ladder; only the meaning of `key`
+ * changes per `scope`. Because `key` is *identity* (not a world position),
+ * colours stay stable as the field pans (which is what lets Decoration run
+ * over a viewport bound, not only a **Frame**).
+ */
+export interface ColourRecord {
+  /** Which Grouping-scope rung this assignment binds at. Stage 1 = `'congruent'`. */
+  scope: GroupingScope
+  /**
+   * Identity key, interpreted per `scope`:
+   * - `congruent` → a stable shape signature (`'*'` for "all strands");
+   * - `patch`     → Lattice-orbit id   (Stage 2);
+   * - `cell`      → Cell-symmetry-orbit id (Stage 2);
+   * - `instance`  → world-space id     (Stage 3).
+   */
+  key: string
+  /** CSS colour string applied to every target in this group. */
+  colour: string
+}
+
+/**
+ * Step 19 — the Builder **Decoration** Phase's data (ADR-0005). Lives on
+ * `EditorConfig.decoration` (Builder-only; the Gallery is not decorated).
+ * Optional; absent ⇒ no decoration (Strands fall back to the global
+ * `StrandStyle`, Voids show the canvas background).
+ *
+ * Two independently-scoped targets: **Strand colour** and **Void Fill**. Both
+ * are ladder-ready `ColourRecord[]`; Stage 1 populates only `scope: 'congruent'`
+ * entries (`strandColours` has at most one `key: '*'` record; `voidFills` has
+ * one record per painted congruent Void shape signature).
+ */
+export interface DecorationConfig {
+  /** Inner schema version for the decoration block. */
+  version: 1
+  /** Strand-colour assignments. Overrides `PatternConfig.strand.color` for
+   * Builder render when a matching record exists. */
+  strandColours: ColourRecord[]
+  /** Void-fill assignments, keyed by Void shape signature in Stage 1. */
+  voidFills: ColourRecord[]
+}
+
+/**
  * A Patch — one repeat unit of the tiled Composition. Always carries one or
  * more **Cells** (ADR-0001: every Patch always has Cells). The Patch level
  * holds the shared **Lattice** edge length, the active-Cell pointer for
@@ -253,6 +312,9 @@ export interface EditorPatch {
   /** Step 17 Framing — the **Frame** wrapping the Composition. Optional;
    * absent ⇒ no Frame. Set in the Framing Phase. */
   frame?: FrameConfig
+  /** Step 19 — Decoration Phase colour assignments (ADR-0005). Optional;
+   * absent ⇒ no decoration. Builder-only. */
+  decoration?: DecorationConfig
   /**
    * Multi-cell "Alternate orientation": when true, the whole Patch is rotated
    * *rigidly* by a Configuration-specific angle (`compositionAlternateAngle`) —

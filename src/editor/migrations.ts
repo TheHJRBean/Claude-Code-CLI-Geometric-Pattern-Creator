@@ -1,6 +1,8 @@
 import type {
   CellShape,
+  ColourRecord,
   ConfigurationId,
+  DecorationConfig,
   EditorAutoCompleteSettings,
   EditorCell,
   EditorConfig,
@@ -10,12 +12,14 @@ import type {
   FrameConfig,
   FrameShape,
   FrameType,
+  GroupingScope,
   SymmetryMode,
 } from '../types/editor'
 
 const SYMMETRY_MODES = new Set<SymmetryMode>(['full', 'rotation', 'vertical', 'horizontal', 'none'])
 const FRAME_TYPES = new Set<FrameType>(['shape', 'n-ring'])
 const FRAME_SHAPES = new Set<FrameShape>(['square', 'pentagon', 'hexagon', 'octagon'])
+const GROUPING_SCOPES = new Set<GroupingScope>(['congruent', 'patch', 'cell', 'instance'])
 
 /**
  * Step 17.8 — load-time validation + migration for `EditorConfig`.
@@ -147,6 +151,41 @@ function migrateFrame(raw: unknown): FrameConfig | undefined {
     if (tiles.length) out.completedTiles = tiles
   }
   return out
+}
+
+/** Step 19 — validate one persisted `ColourRecord`. Invalid records are
+ * dropped (returns null), never crash the load. */
+function migrateColourRecord(raw: unknown): ColourRecord | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const r = raw as Record<string, unknown>
+  if (!GROUPING_SCOPES.has(r.scope as GroupingScope)) return null
+  if (typeof r.key !== 'string' || r.key.length === 0) return null
+  if (typeof r.colour !== 'string' || r.colour.length === 0) return null
+  return { scope: r.scope as GroupingScope, key: r.key, colour: r.colour }
+}
+
+/** Step 19 — validate a persisted `DecorationConfig` (ADR-0005). Malformed
+ * decoration drops to `undefined` (no decoration), never crashes the load.
+ * Individual bad colour records are filtered out rather than failing the
+ * whole block. */
+function migrateDecoration(raw: unknown): DecorationConfig | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined
+  const r = raw as Record<string, unknown>
+  if (r.version !== 1) return undefined
+  const readRecords = (v: unknown): ColourRecord[] => {
+    if (!Array.isArray(v)) return []
+    const out: ColourRecord[] = []
+    for (const rec of v) {
+      const record = migrateColourRecord(rec)
+      if (record) out.push(record)
+    }
+    return out
+  }
+  return {
+    version: 1,
+    strandColours: readRecords(r.strandColours),
+    voidFills: readRecords(r.voidFills),
+  }
 }
 
 /**
@@ -297,6 +336,8 @@ function migrateV3(r: Record<string, unknown>): EditorConfig | null {
   if (ac) out.autoComplete = ac
   const frame = migrateFrame(r.frame)
   if (frame) out.frame = frame
+  const decoration = migrateDecoration(r.decoration)
+  if (decoration) out.decoration = decoration
   // Multi-cell alternate moved from per-Cell `alternateBoundary` to the
   // Patch-level `alternateOrientation` (rigid whole-Patch rotation). Convert
   // legacy multi-cell patches that still carry the per-Cell flag, and clear it

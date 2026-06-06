@@ -10,7 +10,9 @@
 
 > ⚠️ **STAGE 1 ONLY.** Build ladder-ready (`{scope,key,colour}` records) but ship only the Congruent rung. Deferred: Patch/Cell/Instance rungs, lacing/weaving v2, image tools.
 
-**NEXT when building:** start at Step 19.0 (`DecorationConfig` type + `editor.decoration` field + migration), then **19.1 spike** — the hard part: global **Void extraction** (planar arrangement / DCEL over all Rays incl. Bézier; flatten curves; congruent shape signature). Nothing computes enclosed regions today (pipeline only emits per-polygon `Segment[]`). User explicitly chose to **stop grilling and move to build**.
+**✅ 19.0 DONE (2026-06-06).** `GroupingScope` / `ColourRecord` / `DecorationConfig` types + `EditorPatch.decoration?` field (`src/types/editor.ts`); `migrateDecoration` + `migrateColourRecord` validators wired into `migrateV3` (`src/editor/migrations.ts`) — absent ⇒ undefined, version-gated, bad records filtered, malformed block dropped. Round-trips via both load paths (`configValidation` + `labDefaults`). Tests: `src/editor/migrations.test.ts` (7). `tsc` clean, **210 vitest** (203→210), build green.
+
+**NEXT — 19.1 spike (the hard part):** global **Void extraction** (planar arrangement / DCEL over all Rays incl. Bézier; flatten curves; congruent shape signature). Nothing computes enclosed regions today (pipeline only emits per-polygon `Segment[]`). See `TESSELLATION_REVAMP_PLAN.md` Step 19.1. Then 19.2 render path, 19.3 Paint mode UI.
 
 ---
 

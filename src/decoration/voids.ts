@@ -1,0 +1,349 @@
+import type { Vec2 } from '../utils/math'
+import { centroid, cross, dist, dot, sub } from '../utils/math'
+
+/**
+ * Step 19.1 — global **Void** extraction (ADR-0005, TESSELLATION_REVAMP_PLAN
+ * Step 19). A **Void** is a bounded face of the *global* arrangement of all
+ * the rendered **Rays** (here taken as straight `Segment`s — curves are a
+ * render-time overlay and the spec's default is to flatten). This module
+ * builds a planar subdivision over the segments + a bounding outline and walks
+ * its faces, returning each interior face plus a rotation/translation/
+ * reflection-invariant **congruent signature** so that "all similar Voids"
+ * can be coloured together (the Stage-1 Grouping scope).
+ *
+ * SPIKE SCOPE / known limitations (to address in 19.2+):
+ * - **Connected arrangement assumed.** Faces with holes (an isolated strand
+ *   loop floating inside another face, disconnected from the bound) are not
+ *   composed into face+hole; each loop is returned as its own cycle. PIC
+ *   strand networks are usually connected within a region, but a Void fully
+ *   enclosed by a ring that doesn't touch the bound is the canonical gap.
+ * - **Spurs** (dangling segment ends inside a face) are traced out-and-back
+ *   into the face cycle as a zero-area spike, perturbing that Void's signature.
+ * - **Convex bound only** (rectangle / shape Frame). n-ring (non-convex)
+ *   outlines need per-edge clipping that isn't implemented here.
+ */
+
+export interface VoidRegion {
+  /** CCW outline of the Void (flattened straight edges). */
+  polygon: Vec2[]
+  /** Absolute area in world units². */
+  area: number
+  /** Congruent signature: equal iff two Voids are congruent (same shape+size,
+   * up to rotation / translation / reflection). 8 hex chars. */
+  signature: string
+}
+
+export interface ExtractVoidsOptions {
+  /** Vertex-identity snap distance (world units). Points closer than this fuse
+   * to one arrangement vertex. Default 1e-3. */
+  snap?: number
+  /** Edge-length quantisation for the congruent signature (world units).
+   * Default 0.5. */
+  lengthSnap?: number
+  /** Turn-angle quantisation for the congruent signature (radians).
+   * Default ~0.5°. */
+  angleSnap?: number
+  /** Drop Voids whose area is below this (suppresses sliver faces from
+   * near-degenerate crossings). Default 1e-3. */
+  minArea?: number
+}
+
+interface Seg { a: Vec2; b: Vec2 }
+
+const DEFAULTS = {
+  snap: 1e-3,
+  lengthSnap: 0.5,
+  angleSnap: (0.5 * Math.PI) / 180,
+  minArea: 1e-3,
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Convex-bound clipping (Cyrus–Beck)
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Clip segment `a`→`b` to the interior of a convex polygon `bound`. Returns the
+ * clipped segment, or null if it lies entirely outside (or degenerates to a
+ * point). Winding-agnostic — the inward side is taken as the one containing the
+ * bound centroid.
+ */
+export function clipSegmentToConvex(a: Vec2, b: Vec2, bound: Vec2[]): Seg | null {
+  const c = centroid(bound)
+  const d = sub(b, a)
+  let tEnter = 0
+  let tLeave = 1
+  for (let i = 0; i < bound.length; i++) {
+    const v0 = bound[i]
+    const v1 = bound[(i + 1) % bound.length]
+    const edge = sub(v1, v0)
+    // Inward normal: perpendicular to the edge, oriented toward the centroid.
+    let n = { x: -edge.y, y: edge.x }
+    if (dot(n, sub(c, v0)) < 0) n = { x: -n.x, y: -n.y }
+    const num = dot(n, sub(a, v0)) // n·(a - v0)
+    const den = dot(n, d)          // n·(b - a)
+    if (Math.abs(den) < 1e-12) {
+      // Parallel to this edge: reject only if a is on the outside.
+      if (num < 0) return null
+      continue
+    }
+    const t = -num / den
+    if (den > 0) {
+      if (t > tEnter) tEnter = t
+    } else {
+      if (t < tLeave) tLeave = t
+    }
+    if (tEnter > tLeave) return null
+  }
+  if (tLeave - tEnter < 1e-9) return null
+  return {
+    a: { x: a.x + d.x * tEnter, y: a.y + d.y * tEnter },
+    b: { x: a.x + d.x * tLeave, y: a.y + d.y * tLeave },
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Arrangement + face extraction
+// ─────────────────────────────────────────────────────────────────────────
+
+const snapKey = (p: Vec2, snap: number): string =>
+  `${Math.round(p.x / snap)},${Math.round(p.y / snap)}`
+
+/** Parameter t∈[0,1] of point `p` projected onto segment a→b, or null if `p`
+ * isn't on the segment (within `tol`). */
+function paramOnSegment(p: Vec2, a: Vec2, b: Vec2, tol: number): number | null {
+  const d = sub(b, a)
+  const L2 = dot(d, d)
+  if (L2 < tol * tol) return null
+  const t = dot(sub(p, a), d) / L2
+  if (t < -tol || t > 1 + tol) return null
+  const proj = { x: a.x + d.x * t, y: a.y + d.y * t }
+  if (dist(proj, p) > tol) return null
+  return Math.max(0, Math.min(1, t))
+}
+
+/** Proper (non-parallel) intersection of a→b and c→d. Returns t on a→b if both
+ * params lie within [0,1]; else null. */
+function intersectParam(a: Vec2, b: Vec2, c: Vec2, dd: Vec2): number | null {
+  const r = sub(b, a)
+  const s = sub(dd, c)
+  const denom = cross(r, s)
+  if (Math.abs(denom) < 1e-12) return null
+  const t = cross(sub(c, a), s) / denom
+  const u = cross(sub(c, a), r) / denom
+  if (t < -1e-9 || t > 1 + 1e-9 || u < -1e-9 || u > 1 + 1e-9) return null
+  return Math.max(0, Math.min(1, t))
+}
+
+interface Vertex {
+  pt: Vec2
+  outs: { toKey: string; angle: number }[]
+}
+
+/**
+ * Extract the bounded Voids of the arrangement of `segments`, clipped to a
+ * convex `bound` outline (viewport bbox or Shape-Frame outline). Each Void
+ * carries a congruent `signature`.
+ */
+export function extractVoids(
+  segments: { from: Vec2; to: Vec2 }[],
+  bound: Vec2[],
+  options: ExtractVoidsOptions = {},
+): VoidRegion[] {
+  const snap = options.snap ?? DEFAULTS.snap
+  const lengthSnap = options.lengthSnap ?? DEFAULTS.lengthSnap
+  const angleSnap = options.angleSnap ?? DEFAULTS.angleSnap
+  const minArea = options.minArea ?? DEFAULTS.minArea
+
+  // 1. Clip input segments to the bound; add the bound's own edges so faces
+  //    close at the boundary.
+  const segs: Seg[] = []
+  for (const s of segments) {
+    const clipped = clipSegmentToConvex(s.from, s.to, bound)
+    if (clipped) segs.push(clipped)
+  }
+  for (let i = 0; i < bound.length; i++) {
+    segs.push({ a: bound[i], b: bound[(i + 1) % bound.length] })
+  }
+
+  // 2. Split every segment at its intersections / T-junctions with the others.
+  const verts = new Map<string, Vertex>()
+  const edgeSet = new Set<string>()
+
+  const canonPt = (p: Vec2): { key: string; pt: Vec2 } => {
+    const key = snapKey(p, snap)
+    let v = verts.get(key)
+    if (!v) { v = { pt: p, outs: [] }; verts.set(key, v) }
+    return { key, pt: v.pt }
+  }
+
+  for (let i = 0; i < segs.length; i++) {
+    const { a, b } = segs[i]
+    const ts: number[] = [0, 1]
+    for (let j = 0; j < segs.length; j++) {
+      if (j === i) continue
+      const { a: c, b: d } = segs[j]
+      const ti = intersectParam(a, b, c, d)
+      if (ti !== null) ts.push(ti)
+      // T-junctions + collinear overlaps: j's endpoints lying on i.
+      const tc = paramOnSegment(c, a, b, snap)
+      if (tc !== null) ts.push(tc)
+      const td = paramOnSegment(d, a, b, snap)
+      if (td !== null) ts.push(td)
+    }
+    ts.sort((x, y) => x - y)
+    let prev: { key: string; pt: Vec2 } | null = null
+    let prevT = -1
+    for (const t of ts) {
+      if (t - prevT < 1e-9) continue
+      prevT = t
+      const p = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }
+      const cur = canonPt(p)
+      if (prev && prev.key !== cur.key) {
+        const ek = prev.key < cur.key ? `${prev.key}|${cur.key}` : `${cur.key}|${prev.key}`
+        if (!edgeSet.has(ek)) {
+          edgeSet.add(ek)
+          const pv = verts.get(prev.key)!
+          const cv = verts.get(cur.key)!
+          pv.outs.push({ toKey: cur.key, angle: Math.atan2(cur.pt.y - prev.pt.y, cur.pt.x - prev.pt.x) })
+          cv.outs.push({ toKey: prev.key, angle: Math.atan2(prev.pt.y - cur.pt.y, prev.pt.x - cur.pt.x) })
+        }
+      }
+      prev = cur
+    }
+  }
+
+  if (edgeSet.size === 0) return []
+  for (const v of verts.values()) v.outs.sort((p, q) => p.angle - q.angle)
+
+  // 3. Walk half-edges into face cycles. `next` of (u→v) is the outgoing edge
+  //    at v immediately clockwise from the direction (v→u) — the standard
+  //    DCEL face trace. Bounded faces come out with one consistent winding;
+  //    the single outer (unbounded) face has the largest |area| and is dropped.
+  const visited = new Set<string>()
+  const cycles: Vec2[][] = []
+  const maxSteps = edgeSet.size * 2 + 4
+
+  for (const [fromKey, v] of verts) {
+    for (const o of v.outs) {
+      const startHe = `${fromKey}->${o.toKey}`
+      if (visited.has(startHe)) continue
+      const cycle: Vec2[] = []
+      let curFrom = fromKey
+      let curTo = o.toKey
+      let steps = 0
+      while (steps++ < maxSteps) {
+        const he = `${curFrom}->${curTo}`
+        if (visited.has(he)) break
+        visited.add(he)
+        cycle.push(verts.get(curFrom)!.pt)
+        // At curTo, pick next clockwise from direction (curTo→curFrom).
+        const vTo = verts.get(curTo)!
+        const back = Math.atan2(
+          verts.get(curFrom)!.pt.y - vTo.pt.y,
+          verts.get(curFrom)!.pt.x - vTo.pt.x,
+        )
+        const outs = vTo.outs
+        let best: { toKey: string; angle: number } | null = null
+        let bestAng = -Infinity
+        let globalMax: { toKey: string; angle: number } | null = null
+        let globalMaxAng = -Infinity
+        for (const e of outs) {
+          if (e.angle > globalMaxAng) { globalMaxAng = e.angle; globalMax = e }
+          if (e.angle < back - 1e-9 && e.angle > bestAng) { bestAng = e.angle; best = e }
+        }
+        const nxt = best ?? globalMax!
+        curFrom = curTo
+        curTo = nxt.toKey
+        if (curFrom === fromKey && curTo === o.toKey) break
+      }
+      if (cycle.length >= 3) cycles.push(cycle)
+    }
+  }
+
+  if (cycles.length === 0) return []
+
+  // 4. Drop the outer face (max |signed area|); keep the rest as Voids.
+  const areas = cycles.map(signedArea)
+  let outerIdx = 0
+  for (let i = 1; i < cycles.length; i++) {
+    if (Math.abs(areas[i]) > Math.abs(areas[outerIdx])) outerIdx = i
+  }
+
+  const voids: VoidRegion[] = []
+  for (let i = 0; i < cycles.length; i++) {
+    if (i === outerIdx) continue
+    const area = Math.abs(areas[i])
+    if (area < minArea) continue
+    const poly = areas[i] < 0 ? cycles[i].slice().reverse() : cycles[i]
+    voids.push({ polygon: poly, area, signature: voidSignature(poly, lengthSnap, angleSnap) })
+  }
+  return voids
+}
+
+function signedArea(poly: Vec2[]): number {
+  let a = 0
+  for (let i = 0; i < poly.length; i++) {
+    const j = (i + 1) % poly.length
+    a += poly[i].x * poly[j].y - poly[j].x * poly[i].y
+  }
+  return a / 2
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Congruent signature
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Rotation/translation/reflection-invariant signature of a polygon outline.
+ * Two polygons are congruent iff their signatures match.
+ *
+ * Built from the cyclic sequence of **interior angles** (intrinsic — preserved
+ * by rotation, translation *and* reflection, and >π at reflex corners) and
+ * **edge lengths**, quantised, laid out as one alternating
+ * `a…,e…,a…,e…` token ring. Canonicalised as the lexicographically-smallest
+ * rotation over the ring and its reversal (start-vertex + traversal-direction
+ * freedom). Interior angles are measured on the CCW-normalised polygon so the
+ * value doesn't depend on the input winding.
+ */
+export function voidSignature(poly: Vec2[], lengthSnap: number, angleSnap: number): string {
+  // Normalise to CCW so interior angle = π − signedTurn is well-defined.
+  const ccw = signedArea(poly) < 0 ? poly.slice().reverse() : poly
+  const n = ccw.length
+  const tokens: string[] = [] // alternating a<angle>, e<edge>, … (length 2n)
+  for (let i = 0; i < n; i++) {
+    const prev = ccw[(i - 1 + n) % n]
+    const cur = ccw[i]
+    const next = ccw[(i + 1) % n]
+    const inDir = sub(cur, prev)
+    const outDir = sub(next, cur)
+    const turn = Math.atan2(cross(inDir, outDir), dot(inDir, outDir)) // (−π, π]
+    const interior = Math.PI - turn // (0, 2π), >π at reflex corners
+    tokens.push(`a${Math.round(interior / angleSnap)}`)
+    tokens.push(`e${Math.round(dist(cur, next) / lengthSnap)}`)
+  }
+  return hash8(minRotation(tokens))
+}
+
+/** Lexicographically-smallest rotation of a token ring or its reversal. */
+function minRotation(tokens: string[]): string {
+  const m = tokens.length
+  const rev = tokens.slice().reverse()
+  let best: string | null = null
+  for (const ring of [tokens, rev]) {
+    for (let s = 0; s < m; s++) {
+      const rot = ring.slice(s).concat(ring.slice(0, s)).join(';')
+      if (best === null || rot < best) best = rot
+    }
+  }
+  return best ?? ''
+}
+
+/** FNV-1a → 8 hex chars. */
+function hash8(s: string): string {
+  let h = 0x811c9dc5
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return (h >>> 0).toString(16).padStart(8, '0')
+}

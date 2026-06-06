@@ -828,6 +828,11 @@ emitted the same way, and **export must use DOM export, not `segmentsRef`**).
 
 - New **Decoration** phase entry in the Builder phase switcher (after
   Composition). Gate identical to other phases.
+- **Style-only — hide `FigureControls` in Decoration** (decided 2026-06-06,
+  ADR-0005). Strand geometry (angle/length/curve/recipe) is frozen; those
+  controls belong to Composition. Decoration shows only the colour tools
+  (Paint tool + active colour). Reshaping a strand = phase-switch back to
+  Composition.
 - **Paint tool** toggle → enters **Paint mode** → bucket cursor.
 - **Active colour** picker beside the tool.
 - **Affected-group highlight:** on hover over a paintable target, faintly tint

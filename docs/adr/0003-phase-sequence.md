@@ -15,3 +15,7 @@ Framing is **no longer a Phase**. The live (and canonical) sequence is now **Des
 - **Complete-to-frame is no longer a bespoke operation.** The frame simply exposes its edge **Frame nodes** (and corners) as clickable targets in the existing **Complete** mode. A Complete that touches a frame node stores its Tile **frame-scoped** (world space, on `frame.completedTiles`), so it sits at the frame edge without repeating under the **Lattice**. The dedicated ring-stamper (`placeRegularNGonOnFrameSection` / `frameCornerStubTiles` / `EDITOR_COMPLETE_TO_FRAME`) is removed.
 
 The ADR-0002 rationale (Complete vs Fill, Fill reserved for Decoration) is unaffected.
+
+## Amendment (2026-06-06): Decoration no longer hard-requires a Frame
+
+The original rationale above stated Framing precedes Decoration because "Decoration's colour-fill operations need a defined region to operate on — the frame defines that region." That is now relaxed: Decoration's **Voids** are coloured by an **identity-keyed Grouping scope** (not by world position), so a colour stays stable regardless of which finite region is currently shown. The **Frame** is therefore the *preferred* bound — it gives a clean exportable artifact — but Decoration may also run over the current **viewport** when no Frame is set. The phase *ordering* is unchanged (Decoration is still last); only the hard dependency is dropped. See ADR-0005 for the Void and grouping model.

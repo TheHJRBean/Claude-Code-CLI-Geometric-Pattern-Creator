@@ -4,6 +4,16 @@
 
 ## ▶ RESUME HERE
 
+**📐 DOCS (2026-06-06) — Decoration Phase Stage-1 model grilled + spec'd (no code yet).** A grill-with-docs pass nailed the Decoration model. Canonical homes: `docs/adr/0005-decoration-void-and-grouping.md` (new), `docs/adr/0003` amendment (Frame no longer required), `CONTEXT.md` (new entries **Void / Fill / Grouping scope / Paint mode**; sharpened **Decoration**), and the **build spec** in `TESSELLATION_REVAMP_PLAN.md` **Step 19** (sub-steps 19.0–19.4 + acceptance). Memory `project_decoration_stage_idea.md` bumped RAW → SCOPED.
+
+**Locked decisions (D1–D7, see ADR-0005):** Builder-only Phase (`editor.decoration`), Gallery untouched · two targets **Strand colour** + **Void Fill** · a **Void** = bounded face of the *global* strand arrangement (spans tiles) · bound = **Frame preferred, NOT required** (viewport fallback) · **Grouping scope** ladder Congruent→Patch→Cell→Instance, identity-keyed, independent per target, **Stage 1 = Congruent only** · Strand colour = new record overriding `StrandStyle.color` · interaction = **Paint mode** (bucket cursor, active colour, click recolours whole congruent group, faint hover highlight, perf-gated → first-click fallback).
+
+> ⚠️ **STAGE 1 ONLY.** Build ladder-ready (`{scope,key,colour}` records) but ship only the Congruent rung. Deferred: Patch/Cell/Instance rungs, lacing/weaving v2, image tools.
+
+**NEXT when building:** start at Step 19.0 (`DecorationConfig` type + `editor.decoration` field + migration), then **19.1 spike** — the hard part: global **Void extraction** (planar arrangement / DCEL over all Rays incl. Bézier; flatten curves; congruent shape signature). Nothing computes enclosed regions today (pipeline only emits per-polygon `Segment[]`). User explicitly chose to **stop grilling and move to build**.
+
+---
+
 **✅ SHIPPED + MERGED (2026-06-06) — Builder perf, Lever A default-on.** Branch `perf/builder-render-memoization` was **fast-forward merged into `main` and pushed** (`main` now at `2e26569`). Carries: Findings 1+2 (render memoization), the diagnostic HUD, **Lever A periodicity fast-path (now DEFAULT-ON)**, and the `compositionPeriodicity` test. Canonical detail + two-axis cost model in `memory/project_builder_performance_idea.md`. `tsc` + 203 vitest + build all green.
 
 **What Lever A does + the 2026-06-06 verify.** Renders ONE fundamental domain (PIC + buildStrands on the base patch, reusing `editorBase.baseSegments`) tiled via SVG `<use>`, gated to provably-exact cases (single-cell, rotation-0 stamps, no vertex-lines/frame/boundary-lattice; else falls back to full PIC). **User browser-verified on a heavy single-cell Composition pan: 15fps / 64ms-PIC → smooth 60fps with pic/strand ms ≈ 0.** So this supersedes the old 2026-06-05 pessimism ("pan barely improved") — pan/zoom on covered configs is now SOLVED. Default flipped to on in `utils/perf.ts::periodicityEnabled` (opt out `localStorage.perfPeriodicity='0'` or `?perfPeriodicityOff`).

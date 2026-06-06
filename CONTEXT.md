@@ -31,7 +31,8 @@ A Shape-type Frame also acts as a **completion boundary**, but with no bespoke o
 _Avoid_: crop, mask, clip, window (those are mechanisms or metaphors, not the noun); "Tiling frame" / "Shape frame" (rejected — one noun, Frame, with a type); bare "node" (use **Frame node** for the seed-spaced division points); "Framing phase" (the Frame is a persistent overlay, not a Phase)
 
 **Decoration** _(Phase, reserved)_:
-Final Phase where the user assigns line colours, gap fills, and reintroduced strand weaving. Not yet implemented — placeholder name only. The future **Fill** vocabulary lives here (colour-fill of gaps), which is why the Design-phase operation is called **Complete**, not Fill.
+Final Phase where the user assigns line colours, gap fills, and reintroduced strand weaving. Not yet implemented — placeholder name only. The future **Fill** vocabulary lives here (colour-fill of gaps), which is why the Design-phase operation is called **Complete**, not Fill. **Builder-only**: Decoration is the third Builder Phase and its data lives on `editor.decoration`. The **Gallery** is *not* decorated — it keeps the single global **StrandStyle** (`PatternConfig.strand`) as its only "look" control. (This resolves the older idea-memo framing of Decoration as a universal Gallery+Builder finishing stage — rejected; it is a Builder Phase.) Its two Stage-1 targets are **Strand colour** and **Void Fill**, each with an independent **Grouping scope**. A **Frame** is the *preferred* bound (it gives a clean exportable artifact) but is **not required** — absent a Frame, the **Void** arrangement is computed over the current viewport (the identity-keyed colours stay stable as you pan). This relaxes ADR-0003's "Decoration needs the Frame as its region" — see the ADR-0003 amendment.
+_Avoid_: "finishing stage" / "post-generation pipeline" as if it wraps the Gallery — Decoration is scoped to the Builder
 
 **Phase-switch**:
 The act of moving between phases (e.g. Design → Composition). The cross-cutting verb. Replaces the older code term "flip". Triggers like auto-complete are named after the destination phase ("auto-complete on phase-switch to Composition").
@@ -85,6 +86,22 @@ _Avoid_: figure config (in conversation; the type name `FigureConfig` stays in c
 **Strand**:
 A chain of linked **Rays** that runs across polygons in the rendered pattern. Strands are what the eye follows as continuous interlaced lines. Distinct from a Ray (atomic piece) and from a Figure (per-polygon assembly).
 _Avoid_: line, polyline, path (when referring to the linked output)
+
+**Void**:
+A region of the rendered **Composition** enclosed by **Strands** — a bounded face of the strand arrangement (the planar graph the Rays form). The thing the **Decoration** Phase **Fill**s with colour. Strictly distinct from a Design-phase *gap* (the un-tiled area inside a **Cell** that **Complete** fills with **Tiles**) — different concept, different operation, deliberately a different word so "gap" and "Void" never collide. Two Voids are **similar** when they are **congruent** (same shape + size); the Stage-1 "colour all similar Voids" control fills every congruent Void together. (Lattice/symmetry-orbit grouping is a later, stricter refinement — not Stage 1.)
+_Avoid_: gap (reserved for the Design/Complete tile-gap), cell/region/interstice (rejected — the canonical noun is **Void**), background (the canvas backdrop is `StrandStyle.background`, not a Void)
+
+**Fill** _(Decoration operation)_:
+The Decoration-Phase operation that colours a **Void**. The name was reserved for exactly this since ADR-0002 (which is why the Design-phase tile-gap operation is **Complete**, not Fill). Fill colours Voids; it never adds geometry. The companion operation that colours **Strands** is **Strand colour** (extends the existing global `StrandStyle.color` down the **Grouping scope** ladder). Both are scoped independently — see **Grouping scope**. Both are applied through **Paint mode**.
+_Avoid_: "paint a Void" / "paint" as a bare synonym for the Void operation (the operation is **Fill**); colour-fill (casual ok); complete (that's the Design tile operation)
+
+**Paint mode** _(Decoration interaction)_:
+The Decoration interaction mode the user enters by selecting the **Paint tool** (signalled by a bucket cursor) with an *active colour* set. Clicking a target applies the active colour to that target's whole **Grouping scope** group — performing a **Fill** when the target is a **Void** and a **Strand colour** when it is a **Strand**. The affected group is shown with a faint **affected-group highlight** before commit (on hover if performant, else on first click). "Paint" names the *mode*; it is **not** a synonym for the **Fill** operation.
+_Avoid_: paint bucket / fill tool (UI nicknames ok, but the canonical mode is **Paint mode**, the canonical Void operation is **Fill**)
+
+**Grouping scope** _(Decoration)_:
+The rung that decides how many targets share one colour, on a coarse→fine ladder: **Congruent** (every same-shape target, anywhere) → **Patch** (targets at the same position within the **Patch** repeat unit, i.e. the **Lattice** orbit) → **Cell** (targets within a **Cell**, grouped by that Cell's **symmetry** orbit) → **Instance** (one specific target, no grouping). **Strand colour** and **Void Fill** each carry their **own independent** Grouping scope (e.g. Congruent strands over per-Cell Voids). Stage 1 ships **Congruent** for both; the others land behind toggles later. Implementation-wise every rung is just a different identity *key* on one shared `{ scope, key, colour }` record — and because the key is *identity*, not world position, colours stay stable as the field pans (which is what lets Decoration run over a viewport bound, not only a **Frame**).
+_Avoid_: granularity / level / tier (use "scope"); "per-class" (ambiguous — name the rung)
 
 **Lacing**:
 The over/under interlace effect rendered on top of **Strands** to give the woven appearance. Standard term in Islamic-geometry literature. The current implementation is non-functional; lacing will be removed and reintroduced under the **Decoration** phase. Reserved term — kept in CONTEXT.md because the word is unambiguous and load-bearing in the literature.

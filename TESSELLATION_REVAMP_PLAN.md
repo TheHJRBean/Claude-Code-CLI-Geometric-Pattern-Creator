@@ -694,6 +694,169 @@ From the live tree:
 
 ---
 
+## ⭐ Step 19 — Decoration Phase (Stage 1: Congruent colour)
+
+**Status (2026-06-06):** Model grilled + signed off. Canonical decisions live
+in `docs/adr/0005-decoration-void-and-grouping.md`, the `docs/adr/0003`
+amendment, and `CONTEXT.md` (entries: **Decoration**, **Void**, **Fill**,
+**Grouping scope**, **Paint mode**). This Step section is the **build spec**.
+
+> ⚠️ **THIS IS STAGE 1 OF A MULTI-STAGE FEATURE.** Stage 1 ships only the
+> **Congruent** rung of the Grouping-scope ladder for both targets. The data
+> model, render path, and UI must all be built **ladder-ready** — i.e. every
+> colour is stored as a `{ scope, key, colour }` record and Stage 1 simply
+> only ever emits `scope: 'congruent'`. Do **not** hard-code a congruent-only
+> shape; the later stages (Patch / Cell-symmetry / Instance) and weaving must
+> drop in without a schema rewrite. See "Deferred stages" at the end.
+
+### What Decoration is
+
+The third Builder **Phase** (sequence: Design → Composition → **Decoration**).
+**Builder-only** — data lives on `editor.decoration`; the **Gallery** is not
+decorated (it keeps the single global `StrandStyle`). The user colours two
+targets:
+
+- **Strands** — via **Strand colour**.
+- **Voids** — via **Fill**. A **Void** is a bounded face of the *global* strand
+  arrangement (it can span several Tiles; the region where four tiles meet is
+  **one** Void).
+
+Both are applied through **Paint mode** (a bucket-cursor tool with an active
+colour). Both carry an **independent** Grouping scope. Stage 1 = **Congruent**
+for both: clicking a target recolours every congruent member (same shape+size
+for Voids; "all strands" for the coarsest strand rung).
+
+### Locked decisions (recap — see ADR-0005 for rationale)
+
+| # | Decision | Note |
+|---|----------|------|
+| D1 | Builder-only Phase, data on `editor.decoration` | Gallery untouched |
+| D2 | Two targets: Strand colour + Void Fill | independent scopes |
+| D3 | Void = **global** arrangement face (not per-tile clipped) | spans tiles |
+| D4 | Bound = **Frame preferred, not required**; viewport fallback | relaxes ADR-0003 |
+| D5 | Grouping ladder Congruent→Patch→Cell→Instance, identity-keyed | Stage 1 = Congruent |
+| D6 | Strand colour = `editor.decoration` record that **overrides** `StrandStyle.color`; the global stays the Gallery default / fallback | decoupled |
+| D7 | Interaction = **Paint mode**, bucket cursor, active colour; click recolours the whole congruent group; faint **affected-group highlight** on hover (perf-gated → first-click fallback) | — |
+
+### Data model (ladder-ready, Stage-1 populated)
+
+```ts
+// on EditorConfig (editor.decoration?)
+interface DecorationConfig {
+  version: 1
+  strandColours: ColourRecord[]   // Stage 1: at most one, scope:'congruent'
+  voidFills:     ColourRecord[]    // Stage 1: one per painted congruent Void shape
+}
+
+type GroupingScope = 'congruent' | 'patch' | 'cell' | 'instance' // Stage 1 uses only 'congruent'
+
+interface ColourRecord {
+  scope: GroupingScope
+  /** identity key, interpreted per scope.
+   *  congruent → a stable shape signature (see below)
+   *  patch     → Lattice-orbit id        (Stage 2)
+   *  cell      → Cell-symmetry-orbit id   (Stage 2)
+   *  instance  → world-space id           (Stage 3) */
+  key: string
+  colour: string
+}
+```
+
+- **Why identity keys, not world positions:** colours stay stable as the field
+  pans, which is what makes the viewport bound (D4) coherent.
+- **Strand colour resolution at render:** look for a matching `strandColours`
+  record (finest scope first when later stages land); fall back to
+  `PatternConfig.strand.color`. Stage 1: a single `scope:'congruent', key:'*'`
+  record overrides the global for all strands, else use the global.
+- **Void shape signature (Stage 1 `key`):** a normalised descriptor of a Void's
+  polygon — e.g. rotation/translation/reflection-invariant tuple of
+  (sorted edge-length multiset + sorted interior-angle multiset), quantised to a
+  tolerance, hashed to 8 hex chars. Two Voids are "congruent" iff equal
+  signature. (Curved Void edges: include the Ray's curve descriptor in the
+  signature so a straight-edged and curved-edged Void of the same outline don't
+  collide. Spec the exact hash in 19.1.)
+
+### The hard part — global Void extraction (19.1)
+
+The current pipeline emits per-polygon `Segment[]` (Rays) and chains them into
+Strands; **nothing computes enclosed regions today.** Stage 1 needs the bounded
+faces of the *global* arrangement of all visible Rays.
+
+- **Input:** the flat list of rendered Rays (straight + Bézier-curve), already
+  available post-PIC, within the current bound (Frame outline, else viewport
+  bbox).
+- **Approach (to be finalised in 19.1):** build a planar subdivision
+  (arrangement / doubly-connected edge list) over the Ray segments + the bound
+  outline, then walk faces. Bézier Rays either (a) flattened to polylines at a
+  tolerance for the arrangement (simplest; signature uses the flattened
+  outline) or (b) handled as curved edges (harder). **Default: flatten.**
+- **Periodicity shortcut:** because the field is a Lattice-stamped Patch, the
+  distinct Void shapes are finite and small. Option to extract faces over **one
+  fundamental domain + its one-ring neighbours** (enough to close every Void),
+  classify by signature, then the congruent rule paints the rest by signature
+  match without arranging the whole viewport. **Evaluate this vs full-region
+  arrangement in 19.1** — it ties into Lever-A periodicity work
+  (`project_builder_performance`). Output of either path: a list of
+  `{ polygon (flattened outline), signature }`.
+- **Risk:** robustness of the arrangement at near-coincident Ray crossings;
+  degenerate faces; open faces at the bound. Budget a spike.
+
+### Render path (19.2)
+
+Layer stack, bottom → top:
+
+1. `StrandStyle.background` rect (canvas backdrop — unchanged).
+2. **Void fills** — one filled `<path>` per visible Void whose signature has a
+   `voidFills` record; unfilled Voids show the backdrop through.
+3. **Strands** — existing strand rendering, stroke colour resolved per D6.
+4. (Lacing/weaving — deferred stage, drawn above strands later.)
+
+Fills sit **behind** strands so the lines stay crisp on top. Reuse the
+periodicity fast-path caveat from `project_builder_performance` (fast-path
+returns one fundamental domain + `<use>` clones — Void fills for clones must be
+emitted the same way, and **export must use DOM export, not `segmentsRef`**).
+
+### UI / interaction (19.3)
+
+- New **Decoration** phase entry in the Builder phase switcher (after
+  Composition). Gate identical to other phases.
+- **Paint tool** toggle → enters **Paint mode** → bucket cursor.
+- **Active colour** picker beside the tool.
+- **Affected-group highlight:** on hover over a paintable target, faintly tint
+  every visible congruent member. **Perf-gate:** if hover-highlight janks on a
+  big field, fall back to highlight-on-first-click, apply-on-second.
+- **Click applies** the active colour: write/replace the `congruent` record for
+  that target's signature ('*' for strands).
+- Undo/redo: route Decoration mutations through the existing editor history
+  (add to the action allowlist; see `editor/history.ts`).
+- (Optional later in Stage 1) a small legend panel listing painted signatures
+  with swatches — not required for first ship.
+
+### Sub-steps & acceptance
+
+| Sub | Scope | Acceptance |
+|-----|-------|-----------|
+| 19.0 | `DecorationConfig` type + `editor.decoration` field + migration default (absent ⇒ no decoration) | `npm run build` green; loading an old save adds no decoration |
+| 19.1 | Void extraction + congruent signature (spike first) | Given a framed 4.8.8 Composition, returns the expected distinct Void shapes; congruent Voids share a signature; runs within frame budget |
+| 19.2 | Render path: Void fills behind strands + strand-colour override resolution | A hand-seeded `voidFills`/`strandColours` paints the right regions/lines; clones (fast-path) fill identically |
+| 19.3 | Decoration phase + Paint mode + hover highlight + click-apply + undo | User enters Decoration, paints a Void shape and all strands, sees congruent groups recolour live; undo reverts; pan keeps colours stable |
+| 19.4 | Polish: perf-gate the hover highlight; empty/no-Frame viewport bound; export sanity | Hover stays smooth or auto-falls-back; export reflects fills |
+
+### Deferred stages (NOT Stage 1 — capture only)
+
+- **Stage 2 — Patch & Cell scopes.** Add the `patch` (Lattice-orbit) and `cell`
+  (Cell-symmetry-orbit) rungs + a per-target scope toggle. Needs stable orbit
+  identity (ties to `editor/symmetry.ts`, `compositionLatticeStamps`).
+- **Stage 3 — Instance scope.** World-space per-Void / per-Strand override
+  records; finest rung.
+- **Stage 4 — Lacing / weaving v2.** Remove any legacy lacing remnants first,
+  then redesign over/under as a Decoration render pass above strands
+  (`project_decoration_stage_idea` Step 4). Drawn at layer 4 above.
+- **Stage 5+ — image / surface tools.** Textures, gradients, backgrounds —
+  parked, capture as sub-ideas when scoped.
+
+---
+
 ## Future / parked steps
 
 - **Step 15 (parked) — k-uniform tessellation generator.** Generalise

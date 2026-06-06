@@ -1,0 +1,114 @@
+import { describe, it, expect } from 'vitest'
+import { migrateEditorConfig } from './migrations'
+
+/** Minimal valid v3 single-cell patch object (as it'd arrive from JSON). */
+function v3Patch(extra: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    version: 3,
+    activeCellId: 'main',
+    edgeLength: 100,
+    cells: [
+      {
+        id: 'main',
+        shape: 'square',
+        center: { x: 0, y: 0 },
+        rotation: 0,
+        boundarySize: 100,
+        seedSides: 4,
+        tiles: [
+          { id: 'seed', kind: 'regular', sides: 4, center: { x: 0, y: 0 }, edgeLength: 100, rotation: 0, source: 'seed' },
+        ],
+      },
+    ],
+    ...extra,
+  }
+}
+
+describe('Step 19 — decoration migration', () => {
+  it('a v3 patch with no decoration loads with decoration undefined', () => {
+    const out = migrateEditorConfig(v3Patch())
+    expect(out).not.toBeNull()
+    expect(out!.decoration).toBeUndefined()
+  })
+
+  it('a legacy v1 patch loads with decoration undefined (never had it)', () => {
+    const v1 = {
+      version: 1,
+      edgeLength: 100,
+      boundaryShape: 'square',
+      boundarySize: 100,
+      seedSides: 4,
+      tiles: [
+        { id: 'seed', kind: 'regular', sides: 4, center: { x: 0, y: 0 }, edgeLength: 100, rotation: 0, source: 'seed' },
+      ],
+    }
+    const out = migrateEditorConfig(v1)
+    expect(out).not.toBeNull()
+    expect(out!.decoration).toBeUndefined()
+  })
+
+  it('round-trips a valid decoration block (strand colours + void fills)', () => {
+    const out = migrateEditorConfig(v3Patch({
+      decoration: {
+        version: 1,
+        strandColours: [{ scope: 'congruent', key: '*', colour: '#b8860b' }],
+        voidFills: [
+          { scope: 'congruent', key: 'a1b2c3d4', colour: '#1e6b52' },
+          { scope: 'congruent', key: 'deadbeef', colour: '#7d3c98' },
+        ],
+      },
+    }))
+    expect(out!.decoration).toEqual({
+      version: 1,
+      strandColours: [{ scope: 'congruent', key: '*', colour: '#b8860b' }],
+      voidFills: [
+        { scope: 'congruent', key: 'a1b2c3d4', colour: '#1e6b52' },
+        { scope: 'congruent', key: 'deadbeef', colour: '#7d3c98' },
+      ],
+    })
+  })
+
+  it('accepts the reserved later-stage scopes (ladder-ready)', () => {
+    const out = migrateEditorConfig(v3Patch({
+      decoration: {
+        version: 1,
+        strandColours: [{ scope: 'patch', key: 'orbit-2', colour: '#111' }],
+        voidFills: [{ scope: 'instance', key: 'w:42', colour: '#222' }],
+      },
+    }))
+    expect(out!.decoration!.strandColours[0].scope).toBe('patch')
+    expect(out!.decoration!.voidFills[0].scope).toBe('instance')
+  })
+
+  it('filters out malformed colour records but keeps valid ones', () => {
+    const out = migrateEditorConfig(v3Patch({
+      decoration: {
+        version: 1,
+        strandColours: [
+          { scope: 'congruent', key: '*', colour: '#fff' },
+          { scope: 'bogus', key: '*', colour: '#fff' },     // bad scope
+          { scope: 'congruent', key: '', colour: '#fff' },  // empty key
+          { scope: 'congruent', key: 'x', colour: 42 },     // non-string colour
+          'not-an-object',
+        ],
+        voidFills: [],
+      },
+    }))
+    expect(out!.decoration!.strandColours).toEqual([
+      { scope: 'congruent', key: '*', colour: '#fff' },
+    ])
+    expect(out!.decoration!.voidFills).toEqual([])
+  })
+
+  it('drops a decoration block with the wrong version (no decoration)', () => {
+    const out = migrateEditorConfig(v3Patch({
+      decoration: { version: 99, strandColours: [], voidFills: [] },
+    }))
+    expect(out!.decoration).toBeUndefined()
+  })
+
+  it('tolerates a decoration block missing the arrays (defaults to empty)', () => {
+    const out = migrateEditorConfig(v3Patch({ decoration: { version: 1 } }))
+    expect(out!.decoration).toEqual({ version: 1, strandColours: [], voidFills: [] })
+  })
+})

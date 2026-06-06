@@ -7,6 +7,7 @@ import type { TileTypeInfo } from '../types/tiling'
 import { createConfigLibrary } from '../state/configLibrary'
 import { ConfigLibraryPanel } from './ConfigLibraryPanel'
 import { Canvas, type SelectedEdge } from './Canvas'
+import type { PaintTarget } from '../rendering/DecorationPaintLayer'
 import type { SectionKey } from './EditorBoundaryInwardLayer'
 import { SandstoneEdge } from './SandstoneEdge'
 import { useTheme } from '../theme/ThemeContext'
@@ -205,6 +206,9 @@ export function TessellationLabMode({
   // Step 19.3 — Decoration: the active Paint colour, shared by the side-panel
   // swatches and the canvas Paint overlay.
   const [decorationColor, setDecorationColor] = useState('#c0392b')
+  // Step 19.3 — manual Paint target so Voids / Strands don't fight for the
+  // cursor; Off frees panning.
+  const [paintTarget, setPaintTarget] = useState<PaintTarget>('voids')
   // Step 17.6 — Composition Phase: show the Patch Boundary stamped on the lattice.
   const [showBoundaryLattice, setShowBoundaryLattice] = useState(false)
   // Step 17.6d — Design Phase: low-opacity ghost copies of the Patch at the
@@ -410,6 +414,8 @@ export function TessellationLabMode({
                 editorPhase={editorPhase}
                 decorationColor={decorationColor}
                 onSetDecorationColor={setDecorationColor}
+                paintTarget={paintTarget}
+                onSetPaintTarget={setPaintTarget}
                 onSetEditorPhase={p => {
                   // Step 17.7 — fire auto-complete when leaving Design for any
                   // later phase (Composition or Decoration) if the user opted
@@ -726,7 +732,9 @@ export function TessellationLabMode({
         editorStrandMode={editorPhase !== 'design'}
         decorationActive={editorPhase === 'decoration'}
         paintColor={decorationColor}
+        paintTarget={editorPhase === 'decoration' ? paintTarget : 'off'}
         onPaintVoid={sig => dispatch({ type: 'SET_DECORATION_VOID_FILL', payload: { signature: sig, colour: decorationColor } })}
+        onPaintStrands={() => dispatch({ type: 'SET_DECORATION_STRAND_COLOR', payload: { colour: decorationColor } })}
         editorFrame={!!config.editor?.frame}
         showBoundaryLattice={showBoundaryLattice}
         editorNeighbourPreview={editorPhase === 'design' && showNeighbours && !(config.editor && activeCell(config.editor).wrapBoundary)}
@@ -968,6 +976,8 @@ interface EditorDesignControlsProps {
   onSetEditorPhase: (p: 'design' | 'strand' | 'decoration') => void
   decorationColor: string
   onSetDecorationColor: (c: string) => void
+  paintTarget: PaintTarget
+  onSetPaintTarget: (t: PaintTarget) => void
   showBoundaryLattice: boolean
   onToggleShowBoundaryLattice: (next: boolean) => void
   showNeighbours: boolean
@@ -1008,6 +1018,8 @@ function EditorDesignControls({
   onSetEditorPhase,
   decorationColor,
   onSetDecorationColor,
+  paintTarget,
+  onSetPaintTarget,
   showBoundaryLattice,
   onToggleShowBoundaryLattice,
   showNeighbours,
@@ -1159,9 +1171,36 @@ function EditorDesignControls({
             border: '1px solid var(--border-subtle)',
           }}>
             <div style={{ marginBottom: 8 }}>
-              Pick a colour, then click a region on the canvas to <strong>Fill</strong>
-              {' '}all similar Voids. Strand geometry is frozen here — flip back to
-              Composition to reshape.
+              Pick a colour and a Paint target, then click on the canvas. Voids
+              Fill the whole congruent group; Strands colour all at once. Strand
+              geometry is frozen here — flip back to Composition to reshape.
+            </div>
+            <FieldLabel label="Paint target" tooltip="What clicking on the canvas paints. Off frees panning; Voids fills the clicked Void's congruent group; Strands colours every Strand." />
+            <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
+              {(['off', 'voids', 'strands'] as const).map(t => {
+                const active = paintTarget === t
+                return (
+                  <button
+                    key={t}
+                    onClick={() => onSetPaintTarget(t)}
+                    style={{
+                      flex: 1,
+                      padding: '5px 0',
+                      fontFamily: "'Cinzel', Georgia, serif",
+                      fontSize: 9,
+                      fontWeight: 600,
+                      letterSpacing: '0.06em',
+                      textTransform: 'uppercase',
+                      cursor: 'pointer',
+                      border: `1px solid ${active ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                      background: active ? 'var(--accent-bg)' : 'transparent',
+                      color: active ? 'var(--accent)' : 'var(--text-muted)',
+                    }}
+                  >
+                    {t === 'off' ? 'Off' : t === 'voids' ? 'Voids' : 'Strands'}
+                  </button>
+                )
+              })}
             </div>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <span style={{ minWidth: 70 }}>Paint colour</span>

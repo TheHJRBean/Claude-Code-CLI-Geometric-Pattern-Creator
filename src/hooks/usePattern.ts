@@ -230,7 +230,7 @@ export function usePattern(
   // the whole field via <use> — no per-viewport extraction, no pan re-extract,
   // and full coverage everywhere. Recomputes only when geometry or the
   // decoration records change (not on pan/zoom).
-  const decorationFills = useMemo<{ fills: VoidFill[] } | null>(() => {
+  const decorationFills = useMemo<{ fills: VoidFill[]; reps: VoidRegion[] } | null>(() => {
     if (!decorationActive || !editorBase) return null
     const patch = editorBase.patch
     // Only when the periodic fast-path will actually render (otherwise the
@@ -242,8 +242,6 @@ export function usePattern(
       || patch.alternateOrientation
       || Object.values(config.figures).some(f => f?.vertexLinesEnabled)
     ) return null
-    const deco = patch.decoration
-    if (!deco) return { fills: [] }
     const cell = editorBase.cell
     const H = 12 * Math.max(patch.edgeLength, cell.boundarySize)
     const box = { x: -H, y: -H, width: 2 * H, height: 2 * H }
@@ -255,7 +253,7 @@ export function usePattern(
       const d = Math.hypot(st.translation.x, st.translation.y)
       if (d > 1e-6 && d < d1) d1 = d
     }
-    if (!isFinite(d1)) return { fills: [] }
+    if (!isFinite(d1)) return { fills: [], reps: [] }
     // Keep only the near ring so the field stays tiny regardless of H.
     const ring = allStamps.filter(st => Math.hypot(st.translation.x, st.translation.y) <= 3 * d1 + 1e-6)
     const field = stampSegments(editorBase.baseSegments, ring)
@@ -263,14 +261,12 @@ export function usePattern(
     const bound: Vec2[] = [{ x: -R, y: -R }, { x: R, y: -R }, { x: R, y: R }, { x: -R, y: R }]
     const segs = curvesEnabled(config) ? flattenStrandsToSegments(field, config) : field
     const voids = extractVoids(segs, bound)
-    const congruent = deco.voidFills.filter(r => r.scope === 'congruent')
-    const allColour = congruent.find(r => r.key === '*')?.colour ?? null
-    const bySig = new Map(congruent.filter(r => r.key !== '*').map(r => [r.key, r.colour]))
-    if (allColour === null && bySig.size === 0) return { fills: [] }
-    const fills: VoidFill[] = []
+    // Representative Voids = those whose centroid lies in the origin stamp's
+    // Voronoi cell (one per lattice orbit ⇒ tiles without gaps/overlap). These
+    // drive both the cloned fills and the Paint overlay's hit-targets (tiled by
+    // translation, so the overlay never re-extracts on pan).
+    const reps: VoidRegion[] = []
     for (const v of voids) {
-      // Keep only Voids whose centroid lies in the origin stamp's Voronoi cell
-      // (one representative per lattice orbit ⇒ tiles without gaps/overlap).
       const c = centroid(v.polygon)
       let best = Infinity
       let isOrigin = false
@@ -282,11 +278,22 @@ export function usePattern(
           isOrigin = st.translation.x * st.translation.x + st.translation.y * st.translation.y < 1e-6
         }
       }
-      if (!isOrigin) continue
-      const colour = bySig.get(v.signature) ?? allColour
-      if (colour) fills.push({ polygon: v.polygon, colour })
+      if (isOrigin) reps.push(v)
     }
-    return { fills }
+    const deco = patch.decoration
+    const fills: VoidFill[] = []
+    if (deco) {
+      const congruent = deco.voidFills.filter(r => r.scope === 'congruent')
+      const allColour = congruent.find(r => r.key === '*')?.colour ?? null
+      const bySig = new Map(congruent.filter(r => r.key !== '*').map(r => [r.key, r.colour]))
+      if (allColour !== null || bySig.size > 0) {
+        for (const r of reps) {
+          const colour = bySig.get(r.signature) ?? allColour
+          if (colour) fills.push({ polygon: r.polygon, colour })
+        }
+      }
+    }
+    return { fills, reps }
   }, [editorBase, decorationActive, config])
 
   return useMemo(() => {
@@ -421,16 +428,24 @@ export function usePattern(
           const strandRec = patch.decoration?.strandColours.find(r => r.scope === 'congruent')
           const strandColor = strandRec ? strandRec.colour : null
           let decorationVoids: VoidRegion[] | undefined
-          if (decorationPaintActive) {
-            const bx = genX + vw * pad
-            const by = genY + vh * pad
-            const bound: Vec2[] = [
-              { x: bx, y: by }, { x: bx + vw, y: by },
-              { x: bx + vw, y: by + vh }, { x: bx, y: by + vh },
-            ]
-            const field = stampSegments(editorBase.baseSegments, stamps)
-            const decoSegments = curvesEnabled(config) ? flattenStrandsToSegments(field, config) : field
-            decorationVoids = extractVoids(decoSegments, bound)
+          if (decorationPaintActive && decorationFills) {
+            // Paint overlay hit-targets: TILE the representative Voids across the
+            // visible stamps by translation — no per-pan extraction (the old
+            // viewport extraction was the worst-ms spike).
+            const bx = genX + vw * pad, by = genY + vh * pad
+            const m = Math.max(vw, vh) * 0.2
+            decorationVoids = []
+            for (const st of stamps) {
+              const tx = st.translation.x, ty = st.translation.y
+              if (tx < bx - m || tx > bx + vw + m || ty < by - m || ty > by + vh + m) continue
+              for (const r of decorationFills.reps) {
+                decorationVoids.push({
+                  area: r.area,
+                  signature: r.signature,
+                  polygon: r.polygon.map(p => ({ x: p.x + tx, y: p.y + ty })),
+                })
+              }
+            }
           }
           return {
             polygons: basePolys,

@@ -233,6 +233,15 @@ export function usePattern(
   const decorationFills = useMemo<{ fills: VoidFill[] } | null>(() => {
     if (!decorationActive || !editorBase || editorBase.multiCell) return null
     const patch = editorBase.patch
+    // Only when the periodic fast-path will actually render (otherwise the
+    // non-fast-path branch computes fills via buildDecorationData and this
+    // extraction would be wasted — and expensive with curves on).
+    if (
+      !periodicityEnabled()
+      || patch.frame
+      || patch.alternateOrientation
+      || Object.values(config.figures).some(f => f?.vertexLinesEnabled)
+    ) return null
     const deco = patch.decoration
     if (!deco) return { fills: [] }
     const cell = editorBase.cell

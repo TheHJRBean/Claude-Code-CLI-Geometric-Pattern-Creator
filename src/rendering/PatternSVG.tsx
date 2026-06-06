@@ -8,6 +8,8 @@ import type { LatticeStamp } from '../editor/lattice'
 import { TileLayer } from './TileLayer'
 import { StrandLayer } from './StrandLayer'
 import { ControlPointLayer } from './ControlPointLayer'
+import { VoidFillLayer } from './VoidFillLayer'
+import type { VoidFill } from '../decoration/resolve'
 
 interface Props {
   polygons: Polygon[]
@@ -75,10 +77,23 @@ interface Props {
    * Frame outline, incl. corners). Drawn as small dots over the outline.
    */
   frameNodes?: Vec2[] | null
+  /**
+   * Step 19.2 — Decoration **Void Fill**s (resolved). Drawn behind the Strands
+   * (ADR-0005 layer stack). Decoration bypasses the periodic fast-path (geometry
+   * is frozen, so the full-field extraction is affordable and avoids cross-seam
+   * Void splitting), so fills only render on the normal — non-`compositionStamps`
+   * — branch. Absent / empty ⇒ nothing drawn.
+   */
+  voidFills?: VoidFill[]
+  /**
+   * Step 19.2 — Decoration **Strand colour** override. Overrides
+   * `config.strand.color` for the Strand stroke; absent ⇒ the global colour.
+   */
+  strandColor?: string | null
 }
 
 export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
-  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, compositionStamps, editorOverlay, frameOutline, clipToFrame = true, frameNodes },
+  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, compositionStamps, editorOverlay, frameOutline, clipToFrame = true, frameNodes, voidFills, strandColor },
   ref
 ) {
   const { x, y, zoom, rotation } = viewTransform
@@ -130,7 +145,7 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
               <defs>
                 <g id="composition-fragment">
                   <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
-                  {showLines && <StrandLayer segments={segments} config={config} />}
+                  {showLines && <StrandLayer segments={segments} config={config} strokeColor={strandColor ?? undefined} />}
                 </g>
               </defs>
               {compositionStamps.map((st, i) => (
@@ -153,7 +168,8 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
                 return <BoundaryOutline key={i} vertices={outline} variant={isSeed ? 'seed' : 'ghost'} />
               })}
               <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
-              {showLines && <StrandLayer segments={segments} config={config} ghostPolygonIds={ghostPolygonIds} />}
+              {voidFills && <VoidFillLayer fills={voidFills} />}
+              {showLines && <StrandLayer segments={segments} config={config} ghostPolygonIds={ghostPolygonIds} strokeColor={strandColor ?? undefined} />}
               <ControlPointLayer
                 segments={segments}
                 config={config}

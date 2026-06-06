@@ -17,6 +17,13 @@ interface Props {
    * still reads.
    */
   ghostPolygonIds?: Set<string>
+  /**
+   * Step 19.2 — Decoration **Strand colour** override. When set, every Strand
+   * is stroked in this colour instead of `config.strand.color` (which stays the
+   * fallback / Gallery default). Stage-1 Congruent scope applies one colour to
+   * all Strands; the per-class/instance rungs land later.
+   */
+  strokeColor?: string
 }
 
 /**
@@ -28,8 +35,9 @@ interface Props {
  * Lacing returns under the Decoration Phase per ADR-0003 and
  * `project_decoration_stage_idea.md`.
  */
-export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPolygonIds }: Props) {
+export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPolygonIds, strokeColor }: Props) {
   const { strand } = config
+  const stroke = strokeColor ?? strand.color
 
   const strandData = useMemo(() => {
     const t0 = performance.now()
@@ -74,7 +82,7 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
               key={`strand-ghost-${i}`}
               d={d}
               fill="none"
-              stroke={strand.color}
+              stroke={stroke}
               strokeWidth={strand.width}
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -87,7 +95,7 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
           key={`strand-${i}`}
           d={d}
           fill="none"
-          stroke={strand.color}
+          stroke={stroke}
           strokeWidth={strand.width}
           strokeLinecap="round"
           strokeLinejoin="round"

@@ -150,6 +150,9 @@ interface Props {
   /** Step 19.3 — Decoration phase active: render resolved Void fills + strand
    * colour over the Composition. */
   decorationActive?: boolean
+  /** Step 19.3 — Paint target on (not Off): extract visible-field Voids for the
+   * Paint overlay's hit-testing. */
+  decorationPaintActive?: boolean
   /** Step 19.3 — Paint-mode: Fill the clicked Void's congruent class (by
    * signature) with the active colour. */
   onPaintVoid?: (signature: string) => void
@@ -163,7 +166,7 @@ interface Props {
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, editorMode = 'place', picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrands, paintColor = '#c0392b', paintTarget = 'voids' }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, editorMode = 'place', picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, decorationPaintActive = false, onPaintVoid, onPaintStrands, paintColor = '#c0392b', paintTarget = 'voids' }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -206,6 +209,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     editorNeighbourStrands,
     editorFrame,
     decorationActive,
+    decorationPaintActive,
   )
 
   // The Frame outline to clip the Composition to — a persistent overlay across

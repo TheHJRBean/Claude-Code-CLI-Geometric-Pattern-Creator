@@ -257,7 +257,13 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [resetCamera])
 
-  // Keep segments ref up to date for export
+  // Keep segments ref up to date for export.
+  // CAVEAT (Lever A, perf.ts): in Composition when the periodicity fast-path
+  // engages, `segments` is ONE fundamental domain, not the full tiled field
+  // (which lives as <use> clones in the DOM). `exportUnwovenSVG(segmentsRef…)`
+  // would therefore emit a single unit cell. The Builder currently wires no
+  // such export; any future Builder save/export must use DOM-based export
+  // (`exportSVG`) or re-derive the full field — NOT this ref.
   segmentsRef.current = segments
 
   // ── Builder overlay (Step 17.3) ──────────────────────

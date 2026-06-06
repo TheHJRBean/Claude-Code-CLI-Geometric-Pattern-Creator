@@ -142,6 +142,9 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
             // <defs> fragment, then tile it with <use> (x/y = pure-translation
             // stamp). TileLayer + StrandLayer render once; the browser clones.
             <>
+              {/* Decoration Void fills are full-field (not periodic per-domain),
+                  so they render once here behind the cloned strands. */}
+              {voidFills && <VoidFillLayer fills={voidFills} />}
               <defs>
                 <g id="composition-fragment">
                   <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />

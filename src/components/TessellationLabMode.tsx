@@ -1212,17 +1212,26 @@ function EditorDesignControls({
               />
               <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{decorationColor}</span>
             </label>
-            <button
-              onClick={() => dispatch({ type: 'SET_DECORATION_STRAND_COLOR', payload: { colour: decorationColor } })}
-              style={decorationButtonStyle}
-            >
-              Colour all strands
-              <span style={{
-                display: 'inline-block', width: 12, height: 12, marginLeft: 8,
-                background: strandRec ? strandRec.colour : 'transparent',
-                border: '1px solid var(--border-subtle)', verticalAlign: 'middle',
-              }} />
-            </button>
+            {paintTarget === 'strands' ? (
+              <button
+                onClick={() => dispatch({ type: 'SET_DECORATION_STRAND_COLOR', payload: { colour: decorationColor } })}
+                style={decorationButtonStyle}
+              >
+                Colour all strands
+                <span style={{
+                  display: 'inline-block', width: 12, height: 12, marginLeft: 8,
+                  background: strandRec ? strandRec.colour : 'transparent',
+                  border: '1px solid var(--border-subtle)', verticalAlign: 'middle',
+                }} />
+              </button>
+            ) : (
+              <button
+                onClick={() => dispatch({ type: 'SET_DECORATION_VOID_FILL', payload: { signature: '*', colour: decorationColor } })}
+                style={decorationButtonStyle}
+              >
+                Colour all Voids
+              </button>
+            )}
             <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
               {strandRec && (
                 <button

@@ -95,6 +95,63 @@ export interface PatternData {
   decorationVoids?: VoidRegion[]
 }
 
+/** Translate (and, only off the fast-path, rotate) already-PIC'd base segments
+ * across lattice stamps to build the full field WITHOUT re-running PIC — valid
+ * because PIC is translation-invariant on a periodic field. */
+function stampSegments(base: Segment[], stamps: LatticeStamp[]): Segment[] {
+  const out: Segment[] = []
+  for (const st of stamps) {
+    const tx = st.translation.x, ty = st.translation.y
+    if (st.rotation === 0) {
+      for (const s of base) {
+        out.push({
+          ...s,
+          from: { x: s.from.x + tx, y: s.from.y + ty },
+          to: { x: s.to.x + tx, y: s.to.y + ty },
+          edgeMidpoint: { x: s.edgeMidpoint.x + tx, y: s.edgeMidpoint.y + ty },
+          polygonCenter: { x: s.polygonCenter.x + tx, y: s.polygonCenter.y + ty },
+        })
+      }
+    } else {
+      const cos = Math.cos(st.rotation), sin = Math.sin(st.rotation)
+      const rot = (v: Vec2): Vec2 => ({ x: v.x * cos - v.y * sin + tx, y: v.x * sin + v.y * cos + ty })
+      for (const s of base) {
+        out.push({ ...s, from: rot(s.from), to: rot(s.to), edgeMidpoint: rot(s.edgeMidpoint), polygonCenter: rot(s.polygonCenter) })
+      }
+    }
+  }
+  return out
+}
+
+/** Resolve Decoration render data (Void fills + strand colour + all Voids for
+ * Paint hit-testing) from a field of segments + a convex bound. */
+function buildDecorationData(
+  fieldSegments: Segment[],
+  bound: Vec2[],
+  config: PatternConfig,
+): { voidFills: VoidFill[]; strandColor: string | null; decorationVoids: VoidRegion[] } {
+  const decoSegments = curvesEnabled(config) ? flattenStrandsToSegments(fieldSegments, config) : fieldSegments
+  const decorationVoids = extractVoids(decoSegments, bound)
+  const deco = config.editor?.decoration
+  const voidFills: VoidFill[] = []
+  let strandColor: string | null = null
+  if (deco) {
+    const strandRec = deco.strandColours.find(r => r.scope === 'congruent')
+    strandColor = strandRec ? strandRec.colour : null
+    const congruent = deco.voidFills.filter(r => r.scope === 'congruent')
+    // A `'*'` record is the "colour all Voids" default; specific signatures override it.
+    const allColour = congruent.find(r => r.key === '*')?.colour ?? null
+    const colourBySig = new Map(congruent.filter(r => r.key !== '*').map(r => [r.key, r.colour]))
+    if (allColour !== null || colourBySig.size > 0) {
+      for (const v of decorationVoids) {
+        const c = colourBySig.get(v.signature) ?? allColour
+        if (c) voidFills.push({ polygon: v.polygon, colour: c })
+      }
+    }
+  }
+  return { voidFills, strandColor, decorationVoids }
+}
+
 export function usePattern(
   config: PatternConfig,
   viewTransform: ViewTransform,
@@ -270,7 +327,6 @@ export function usePattern(
       // exact stamped path below.
       if (
         periodicityEnabled()
-        && !decorationActive
         && !multiCell
         && !editorFrame
         && !showBoundaryLattice
@@ -278,7 +334,7 @@ export function usePattern(
         && stamps.every(s => s.rotation === 0)
       ) {
         recordPerf({
-          phase: 'composition·periodic',
+          phase: decorationActive ? 'decoration·periodic' : 'composition·periodic',
           polygons: basePolys.length,
           ghosts: 0,
           stamps: stamps.length,
@@ -286,6 +342,22 @@ export function usePattern(
           picMs: 0,
           strandMs: 0,
         })
+        // Decoration over a periodic field: render via the same <use> clones
+        // (PIC ran once on the base patch), and build the full field for Void
+        // extraction by *translating* those base segments — no re-PIC. Repeated
+        // Voids are then exact translates ⇒ identical signatures (consistent
+        // group-fill), and the heavy full-field PIC/buildStrands is avoided.
+        if (decorationActive) {
+          const bx = genX + vw * pad
+          const by = genY + vh * pad
+          const bound: Vec2[] = [
+            { x: bx, y: by }, { x: bx + vw, y: by },
+            { x: bx + vw, y: by + vh }, { x: bx, y: by + vh },
+          ]
+          const field = stampSegments(editorBase.baseSegments, stamps)
+          const { voidFills, strandColor, decorationVoids } = buildDecorationData(field, bound, config)
+          return { polygons: basePolys, segments: editorBase.baseSegments, compositionStamps: stamps, voidFills, strandColor, decorationVoids }
+        }
         return { polygons: basePolys, segments: editorBase.baseSegments, compositionStamps: stamps }
       }
       const polygons: typeof basePolys = []
@@ -375,30 +447,9 @@ export function usePattern(
           const outline = frameOutlinePolygon(patch.frame)
           if (outline && outline.length >= 3 && isConvexPolygon(outline)) bound = outline
         }
-        // Extract every Void once (needed for both render-fills and Paint-mode
-        // hit-testing), then map the Congruent-scope decoration records on top.
-        // When curves are on, flatten the Bézier Rays first so Voids follow the
-        // rendered curved edges (#5), not the straight pre-curve segments.
-        const decoSegments = curvesEnabled(config)
-          ? flattenStrandsToSegments(segments, config)
-          : segments
-        const decorationVoids = extractVoids(decoSegments, bound)
-        const deco = patch.decoration
-        const voidFills: VoidFill[] = []
-        let strandColor: string | null = null
-        if (deco) {
-          const strandRec = deco.strandColours.find(r => r.scope === 'congruent')
-          strandColor = strandRec ? strandRec.colour : null
-          const colourBySig = new Map(
-            deco.voidFills.filter(r => r.scope === 'congruent').map(r => [r.key, r.colour]),
-          )
-          if (colourBySig.size > 0) {
-            for (const v of decorationVoids) {
-              const c = colourBySig.get(v.signature)
-              if (c) voidFills.push({ polygon: v.polygon, colour: c })
-            }
-          }
-        }
+        // Non-periodic fall-back (frame / multi-cell / vertex-lines): extract
+        // over the full PIC field. Same helper as the periodic fast-path.
+        const { voidFills, strandColor, decorationVoids } = buildDecorationData(segments, bound, config)
         return { polygons: picPolygons, segments, boundaryOutlines, voidFills, strandColor, decorationVoids }
       }
       return { polygons: picPolygons, segments, boundaryOutlines }

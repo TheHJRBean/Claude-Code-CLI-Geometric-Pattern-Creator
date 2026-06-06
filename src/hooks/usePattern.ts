@@ -21,6 +21,7 @@ import { runPIC } from '../pic/index'
 import { recordPerf, periodicityEnabled } from '../utils/perf'
 import type { VoidFill } from '../decoration/resolve'
 import { extractVoids, type VoidRegion } from '../decoration/voids'
+import { curvesEnabled, flattenStrandsToSegments } from '../decoration/flatten'
 
 export interface PatternData {
   polygons: Polygon[]
@@ -370,7 +371,12 @@ export function usePattern(
         }
         // Extract every Void once (needed for both render-fills and Paint-mode
         // hit-testing), then map the Congruent-scope decoration records on top.
-        const decorationVoids = extractVoids(segments, bound)
+        // When curves are on, flatten the Bézier Rays first so Voids follow the
+        // rendered curved edges (#5), not the straight pre-curve segments.
+        const decoSegments = curvesEnabled(config)
+          ? flattenStrandsToSegments(segments, config)
+          : segments
+        const decorationVoids = extractVoids(decoSegments, bound)
         const deco = patch.decoration
         const voidFills: VoidFill[] = []
         let strandColor: string | null = null

@@ -176,11 +176,65 @@ export function extractVoids(
     return { key, pt: v.pt }
   }
 
+  // Spatial-grid broad-phase so step 2 isn't O(n²). Short segments are bucketed
+  // by the grid cells their bbox covers; "long" segments (a few bound edges /
+  // spanning strands) would pollute every cell, so they're kept in a small
+  // brute-force list tested against everything. Candidate(i) = segments sharing
+  // a cell with i, plus all long segments.
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  let lenSum = 0
+  for (const s of segs) {
+    minX = Math.min(minX, s.a.x, s.b.x); maxX = Math.max(maxX, s.a.x, s.b.x)
+    minY = Math.min(minY, s.a.y, s.b.y); maxY = Math.max(maxY, s.a.y, s.b.y)
+    lenSum += Math.abs(s.b.x - s.a.x) + Math.abs(s.b.y - s.a.y)
+  }
+  const cellSize = Math.max(
+    lenSum / Math.max(1, segs.length),
+    (maxX - minX) / 512, (maxY - minY) / 512, 1e-6,
+  )
+  const longThreshold = cellSize * 8
+  const grid = new Map<string, number[]>()
+  const longIdx: number[] = []
+  const cellsOf = (s: Seg): string[] => {
+    const keys: string[] = []
+    const cx0 = Math.floor(Math.min(s.a.x, s.b.x) / cellSize)
+    const cx1 = Math.floor(Math.max(s.a.x, s.b.x) / cellSize)
+    const cy0 = Math.floor(Math.min(s.a.y, s.b.y) / cellSize)
+    const cy1 = Math.floor(Math.max(s.a.y, s.b.y) / cellSize)
+    for (let cx = cx0; cx <= cx1; cx++) for (let cy = cy0; cy <= cy1; cy++) keys.push(`${cx},${cy}`)
+    return keys
+  }
+  for (let i = 0; i < segs.length; i++) {
+    const s = segs[i]
+    const span = Math.abs(s.b.x - s.a.x) + Math.abs(s.b.y - s.a.y)
+    if (span > longThreshold) { longIdx.push(i); continue }
+    for (const k of cellsOf(s)) {
+      let arr = grid.get(k)
+      if (!arr) { arr = []; grid.set(k, arr) }
+      arr.push(i)
+    }
+  }
+  const candidatesOf = (i: number): number[] => {
+    const span = Math.abs(segs[i].b.x - segs[i].a.x) + Math.abs(segs[i].b.y - segs[i].a.y)
+    // A long segment can cross anything → test against all others.
+    if (span > longThreshold) {
+      const all: number[] = []
+      for (let j = 0; j < segs.length; j++) if (j !== i) all.push(j)
+      return all
+    }
+    const set = new Set<number>()
+    for (const k of cellsOf(segs[i])) {
+      const arr = grid.get(k)
+      if (arr) for (const j of arr) if (j !== i) set.add(j)
+    }
+    for (const j of longIdx) set.add(j)
+    return [...set]
+  }
+
   for (let i = 0; i < segs.length; i++) {
     const { a, b } = segs[i]
     const ts: number[] = [0, 1]
-    for (let j = 0; j < segs.length; j++) {
-      if (j === i) continue
+    for (const j of candidatesOf(i)) {
       const { a: c, b: d } = segs[j]
       const ti = intersectParam(a, b, c, d)
       if (ti !== null) ts.push(ti)

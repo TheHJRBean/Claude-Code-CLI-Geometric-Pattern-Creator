@@ -361,9 +361,15 @@ export function usePattern(
       // viewport rect). Geometry is frozen in this phase, so the full-field
       // extraction here only re-runs on pan/zoom, not on interaction.
       if (decorationActive) {
+        // Bound extraction to the VISIBLE viewport, not the padded generation
+        // rect (genW/genH carry 0.75× padding ⇒ ~6× the area ⇒ ~36× the O(n²)
+        // arrangement work — enough to hang on entry). The generated field
+        // still covers this tight rect.
+        const bx = genX + vw * pad
+        const by = genY + vh * pad
         let bound: Vec2[] = [
-          { x: genX, y: genY }, { x: genX + genW, y: genY },
-          { x: genX + genW, y: genY + genH }, { x: genX, y: genY + genH },
+          { x: bx, y: by }, { x: bx + vw, y: by },
+          { x: bx + vw, y: by + vh }, { x: bx, y: by + vh },
         ]
         if (editorFrame && patch.frame) {
           const outline = frameOutlinePolygon(patch.frame)

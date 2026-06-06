@@ -201,7 +201,7 @@ export function TessellationLabMode({
   const [multiMode, setMultiMode] = useState(false)
   // Step 17.6 — Design Phase vs Composition Phase phase-switch (Decision 15).
   // Local UI state — not persisted; figures persist independently per Q15.
-  const [editorPhase, setEditorPhase] = useState<'design' | 'strand'>('design')
+  const [editorPhase, setEditorPhase] = useState<'design' | 'strand' | 'decoration'>('design')
   // Step 17.6 — Composition Phase: show the Patch Boundary stamped on the lattice.
   const [showBoundaryLattice, setShowBoundaryLattice] = useState(false)
   // Step 17.6d — Design Phase: low-opacity ghost copies of the Patch at the
@@ -406,11 +406,12 @@ export function TessellationLabMode({
                 onCancelComplete={resetPicks}
                 editorPhase={editorPhase}
                 onSetEditorPhase={p => {
-                  // Step 17.7 — fire auto-complete on the Design→Composition
-                  // phase-switch when the user opted in. Reducer is idempotent
-                  // on already-convex Cells, so re-switches are safe.
+                  // Step 17.7 — fire auto-complete when leaving Design for any
+                  // later phase (Composition or Decoration) if the user opted
+                  // in. Reducer is idempotent on already-convex Cells, so
+                  // re-switches are safe.
                   if (
-                    p === 'strand'
+                    p !== 'design'
                     && editorPhase === 'design'
                     && config.editor?.autoComplete?.enabled
                   ) {
@@ -521,7 +522,10 @@ export function TessellationLabMode({
               Visible when strands are on AND we have something to render
               over: a static tessellation definition, or an editor patch
               (17.6a — the strand panel's tile cards now reflect the patch). */}
-          {showStrands && (def || (config.tiling.type === 'editor' && config.editor)) && (
+          {/* Strand geometry (Figure recipe) is frozen in the Decoration Phase
+              (ADR-0005) — hide these controls there; reshaping happens in
+              Composition. */}
+          {showStrands && editorPhase !== 'decoration' && (def || (config.tiling.type === 'editor' && config.editor)) && (
             <div style={{ paddingTop: 22 }}>
               <SectionTitle open={isOpen('strands')} onToggle={() => toggleSection('strands')} tooltip="Per-Tile-type controls for the Figure rendered in each polygon. A Strand is a chain of Rays across polygons; most sliders here actually adjust individual Rays — the Strand emerges from them.">Strands</SectionTitle>
               {isOpen('strands') && (() => {
@@ -952,8 +956,8 @@ interface EditorDesignControlsProps {
   picks: Vec2[]
   multiMode: boolean
   onCancelComplete: () => void
-  editorPhase: 'design' | 'strand'
-  onSetEditorPhase: (p: 'design' | 'strand') => void
+  editorPhase: 'design' | 'strand' | 'decoration'
+  onSetEditorPhase: (p: 'design' | 'strand' | 'decoration') => void
   showBoundaryLattice: boolean
   onToggleShowBoundaryLattice: (next: boolean) => void
   showNeighbours: boolean
@@ -1002,6 +1006,7 @@ function EditorDesignControls({
   const multiCell = editor.cells.length > 1
   const originLocked = cell.tiles.some(t => t.source !== 'seed')
   const inStrand = editorPhase === 'strand'
+  const inDecoration = editorPhase === 'decoration'
   // n-ring Frames are single-cell-only (square / hexagon / triangle) in v1 —
   // multi-cell Configurations + octagon/dodecagon are deferred.
   const nRingSupported = !multiCell && (cell.shape === 'square' || cell.shape === 'hexagon' || cell.shape === 'triangle')
@@ -1050,11 +1055,12 @@ function EditorDesignControls({
       {/* Step 17.6 — Design / Composition phase-switch (Decision 15). */}
       <FieldLabel
         label="Phase"
-        tooltip="Build workflow stage. Design = author Tiles into Cells of a Patch. Composition = see the Patch composed across the canvas with Strands rendered by PIC. Future Phase: Decoration. The Frame is a persistent overlay across both phases (see below)."
+        tooltip="Build workflow stage. Design = author Tiles into Cells of a Patch. Composition = see the Patch composed across the canvas with Strands rendered by PIC. Decoration = colour the Strands and Fill the Voids (strand geometry is frozen here — change it in Composition). The Frame is a persistent overlay across all phases (see below)."
       />
       <div style={{ display: 'flex', gap: 0, marginBottom: inStrand ? 4 : 12 }}>
-        {(['design', 'strand'] as const).map(p => {
+        {(['design', 'strand', 'decoration'] as const).map(p => {
           const active = editorPhase === p
+          const label = p === 'design' ? 'Design' : p === 'strand' ? 'Composition' : 'Decoration'
           return (
             <button
               key={p}
@@ -1065,7 +1071,7 @@ function EditorDesignControls({
                 fontFamily: "'Cinzel', Georgia, serif",
                 fontSize: 9,
                 fontWeight: 600,
-                letterSpacing: '0.08em',
+                letterSpacing: '0.06em',
                 textTransform: 'uppercase',
                 cursor: 'pointer',
                 border: `1px solid ${active ? 'var(--accent)' : 'var(--border-subtle)'}`,
@@ -1074,7 +1080,7 @@ function EditorDesignControls({
                 transition: 'all 0.15s',
               }}
             >
-              {p === 'design' ? 'Design' : 'Composition'}
+              {label}
             </button>
           )
         })}
@@ -1110,6 +1116,22 @@ function EditorDesignControls({
             />
             Show boundary tessellation
           </label>
+        </div>
+      )}
+      {inDecoration && (
+        <div style={{
+          marginTop: 0,
+          marginBottom: 14,
+          padding: '8px 10px',
+          fontFamily: "'EB Garamond', Georgia, serif",
+          fontSize: 12,
+          color: 'var(--text-muted)',
+          lineHeight: 1.45,
+          border: '1px solid var(--border-subtle)',
+        }}>
+          Decoration — colour the Strands and Fill the Voids (the regions
+          enclosed by Strands). Strand geometry is frozen here; flip back to
+          Composition to reshape. Paint tools land next.
         </div>
       )}
 

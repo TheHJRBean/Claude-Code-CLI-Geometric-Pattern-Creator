@@ -88,11 +88,16 @@ export interface PatternData {
    */
   strandColor?: string | null
   /**
-   * Step 19.3 — ALL Voids extracted in the Decoration phase (filled or not),
-   * with polygon + congruent signature. Canvas hit-tests these for Paint-mode
-   * hover-highlight + click-to-Fill. Only emitted when `decorationActive`.
+   * Step 19.3 — Void hit-targets for the Paint overlay (representative Voids
+   * tiled across the visible stamps). Only emitted when painting Voids.
    */
   decorationVoids?: VoidRegion[]
+  /**
+   * Step 19.3 — Strand (Ray) hit-targets for the Paint overlay (base Rays tiled
+   * across the visible stamps). Only emitted when painting Strands on the
+   * periodic fast-path; otherwise the overlay uses the full-field `segments`.
+   */
+  decorationStrandHits?: Segment[]
 }
 
 /** Translate (and, only off the fast-path, rotate) already-PIC'd base segments
@@ -174,11 +179,13 @@ export function usePattern(
   /** Step 19.3 — Decoration phase active: resolve `editor.decoration` into
    * Void fills + strand colour. */
   decorationActive = false,
-  /** Step 19.3 — Paint target is on (Voids/Strands, not Off): extract the
-   * visible-field Voids for the Paint overlay's hit-testing. Off ⇒ skip that
-   * (the cloned representative fills still cover the whole field). */
-  decorationPaintActive = false,
+  /** Step 19.3 — active Paint target. Off ⇒ no overlay hit-targets (the cloned
+   * representative fills still cover the whole field). Voids/Strands ⇒ tile the
+   * representative Voids / base Rays across the visible stamps as hit-targets
+   * (translation only — no per-pan extraction). */
+  decorationPaintTarget: 'off' | 'voids' | 'strands' = 'off',
 ): PatternData {
+  const decorationPaintActive = decorationPaintTarget !== 'off'
   // Visible viewport in world coordinates
   const vw = containerWidth / viewTransform.zoom
   const vh = containerHeight / viewTransform.zoom
@@ -427,23 +434,38 @@ export function usePattern(
         if (decorationActive) {
           const strandRec = patch.decoration?.strandColours.find(r => r.scope === 'congruent')
           const strandColor = strandRec ? strandRec.colour : null
+          // Paint overlay hit-targets: TILE the representative Voids / base Rays
+          // across the visible stamps by translation — no per-pan extraction
+          // (the old viewport extraction was the worst-ms spike). Strands need
+          // tiling too, else hit-targets exist only at the base domain near the
+          // origin and the bucket cursor never activates elsewhere.
           let decorationVoids: VoidRegion[] | undefined
+          let decorationStrandHits: Segment[] | undefined
           if (decorationPaintActive && decorationFills) {
-            // Paint overlay hit-targets: TILE the representative Voids across the
-            // visible stamps by translation — no per-pan extraction (the old
-            // viewport extraction was the worst-ms spike).
             const bx = genX + vw * pad, by = genY + vh * pad
             const m = Math.max(vw, vh) * 0.2
-            decorationVoids = []
-            for (const st of stamps) {
-              const tx = st.translation.x, ty = st.translation.y
-              if (tx < bx - m || tx > bx + vw + m || ty < by - m || ty > by + vh + m) continue
-              for (const r of decorationFills.reps) {
-                decorationVoids.push({
-                  area: r.area,
-                  signature: r.signature,
-                  polygon: r.polygon.map(p => ({ x: p.x + tx, y: p.y + ty })),
-                })
+            const visible = stamps.filter(st =>
+              !(st.translation.x < bx - m || st.translation.x > bx + vw + m
+                || st.translation.y < by - m || st.translation.y > by + vh + m))
+            if (decorationPaintTarget === 'voids') {
+              decorationVoids = []
+              for (const st of visible) {
+                const tx = st.translation.x, ty = st.translation.y
+                for (const r of decorationFills.reps) {
+                  decorationVoids.push({
+                    area: r.area,
+                    signature: r.signature,
+                    polygon: r.polygon.map(p => ({ x: p.x + tx, y: p.y + ty })),
+                  })
+                }
+              }
+            } else {
+              decorationStrandHits = []
+              for (const st of visible) {
+                const tx = st.translation.x, ty = st.translation.y
+                for (const s of editorBase.baseSegments) {
+                  decorationStrandHits.push({ ...s, from: { x: s.from.x + tx, y: s.from.y + ty }, to: { x: s.to.x + tx, y: s.to.y + ty } })
+                }
               }
             }
           }
@@ -454,6 +476,7 @@ export function usePattern(
             voidFills: decorationFills?.fills ?? [],
             strandColor,
             decorationVoids,
+            decorationStrandHits,
           }
         }
         return { polygons: basePolys, segments: editorBase.baseSegments, compositionStamps: stamps }
@@ -564,5 +587,5 @@ export function usePattern(
     const segments = runPIC(polygons, config)
 
     return { polygons, segments }
-  }, [config, editorBase, decorationFills, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview, editorNeighbourBoundaries, editorNeighbourStrands, editorFrame, decorationActive, decorationPaintActive])
+  }, [config, editorBase, decorationFills, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview, editorNeighbourBoundaries, editorNeighbourStrands, editorFrame, decorationActive, decorationPaintActive, decorationPaintTarget])
 }

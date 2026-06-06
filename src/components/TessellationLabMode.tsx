@@ -731,7 +731,6 @@ export function TessellationLabMode({
         onForceCommitMulti={handleForceCommitMulti}
         editorStrandMode={editorPhase !== 'design'}
         decorationActive={editorPhase === 'decoration'}
-        decorationPaintActive={editorPhase === 'decoration' && paintTarget !== 'off'}
         paintColor={decorationColor}
         paintTarget={editorPhase === 'decoration' ? paintTarget : 'off'}
         onPaintVoid={sig => dispatch({ type: 'SET_DECORATION_VOID_FILL', payload: { signature: sig, colour: decorationColor } })}

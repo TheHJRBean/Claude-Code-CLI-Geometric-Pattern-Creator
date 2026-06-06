@@ -12,7 +12,9 @@
 
 **✅ 19.0 DONE (2026-06-06).** `GroupingScope` / `ColourRecord` / `DecorationConfig` types + `EditorPatch.decoration?` field (`src/types/editor.ts`); `migrateDecoration` + `migrateColourRecord` validators wired into `migrateV3` (`src/editor/migrations.ts`) — absent ⇒ undefined, version-gated, bad records filtered, malformed block dropped. Round-trips via both load paths (`configValidation` + `labDefaults`). Tests: `src/editor/migrations.test.ts` (7). `tsc` clean, **210 vitest** (203→210), build green.
 
-**NEXT — 19.1 spike (the hard part):** global **Void extraction** (planar arrangement / DCEL over all Rays incl. Bézier; flatten curves; congruent shape signature). Nothing computes enclosed regions today (pipeline only emits per-polygon `Segment[]`). See `TESSELLATION_REVAMP_PLAN.md` Step 19.1. Then 19.2 render path, 19.3 Paint mode UI.
+**✅ 19.1 DONE (2026-06-06) — Void extraction spike succeeded.** `src/decoration/voids.ts` (+ `voids.test.ts`, 12). `extractVoids(segments, bound)` = Cyrus–Beck clip → split-at-intersections planar arrangement (snap-fused vertices) → DCEL half-edge face walk (next = CW-most, drop max-|area| outer) → CCW Voids + congruent `signature`. `voidSignature` = interior-angle + edge-length token ring, canonical over rotation+reversal → reflection-invariant FNV-1a 8-hex. **Real 4.8.8 PIC (918 segs, 240² bound) → 25 Voids / 8 congruent classes / coverage 1.000 / 15 ms** — the hole risk did NOT bite (arrangement connected on 4.8.8). Decisions + known limits (holes / spurs / convex-bound-only) in `TESSELLATION_REVAMP_PLAN.md` Step 19.1. `tsc` clean, **222 vitest** (210→222), build green. Module is test-only so far (not imported by app → tree-shaken; wires in at 19.2).
+
+**NEXT — 19.2 render path:** Void fills behind strands + strand-colour override resolution (`StrandStyle.color` fallback). Then 19.3 Paint-mode UI (bucket cursor, hover highlight, click-apply, undo). See `TESSELLATION_REVAMP_PLAN.md` Step 19.2/19.3.
 
 ---
 

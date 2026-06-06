@@ -776,7 +776,15 @@ interface ColourRecord {
   signature so a straight-edged and curved-edged Void of the same outline don't
   collide. Spec the exact hash in 19.1.)
 
-### The hard part — global Void extraction (19.1)
+### The hard part — global Void extraction (19.1) — ✅ SPIKE DONE
+
+**Shipped:** `src/decoration/voids.ts` (+ `voids.test.ts`, 12 tests). `extractVoids(segments, bound)` builds a planar arrangement (Cyrus–Beck clip to a convex bound → split all segments at intersections/T-junctions with snap-tolerance vertex fusion → DCEL half-edge face walk, `next` = clockwise-most turn → drop the single max-|area| outer face). `voidSignature` is the congruent key: interior-angle + edge-length alternating token ring, canonicalised over rotation + reversal → reflection-invariant 8-hex hash (FNV-1a).
+
+**Spike result (the key risk — holes — did NOT bite on real data):** real 4.8.8 PIC output (918 segments, 240×240 bound) → **25 Voids, 8 congruent classes, coverage = 1.000, 15 ms**. Areas cluster cleanly (8×518, 4×1646, 8×2623, 4×4300, 1×8691) — same-shape Voids share a signature, and coverage 1.0 means the strand arrangement is *connected* (no isolated-loop holes lost). So the documented hole limitation is a real but **not-yet-hit** edge case on shipping Configurations.
+
+**Decisions taken in the spike:** straight `Segment`s (curves are a render overlay — flatten, per spec); congruent signature uses **interior angles** (intrinsic ⇒ reflection-invariant + reflex-aware), not signed turns; outer face identified as **max |area|** (robust: outer cycle = bound, always ≥ any interior Void; ties only in the empty-bound single-Void case, harmless).
+
+**Known limitations (carry into 19.2):** (a) **holes** — a Void fully enclosed by a ring disconnected from the bound is returned as its own cycle, not composed as face+hole; (b) **spurs** — dangling ray-ends trace out-and-back into a Void cycle as a zero-area spike, perturbing that Void's signature; (c) **convex bound only** — n-ring (non-convex) frames need per-edge clipping. None block Stage-1 on the shipping Configurations (4.8.8 verified clean).
 
 The current pipeline emits per-polygon `Segment[]` (Rays) and chains them into
 Strands; **nothing computes enclosed regions today.** Stage 1 needs the bounded
@@ -837,7 +845,7 @@ emitted the same way, and **export must use DOM export, not `segmentsRef`**).
 | Sub | Scope | Acceptance |
 |-----|-------|-----------|
 | 19.0 | `DecorationConfig` type + `editor.decoration` field + migration default (absent ⇒ no decoration) | `npm run build` green; loading an old save adds no decoration |
-| 19.1 | Void extraction + congruent signature (spike first) | Given a framed 4.8.8 Composition, returns the expected distinct Void shapes; congruent Voids share a signature; runs within frame budget |
+| 19.1 | ✅ **DONE** — Void extraction + congruent signature (`src/decoration/voids.ts`) | 4.8.8 PIC field → 25 Voids / 8 congruent classes / coverage 1.0 / 15 ms; 12 tests green |
 | 19.2 | Render path: Void fills behind strands + strand-colour override resolution | A hand-seeded `voidFills`/`strandColours` paints the right regions/lines; clones (fast-path) fill identically |
 | 19.3 | Decoration phase + Paint mode + hover highlight + click-apply + undo | User enters Decoration, paints a Void shape and all strands, sees congruent groups recolour live; undo reverts; pan keeps colours stable |
 | 19.4 | Polish: perf-gate the hover highlight; empty/no-Frame viewport bound; export sanity | Hover stays smooth or auto-falls-back; export reflects fills |

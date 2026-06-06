@@ -231,7 +231,7 @@ export function usePattern(
   // and full coverage everywhere. Recomputes only when geometry or the
   // decoration records change (not on pan/zoom).
   const decorationFills = useMemo<{ fills: VoidFill[] } | null>(() => {
-    if (!decorationActive || !editorBase || editorBase.multiCell) return null
+    if (!decorationActive || !editorBase) return null
     const patch = editorBase.patch
     // Only when the periodic fast-path will actually render (otherwise the
     // non-fast-path branch computes fills via buildDecorationData and this
@@ -245,14 +245,19 @@ export function usePattern(
     const deco = patch.decoration
     if (!deco) return { fills: [] }
     const cell = editorBase.cell
-    const H = 6 * Math.max(patch.edgeLength, cell.boundarySize)
-    const ring = editorLatticeStamps(cell, { x: -H, y: -H, width: 2 * H, height: 2 * H })
+    const H = 12 * Math.max(patch.edgeLength, cell.boundarySize)
+    const box = { x: -H, y: -H, width: 2 * H, height: 2 * H }
+    const allStamps = editorBase.multiCell
+      ? compositionLatticeStamps(patch, box)
+      : editorLatticeStamps(cell, box)
     let d1 = Infinity
-    for (const st of ring) {
+    for (const st of allStamps) {
       const d = Math.hypot(st.translation.x, st.translation.y)
       if (d > 1e-6 && d < d1) d1 = d
     }
     if (!isFinite(d1)) return { fills: [] }
+    // Keep only the near ring so the field stays tiny regardless of H.
+    const ring = allStamps.filter(st => Math.hypot(st.translation.x, st.translation.y) <= 3 * d1 + 1e-6)
     const field = stampSegments(editorBase.baseSegments, ring)
     const R = 2.5 * d1
     const bound: Vec2[] = [{ x: -R, y: -R }, { x: R, y: -R }, { x: R, y: R }, { x: -R, y: R }]
@@ -392,7 +397,6 @@ export function usePattern(
       // exact stamped path below.
       if (
         periodicityEnabled()
-        && !multiCell
         && !editorFrame
         && !showBoundaryLattice
         && !Object.values(config.figures).some(f => f?.vertexLinesEnabled)

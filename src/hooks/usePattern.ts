@@ -16,7 +16,7 @@ import {
 } from '../editor/compositionLattice'
 import { activeCell } from '../editor/active'
 import { frameOutlinePolygon } from '../editor/frame'
-import { pointInPolygon, isConvexPolygon } from '../utils/math'
+import { pointInPolygon, isConvexPolygon, centroid } from '../utils/math'
 import { runPIC } from '../pic/index'
 import { recordPerf, periodicityEnabled } from '../utils/perf'
 import type { VoidFill } from '../decoration/resolve'
@@ -172,9 +172,12 @@ export function usePattern(
    * frame edge through them. Persistent across Design + Composition. */
   editorFrame = false,
   /** Step 19.3 — Decoration phase active: resolve `editor.decoration` into
-   * Void fills + strand colour, and bypass the periodic fast-path so the
-   * full field is available for global Void extraction. */
+   * Void fills + strand colour. */
   decorationActive = false,
+  /** Step 19.3 — Paint target is on (Voids/Strands, not Off): extract the
+   * visible-field Voids for the Paint overlay's hit-testing. Off ⇒ skip that
+   * (the cloned representative fills still cover the whole field). */
+  decorationPaintActive = false,
 ): PatternData {
   // Visible viewport in world coordinates
   const vw = containerWidth / viewTransform.zoom
@@ -218,6 +221,59 @@ export function usePattern(
     const baseSegments = runPIC(basePolys, config)
     return { patch, multiCell, cell, basePolys, baseOutlines, baseSegments }
   }, [config])
+
+  // Step 19.3 — pan-INDEPENDENT Decoration fills. For a periodic single-cell
+  // field, extract one representative Void per lattice cell (the Voronoi cell
+  // of the origin stamp, closed by a local ring of neighbours), colour them by
+  // signature, and return them positioned in the fundamental domain. PatternSVG
+  // renders these INSIDE the cloned fragment, so a single fill set tiles across
+  // the whole field via <use> — no per-viewport extraction, no pan re-extract,
+  // and full coverage everywhere. Recomputes only when geometry or the
+  // decoration records change (not on pan/zoom).
+  const decorationFills = useMemo<{ fills: VoidFill[] } | null>(() => {
+    if (!decorationActive || !editorBase || editorBase.multiCell) return null
+    const patch = editorBase.patch
+    const deco = patch.decoration
+    if (!deco) return { fills: [] }
+    const cell = editorBase.cell
+    const H = 6 * Math.max(patch.edgeLength, cell.boundarySize)
+    const ring = editorLatticeStamps(cell, { x: -H, y: -H, width: 2 * H, height: 2 * H })
+    let d1 = Infinity
+    for (const st of ring) {
+      const d = Math.hypot(st.translation.x, st.translation.y)
+      if (d > 1e-6 && d < d1) d1 = d
+    }
+    if (!isFinite(d1)) return { fills: [] }
+    const field = stampSegments(editorBase.baseSegments, ring)
+    const R = 2.5 * d1
+    const bound: Vec2[] = [{ x: -R, y: -R }, { x: R, y: -R }, { x: R, y: R }, { x: -R, y: R }]
+    const segs = curvesEnabled(config) ? flattenStrandsToSegments(field, config) : field
+    const voids = extractVoids(segs, bound)
+    const congruent = deco.voidFills.filter(r => r.scope === 'congruent')
+    const allColour = congruent.find(r => r.key === '*')?.colour ?? null
+    const bySig = new Map(congruent.filter(r => r.key !== '*').map(r => [r.key, r.colour]))
+    if (allColour === null && bySig.size === 0) return { fills: [] }
+    const fills: VoidFill[] = []
+    for (const v of voids) {
+      // Keep only Voids whose centroid lies in the origin stamp's Voronoi cell
+      // (one representative per lattice orbit ⇒ tiles without gaps/overlap).
+      const c = centroid(v.polygon)
+      let best = Infinity
+      let isOrigin = false
+      for (const st of ring) {
+        const dx = c.x - st.translation.x, dy = c.y - st.translation.y
+        const d = dx * dx + dy * dy
+        if (d < best - 1e-6) {
+          best = d
+          isOrigin = st.translation.x * st.translation.x + st.translation.y * st.translation.y < 1e-6
+        }
+      }
+      if (!isOrigin) continue
+      const colour = bySig.get(v.signature) ?? allColour
+      if (colour) fills.push({ polygon: v.polygon, colour })
+    }
+    return { fills }
+  }, [editorBase, decorationActive, config])
 
   return useMemo(() => {
     // Step 17 Builder: when a Patch is active, render its Tiles directly.
@@ -343,20 +399,34 @@ export function usePattern(
           strandMs: 0,
         })
         // Decoration over a periodic field: render via the same <use> clones
-        // (PIC ran once on the base patch), and build the full field for Void
-        // extraction by *translating* those base segments — no re-PIC. Repeated
-        // Voids are then exact translates ⇒ identical signatures (consistent
-        // group-fill), and the heavy full-field PIC/buildStrands is avoided.
+        // (PIC ran once on the base patch). Fills are the pan-independent
+        // representative set (rendered inside the fragment ⇒ tiled by <use>).
+        // The visible-field Voids for the Paint overlay's hit-testing are
+        // extracted only while actually painting (target ≠ Off), by translating
+        // the base segments — no re-PIC.
         if (decorationActive) {
-          const bx = genX + vw * pad
-          const by = genY + vh * pad
-          const bound: Vec2[] = [
-            { x: bx, y: by }, { x: bx + vw, y: by },
-            { x: bx + vw, y: by + vh }, { x: bx, y: by + vh },
-          ]
-          const field = stampSegments(editorBase.baseSegments, stamps)
-          const { voidFills, strandColor, decorationVoids } = buildDecorationData(field, bound, config)
-          return { polygons: basePolys, segments: editorBase.baseSegments, compositionStamps: stamps, voidFills, strandColor, decorationVoids }
+          const strandRec = patch.decoration?.strandColours.find(r => r.scope === 'congruent')
+          const strandColor = strandRec ? strandRec.colour : null
+          let decorationVoids: VoidRegion[] | undefined
+          if (decorationPaintActive) {
+            const bx = genX + vw * pad
+            const by = genY + vh * pad
+            const bound: Vec2[] = [
+              { x: bx, y: by }, { x: bx + vw, y: by },
+              { x: bx + vw, y: by + vh }, { x: bx, y: by + vh },
+            ]
+            const field = stampSegments(editorBase.baseSegments, stamps)
+            const decoSegments = curvesEnabled(config) ? flattenStrandsToSegments(field, config) : field
+            decorationVoids = extractVoids(decoSegments, bound)
+          }
+          return {
+            polygons: basePolys,
+            segments: editorBase.baseSegments,
+            compositionStamps: stamps,
+            voidFills: decorationFills?.fills ?? [],
+            strandColor,
+            decorationVoids,
+          }
         }
         return { polygons: basePolys, segments: editorBase.baseSegments, compositionStamps: stamps }
       }
@@ -466,5 +536,5 @@ export function usePattern(
     const segments = runPIC(polygons, config)
 
     return { polygons, segments }
-  }, [config, editorBase, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview, editorNeighbourBoundaries, editorNeighbourStrands, editorFrame, decorationActive])
+  }, [config, editorBase, decorationFills, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview, editorNeighbourBoundaries, editorNeighbourStrands, editorFrame, decorationActive, decorationPaintActive])
 }

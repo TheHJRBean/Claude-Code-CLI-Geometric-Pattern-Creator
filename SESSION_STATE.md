@@ -16,7 +16,15 @@
 
 **✅ 19.3 BUILT — Stage-1 Decoration functional end-to-end (2026-06-06). ⏳ browser-verify (interactive paint needs a human click-through).** Commits `e80a7ae` (19.3a phase scaffold) → `cb69b49` (19.3b live wiring) → `1440ce2` (19.3c Paint mode). What works: Decoration phase in the Builder switcher (FigureControls hidden — geometry frozen); `usePattern(decorationActive)` extracts Voids over the bound (Frame outline if convex, else viewport rect), bypasses the periodic fast-path, returns `voidFills`/`strandColor`/`decorationVoids`; `DecorationPaintLayer` (bucket cursor, hover-highlights the congruent Void group, pointerdown Fills it) in PatternSVG's topmost slot; side panel = active colour picker + "Colour all strands" + reset/clear + filled-class count; reducer actions `SET_DECORATION_VOID_FILL`/`SET_DECORATION_STRAND_COLOR`/`CLEAR_DECORATION` (undoable). Strand colour = single panel swatch (one congruent group in Stage 1); Void Fill = canvas click. `tsc` clean, **232 vitest**, build green, dev server boots clean. **Known/deferred (19.4):** hover blocks drag-pan over a Void (onPointerDown stopPropagation); perf-gate the hover highlight on big fields; extractVoids re-runs on pan (≈15ms/900segs — fine); holes/spurs/convex-bound limits from 19.1.
 
-**⏳ NEXT — browser-verify 19.3**, then **19.4 polish** (perf-gate hover→first-click fallback; no-Frame viewport bound sanity; export reflects fills; drag-pan-over-Void). After that Stage-1 Decoration is shippable. Then Stage 2 (Patch/Cell scopes) per ADR-0005.
+**Browser-feedback fixes (2026-06-06, commits `4c0bb4a` + `5beb530`):**
+- **#2 inconsistent group fill** (random unpainted siblings) → `simplifyCollinear` drops collinear/T-junction vertices before signing, so congruent Voids hash equal. ✅
+- **#3 no way to exit paint** + **#4 strands-vs-voids** → manual **Paint target** toggle (Off · Voids · Strands) in the Decoration panel; `DecorationPaintLayer` does Void polygons in Voids mode, thick transparent Ray hit-targets (hover-highlights all Strands) in Strands mode. ✅
+- **#5 curved Voids treated as straight** → `decoration/flatten.ts` (`flattenStrandsToSegments`, samples Béziers into 8 chords, mirrors StrandLayer); `usePattern` feeds these to `extractVoids` when `curvesEnabled`. Probe: 4.8.8+curves 918→7344 segs, 31 Voids avg 33 verts, 144 ms. ✅
+- **#1 PERFORMANCE — DEFERRED by user ("to be sorted after full implementation").** Known costs: `extractVoids` is O(n²) and re-runs on every pan; curve-flatten ~10× the segment count (144 ms vs 15 ms) and worse zoomed-out. Real fix later = spatial-hash the intersection pass + the periodicity shortcut (one fundamental domain, classify by signature) from Step 19.1. Also still queued: perf-gate hover→first-click fallback; drag-pan-over-Void swallowed by pointerdown.
+
+`tsc` clean, **236 vitest**, build green.
+
+**⏳ NEXT — browser-verify the fixes**, then **19.4** (the deferred perf work above + no-Frame viewport sanity + export-reflects-fills). After that Stage-1 Decoration is shippable; then Stage 2 (Patch/Cell scopes) per ADR-0005.
 
 ---
 

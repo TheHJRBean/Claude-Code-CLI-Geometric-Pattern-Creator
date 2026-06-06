@@ -19,7 +19,8 @@ import { frameOutlinePolygon } from '../editor/frame'
 import { pointInPolygon, isConvexPolygon } from '../utils/math'
 import { runPIC } from '../pic/index'
 import { recordPerf, periodicityEnabled } from '../utils/perf'
-import { resolveDecoration, type VoidFill } from '../decoration/resolve'
+import type { VoidFill } from '../decoration/resolve'
+import { extractVoids, type VoidRegion } from '../decoration/voids'
 
 export interface PatternData {
   polygons: Polygon[]
@@ -85,6 +86,12 @@ export interface PatternData {
    * or null/undefined ⇒ the renderer uses `StrandStyle.color`.
    */
   strandColor?: string | null
+  /**
+   * Step 19.3 — ALL Voids extracted in the Decoration phase (filled or not),
+   * with polygon + congruent signature. Canvas hit-tests these for Paint-mode
+   * hover-highlight + click-to-Fill. Only emitted when `decorationActive`.
+   */
+  decorationVoids?: VoidRegion[]
 }
 
 export function usePattern(
@@ -352,7 +359,7 @@ export function usePattern(
       // current bound (the convex Frame outline if present, else the generated
       // viewport rect). Geometry is frozen in this phase, so the full-field
       // extraction here only re-runs on pan/zoom, not on interaction.
-      if (decorationActive && patch.decoration) {
+      if (decorationActive) {
         let bound: Vec2[] = [
           { x: genX, y: genY }, { x: genX + genW, y: genY },
           { x: genX + genW, y: genY + genH }, { x: genX, y: genY + genH },
@@ -361,8 +368,26 @@ export function usePattern(
           const outline = frameOutlinePolygon(patch.frame)
           if (outline && outline.length >= 3 && isConvexPolygon(outline)) bound = outline
         }
-        const { fills, strandColor } = resolveDecoration(segments, bound, patch.decoration)
-        return { polygons: picPolygons, segments, boundaryOutlines, voidFills: fills, strandColor }
+        // Extract every Void once (needed for both render-fills and Paint-mode
+        // hit-testing), then map the Congruent-scope decoration records on top.
+        const decorationVoids = extractVoids(segments, bound)
+        const deco = patch.decoration
+        const voidFills: VoidFill[] = []
+        let strandColor: string | null = null
+        if (deco) {
+          const strandRec = deco.strandColours.find(r => r.scope === 'congruent')
+          strandColor = strandRec ? strandRec.colour : null
+          const colourBySig = new Map(
+            deco.voidFills.filter(r => r.scope === 'congruent').map(r => [r.key, r.colour]),
+          )
+          if (colourBySig.size > 0) {
+            for (const v of decorationVoids) {
+              const c = colourBySig.get(v.signature)
+              if (c) voidFills.push({ polygon: v.polygon, colour: c })
+            }
+          }
+        }
+        return { polygons: picPolygons, segments, boundaryOutlines, voidFills, strandColor, decorationVoids }
       }
       return { polygons: picPolygons, segments, boundaryOutlines }
     }

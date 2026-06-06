@@ -73,4 +73,8 @@ export const DESIGN_MODE_ACTIONS: ReadonlySet<string> = new Set([
   // Frame overlay — setting / clearing the Frame is undoable. Frame-node
   // completions land via EDITOR_COMPLETE_N_GAP (already in this set).
   'SET_FRAME',
+  // Step 19 Decoration — colouring Voids / Strands is undoable.
+  'SET_DECORATION_VOID_FILL',
+  'SET_DECORATION_STRAND_COLOR',
+  'CLEAR_DECORATION',
 ])

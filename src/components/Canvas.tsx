@@ -7,6 +7,7 @@ import { frameOutlinePolygon, computeFrameSections, frameNodePoints } from '../e
 import { nRingOutline, DEFAULT_FRAME_RINGS } from '../editor/frameNRing'
 import { usePanZoom, type ViewTransform } from '../hooks/usePanZoom'
 import { PatternSVG } from '../rendering/PatternSVG'
+import { DecorationPaintLayer } from '../rendering/DecorationPaintLayer'
 import { RotationDial } from './RotationDial'
 import type { ExposedEdge } from '../editor/exposedEdges'
 import { computeExposedEdges } from '../editor/exposedEdges'
@@ -149,11 +150,16 @@ interface Props {
   /** Step 19.3 — Decoration phase active: render resolved Void fills + strand
    * colour over the Composition. */
   decorationActive?: boolean
+  /** Step 19.3 — Paint-mode: Fill the clicked Void's congruent class (by
+   * signature) with the active colour. */
+  onPaintVoid?: (signature: string) => void
+  /** Step 19.3 — active Paint colour (used for the hover highlight). */
+  paintColor?: string
 }
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, editorMode = 'place', picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, editorMode = 'place', picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, paintColor = '#c0392b' }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -184,7 +190,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // stay synchronous for a live preview; the real fix for their cost is the
   // periodicity-PIC lever (cheap recompute), not deferral.
   const deferredVT = useDeferredValue(viewTransform)
-  const { polygons, segments, boundaryOutlines, ghostPolygons, neighbourStamps, seedOutlineCount, ghostPolygonIds, compositionStamps, voidFills, strandColor } = usePattern(
+  const { polygons, segments, boundaryOutlines, ghostPolygons, neighbourStamps, seedOutlineCount, ghostPolygonIds, compositionStamps, voidFills, strandColor, decorationVoids } = usePattern(
     config,
     deferredVT,
     size.width,
@@ -683,6 +689,14 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       ) : null
     : null
 
+  // Step 19.3 — Decoration Paint-mode overlay. In the Decoration phase the
+  // normal editor overlay is null (it's gated to !editorStrandMode), so the
+  // Paint layer reuses PatternSVG's topmost overlay slot. Hit-tests the
+  // extracted Voids for hover-highlight + click-to-Fill.
+  const decorationOverlay = decorationActive && decorationVoids && onPaintVoid
+    ? <DecorationPaintLayer voids={decorationVoids} activeColor={paintColor} onPaint={onPaintVoid} />
+    : null
+
   // Picker position uses the rendered (Patch-local) midpoint so the popup
   // tracks the visible edge. Validation uses the raw (Cell-local) edge so
   // viability runs in the host Cell's coord system.
@@ -753,7 +767,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         seedOutlineCount={seedOutlineCount}
         ghostPolygonIds={ghostPolygonIds}
         compositionStamps={compositionStamps}
-        editorOverlay={editorOverlay}
+        editorOverlay={decorationActive ? decorationOverlay : editorOverlay}
         frameOutline={frameOutline}
         clipToFrame={config.tiling.type !== 'editor' || editorStrandMode}
         frameNodes={frameNodes}

@@ -202,6 +202,9 @@ export function TessellationLabMode({
   // Step 17.6 — Design Phase vs Composition Phase phase-switch (Decision 15).
   // Local UI state — not persisted; figures persist independently per Q15.
   const [editorPhase, setEditorPhase] = useState<'design' | 'strand' | 'decoration'>('design')
+  // Step 19.3 — Decoration: the active Paint colour, shared by the side-panel
+  // swatches and the canvas Paint overlay.
+  const [decorationColor, setDecorationColor] = useState('#c0392b')
   // Step 17.6 — Composition Phase: show the Patch Boundary stamped on the lattice.
   const [showBoundaryLattice, setShowBoundaryLattice] = useState(false)
   // Step 17.6d — Design Phase: low-opacity ghost copies of the Patch at the
@@ -405,6 +408,8 @@ export function TessellationLabMode({
                 multiMode={multiMode}
                 onCancelComplete={resetPicks}
                 editorPhase={editorPhase}
+                decorationColor={decorationColor}
+                onSetDecorationColor={setDecorationColor}
                 onSetEditorPhase={p => {
                   // Step 17.7 — fire auto-complete when leaving Design for any
                   // later phase (Composition or Decoration) if the user opted
@@ -720,6 +725,8 @@ export function TessellationLabMode({
         onForceCommitMulti={handleForceCommitMulti}
         editorStrandMode={editorPhase !== 'design'}
         decorationActive={editorPhase === 'decoration'}
+        paintColor={decorationColor}
+        onPaintVoid={sig => dispatch({ type: 'SET_DECORATION_VOID_FILL', payload: { signature: sig, colour: decorationColor } })}
         editorFrame={!!config.editor?.frame}
         showBoundaryLattice={showBoundaryLattice}
         editorNeighbourPreview={editorPhase === 'design' && showNeighbours && !(config.editor && activeCell(config.editor).wrapBoundary)}
@@ -959,6 +966,8 @@ interface EditorDesignControlsProps {
   onCancelComplete: () => void
   editorPhase: 'design' | 'strand' | 'decoration'
   onSetEditorPhase: (p: 'design' | 'strand' | 'decoration') => void
+  decorationColor: string
+  onSetDecorationColor: (c: string) => void
   showBoundaryLattice: boolean
   onToggleShowBoundaryLattice: (next: boolean) => void
   showNeighbours: boolean
@@ -973,6 +982,19 @@ interface EditorDesignControlsProps {
   canRedo: boolean
 }
 
+const decorationButtonStyle: React.CSSProperties = {
+  padding: '5px 8px',
+  fontFamily: "'Cinzel', Georgia, serif",
+  fontSize: 9,
+  fontWeight: 600,
+  letterSpacing: '0.06em',
+  textTransform: 'uppercase',
+  cursor: 'pointer',
+  border: '1px solid var(--border-subtle)',
+  background: 'transparent',
+  color: 'var(--text-muted)',
+}
+
 function EditorDesignControls({
   editor,
   dispatch,
@@ -984,6 +1006,8 @@ function EditorDesignControls({
   onCancelComplete,
   editorPhase,
   onSetEditorPhase,
+  decorationColor,
+  onSetDecorationColor,
   showBoundaryLattice,
   onToggleShowBoundaryLattice,
   showNeighbours,
@@ -1119,22 +1143,71 @@ function EditorDesignControls({
           </label>
         </div>
       )}
-      {inDecoration && (
-        <div style={{
-          marginTop: 0,
-          marginBottom: 14,
-          padding: '8px 10px',
-          fontFamily: "'EB Garamond', Georgia, serif",
-          fontSize: 12,
-          color: 'var(--text-muted)',
-          lineHeight: 1.45,
-          border: '1px solid var(--border-subtle)',
-        }}>
-          Decoration — colour the Strands and Fill the Voids (the regions
-          enclosed by Strands). Strand geometry is frozen here; flip back to
-          Composition to reshape. Paint tools land next.
-        </div>
-      )}
+      {inDecoration && (() => {
+        const strandRec = editor.decoration?.strandColours.find(r => r.scope === 'congruent')
+        const voidCount = editor.decoration?.voidFills.filter(r => r.scope === 'congruent').length ?? 0
+        const hasDecoration = !!strandRec || voidCount > 0
+        return (
+          <div style={{
+            marginTop: 0,
+            marginBottom: 14,
+            padding: '8px 10px',
+            fontFamily: "'EB Garamond', Georgia, serif",
+            fontSize: 12,
+            color: 'var(--text-muted)',
+            lineHeight: 1.45,
+            border: '1px solid var(--border-subtle)',
+          }}>
+            <div style={{ marginBottom: 8 }}>
+              Pick a colour, then click a region on the canvas to <strong>Fill</strong>
+              {' '}all similar Voids. Strand geometry is frozen here — flip back to
+              Composition to reshape.
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span style={{ minWidth: 70 }}>Paint colour</span>
+              <input
+                type="color"
+                value={decorationColor}
+                onChange={e => onSetDecorationColor(e.target.value)}
+                style={{ width: 36, height: 24, padding: 0, border: '1px solid var(--border-subtle)', background: 'transparent', cursor: 'pointer' }}
+              />
+              <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{decorationColor}</span>
+            </label>
+            <button
+              onClick={() => dispatch({ type: 'SET_DECORATION_STRAND_COLOR', payload: { colour: decorationColor } })}
+              style={decorationButtonStyle}
+            >
+              Colour all strands
+              <span style={{
+                display: 'inline-block', width: 12, height: 12, marginLeft: 8,
+                background: strandRec ? strandRec.colour : 'transparent',
+                border: '1px solid var(--border-subtle)', verticalAlign: 'middle',
+              }} />
+            </button>
+            <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+              {strandRec && (
+                <button
+                  onClick={() => dispatch({ type: 'SET_DECORATION_STRAND_COLOR', payload: { colour: null } })}
+                  style={{ ...decorationButtonStyle, flex: 1 }}
+                >
+                  Reset strands
+                </button>
+              )}
+              {hasDecoration && (
+                <button
+                  onClick={() => dispatch({ type: 'CLEAR_DECORATION' })}
+                  style={{ ...decorationButtonStyle, flex: 1 }}
+                >
+                  Clear all
+                </button>
+              )}
+            </div>
+            {voidCount > 0 && (
+              <div style={{ marginTop: 8, fontSize: 11 }}>{voidCount} Void class{voidCount === 1 ? '' : 'es'} filled</div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Frame — a persistent bounded-region overlay, present in both Design
           and Composition (read later by Decoration). The pattern clips to its

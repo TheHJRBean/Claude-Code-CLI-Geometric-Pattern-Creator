@@ -86,6 +86,12 @@ export type Action =
   // Gallery-mode Frame (clip-only, top-level `config.frame`). Distinct from
   // SET_FRAME, which targets the Builder's `editor.frame`. `null` clears it.
   | { type: 'SET_GALLERY_FRAME'; payload: FrameConfig | null }
+  // Step 19 Decoration (Builder-only, `editor.decoration`). Stage 1 = Congruent
+  // scope. Paint a Void's congruent class (keyed by shape signature), set the
+  // all-strands colour, or clear all decoration.
+  | { type: 'SET_DECORATION_VOID_FILL'; payload: { signature: string; colour: string } }
+  | { type: 'SET_DECORATION_STRAND_COLOR'; payload: { colour: string | null } }
+  | { type: 'CLEAR_DECORATION' }
   // Switch which Cell the user is editing in Design Phase (multi-Cell only).
   // Pure pane swap — does NOT push a history snapshot.
   | { type: 'SET_ACTIVE_CELL'; payload: { cellId: string } }

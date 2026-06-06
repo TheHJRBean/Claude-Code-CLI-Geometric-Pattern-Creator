@@ -525,6 +525,32 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       const frame = action.payload ?? undefined
       return { ...state, frame }
     }
+    case 'SET_DECORATION_VOID_FILL': {
+      // Stage-1 Congruent Void Fill: upsert a `congruent`-scope record keyed by
+      // the Void's shape signature. Re-painting a class replaces its colour.
+      if (!state.editor) return state
+      const deco = state.editor.decoration ?? { version: 1 as const, strandColours: [], voidFills: [] }
+      const { signature, colour } = action.payload
+      const voidFills = deco.voidFills.filter(r => !(r.scope === 'congruent' && r.key === signature))
+      voidFills.push({ scope: 'congruent', key: signature, colour })
+      return { ...state, editor: { ...state.editor, decoration: { ...deco, voidFills } } }
+    }
+    case 'SET_DECORATION_STRAND_COLOR': {
+      // Stage-1 Congruent Strand colour: a single `congruent` record (key '*')
+      // overriding the global. `null` clears it (back to StrandStyle.color).
+      if (!state.editor) return state
+      const deco = state.editor.decoration ?? { version: 1 as const, strandColours: [], voidFills: [] }
+      const strandColours = deco.strandColours.filter(r => r.scope !== 'congruent')
+      if (action.payload.colour !== null) {
+        strandColours.push({ scope: 'congruent', key: '*', colour: action.payload.colour })
+      }
+      return { ...state, editor: { ...state.editor, decoration: { ...deco, strandColours } } }
+    }
+    case 'CLEAR_DECORATION': {
+      if (!state.editor || !state.editor.decoration) return state
+      const { decoration: _drop, ...rest } = state.editor
+      return { ...state, editor: rest }
+    }
     case 'EDITOR_RUN_AUTO_COMPLETE': {
       if (!state.editor) return state
       return applyWrap(seedFigures(updateActiveCell(state, cell => {

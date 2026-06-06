@@ -146,11 +146,14 @@ interface Props {
    * outline, draw the outline, and expose its edge nodes as Complete-mode pick
    * targets. Persistent across Design + Composition. */
   editorFrame?: boolean
+  /** Step 19.3 — Decoration phase active: render resolved Void fills + strand
+   * colour over the Composition. */
+  decorationActive?: boolean
 }
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, editorMode = 'place', picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, editorMode = 'place', picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -181,7 +184,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // stay synchronous for a live preview; the real fix for their cost is the
   // periodicity-PIC lever (cheap recompute), not deferral.
   const deferredVT = useDeferredValue(viewTransform)
-  const { polygons, segments, boundaryOutlines, ghostPolygons, neighbourStamps, seedOutlineCount, ghostPolygonIds, compositionStamps } = usePattern(
+  const { polygons, segments, boundaryOutlines, ghostPolygons, neighbourStamps, seedOutlineCount, ghostPolygonIds, compositionStamps, voidFills, strandColor } = usePattern(
     config,
     deferredVT,
     size.width,
@@ -192,6 +195,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     editorNeighbourBoundaries,
     editorNeighbourStrands,
     editorFrame,
+    decorationActive,
   )
 
   // The Frame outline to clip the Composition to — a persistent overlay across
@@ -753,6 +757,8 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         frameOutline={frameOutline}
         clipToFrame={config.tiling.type !== 'editor' || editorStrandMode}
         frameNodes={frameNodes}
+        voidFills={voidFills}
+        strandColor={strandColor}
       />
       {pickerScreenPos && onPlaceTile && onSelectEdge && selectedEdgeData && (
         <EditorPickerOverlay

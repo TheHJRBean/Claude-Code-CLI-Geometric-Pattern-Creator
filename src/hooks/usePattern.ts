@@ -16,9 +16,10 @@ import {
 } from '../editor/compositionLattice'
 import { activeCell } from '../editor/active'
 import { frameOutlinePolygon } from '../editor/frame'
-import { pointInPolygon } from '../utils/math'
+import { pointInPolygon, isConvexPolygon } from '../utils/math'
 import { runPIC } from '../pic/index'
 import { recordPerf, periodicityEnabled } from '../utils/perf'
+import { resolveDecoration, type VoidFill } from '../decoration/resolve'
 
 export interface PatternData {
   polygons: Polygon[]
@@ -73,6 +74,17 @@ export interface PatternData {
    * normal pre-stamped `polygons`/`segments` are used.
    */
   compositionStamps?: LatticeStamp[]
+  /**
+   * Step 19.2/19.3 — Decoration **Void Fill**s, resolved from
+   * `editor.decoration` over the current bound. Drawn behind the Strands.
+   * Only emitted in the Decoration phase (`decorationActive`).
+   */
+  voidFills?: VoidFill[]
+  /**
+   * Step 19.2/19.3 — Decoration **Strand colour** override (Congruent scope),
+   * or null/undefined ⇒ the renderer uses `StrandStyle.color`.
+   */
+  strandColor?: string | null
 }
 
 export function usePattern(
@@ -94,6 +106,10 @@ export function usePattern(
    * the Frame's completion Tiles in the PIC input so Strands flow out to the
    * frame edge through them. Persistent across Design + Composition. */
   editorFrame = false,
+  /** Step 19.3 — Decoration phase active: resolve `editor.decoration` into
+   * Void fills + strand colour, and bypass the periodic fast-path so the
+   * full field is available for global Void extraction. */
+  decorationActive = false,
 ): PatternData {
   // Visible viewport in world coordinates
   const vw = containerWidth / viewTransform.zoom
@@ -246,6 +262,7 @@ export function usePattern(
       // exact stamped path below.
       if (
         periodicityEnabled()
+        && !decorationActive
         && !multiCell
         && !editorFrame
         && !showBoundaryLattice
@@ -331,6 +348,22 @@ export function usePattern(
           }
         }
       }
+      // Step 19.3 — Decoration: resolve Void fills + strand colour over the
+      // current bound (the convex Frame outline if present, else the generated
+      // viewport rect). Geometry is frozen in this phase, so the full-field
+      // extraction here only re-runs on pan/zoom, not on interaction.
+      if (decorationActive && patch.decoration) {
+        let bound: Vec2[] = [
+          { x: genX, y: genY }, { x: genX + genW, y: genY },
+          { x: genX + genW, y: genY + genH }, { x: genX, y: genY + genH },
+        ]
+        if (editorFrame && patch.frame) {
+          const outline = frameOutlinePolygon(patch.frame)
+          if (outline && outline.length >= 3 && isConvexPolygon(outline)) bound = outline
+        }
+        const { fills, strandColor } = resolveDecoration(segments, bound, patch.decoration)
+        return { polygons: picPolygons, segments, boundaryOutlines, voidFills: fills, strandColor }
+      }
       return { polygons: picPolygons, segments, boundaryOutlines }
     }
 
@@ -345,5 +378,5 @@ export function usePattern(
     const segments = runPIC(polygons, config)
 
     return { polygons, segments }
-  }, [config, editorBase, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview, editorNeighbourBoundaries, editorNeighbourStrands, editorFrame])
+  }, [config, editorBase, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview, editorNeighbourBoundaries, editorNeighbourStrands, editorFrame, decorationActive])
 }

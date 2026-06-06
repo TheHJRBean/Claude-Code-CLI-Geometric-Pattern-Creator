@@ -274,10 +274,37 @@ export function extractVoids(
     if (i === outerIdx) continue
     const area = Math.abs(areas[i])
     if (area < minArea) continue
-    const poly = areas[i] < 0 ? cycles[i].slice().reverse() : cycles[i]
+    const ccw = areas[i] < 0 ? cycles[i].slice().reverse() : cycles[i]
+    // Drop collinear / duplicate vertices so two congruent Voids that differ
+    // only by a T-junction vertex on a straight edge hash to the same
+    // signature (otherwise group-fill leaves "random" siblings unpainted).
+    const poly = simplifyCollinear(ccw)
     voids.push({ polygon: poly, area, signature: voidSignature(poly, lengthSnap, angleSnap) })
   }
   return voids
+}
+
+/**
+ * Remove vertices whose turn angle is ~0 (collinear with their neighbours) and
+ * any zero-length steps. A T-junction where a neighbouring strand merely
+ * touches a Void's straight edge injects such a vertex on one Void but not its
+ * congruent sibling; dropping them makes the two outlines — and signatures —
+ * identical.
+ */
+function simplifyCollinear(poly: Vec2[], angleTol = (1.5 * Math.PI) / 180): Vec2[] {
+  const n = poly.length
+  if (n < 4) return poly
+  const out: Vec2[] = []
+  for (let i = 0; i < n; i++) {
+    const prev = poly[(i - 1 + n) % n]
+    const cur = poly[i]
+    const next = poly[(i + 1) % n]
+    const inDir = sub(cur, prev)
+    const outDir = sub(next, cur)
+    const turn = Math.atan2(cross(inDir, outDir), dot(inDir, outDir))
+    if (Math.abs(turn) > angleTol) out.push(cur)
+  }
+  return out.length >= 3 ? out : poly
 }
 
 function signedArea(poly: Vec2[]): number {
@@ -306,8 +333,11 @@ function signedArea(poly: Vec2[]): number {
  * value doesn't depend on the input winding.
  */
 export function voidSignature(poly: Vec2[], lengthSnap: number, angleSnap: number): string {
-  // Normalise to CCW so interior angle = π − signedTurn is well-defined.
-  const ccw = signedArea(poly) < 0 ? poly.slice().reverse() : poly
+  // Normalise to CCW so interior angle = π − signedTurn is well-defined, and
+  // strip collinear / duplicate vertices so a stray T-junction vertex on a
+  // straight edge can't change the signature of an otherwise-congruent Void.
+  const simplified = simplifyCollinear(signedArea(poly) < 0 ? poly.slice().reverse() : poly)
+  const ccw = simplified
   const n = ccw.length
   const tokens: string[] = [] // alternating a<angle>, e<edge>, … (length 2n)
   for (let i = 0; i < n; i++) {

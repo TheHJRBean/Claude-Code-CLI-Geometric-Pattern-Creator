@@ -104,6 +104,19 @@ describe('Step 19.1 — congruent signature', () => {
     const mirror = tri.map(p => ({ x: -p.x, y: p.y }))
     expect(voidSignature(tri, L, A)).toBe(voidSignature(mirror, L, A))
   })
+
+  it('an extra collinear (T-junction) vertex does not change the signature', () => {
+    // The #2 fix: a congruent sibling that picked up a midpoint vertex on one
+    // straight edge must still hash the same as the plain square.
+    const plain: Vec2[] = [
+      { x: 0, y: 0 }, { x: 40, y: 0 }, { x: 40, y: 40 }, { x: 0, y: 40 },
+    ]
+    const withTJunction: Vec2[] = [
+      { x: 0, y: 0 }, { x: 20, y: 0 }, { x: 40, y: 0 }, // collinear midpoint
+      { x: 40, y: 40 }, { x: 0, y: 40 },
+    ]
+    expect(voidSignature(withTJunction, L, A)).toBe(voidSignature(plain, L, A))
+  })
 })
 
 describe('Step 19.1 — real PIC field (4.8.8)', () => {

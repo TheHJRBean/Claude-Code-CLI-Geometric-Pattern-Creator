@@ -1,59 +1,112 @@
 import { useState } from 'react'
 import type { Vec2 } from '../utils/math'
+import type { Segment } from '../types/geometry'
 import type { VoidRegion } from '../decoration/voids'
 
+export type PaintTarget = 'off' | 'voids' | 'strands'
+
 /**
- * Step 19.3 — Decoration **Paint mode** canvas overlay. Renders one transparent
- * hit-target per **Void**; hovering one faintly highlights its whole **congruent
- * group** (every Void sharing the signature) in the active colour so the user
- * sees the blast radius, and clicking **Fill**s that group (`onPaint(signature)`).
+ * Step 19.3 — Decoration **Paint mode** canvas overlay. A manual **Paint target**
+ * (Off · Voids · Strands) decides what is clickable so Voids and Strands never
+ * fight over the cursor (and Off lets the user pan freely):
  *
- * Rendered topmost (via PatternSVG's overlay slot) and uses `onPointerDown` so
- * the click beats the pan handler and the strand strokes painted below.
+ * - **Voids**: one transparent hit-target per Void; hovering one faintly
+ *   highlights its whole **congruent group** in the active colour and a click
+ *   **Fill**s the group (`onPaintVoid(signature)`).
+ * - **Strands**: thick transparent hit-targets over every Ray; hovering any
+ *   highlights *all* Strands (one Congruent group in Stage 1) and a click
+ *   colours them (`onPaintStrands()`).
  *
- * Hover-highlight is live here (Void counts are small — tens per view). The
- * spec's perf-gated "highlight on first click instead" fallback is a future
- * refinement if large fields jank.
+ * Rendered topmost (PatternSVG's overlay slot) and uses `onPointerDown` so the
+ * click beats the pan handler and the strokes painted below.
  */
 export function DecorationPaintLayer({
+  target,
   voids,
+  segments,
   activeColor,
-  onPaint,
+  zoom,
+  onPaintVoid,
+  onPaintStrands,
 }: {
+  target: PaintTarget
   voids: VoidRegion[]
+  segments: Segment[]
   activeColor: string
-  onPaint: (signature: string) => void
+  zoom: number
+  onPaintVoid: (signature: string) => void
+  onPaintStrands: () => void
 }) {
-  const [hovered, setHovered] = useState<string | null>(null)
-  return (
-    <g id="decoration-paint-layer">
-      {hovered !== null && voids.filter(v => v.signature === hovered).map((v, i) => (
-        <path
-          key={`hl-${i}`}
-          d={polygonPath(v.polygon)}
-          fill={activeColor}
-          fillOpacity={0.35}
-          stroke={activeColor}
-          strokeOpacity={0.95}
-          strokeWidth={1.5}
-          vectorEffect="non-scaling-stroke"
-          pointerEvents="none"
-        />
-      ))}
-      {voids.map((v, i) => (
-        <path
-          key={i}
-          d={polygonPath(v.polygon)}
-          fill="transparent"
-          stroke="none"
-          style={{ cursor: BUCKET_CURSOR }}
-          onPointerEnter={() => setHovered(v.signature)}
-          onPointerLeave={() => setHovered(h => (h === v.signature ? null : h))}
-          onPointerDown={e => { e.stopPropagation(); onPaint(v.signature) }}
-        />
-      ))}
-    </g>
-  )
+  const [hoveredSig, setHoveredSig] = useState<string | null>(null)
+  const [hoverStrands, setHoverStrands] = useState(false)
+
+  if (target === 'voids') {
+    return (
+      <g id="decoration-paint-layer">
+        {hoveredSig !== null && voids.filter(v => v.signature === hoveredSig).map((v, i) => (
+          <path
+            key={`hl-${i}`}
+            d={polygonPath(v.polygon)}
+            fill={activeColor}
+            fillOpacity={0.35}
+            stroke={activeColor}
+            strokeOpacity={0.95}
+            strokeWidth={1.5}
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+        ))}
+        {voids.map((v, i) => (
+          <path
+            key={i}
+            d={polygonPath(v.polygon)}
+            fill="transparent"
+            stroke="none"
+            style={{ cursor: BUCKET_CURSOR }}
+            onPointerEnter={() => setHoveredSig(v.signature)}
+            onPointerLeave={() => setHoveredSig(h => (h === v.signature ? null : h))}
+            onPointerDown={e => { e.stopPropagation(); onPaintVoid(v.signature) }}
+          />
+        ))}
+      </g>
+    )
+  }
+
+  if (target === 'strands') {
+    // Constant ~10px screen hit width regardless of zoom.
+    const hitWidth = 10 / zoom
+    return (
+      <g id="decoration-paint-layer">
+        {hoverStrands && segments.map((s, i) => (
+          <line
+            key={`hl-${i}`}
+            x1={s.from.x} y1={s.from.y} x2={s.to.x} y2={s.to.y}
+            stroke={activeColor}
+            strokeOpacity={0.9}
+            strokeWidth={3}
+            strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+        ))}
+        {segments.map((s, i) => (
+          <line
+            key={i}
+            x1={s.from.x} y1={s.from.y} x2={s.to.x} y2={s.to.y}
+            stroke="transparent"
+            strokeWidth={hitWidth}
+            strokeLinecap="round"
+            style={{ cursor: BUCKET_CURSOR }}
+            onPointerEnter={() => setHoverStrands(true)}
+            onPointerLeave={() => setHoverStrands(false)}
+            onPointerDown={e => { e.stopPropagation(); onPaintStrands() }}
+          />
+        ))}
+      </g>
+    )
+  }
+
+  return null
 }
 
 function polygonPath(poly: Vec2[]): string {

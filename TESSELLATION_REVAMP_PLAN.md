@@ -809,7 +809,13 @@ faces of the *global* arrangement of all visible Rays.
 - **Risk:** robustness of the arrangement at near-coincident Ray crossings;
   degenerate faces; open faces at the bound. Budget a spike.
 
-### Render path (19.2)
+### Render path (19.2) — ✅ render-path pieces DONE (live wiring with 19.3)
+
+**Shipped:** `src/decoration/resolve.ts` (`resolveDecoration(segments, bound, decoration) → { fills, strandColor }`, pure; skips extraction when no Fill records; +6 tests), `src/rendering/VoidFillLayer.tsx` (filled `<path>` per Void, behind Strands), `StrandLayer` `strokeColor?` override (Decoration Strand colour; falls back to `config.strand.color`), `PatternSVG` `voidFills?` + `strandColor?` props (VoidFillLayer between TileLayer and StrandLayer; strand override threaded to both the normal and fast-path branches).
+
+**Decision — Decoration bypasses the periodic fast-path.** Geometry is frozen in Decoration, so the full-field Void extraction is affordable and avoids cross-seam Void splitting under `<use>` clones. So `voidFills` render only on the normal (non-`compositionStamps`) branch; the live wiring in 19.3 turns the fast-path off when the Decoration phase is active. The cheap Strand-colour override works in both branches.
+
+**Deferred to 19.3 (needs the phase + bound):** computing `voidFills`/`strandColor` in `usePattern` (extract over the Frame outline, else viewport bbox) and threading through `Canvas`. `resolve.ts`/`voids.ts` stay tree-shaken until then.
 
 Layer stack, bottom → top:
 
@@ -851,7 +857,7 @@ emitted the same way, and **export must use DOM export, not `segmentsRef`**).
 |-----|-------|-----------|
 | 19.0 | `DecorationConfig` type + `editor.decoration` field + migration default (absent ⇒ no decoration) | `npm run build` green; loading an old save adds no decoration |
 | 19.1 | ✅ **DONE** — Void extraction + congruent signature (`src/decoration/voids.ts`) | 4.8.8 PIC field → 25 Voids / 8 congruent classes / coverage 1.0 / 15 ms; 12 tests green |
-| 19.2 | Render path: Void fills behind strands + strand-colour override resolution | A hand-seeded `voidFills`/`strandColours` paints the right regions/lines; clones (fast-path) fill identically |
+| 19.2 | ✅ **render-path pieces DONE** — `resolve.ts` + `VoidFillLayer` + `StrandLayer` override + `PatternSVG` props (live `usePattern`/`Canvas` wiring folded into 19.3 with the phase) | hand-seeded `voidFills`/`strandColours` → right regions/lines (6 resolver tests); Decoration bypasses fast-path |
 | 19.3 | Decoration phase + Paint mode + hover highlight + click-apply + undo | User enters Decoration, paints a Void shape and all strands, sees congruent groups recolour live; undo reverts; pan keeps colours stable |
 | 19.4 | Polish: perf-gate the hover highlight; empty/no-Frame viewport bound; export sanity | Hover stays smooth or auto-falls-back; export reflects fills |
 

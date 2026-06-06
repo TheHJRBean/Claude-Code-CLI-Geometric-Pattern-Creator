@@ -719,6 +719,7 @@ export function TessellationLabMode({
         }
         onForceCommitMulti={handleForceCommitMulti}
         editorStrandMode={editorPhase !== 'design'}
+        decorationActive={editorPhase === 'decoration'}
         editorFrame={!!config.editor?.frame}
         showBoundaryLattice={showBoundaryLattice}
         editorNeighbourPreview={editorPhase === 'design' && showNeighbours && !(config.editor && activeCell(config.editor).wrapBoundary)}

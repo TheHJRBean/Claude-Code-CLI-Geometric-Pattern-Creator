@@ -875,6 +875,56 @@ emitted the same way, and **export must use DOM export, not `segmentsRef`**).
 - **Stage 5+ — image / surface tools.** Textures, gradients, backgrounds —
   parked, capture as sub-ideas when scoped.
 
+### 19.4 — next-phase backlog: issues, avenues, trade-offs (durable handoff)
+
+**Status:** Stage 1 DELIVERED + user-signed-off ("functioning broadly as intended").
+Perf chain `c68ef85`→`017a7f9`. This block is the durable continuation brief
+(an ephemeral copy was also written for the handoff). Read `SESSION_STATE.md`
+first for the per-commit narrative.
+
+**Architecture facts the next session needs (non-obvious):**
+- Void extraction (`src/decoration/voids.ts`) uses a **spatial-grid broad-phase**
+  (short segs bucketed by bbox cells; few long segs brute-forced) — this killed
+  the O(n²) entry hang. The arrangement is **connected on real PIC fields**
+  (4.8.8 coverage 1.000), so the documented holes/spurs limits haven't bitten.
+- Performance is solved by **periodicity, not faster extraction**: (a) render via
+  the **multi-cell-generalised Lever A fast-path** (one base domain PIC'd once,
+  tiled by `<use>`); (b) fills = **one representative Void per lattice cell**
+  (Voronoi cell of origin, `decorationFills` memo, pan-independent) rendered
+  INSIDE the cloned fragment ⇒ tiles for free, no per-view extraction. The Paint
+  overlay can't be cloned, so its hit-targets are **reps/Rays tiled by translation
+  across visible stamps** (never re-extracted on pan).
+- `simplifyCollinear` before signing is load-bearing for consistent group-fill.
+
+**Snagging bugs (verify + fix):**
+1. **First-paint one-time lag.** First Fill rasterises the whole tiled field at
+   once; also every paint re-runs base PIC because `editorBase` keys on whole
+   `config`. **Safe fix:** re-key `editorBase` on geometry sub-fields
+   (`config.editor.cells` ref is preserved across decoration edits) so paints
+   don't re-PIC. Load-bearing memo — confirm `runPIC`'s config reads first.
+2. **Multi-cell Composition seams — UNVERIFIED.** The `!multiCell` guard lift
+   makes multi-cell Composition render via clones; confirm strands meet at
+   unit-cell boundaries on all 5 Configurations. If broken: PIC the unit cell
+   with a one-ring halo, clip to domain, then clone. Revert flag:
+   `localStorage.perfPeriodicity='0'`.
+3. **Non-fast-path Decoration** (frame / vertex-lines / alternate-orientation)
+   is still full-field + view-bounded + slow. Extend the periodic treatment or
+   at least the editorBase decouple + larger fixed extraction region.
+4. **Curved Voids zoomed-out (~580 ms)** — `flatten.ts` + buildStrands over the
+   field. Fine framed/moderate.
+5. **Drag-pan starting on a Void/Strand is swallowed** by overlay pointerdown.
+
+**Avenues / trade-offs:**
+- If the tiled-hit-target DOM janks at scale, replace with a **canvas-covering
+  rect that lattice-reduces the pointer into the fundamental domain** on hover
+  (1 rect, no per-Void DOM; highlight only the hovered Void's visible copies).
+  Needs SVG client→world mapping (overlay is inside viewBox + rotation `<g>`).
+- **`resolve.ts` is now test-only** — live paths (`buildDecorationData` +
+  `decorationFills`) duplicate its logic incl. the `'*'` all-Voids default.
+  Consolidate or delete to avoid two sources of truth.
+- Voronoi representative selection assumes ~cell-sized Voids (minor boundary fill
+  overlap otherwise; invisible when same colour).
+
 ---
 
 ## Future / parked steps

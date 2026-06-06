@@ -858,7 +858,7 @@ emitted the same way, and **export must use DOM export, not `segmentsRef`**).
 | 19.0 | `DecorationConfig` type + `editor.decoration` field + migration default (absent ⇒ no decoration) | `npm run build` green; loading an old save adds no decoration |
 | 19.1 | ✅ **DONE** — Void extraction + congruent signature (`src/decoration/voids.ts`) | 4.8.8 PIC field → 25 Voids / 8 congruent classes / coverage 1.0 / 15 ms; 12 tests green |
 | 19.2 | ✅ **render-path pieces DONE** — `resolve.ts` + `VoidFillLayer` + `StrandLayer` override + `PatternSVG` props (live `usePattern`/`Canvas` wiring folded into 19.3 with the phase) | hand-seeded `voidFills`/`strandColours` → right regions/lines (6 resolver tests); Decoration bypasses fast-path |
-| 19.3 | Decoration phase + Paint mode + hover highlight + click-apply + undo | User enters Decoration, paints a Void shape and all strands, sees congruent groups recolour live; undo reverts; pan keeps colours stable |
+| 19.3 | ✅ **BUILT** (⏳ browser-verify) — Decoration phase (a/b/c) + Paint mode + hover highlight + click-apply + undo | tsc + 232 vitest + build green; dev server boots clean. Interactive paint needs a human click-through |
 | 19.4 | Polish: perf-gate the hover highlight; empty/no-Frame viewport bound; export sanity | Hover stays smooth or auto-falls-back; export reflects fills |
 
 ### Deferred stages (NOT Stage 1 — capture only)

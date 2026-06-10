@@ -128,6 +128,26 @@ function stampSegments(base: Segment[], stamps: LatticeStamp[]): Segment[] {
   return out
 }
 
+/** Lever-A periodic fast-path eligibility — the SINGLE source of truth shared
+ * by the render branch and the pan-independent Decoration reps/fills memos.
+ * If the two drift, Decoration either blanks (fast-path renders but the fills
+ * memo bailed) or wastes a full extraction (fills computed but the render
+ * falls back to the exact stamped path). `stamps` can be ANY stamp set for
+ * the patch: rotations come from the cell shape / Configuration basis, never
+ * the viewport, so eligibility is viewport-independent. */
+function periodicFastPathEligible(
+  config: PatternConfig,
+  editorFrame: boolean,
+  showBoundaryLattice: boolean,
+  stamps: LatticeStamp[],
+): boolean {
+  return periodicityEnabled()
+    && !editorFrame
+    && !showBoundaryLattice
+    && !Object.values(config.figures).some(f => f?.vertexLinesEnabled)
+    && stamps.every(s => s.rotation === 0)
+}
+
 /** Resolve Decoration render data (Void fills + strand colour + all Voids for
  * Paint hit-testing) from a field of segments + a convex bound. */
 function buildDecorationData(
@@ -214,9 +234,18 @@ export function usePattern(
   // layers (TileLayer/StrandLayer) bail too. Null outside the Builder.
   // `baseSegments` is the PIC over the unstamped Patch only; the Composition
   // and neighbour-ghost paths still run their own viewport-dependent PIC.
+  // Re-keyed (19.4 snag #1) on the geometry sub-fields + runPIC's full config
+  // read-set (`figures` + `figureRouting` — verified) instead of the whole
+  // `config`, so Decoration paints (which only touch `editor.decoration`) no
+  // longer re-run PIC. The reducer's paint actions preserve the `cells` ref.
+  // ⚠ Contract: the returned `patch` is a snapshot from the last GEOMETRY
+  // change — its `decoration` / `frame` may be stale. Consumers may read
+  // geometry fields off it (values match the deps), but must read live
+  // non-geometry fields from `config.editor` directly.
+  const ed = config.tiling.type === 'editor' ? config.editor : undefined
   const editorBase = useMemo(() => {
-    if (config.tiling.type !== 'editor' || !config.editor) return null
-    const patch = config.editor
+    if (!ed) return null
+    const patch = ed
     const multiCell = patch.cells.length > 1
     const cell = activeCell(patch)
     const basePolys = multiCell
@@ -227,43 +256,43 @@ export function usePattern(
       : [editorBoundaryVertices(cell)]
     const baseSegments = runPIC(basePolys, config)
     return { patch, multiCell, cell, basePolys, baseOutlines, baseSegments }
-  }, [config])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ed?.cells, ed?.activeCellId, ed?.edgeLength, ed?.configuration, ed?.alternateOrientation, config.figures, config.figureRouting])
 
-  // Step 19.3 — pan-INDEPENDENT Decoration fills. For a periodic single-cell
-  // field, extract one representative Void per lattice cell (the Voronoi cell
-  // of the origin stamp, closed by a local ring of neighbours), colour them by
-  // signature, and return them positioned in the fundamental domain. PatternSVG
-  // renders these INSIDE the cloned fragment, so a single fill set tiles across
-  // the whole field via <use> — no per-viewport extraction, no pan re-extract,
-  // and full coverage everywhere. Recomputes only when geometry or the
-  // decoration records change (not on pan/zoom).
-  const decorationFills = useMemo<{ fills: VoidFill[]; reps: VoidRegion[] } | null>(() => {
+  // Step 19.3 — pan-INDEPENDENT Decoration representative Voids. For a
+  // periodic field, extract one representative Void per lattice cell (the
+  // Voronoi cell of the origin stamp, closed by a local ring of neighbours),
+  // positioned in the fundamental domain. The fills memo below colours them;
+  // PatternSVG renders the fills INSIDE the cloned fragment, so a single set
+  // tiles across the whole field via <use> — no per-viewport extraction, no
+  // pan re-extract, full coverage everywhere. Recomputes only on geometry /
+  // curve-recipe changes (not on pan/zoom, not on paint).
+  const decorationReps = useMemo<VoidRegion[] | null>(() => {
     if (!decorationActive || !editorBase) return null
     const patch = editorBase.patch
-    // Only when the periodic fast-path will actually render (otherwise the
-    // non-fast-path branch computes fills via buildDecorationData and this
-    // extraction would be wasted — and expensive with curves on).
-    // Alternate orientation is fine here: the rigid Patch rotation is baked
-    // into basePolys AND the lattice basis (stamps stay pure-translation), so
-    // the extraction field, Voronoi reps, and the <use>-cloned render all live
-    // in the same rotated frame. Bailing on it blanked painted fills.
-    if (
-      !periodicityEnabled()
-      || patch.frame
-      || Object.values(config.figures).some(f => f?.vertexLinesEnabled)
-    ) return null
     const cell = editorBase.cell
     const H = 12 * Math.max(patch.edgeLength, cell.boundarySize)
     const box = { x: -H, y: -H, width: 2 * H, height: 2 * H }
     const allStamps = editorBase.multiCell
       ? compositionLatticeStamps(patch, box)
       : editorLatticeStamps(cell, box)
+    // Only when the periodic fast-path will actually render (otherwise the
+    // non-fast-path branch computes fills via buildDecorationData and this
+    // extraction would be wasted — and expensive with curves on). Shared
+    // predicate with the render gate so the two can't drift; the rotation
+    // check also skips the extraction where the fast-path never fires
+    // (e.g. triangle cells' rotation-π intra-stamp — 19.4 snag #3).
+    // Alternate orientation is fine here: the rigid Patch rotation is baked
+    // into basePolys AND the lattice basis (stamps stay pure-translation), so
+    // the extraction field, Voronoi reps, and the <use>-cloned render all live
+    // in the same rotated frame. Bailing on it blanked painted fills.
+    if (!periodicFastPathEligible(config, editorFrame, showBoundaryLattice, allStamps)) return null
     let d1 = Infinity
     for (const st of allStamps) {
       const d = Math.hypot(st.translation.x, st.translation.y)
       if (d > 1e-6 && d < d1) d1 = d
     }
-    if (!isFinite(d1)) return { fills: [], reps: [] }
+    if (!isFinite(d1)) return []
     // Keep only the near ring so the field stays tiny regardless of H.
     const ring = allStamps.filter(st => Math.hypot(st.translation.x, st.translation.y) <= 3 * d1 + 1e-6)
     const field = stampSegments(editorBase.baseSegments, ring)
@@ -290,28 +319,44 @@ export function usePattern(
       }
       if (isOrigin) reps.push(v)
     }
-    const deco = patch.decoration
+    return reps
+    // Extraction depends on geometry + curve recipes only — NOT on
+    // `editor.decoration`, so paints reuse the reps (19.4 snag #1). Curve
+    // reads: curvesEnabled/flatten → `config.figures` + `config.smoothTransitions`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editorBase, decorationActive, editorFrame, showBoundaryLattice, config.figures, config.smoothTransitions])
+
+  // Cheap colouring pass over the stable reps. Keys on the LIVE decoration
+  // records (off `config.editor`, never `editorBase.patch` — that snapshot is
+  // stale across paints), so a paint recomputes only this map + the render memo.
+  const decorationFills = useMemo<{ fills: VoidFill[]; reps: VoidRegion[] } | null>(() => {
+    if (!decorationReps) return null
+    const deco = config.editor?.decoration
     const fills: VoidFill[] = []
     if (deco) {
       const congruent = deco.voidFills.filter(r => r.scope === 'congruent')
       const allColour = congruent.find(r => r.key === '*')?.colour ?? null
       const bySig = new Map(congruent.filter(r => r.key !== '*').map(r => [r.key, r.colour]))
       if (allColour !== null || bySig.size > 0) {
-        for (const r of reps) {
+        for (const r of decorationReps) {
           const colour = bySig.get(r.signature) ?? allColour
           if (colour) fills.push({ polygon: r.polygon, colour })
         }
       }
     }
-    return { fills, reps }
-  }, [editorBase, decorationActive, config])
+    return { fills, reps: decorationReps }
+  }, [decorationReps, config.editor?.decoration])
 
   return useMemo(() => {
     // Step 17 Builder: when a Patch is active, render its Tiles directly.
     // Design Phase = single Patch; Composition Phase = lattice-stamped across
     // the viewport so the user sees how Strands flow across boundaries.
     if (config.tiling.type === 'editor' && config.editor && editorBase) {
-      const { patch, multiCell, cell, basePolys } = editorBase
+      // `patch` must be the LIVE editor config: `editorBase.patch` is a
+      // geometry-time snapshot whose `frame` / `decoration` go stale across
+      // paints and frame edits (editorBase deliberately doesn't re-key on them).
+      const patch = config.editor
+      const { multiCell, cell, basePolys } = editorBase
       if (!editorStrandMode) {
         const baseOutlines = editorBase.baseOutlines
         let ghostPolygons: typeof basePolys | undefined
@@ -407,18 +452,12 @@ export function usePattern(
       // Lever A (flagged): periodic fast-path. Tile ONE fundamental domain via
       // <use> instead of PIC-ing the whole stamped field every regeneration —
       // runPIC + buildStrands then run once on the base patch. Exact + seamless
-      // only when: single-cell, pure-translation stamps (no rotation; tangents
-      // match at seams by lattice symmetry), no vertex-lines (base PIC would
-      // miss stamp-boundary internal edges), no frame (completedTiles don't
-      // repeat), no boundary-lattice overlay. Otherwise fall through to the
-      // exact stamped path below.
-      if (
-        periodicityEnabled()
-        && !editorFrame
-        && !showBoundaryLattice
-        && !Object.values(config.figures).some(f => f?.vertexLinesEnabled)
-        && stamps.every(s => s.rotation === 0)
-      ) {
+      // only when (see periodicFastPathEligible): pure-translation stamps (no
+      // rotation; tangents match at seams by lattice symmetry), no vertex-lines
+      // (base PIC would miss stamp-boundary internal edges), no frame
+      // (completedTiles don't repeat), no boundary-lattice overlay. Otherwise
+      // fall through to the exact stamped path below.
+      if (periodicFastPathEligible(config, editorFrame, showBoundaryLattice, stamps)) {
         recordPerf({
           phase: decorationActive ? 'decoration·periodic' : 'composition·periodic',
           polygons: basePolys.length,

@@ -1212,19 +1212,29 @@ function EditorDesignControls({
               />
               <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{decorationColor}</span>
             </label>
-            {paintTarget === 'strands' ? (
-              <button
-                onClick={() => dispatch({ type: 'SET_DECORATION_STRAND_COLOR', payload: { colour: decorationColor } })}
-                style={decorationButtonStyle}
-              >
-                Colour all strands
-                <span style={{
-                  display: 'inline-block', width: 12, height: 12, marginLeft: 8,
-                  background: strandRec ? strandRec.colour : 'transparent',
-                  border: '1px solid var(--border-subtle)', verticalAlign: 'middle',
-                }} />
-              </button>
-            ) : (
+            {paintTarget === 'strands' ? (() => {
+              // Toggle: if every strand already carries the current paint colour,
+              // the button removes it (deselect); otherwise it applies/updates.
+              const sameColour = !!strandRec && strandRec.colour.toLowerCase() === decorationColor.toLowerCase()
+              return (
+                <button
+                  onClick={() => dispatch(sameColour
+                    ? { type: 'SET_DECORATION_STRAND_COLOR', payload: { colour: null } }
+                    : { type: 'SET_DECORATION_STRAND_COLOR', payload: { colour: decorationColor } })}
+                  style={{
+                    ...decorationButtonStyle,
+                    ...(sameColour ? { border: '1px solid var(--accent)', background: 'var(--accent-bg)', color: 'var(--accent)' } : null),
+                  }}
+                >
+                  {sameColour ? 'Remove strand colour' : strandRec ? 'Update strand colour' : 'Colour all strands'}
+                  <span style={{
+                    display: 'inline-block', width: 12, height: 12, marginLeft: 8,
+                    background: strandRec ? strandRec.colour : 'transparent',
+                    border: '1px solid var(--border-subtle)', verticalAlign: 'middle',
+                  }} />
+                </button>
+              )
+            })() : (
               <button
                 onClick={() => dispatch({ type: 'SET_DECORATION_VOID_FILL', payload: { signature: '*', colour: decorationColor } })}
                 style={decorationButtonStyle}
@@ -1238,7 +1248,7 @@ function EditorDesignControls({
                   onClick={() => dispatch({ type: 'SET_DECORATION_STRAND_COLOR', payload: { colour: null } })}
                   style={{ ...decorationButtonStyle, flex: 1 }}
                 >
-                  Reset strands
+                  Remove strand colour
                 </button>
               )}
               {hasDecoration && (

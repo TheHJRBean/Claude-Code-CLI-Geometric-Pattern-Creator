@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { Vec2 } from '../utils/math'
 import type { GroupingScope } from '../types/editor'
+import type { ClickedTargetKeys } from '../decoration/scopes'
 import type { PaintVoid, StrandHit } from '../decoration/resolve'
 
 export type PaintTarget = 'off' | 'voids' | 'strands'
@@ -17,6 +18,9 @@ export type StrandPaintScope = 'all' | 'congruent' | 'cell' | 'patch'
 export interface PaintPayload {
   scope: GroupingScope
   key: string
+  /** Full identity-key set of the clicked target — lets the reducer clear
+   * finer-scope records masking it ("paint what you see"). */
+  clicked: ClickedTargetKeys
 }
 
 /**
@@ -81,7 +85,11 @@ export function DecorationPaintLayer({
       onPointerLeave={() => setHoveredVoid(h => (h === i ? null : h))}
       onPointerDown={e => {
         e.stopPropagation()
-        onPaintVoid({ scope: voidScope, key: voidKey(v) })
+        onPaintVoid({
+          scope: voidScope,
+          key: voidKey(v),
+          clicked: { signature: v.signature, cellKey: v.cellKey, patchKey: v.patchKey, instanceKey: v.instanceKey },
+        })
       }}
     />
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -106,14 +114,16 @@ export function DecorationPaintLayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hoveredVoid, voids, voidScope, activeColor])
 
-  const strandPayload = (s: StrandHit): PaintPayload =>
-    strandScope === 'all'
-      ? { scope: 'congruent', key: '*' }
+  const strandPayload = (s: StrandHit): PaintPayload => {
+    const clicked: ClickedTargetKeys = { signature: s.signature, cellKey: s.cellKey, patchKey: s.patchKey }
+    return strandScope === 'all'
+      ? { scope: 'congruent', key: '*', clicked }
       : strandScope === 'congruent'
-        ? { scope: 'congruent', key: s.signature }
+        ? { scope: 'congruent', key: s.signature, clicked }
         : strandScope === 'cell'
-          ? { scope: 'cell', key: s.cellKey }
-          : { scope: 'patch', key: s.patchKey }
+          ? { scope: 'cell', key: s.cellKey, clicked }
+          : { scope: 'patch', key: s.patchKey, clicked }
+  }
 
   const strandHitEls = useMemo(() => {
     const hitWidth = 10 / zoom // constant ~10px screen hit width

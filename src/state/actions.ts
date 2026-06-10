@@ -1,6 +1,7 @@
 import type { FigureRouting, PatternConfig, StrandStyle } from '../types/pattern'
 import type { BoundaryShape, ConfigurationId, EditorConfig, FrameConfig, GroupingScope, SymmetryMode } from '../types/editor'
 import type { Vec2 } from '../utils/math'
+import type { ClickedTargetKeys } from '../decoration/scopes'
 
 /** Which strand type a curve mutation targets. 'edge' = star-arm lines (the
  *  shared `curve`); 'vertex' = vertex lines' own `vertexCurve` (decoupled). */
@@ -88,12 +89,16 @@ export type Action =
   | { type: 'SET_GALLERY_FRAME'; payload: FrameConfig | null }
   // Step 19 Decoration (Builder-only, `editor.decoration`). Stage 2: records
   // bind at a Grouping-scope rung — congruent (key = shape signature, or '*'
-  // for all), patch (key = sig@orbit-offset) or instance (key = sig@world
-  // centroid); see decoration/scopes.ts. Upserts by (scope, key); re-painting
-  // the same key with its current colour toggles the record off. STRAND_COLOR
-  // with colour null removes the (scope, key) record.
-  | { type: 'SET_DECORATION_VOID_FILL'; payload: { scope: GroupingScope; key: string; colour: string } }
-  | { type: 'SET_DECORATION_STRAND_COLOR'; payload: { scope: GroupingScope; key: string; colour: string | null } }
+  // for all), cell (sig#cellTag:orbit-hash), patch (sig@orbit-offset) or
+  // instance (sig@world centroid); see decoration/scopes.ts + cellScope.ts.
+  // Upserts by (scope, key). Canvas clicks carry `clicked` (the clicked
+  // target's full key set) so the reducer clears FINER records masking that
+  // target — "paint what you see". Re-painting the same key with its current
+  // colour toggles the record off, but only when nothing was unmasked (a true
+  // no-op click). STRAND_COLOR with colour null removes the (scope, key)
+  // record explicitly.
+  | { type: 'SET_DECORATION_VOID_FILL'; payload: { scope: GroupingScope; key: string; colour: string; clicked?: ClickedTargetKeys } }
+  | { type: 'SET_DECORATION_STRAND_COLOR'; payload: { scope: GroupingScope; key: string; colour: string | null; clicked?: ClickedTargetKeys } }
   | { type: 'CLEAR_DECORATION' }
   // Switch which Cell the user is editing in Design Phase (multi-Cell only).
   // Pure pane swap — does NOT push a history snapshot.

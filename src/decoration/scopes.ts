@@ -1,5 +1,5 @@
 import type { Vec2 } from '../utils/math'
-import type { ColourRecord } from '../types/editor'
+import type { ColourRecord, GroupingScope } from '../types/editor'
 
 /**
  * Step 19 Stage 2 — **Grouping scope** keys + colour resolution (ADR-0005).
@@ -179,4 +179,72 @@ export function resolveColour(
     if (c) return c
   }
   return idx.bySignature.get(signature) ?? idx.starColour
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// "Paint what you see" — clearing finer records that mask a clicked target
+// ─────────────────────────────────────────────────────────────────────────
+
+/** The full identity-key set of the target the user actually clicked,
+ * carried on paint actions so the reducer can clear masking records. */
+export interface ClickedTargetKeys {
+  signature?: string
+  cellKey?: string
+  patchKey?: string
+  instanceKey?: string
+}
+
+/** Resolution rank per rung (higher = finer = wins). `'*'` sits below 0. */
+const SCOPE_RANK: Record<GroupingScope, number> = { congruent: 0, cell: 1, patch: 2, instance: 3 }
+
+/** Tolerant equality of two positioned keys (same float-noise allowance the
+ * renderer uses, so a record always clears if it would have matched). */
+function positionedKeysMatch(a: string, b: string, tol: number): boolean {
+  if (a === b) return true
+  const pa = parseScopedKey(a)
+  const pb = parseScopedKey(b)
+  if (!pa || !pb) return false
+  return pa.signature === pb.signature && Math.abs(pa.x - pb.x) <= tol && Math.abs(pa.y - pb.y) <= tol
+}
+
+/**
+ * Remove records at rungs FINER than the one being painted that would mask
+ * the clicked target — so a canvas paint always shows on what was clicked
+ * (previously, e.g., an `instance` red kept winning over a fresh `congruent`
+ * blue and the click looked dead). Records covering *other* targets are
+ * untouched (deliberate finer paints elsewhere survive a coarser repaint).
+ * Without `clicked` (panel bulk buttons) this is a no-op.
+ *
+ * `removedAny` lets the caller suppress the same-colour toggle-off: if a
+ * masking record was cleared the click visibly changed the target, so it
+ * was not a no-op re-paint.
+ */
+export function clearMaskingRecords(
+  records: ColourRecord[],
+  scope: GroupingScope,
+  key: string,
+  clicked: ClickedTargetKeys | undefined,
+  tol = KEY_TOL,
+): { records: ColourRecord[]; removedAny: boolean } {
+  if (!clicked) return { records, removedAny: false }
+  // `'*'` ranks below congruent signatures: painting "all" also unmasks the
+  // clicked target's own signature record.
+  const rankOf = (s: GroupingScope, k: string): number =>
+    s === 'congruent' && k === '*' ? -1 : SCOPE_RANK[s]
+  const rank = rankOf(scope, key)
+  const masks = (r: ColourRecord): boolean => {
+    if (rankOf(r.scope, r.key) <= rank) return false
+    switch (r.scope) {
+      case 'congruent': // a signature record, cleared only by a '*' paint
+        return clicked.signature !== undefined && r.key === clicked.signature
+      case 'cell':
+        return clicked.cellKey !== undefined && r.key === clicked.cellKey
+      case 'patch':
+        return clicked.patchKey !== undefined && positionedKeysMatch(r.key, clicked.patchKey, tol)
+      case 'instance':
+        return clicked.instanceKey !== undefined && positionedKeysMatch(r.key, clicked.instanceKey, tol)
+    }
+  }
+  const kept = records.filter(r => !masks(r))
+  return { records: kept, removedAny: kept.length !== records.length }
 }

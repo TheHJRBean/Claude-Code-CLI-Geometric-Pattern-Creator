@@ -67,6 +67,74 @@ describe('Step 19 — decoration reducer actions (scoped records)', () => {
     expect(s.editor!.decoration!.strandColours.some(r => r.key === 'sigA')).toBe(false)
   })
 
+  it('paint-what-you-see: a coarser canvas paint clears finer records masking the clicked target', () => {
+    let s = base()
+    // Void previously painted Single (instance) red…
+    s = reducer(s, { type: 'SET_DECORATION_VOID_FILL', payload: { scope: 'instance', key: 'abc@10.00,20.00', colour: '#f00' } } as Action)
+    // …then clicked with Matching (congruent) blue: the instance record would
+    // mask the new colour on the clicked Void, so it must be cleared.
+    s = reducer(s, {
+      type: 'SET_DECORATION_VOID_FILL',
+      payload: {
+        scope: 'congruent', key: 'abc', colour: '#00f',
+        clicked: { signature: 'abc', cellKey: 'abc#c0:dead', patchKey: 'abc@10.00,20.00', instanceKey: 'abc@10.01,19.99' },
+      },
+    } as Action)
+    expect(s.editor!.decoration!.voidFills).toEqual([{ scope: 'congruent', key: 'abc', colour: '#00f' }])
+  })
+
+  it('paint-what-you-see: finer records on OTHER targets survive a coarser repaint', () => {
+    let s = base()
+    s = reducer(s, { type: 'SET_DECORATION_VOID_FILL', payload: { scope: 'instance', key: 'abc@99.00,99.00', colour: '#f00' } } as Action)
+    s = reducer(s, {
+      type: 'SET_DECORATION_VOID_FILL',
+      payload: {
+        scope: 'congruent', key: 'abc', colour: '#00f',
+        clicked: { signature: 'abc', instanceKey: 'abc@10.00,20.00' },
+      },
+    } as Action)
+    expect(s.editor!.decoration!.voidFills).toHaveLength(2)
+  })
+
+  it('same-colour toggle is suppressed when the click unmasked something', () => {
+    let s = base()
+    s = reducer(s, { type: 'SET_DECORATION_VOID_FILL', payload: { scope: 'congruent', key: 'abc', colour: '#00f' } } as Action)
+    s = reducer(s, { type: 'SET_DECORATION_VOID_FILL', payload: { scope: 'instance', key: 'abc@10.00,20.00', colour: '#f00' } } as Action)
+    // The void LOOKS red; clicking Matching blue must make it blue — not
+    // toggle the (masked, invisible-on-this-void) congruent blue off.
+    s = reducer(s, {
+      type: 'SET_DECORATION_VOID_FILL',
+      payload: {
+        scope: 'congruent', key: 'abc', colour: '#00f',
+        clicked: { signature: 'abc', instanceKey: 'abc@10.00,20.00' },
+      },
+    } as Action)
+    expect(s.editor!.decoration!.voidFills).toEqual([{ scope: 'congruent', key: 'abc', colour: '#00f' }])
+    // A second identical click is now a true no-op → toggles off.
+    s = reducer(s, {
+      type: 'SET_DECORATION_VOID_FILL',
+      payload: {
+        scope: 'congruent', key: 'abc', colour: '#00f',
+        clicked: { signature: 'abc', instanceKey: 'abc@10.00,20.00' },
+      },
+    } as Action)
+    expect(s.editor!.decoration!.voidFills).toEqual([])
+  })
+
+  it("strand 'all' paint clears the clicked strand's own finer records", () => {
+    let s = base()
+    s = reducer(s, { type: 'SET_DECORATION_STRAND_COLOR', payload: { scope: 'congruent', key: 'sigA', colour: '#f00' } } as Action)
+    s = reducer(s, { type: 'SET_DECORATION_STRAND_COLOR', payload: { scope: 'patch', key: 'sigA@5.00,5.00', colour: '#0f0' } } as Action)
+    s = reducer(s, {
+      type: 'SET_DECORATION_STRAND_COLOR',
+      payload: {
+        scope: 'congruent', key: '*', colour: '#00f',
+        clicked: { signature: 'sigA', cellKey: 'sigA#c0:beef', patchKey: 'sigA@5.00,5.00' },
+      },
+    } as Action)
+    expect(s.editor!.decoration!.strandColours).toEqual([{ scope: 'congruent', key: '*', colour: '#00f' }])
+  })
+
   it('CLEAR_DECORATION removes the whole block', () => {
     let s = base()
     s = reducer(s, { type: 'SET_DECORATION_VOID_FILL', payload: { scope: 'congruent', key: 'abc', colour: '#111' } } as Action)

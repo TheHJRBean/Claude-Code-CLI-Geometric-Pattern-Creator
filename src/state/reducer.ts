@@ -30,6 +30,7 @@ import { autoCompleteCell, fitBoundarySize } from '../editor/autoComplete'
 import { computeBoundarySections, isBoundarySectionPlacementViable, placeRegularNGonOnBoundarySection, placeTilesOnBoundarySectionOrbit } from '../editor/boundaryInward'
 import { DEFAULT_EDITOR_FIGURE, seedFiguresForEditor } from '../editor/tileTypes'
 import { activeCell, allCells, withActiveCell } from '../editor/active'
+import { clearMaskingRecords } from '../decoration/scopes'
 import {
   applyCellTransform,
   existingTilesInHostFrame,
@@ -526,29 +527,34 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       return { ...state, frame }
     }
     case 'SET_DECORATION_VOID_FILL': {
-      // Scoped Void Fill (Stage 2): upsert by (scope, key). Re-painting a key
-      // with its current colour toggles the record off (matches the strand
-      // button's deselect UX); a different colour replaces it.
+      // Scoped Void Fill (Stage 2): "paint what you see" — clear finer-scope
+      // records masking the clicked Void (else, e.g., an instance red keeps
+      // winning over a fresh congruent blue and the click looks dead), then
+      // upsert by (scope, key). Re-painting a key with its current colour
+      // toggles the record off — but only when nothing was unmasked, so a
+      // visible change never doubles as a deselect.
       if (!state.editor) return state
       const deco = state.editor.decoration ?? { version: 1 as const, strandColours: [], voidFills: [] }
-      const { scope, key, colour } = action.payload
-      const existing = deco.voidFills.find(r => r.scope === scope && r.key === key)
-      const voidFills = deco.voidFills.filter(r => !(r.scope === scope && r.key === key))
-      if (!existing || existing.colour.toLowerCase() !== colour.toLowerCase()) {
+      const { scope, key, colour, clicked } = action.payload
+      const { records: unmasked, removedAny } = clearMaskingRecords(deco.voidFills, scope, key, clicked)
+      const existing = unmasked.find(r => r.scope === scope && r.key === key)
+      const voidFills = unmasked.filter(r => !(r.scope === scope && r.key === key))
+      if (removedAny || !existing || existing.colour.toLowerCase() !== colour.toLowerCase()) {
         voidFills.push({ scope, key, colour })
       }
       return { ...state, editor: { ...state.editor, decoration: { ...deco, voidFills } } }
     }
     case 'SET_DECORATION_STRAND_COLOR': {
-      // Scoped Strand colour (Stage 2): upsert by (scope, key) with the same
+      // Scoped Strand colour (Stage 2): same unmask-then-upsert + guarded
       // same-colour toggle as Void fills. `colour: null` removes the record
       // explicitly (panel "Remove strand colour" path).
       if (!state.editor) return state
       const deco = state.editor.decoration ?? { version: 1 as const, strandColours: [], voidFills: [] }
-      const { scope, key, colour } = action.payload
-      const existing = deco.strandColours.find(r => r.scope === scope && r.key === key)
-      const strandColours = deco.strandColours.filter(r => !(r.scope === scope && r.key === key))
-      if (colour !== null && (!existing || existing.colour.toLowerCase() !== colour.toLowerCase())) {
+      const { scope, key, colour, clicked } = action.payload
+      const { records: unmasked, removedAny } = clearMaskingRecords(deco.strandColours, scope, key, clicked)
+      const existing = unmasked.find(r => r.scope === scope && r.key === key)
+      const strandColours = unmasked.filter(r => !(r.scope === scope && r.key === key))
+      if (colour !== null && (removedAny || !existing || existing.colour.toLowerCase() !== colour.toLowerCase())) {
         strandColours.push({ scope, key, colour })
       }
       return { ...state, editor: { ...state.editor, decoration: { ...deco, strandColours } } }

@@ -7,6 +7,7 @@ import { buildStrands } from '../strand/buildStrands'
 import { computeCurves, smoothCurves } from '../strand/computeCurves'
 import { curvedPathD, curvedPathDSplit } from '../strand/curvedPathD'
 import { buildColourIndex, orbitOffset, resolveColour } from '../decoration/scopes'
+import { cellScopedKey, type CellFrame } from '../decoration/cellScope'
 import { strandIdentity } from '../decoration/strandGroups'
 import { recordPerf } from '../utils/perf'
 
@@ -35,6 +36,12 @@ interface Props {
    * path the viewport stamp set. Undefined ⇒ centroids used as-is.
    */
   orbitStamps?: Vec2[]
+  /**
+   * Stage 2b — per-Cell symmetry frames for `cell`-scope matching (the
+   * clicked strand's rotation/mirror twins within its Cell). Undefined ⇒
+   * the cell rung never matches.
+   */
+  cellFrames?: CellFrame[]
 }
 
 /**
@@ -46,7 +53,7 @@ interface Props {
  * Lacing returns under the Decoration Phase per ADR-0003 and
  * `project_decoration_stage_idea.md`.
  */
-export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPolygonIds, strandRecords, orbitStamps }: Props) {
+export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPolygonIds, strandRecords, orbitStamps, cellFrames }: Props) {
   const { strand } = config
   const stroke = strand.color
 
@@ -69,11 +76,16 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
     const ring = orbitStamps ?? []
     return strandData.map(sd => {
       const id = strandIdentity(sd.points)
+      const off = orbitOffset(id.centroid, ring)
+      // Cell-rung key only when cell records exist (saves the 2n-image walk).
+      const cellKey = idx.cell.length > 0 && cellFrames
+        ? cellScopedKey(id.signature, off, cellFrames)
+        : null
       // World-instance strand records aren't produced by the UI (a "single"
       // strand is its patch orbit), so no world centroid is passed here.
-      return resolveColour(idx, id.signature, orbitOffset(id.centroid, ring), null) ?? stroke
+      return resolveColour(idx, id.signature, off, null, cellKey) ?? stroke
     })
-  }, [strandData, strandRecords, orbitStamps, ghostPolygonIds, stroke])
+  }, [strandData, strandRecords, orbitStamps, cellFrames, ghostPolygonIds, stroke])
   const curvedStrands = useMemo(() => {
     const raw = computeCurves(strandData, segments, config)
     return config.smoothTransitions ? raw.map(smoothCurves) : raw

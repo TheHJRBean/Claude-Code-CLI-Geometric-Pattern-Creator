@@ -16,7 +16,7 @@ import {
 } from '../editor/compositionLattice'
 import { activeCell } from '../editor/active'
 import { frameOutlinePolygon } from '../editor/frame'
-import { pointInPolygon, isConvexPolygon, centroid } from '../utils/math'
+import { pointInPolygon, centroid } from '../utils/math'
 import { runPIC } from '../pic/index'
 import { recordPerf, periodicityEnabled } from '../utils/perf'
 import type { VoidFill } from '../decoration/resolve'
@@ -610,17 +610,27 @@ export function usePattern(
         // still covers this tight rect.
         const bx = genX + vw * pad
         const by = genY + vh * pad
-        let bound: Vec2[] = [
+        const bound: Vec2[] = [
           { x: bx, y: by }, { x: bx + vw, y: by },
           { x: bx + vw, y: by + vh }, { x: bx, y: by + vh },
         ]
-        if (editorFrame && patch.frame) {
-          const outline = frameOutlinePolygon(patch.frame)
-          if (outline && outline.length >= 3 && isConvexPolygon(outline)) bound = outline
-        }
+        // Frame Voids must NOT clip the extraction to the frame outline. Doing
+        // so injects the frame's own edges into every frame-touching Void, so a
+        // Void straddling the frame gets a different congruent signature than
+        // the interior class it belongs to — painting that class skipped them
+        // ("voids lose colour at the frame"). Instead extract over the FULL,
+        // unfiltered stamped field (so frame-edge Voids close against the real
+        // strands just outside the frame, keeping their interior shape) bounded
+        // by the viewport rect; the frame stays a pure SVG visual clip on the
+        // fills (PatternSVG clips the fill layer to the outline). `picPolygons`
+        // is frame-filtered for the rendered strands; `polygons` is the full
+        // field, so re-PIC it for extraction only when a frame is filtering.
+        const decoField = (editorFrame && patch.frame && picPolygons !== polygons)
+          ? runPIC(polygons, config)
+          : segments
         // Non-periodic fall-back (frame / multi-cell / vertex-lines): extract
         // over the full PIC field. Same helper as the periodic fast-path.
-        const { voidFills, strandColor, decorationVoids } = buildDecorationData(segments, bound, config)
+        const { voidFills, strandColor, decorationVoids } = buildDecorationData(decoField, bound, config)
         return { polygons: picPolygons, segments, boundaryOutlines, voidFills, strandColor, decorationVoids }
       }
       return { polygons: picPolygons, segments, boundaryOutlines }

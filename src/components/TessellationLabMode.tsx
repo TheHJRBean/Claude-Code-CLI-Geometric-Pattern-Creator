@@ -7,7 +7,7 @@ import type { TileTypeInfo } from '../types/tiling'
 import { createConfigLibrary } from '../state/configLibrary'
 import { ConfigLibraryPanel } from './ConfigLibraryPanel'
 import { Canvas, type SelectedEdge } from './Canvas'
-import type { PaintTarget } from '../rendering/DecorationPaintLayer'
+import type { PaintTarget, StrandPaintScope, VoidPaintScope } from '../rendering/DecorationPaintLayer'
 import type { SectionKey } from './EditorBoundaryInwardLayer'
 import { SandstoneEdge } from './SandstoneEdge'
 import { useTheme } from '../theme/ThemeContext'
@@ -209,6 +209,10 @@ export function TessellationLabMode({
   // Step 19.3 — manual Paint target so Voids / Strands don't fight for the
   // cursor; Off frees panning.
   const [paintTarget, setPaintTarget] = useState<PaintTarget>('voids')
+  // Stage 2 — per-target Paint scope: how far one click reaches (ADR-0005
+  // Grouping-scope ladder).
+  const [voidScope, setVoidScope] = useState<VoidPaintScope>('congruent')
+  const [strandScope, setStrandScope] = useState<StrandPaintScope>('all')
   // Step 17.6 — Composition Phase: show the Patch Boundary stamped on the lattice.
   const [showBoundaryLattice, setShowBoundaryLattice] = useState(false)
   // Step 17.6d — Design Phase: low-opacity ghost copies of the Patch at the
@@ -416,6 +420,10 @@ export function TessellationLabMode({
                 onSetDecorationColor={setDecorationColor}
                 paintTarget={paintTarget}
                 onSetPaintTarget={setPaintTarget}
+                voidScope={voidScope}
+                onSetVoidScope={setVoidScope}
+                strandScope={strandScope}
+                onSetStrandScope={setStrandScope}
                 onSetEditorPhase={p => {
                   // Step 17.7 — fire auto-complete when leaving Design for any
                   // later phase (Composition or Decoration) if the user opted
@@ -733,8 +741,10 @@ export function TessellationLabMode({
         decorationActive={editorPhase === 'decoration'}
         paintColor={decorationColor}
         paintTarget={editorPhase === 'decoration' ? paintTarget : 'off'}
-        onPaintVoid={sig => dispatch({ type: 'SET_DECORATION_VOID_FILL', payload: { scope: 'congruent', key: sig, colour: decorationColor } })}
-        onPaintStrands={() => dispatch({ type: 'SET_DECORATION_STRAND_COLOR', payload: { scope: 'congruent', key: '*', colour: decorationColor } })}
+        paintVoidScope={voidScope}
+        paintStrandScope={strandScope}
+        onPaintVoid={p => dispatch({ type: 'SET_DECORATION_VOID_FILL', payload: { ...p, colour: decorationColor } })}
+        onPaintStrand={p => dispatch({ type: 'SET_DECORATION_STRAND_COLOR', payload: { ...p, colour: decorationColor } })}
         editorFrame={!!config.editor?.frame}
         showBoundaryLattice={showBoundaryLattice}
         editorNeighbourPreview={editorPhase === 'design' && showNeighbours && !(config.editor && activeCell(config.editor).wrapBoundary)}
@@ -978,6 +988,10 @@ interface EditorDesignControlsProps {
   onSetDecorationColor: (c: string) => void
   paintTarget: PaintTarget
   onSetPaintTarget: (t: PaintTarget) => void
+  voidScope: VoidPaintScope
+  onSetVoidScope: (s: VoidPaintScope) => void
+  strandScope: StrandPaintScope
+  onSetStrandScope: (s: StrandPaintScope) => void
   showBoundaryLattice: boolean
   onToggleShowBoundaryLattice: (next: boolean) => void
   showNeighbours: boolean
@@ -1020,6 +1034,10 @@ function EditorDesignControls({
   onSetDecorationColor,
   paintTarget,
   onSetPaintTarget,
+  voidScope,
+  onSetVoidScope,
+  strandScope,
+  onSetStrandScope,
   showBoundaryLattice,
   onToggleShowBoundaryLattice,
   showNeighbours,
@@ -1156,9 +1174,23 @@ function EditorDesignControls({
         </div>
       )}
       {inDecoration && (() => {
-        const strandRec = editor.decoration?.strandColours.find(r => r.scope === 'congruent')
-        const voidCount = editor.decoration?.voidFills.filter(r => r.scope === 'congruent').length ?? 0
-        const hasDecoration = !!strandRec || voidCount > 0
+        const strandRec = editor.decoration?.strandColours.find(r => r.scope === 'congruent' && r.key === '*')
+        const strandRecCount = editor.decoration?.strandColours.length ?? 0
+        const voidCount = editor.decoration?.voidFills.length ?? 0
+        const hasDecoration = strandRecCount > 0 || voidCount > 0
+        const segButtonStyle = (active: boolean): React.CSSProperties => ({
+          flex: 1,
+          padding: '5px 0',
+          fontFamily: "'Cinzel', Georgia, serif",
+          fontSize: 9,
+          fontWeight: 600,
+          letterSpacing: '0.06em',
+          textTransform: 'uppercase',
+          cursor: 'pointer',
+          border: `1px solid ${active ? 'var(--accent)' : 'var(--border-subtle)'}`,
+          background: active ? 'var(--accent-bg)' : 'transparent',
+          color: active ? 'var(--accent)' : 'var(--text-muted)',
+        })
         return (
           <div style={{
             marginTop: 0,
@@ -1171,37 +1203,43 @@ function EditorDesignControls({
             border: '1px solid var(--border-subtle)',
           }}>
             <div style={{ marginBottom: 8 }}>
-              Pick a colour and a Paint target, then click on the canvas. Voids
-              Fill the whole congruent group; Strands colour all at once. Strand
-              geometry is frozen here — flip back to Composition to reshape.
+              Pick a colour, a Paint target and a reach, then click on the
+              canvas. Clicking something already painted in the same colour
+              unpaints it. Strand geometry is frozen here — flip back to
+              Composition to reshape.
             </div>
-            <FieldLabel label="Paint target" tooltip="What clicking on the canvas paints. Off frees panning; Voids fills the clicked Void's congruent group; Strands colours every Strand." />
+            <FieldLabel label="Paint target" tooltip="What clicking on the canvas paints. Off frees panning; Voids fill the gaps between Strands; Strands colour the lines themselves." />
             <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
-              {(['off', 'voids', 'strands'] as const).map(t => {
-                const active = paintTarget === t
-                return (
-                  <button
-                    key={t}
-                    onClick={() => onSetPaintTarget(t)}
-                    style={{
-                      flex: 1,
-                      padding: '5px 0',
-                      fontFamily: "'Cinzel', Georgia, serif",
-                      fontSize: 9,
-                      fontWeight: 600,
-                      letterSpacing: '0.06em',
-                      textTransform: 'uppercase',
-                      cursor: 'pointer',
-                      border: `1px solid ${active ? 'var(--accent)' : 'var(--border-subtle)'}`,
-                      background: active ? 'var(--accent-bg)' : 'transparent',
-                      color: active ? 'var(--accent)' : 'var(--text-muted)',
-                    }}
-                  >
-                    {t === 'off' ? 'Off' : t === 'voids' ? 'Voids' : 'Strands'}
-                  </button>
-                )
-              })}
+              {(['off', 'voids', 'strands'] as const).map(t => (
+                <button key={t} onClick={() => onSetPaintTarget(t)} style={segButtonStyle(paintTarget === t)}>
+                  {t === 'off' ? 'Off' : t === 'voids' ? 'Voids' : 'Strands'}
+                </button>
+              ))}
             </div>
+            {paintTarget === 'voids' && (
+              <>
+                <FieldLabel label="Reach" tooltip="How far one click spreads. Matching = every Void with the clicked shape, everywhere. Repeat = the clicked Void's spot in every Patch repeat. Single = only the Void you click." />
+                <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
+                  {([['congruent', 'Matching'], ['patch', 'Repeat'], ['instance', 'Single']] as const).map(([s, label]) => (
+                    <button key={s} onClick={() => onSetVoidScope(s)} style={segButtonStyle(voidScope === s)}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+            {paintTarget === 'strands' && (
+              <>
+                <FieldLabel label="Reach" tooltip="How far one click spreads. All = every Strand at once. Matching = every Strand with the clicked Strand's shape. Single = just the clicked Strand (it still repeats with the Patch — the pattern stays periodic)." />
+                <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
+                  {([['all', 'All'], ['congruent', 'Matching'], ['patch', 'Single']] as const).map(([s, label]) => (
+                    <button key={s} onClick={() => onSetStrandScope(s)} style={segButtonStyle(strandScope === s)}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <span style={{ minWidth: 70 }}>Paint colour</span>
               <input
@@ -1260,8 +1298,12 @@ function EditorDesignControls({
                 </button>
               )}
             </div>
-            {voidCount > 0 && (
-              <div style={{ marginTop: 8, fontSize: 11 }}>{voidCount} Void class{voidCount === 1 ? '' : 'es'} filled</div>
+            {hasDecoration && (
+              <div style={{ marginTop: 8, fontSize: 11 }}>
+                {voidCount > 0 && <span>{voidCount} Void group{voidCount === 1 ? '' : 's'} filled</span>}
+                {voidCount > 0 && strandRecCount > 0 && <span> · </span>}
+                {strandRecCount > 0 && <span>{strandRecCount} Strand colour{strandRecCount === 1 ? '' : 's'}</span>}
+              </div>
             )}
           </div>
         )

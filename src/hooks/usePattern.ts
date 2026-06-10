@@ -19,8 +19,10 @@ import { frameOutlinePolygon } from '../editor/frame'
 import { pointInPolygon, centroid } from '../utils/math'
 import { runPIC } from '../pic/index'
 import { recordPerf, periodicityEnabled } from '../utils/perf'
-import type { VoidFill } from '../decoration/resolve'
+import { resolveDecoration, type PaintVoid, type StrandHit, type VoidFill } from '../decoration/resolve'
 import { extractVoids, type VoidRegion } from '../decoration/voids'
+import { buildColourIndex, orbitOffset, resolveColour, scopedKey } from '../decoration/scopes'
+import { strandIdentities } from '../decoration/strandGroups'
 import { curvesEnabled, flattenStrandsToSegments } from '../decoration/flatten'
 
 export interface PatternData {
@@ -83,21 +85,33 @@ export interface PatternData {
    */
   voidFills?: VoidFill[]
   /**
-   * Step 19.2/19.3 — Decoration **Strand colour** override (Congruent scope),
-   * or null/undefined ⇒ the renderer uses `StrandStyle.color`.
+   * Stage 2 — world-space `instance`-scope Void fills. On the periodic
+   * fast-path `voidFills` renders INSIDE the cloned fragment (so it tiles),
+   * which can't express a single world copy; these render once, in world
+   * coordinates, sandwiched between the under-fragment and strand-fragment
+   * `<use>` stacks. Undefined off the fast-path (instance fills resolve into
+   * `voidFills` there, which is already world-space).
    */
-  strandColor?: string | null
+  instanceVoidFills?: VoidFill[]
   /**
    * Step 19.3 — Void hit-targets for the Paint overlay (representative Voids
-   * tiled across the visible stamps). Only emitted when painting Voids.
+   * tiled across the visible stamps), carrying their Grouping-scope keys.
+   * Only emitted when painting Voids.
    */
-  decorationVoids?: VoidRegion[]
+  decorationVoids?: PaintVoid[]
   /**
-   * Step 19.3 — Strand (Ray) hit-targets for the Paint overlay (base Rays tiled
-   * across the visible stamps). Only emitted when painting Strands on the
-   * periodic fast-path; otherwise the overlay uses the full-field `segments`.
+   * Step 19.3 / Stage 2 — Strand hit-targets for the Paint overlay, carrying
+   * each segment's strand identity (id / congruent signature / patch-orbit
+   * key). Only emitted when painting Strands.
    */
-  decorationStrandHits?: Segment[]
+  decorationStrandHits?: StrandHit[]
+  /**
+   * Stage 2 — lattice stamp translations for per-strand `patch`-orbit colour
+   * resolution in StrandLayer. Only set on the NON-fast-path Decoration branch
+   * (full pre-stamped field); on the fast-path the fragment renders base-domain
+   * strands whose centroids are already orbit-relative.
+   */
+  decorationOrbitStamps?: Vec2[]
 }
 
 /** Translate (and, only off the fast-path, rotate) already-PIC'd base segments
@@ -148,33 +162,18 @@ function periodicFastPathEligible(
     && stamps.every(s => s.rotation === 0)
 }
 
-/** Resolve Decoration render data (Void fills + strand colour + all Voids for
- * Paint hit-testing) from a field of segments + a convex bound. */
+/** Resolve Decoration render data (scoped Void fills + keyed Voids for Paint
+ * hit-testing) from a field of segments + a convex bound. `stampTranslations`
+ * reduce centroids to their Lattice orbit for `patch`-scope keys. */
 function buildDecorationData(
   fieldSegments: Segment[],
   bound: Vec2[],
   config: PatternConfig,
-): { voidFills: VoidFill[]; strandColor: string | null; decorationVoids: VoidRegion[] } {
+  stampTranslations: Vec2[],
+): { voidFills: VoidFill[]; decorationVoids: PaintVoid[] } {
   const decoSegments = curvesEnabled(config) ? flattenStrandsToSegments(fieldSegments, config) : fieldSegments
-  const decorationVoids = extractVoids(decoSegments, bound)
-  const deco = config.editor?.decoration
-  const voidFills: VoidFill[] = []
-  let strandColor: string | null = null
-  if (deco) {
-    const strandRec = deco.strandColours.find(r => r.scope === 'congruent')
-    strandColor = strandRec ? strandRec.colour : null
-    const congruent = deco.voidFills.filter(r => r.scope === 'congruent')
-    // A `'*'` record is the "colour all Voids" default; specific signatures override it.
-    const allColour = congruent.find(r => r.key === '*')?.colour ?? null
-    const colourBySig = new Map(congruent.filter(r => r.key !== '*').map(r => [r.key, r.colour]))
-    if (allColour !== null || colourBySig.size > 0) {
-      for (const v of decorationVoids) {
-        const c = colourBySig.get(v.signature) ?? allColour
-        if (c) voidFills.push({ polygon: v.polygon, colour: c })
-      }
-    }
-  }
-  return { voidFills, strandColor, decorationVoids }
+  const { fills, voids } = resolveDecoration(decoSegments, bound, config.editor?.decoration, stampTranslations)
+  return { voidFills: fills, decorationVoids: voids }
 }
 
 export function usePattern(
@@ -259,6 +258,11 @@ export function usePattern(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ed?.cells, ed?.activeCellId, ed?.edgeLength, ed?.configuration, ed?.alternateOrientation, config.figures, config.figureRouting])
 
+  // A representative Void in the fundamental domain, enriched with its
+  // centroid (= Lattice-orbit offset, since reps live in the origin stamp's
+  // Voronoi cell) and the derived `patch`-scope key.
+  type RepVoid = VoidRegion & { centroid: Vec2; patchKey: string }
+
   // Step 19.3 — pan-INDEPENDENT Decoration representative Voids. For a
   // periodic field, extract one representative Void per lattice cell (the
   // Voronoi cell of the origin stamp, closed by a local ring of neighbours),
@@ -267,7 +271,7 @@ export function usePattern(
   // tiles across the whole field via <use> — no per-viewport extraction, no
   // pan re-extract, full coverage everywhere. Recomputes only on geometry /
   // curve-recipe changes (not on pan/zoom, not on paint).
-  const decorationReps = useMemo<VoidRegion[] | null>(() => {
+  const decorationReps = useMemo<RepVoid[] | null>(() => {
     if (!decorationActive || !editorBase) return null
     const patch = editorBase.patch
     const cell = editorBase.cell
@@ -311,7 +315,7 @@ export function usePattern(
     // hovering the bucket highlights the entire page. All shipping lattice
     // bases have cell area ≤ d1², so d1² (+5% slack) is a safe ceiling.
     const maxRepArea = d1 * d1 * 1.05
-    const reps: VoidRegion[] = []
+    const reps: RepVoid[] = []
     for (const v of voids) {
       if (Math.abs(v.area) > maxRepArea) continue
       const c = centroid(v.polygon)
@@ -325,7 +329,9 @@ export function usePattern(
           isOrigin = st.translation.x * st.translation.x + st.translation.y * st.translation.y < 1e-6
         }
       }
-      if (isOrigin) reps.push(v)
+      // A rep lives in the origin stamp's Voronoi cell, so its centroid IS its
+      // Lattice-orbit offset — bake the `patch`-scope key here once.
+      if (isOrigin) reps.push({ ...v, centroid: c, patchKey: scopedKey(v.signature, c) })
     }
     return reps
     // Extraction depends on geometry + curve recipes only — NOT on
@@ -337,23 +343,48 @@ export function usePattern(
   // Cheap colouring pass over the stable reps. Keys on the LIVE decoration
   // records (off `config.editor`, never `editorBase.patch` — that snapshot is
   // stale across paints), so a paint recomputes only this map + the render memo.
-  const decorationFills = useMemo<{ fills: VoidFill[]; reps: VoidRegion[] } | null>(() => {
+  // Congruent + patch rungs resolve here (a coloured rep tiles via <use>, which
+  // IS the Lattice orbit); instance records can't render inside the fragment —
+  // the main memo materialises those as world-space `instanceVoidFills`.
+  const decorationFills = useMemo<{ fills: VoidFill[]; reps: RepVoid[]; voidIndex: ReturnType<typeof buildColourIndex> } | null>(() => {
     if (!decorationReps) return null
-    const deco = config.editor?.decoration
+    const voidIndex = buildColourIndex(config.editor?.decoration?.voidFills)
     const fills: VoidFill[] = []
-    if (deco) {
-      const congruent = deco.voidFills.filter(r => r.scope === 'congruent')
-      const allColour = congruent.find(r => r.key === '*')?.colour ?? null
-      const bySig = new Map(congruent.filter(r => r.key !== '*').map(r => [r.key, r.colour]))
-      if (allColour !== null || bySig.size > 0) {
-        for (const r of decorationReps) {
-          const colour = bySig.get(r.signature) ?? allColour
-          if (colour) fills.push({ polygon: r.polygon, colour })
-        }
-      }
+    for (const r of decorationReps) {
+      const colour = resolveColour(voidIndex, r.signature, r.centroid, null)
+      if (colour) fills.push({ polygon: r.polygon, colour })
     }
-    return { fills, reps: decorationReps }
+    return { fills, reps: decorationReps, voidIndex }
   }, [decorationReps, config.editor?.decoration])
+
+  // Stage 2 — a local ring of lattice translations used to reduce strand
+  // centroids to their Lattice-orbit offset. The SAME reduction must apply on
+  // the fast-path (base-domain strands) and the full-field path (pre-stamped
+  // strands), otherwise a `patch`-scope key painted in one mode wouldn't
+  // resolve after a mode switch (e.g. adding a Frame). Pan-independent.
+  const decorationOrbitRing = useMemo<Vec2[] | null>(() => {
+    if (!decorationActive || !editorBase) return null
+    const patch = editorBase.patch
+    const cell = editorBase.cell
+    const H = 4 * Math.max(patch.edgeLength, cell.boundarySize)
+    const box = { x: -H, y: -H, width: 2 * H, height: 2 * H }
+    const allStamps = editorBase.multiCell
+      ? compositionLatticeStamps(patch, box)
+      : editorLatticeStamps(cell, box)
+    return allStamps.map(s => s.translation)
+  }, [editorBase, decorationActive])
+
+  // Stage 2 — per-strand identities of the base domain, for the Paint
+  // overlay's strand hit-targets on the periodic fast-path. Geometry-keyed
+  // (not decoration-keyed) so paints reuse it; only built while actually
+  // painting Strands.
+  const baseStrandIds = useMemo(() => {
+    if (!decorationActive || !editorBase || decorationPaintTarget !== 'strands') return null
+    const ids = strandIdentities(editorBase.baseSegments)
+    const ring = decorationOrbitRing ?? []
+    const patchKeys = ids.strands.map(s => scopedKey(s.signature, orbitOffset(s.centroid, ring)))
+    return { ...ids, patchKeys }
+  }, [editorBase, decorationActive, decorationPaintTarget, decorationOrbitRing])
 
   return useMemo(() => {
     // Step 17 Builder: when a Patch is active, render its Tiles directly.
@@ -482,15 +513,38 @@ export function usePattern(
         // extracted only while actually painting (target ≠ Off), by translating
         // the base segments — no re-PIC.
         if (decorationActive) {
-          const strandRec = patch.decoration?.strandColours.find(r => r.scope === 'congruent')
-          const strandColor = strandRec ? strandRec.colour : null
+          // Stage 2 — `instance`-scope fills are world-specific, so they can't
+          // live inside the cloned fragment. Reconstruct each record's polygon
+          // (rep polygon + the stamp translation its world centroid implies)
+          // and return it world-space; PatternSVG sandwiches these between the
+          // under-fragment and strand-fragment <use> stacks.
+          let instanceVoidFills: VoidFill[] | undefined
+          if (decorationFills && decorationFills.voidIndex.hasInstance) {
+            instanceVoidFills = []
+            for (const rec of decorationFills.voidIndex.instance) {
+              for (const r of decorationFills.reps) {
+                if (r.signature !== rec.signature) continue
+                const t = { x: rec.x - r.centroid.x, y: rec.y - r.centroid.y }
+                const st = stamps.find(s =>
+                  Math.abs(s.translation.x - t.x) <= 0.06 && Math.abs(s.translation.y - t.y) <= 0.06)
+                if (st) {
+                  const tx = st.translation.x, ty = st.translation.y
+                  instanceVoidFills.push({
+                    polygon: r.polygon.map(p => ({ x: p.x + tx, y: p.y + ty })),
+                    colour: rec.colour,
+                  })
+                  break
+                }
+              }
+            }
+          }
           // Paint overlay hit-targets: TILE the representative Voids / base Rays
           // across the visible stamps by translation — no per-pan extraction
           // (the old viewport extraction was the worst-ms spike). Strands need
           // tiling too, else hit-targets exist only at the base domain near the
           // origin and the bucket cursor never activates elsewhere.
-          let decorationVoids: VoidRegion[] | undefined
-          let decorationStrandHits: Segment[] | undefined
+          let decorationVoids: PaintVoid[] | undefined
+          let decorationStrandHits: StrandHit[] | undefined
           if (decorationPaintActive && decorationFills) {
             const bx = genX + vw * pad, by = genY + vh * pad
             const m = Math.max(vw, vh) * 0.2
@@ -506,15 +560,27 @@ export function usePattern(
                     area: r.area,
                     signature: r.signature,
                     polygon: r.polygon.map(p => ({ x: p.x + tx, y: p.y + ty })),
+                    patchKey: r.patchKey,
+                    instanceKey: scopedKey(r.signature, { x: r.centroid.x + tx, y: r.centroid.y + ty }),
                   })
                 }
               }
-            } else {
+            } else if (baseStrandIds) {
               decorationStrandHits = []
-              for (const st of visible) {
-                const tx = st.translation.x, ty = st.translation.y
-                for (const s of editorBase.baseSegments) {
-                  decorationStrandHits.push({ ...s, from: { x: s.from.x + tx, y: s.from.y + ty }, to: { x: s.to.x + tx, y: s.to.y + ty } })
+              const nStrands = baseStrandIds.strands.length
+              for (let si = 0; si < visible.length; si++) {
+                const tx = visible[si].translation.x, ty = visible[si].translation.y
+                for (let i = 0; i < editorBase.baseSegments.length; i++) {
+                  const s = editorBase.baseSegments[i]
+                  const strandIdx = baseStrandIds.strandOfSegment[i]
+                  if (strandIdx < 0) continue
+                  decorationStrandHits.push({
+                    from: { x: s.from.x + tx, y: s.from.y + ty },
+                    to: { x: s.to.x + tx, y: s.to.y + ty },
+                    strandId: si * nStrands + strandIdx,
+                    signature: baseStrandIds.strands[strandIdx].signature,
+                    patchKey: baseStrandIds.patchKeys[strandIdx],
+                  })
                 }
               }
             }
@@ -524,9 +590,10 @@ export function usePattern(
             segments: editorBase.baseSegments,
             compositionStamps: stamps,
             voidFills: decorationFills?.fills ?? [],
-            strandColor,
+            instanceVoidFills,
             decorationVoids,
             decorationStrandHits,
+            decorationOrbitStamps: decorationOrbitRing ?? undefined,
           }
         }
         return { polygons: basePolys, segments: editorBase.baseSegments, compositionStamps: stamps }
@@ -651,10 +718,40 @@ export function usePattern(
             ]
           }
         }
-        // Non-periodic fall-back (frame / multi-cell / vertex-lines): extract
-        // over the full PIC field. Same helper as the periodic fast-path.
-        const { voidFills, strandColor, decorationVoids } = buildDecorationData(decoField, bound, config)
-        return { polygons: picPolygons, segments, boundaryOutlines, voidFills, strandColor, decorationVoids }
+        // Non-periodic fall-back (frame / rotated stamps / vertex-lines):
+        // extract over the full PIC field. Everything here is world-space, so
+        // all scope rungs (incl. instance) resolve straight into `voidFills`.
+        const stampTranslations = stamps.map(s => s.translation)
+        const { voidFills, decorationVoids } = buildDecorationData(decoField, bound, config, stampTranslations)
+        // Strand hit-targets with per-strand identity. Chains the rendered
+        // (frame-filtered) field once per pan while the Strands target is
+        // active — same order of cost as the StrandLayer render itself.
+        let decorationStrandHits: StrandHit[] | undefined
+        if (decorationPaintTarget === 'strands') {
+          const ids = strandIdentities(segments)
+          decorationStrandHits = []
+          for (let i = 0; i < segments.length; i++) {
+            const strandIdx = ids.strandOfSegment[i]
+            if (strandIdx < 0) continue
+            const ident = ids.strands[strandIdx]
+            decorationStrandHits.push({
+              from: segments[i].from,
+              to: segments[i].to,
+              strandId: strandIdx,
+              signature: ident.signature,
+              patchKey: scopedKey(ident.signature, orbitOffset(ident.centroid, stampTranslations)),
+            })
+          }
+        }
+        return {
+          polygons: picPolygons,
+          segments,
+          boundaryOutlines,
+          voidFills,
+          decorationVoids,
+          decorationStrandHits,
+          decorationOrbitStamps: stampTranslations,
+        }
       }
       return { polygons: picPolygons, segments, boundaryOutlines }
     }
@@ -670,5 +767,5 @@ export function usePattern(
     const segments = runPIC(polygons, config)
 
     return { polygons, segments }
-  }, [config, editorBase, decorationFills, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview, editorNeighbourBoundaries, editorNeighbourStrands, editorFrame, decorationActive, decorationPaintActive, decorationPaintTarget])
+  }, [config, editorBase, decorationFills, baseStrandIds, decorationOrbitRing, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview, editorNeighbourBoundaries, editorNeighbourStrands, editorFrame, decorationActive, decorationPaintActive, decorationPaintTarget])
 }

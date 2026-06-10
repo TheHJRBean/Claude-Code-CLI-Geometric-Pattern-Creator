@@ -7,7 +7,7 @@ import { frameOutlinePolygon, computeFrameSections, frameNodePoints } from '../e
 import { nRingOutline, DEFAULT_FRAME_RINGS } from '../editor/frameNRing'
 import { usePanZoom, type ViewTransform } from '../hooks/usePanZoom'
 import { PatternSVG } from '../rendering/PatternSVG'
-import { DecorationPaintLayer, type PaintTarget } from '../rendering/DecorationPaintLayer'
+import { DecorationPaintLayer, type PaintPayload, type PaintTarget, type StrandPaintScope, type VoidPaintScope } from '../rendering/DecorationPaintLayer'
 import { RotationDial } from './RotationDial'
 import type { ExposedEdge } from '../editor/exposedEdges'
 import { computeExposedEdges } from '../editor/exposedEdges'
@@ -150,20 +150,25 @@ interface Props {
   /** Step 19.3 — Decoration phase active: render resolved Void fills + strand
    * colour over the Composition. */
   decorationActive?: boolean
-  /** Step 19.3 — Paint-mode: Fill the clicked Void's congruent class (by
-   * signature) with the active colour. */
-  onPaintVoid?: (signature: string) => void
-  /** Step 19.3 — Paint-mode: colour all Strands with the active colour. */
-  onPaintStrands?: () => void
+  /** Stage 2 — Paint-mode: Fill the clicked Void's group at the given
+   * Grouping-scope rung with the active colour. */
+  onPaintVoid?: (payload: PaintPayload) => void
+  /** Stage 2 — Paint-mode: colour the clicked Strand's group at the given
+   * rung. */
+  onPaintStrand?: (payload: PaintPayload) => void
   /** Step 19.3 — active Paint colour (used for the hover highlight). */
   paintColor?: string
   /** Step 19.3 — manual Paint target (Off · Voids · Strands). */
   paintTarget?: PaintTarget
+  /** Stage 2 — how far a Void click reaches (congruent / patch / instance). */
+  paintVoidScope?: VoidPaintScope
+  /** Stage 2 — how far a Strand click reaches (all / congruent / patch). */
+  paintStrandScope?: StrandPaintScope
 }
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, editorMode = 'place', picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrands, paintColor = '#c0392b', paintTarget = 'voids' }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, editorMode = 'place', picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all' }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -194,7 +199,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // stay synchronous for a live preview; the real fix for their cost is the
   // periodicity-PIC lever (cheap recompute), not deferral.
   const deferredVT = useDeferredValue(viewTransform)
-  const { polygons, segments, boundaryOutlines, ghostPolygons, neighbourStamps, seedOutlineCount, ghostPolygonIds, compositionStamps, voidFills, strandColor, decorationVoids, decorationStrandHits } = usePattern(
+  const { polygons, segments, boundaryOutlines, ghostPolygons, neighbourStamps, seedOutlineCount, ghostPolygonIds, compositionStamps, voidFills, instanceVoidFills, decorationVoids, decorationStrandHits, decorationOrbitStamps } = usePattern(
     config,
     deferredVT,
     size.width,
@@ -698,16 +703,18 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // normal editor overlay is null (it's gated to !editorStrandMode), so the
   // Paint layer reuses PatternSVG's topmost overlay slot. Hit-tests the
   // extracted Voids for hover-highlight + click-to-Fill.
-  const decorationOverlay = decorationActive && paintTarget !== 'off' && onPaintVoid && onPaintStrands
+  const decorationOverlay = decorationActive && paintTarget !== 'off' && onPaintVoid && onPaintStrand
     ? (
       <DecorationPaintLayer
         target={paintTarget}
         voids={decorationVoids ?? []}
-        segments={decorationStrandHits ?? segments}
+        strandHits={decorationStrandHits ?? []}
+        voidScope={paintVoidScope}
+        strandScope={paintStrandScope}
         activeColor={paintColor}
         zoom={viewTransform.zoom}
         onPaintVoid={onPaintVoid}
-        onPaintStrands={onPaintStrands}
+        onPaintStrand={onPaintStrand}
       />
     )
     : null
@@ -787,7 +794,9 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         clipToFrame={config.tiling.type !== 'editor' || editorStrandMode}
         frameNodes={frameNodes}
         voidFills={voidFills}
-        strandColor={strandColor}
+        instanceVoidFills={instanceVoidFills}
+        strandRecords={decorationActive ? config.editor?.decoration?.strandColours : undefined}
+        orbitStamps={decorationOrbitStamps}
       />
       {pickerScreenPos && onPlaceTile && onSelectEdge && selectedEdgeData && (
         <EditorPickerOverlay

@@ -1,9 +1,13 @@
 import { memo, useMemo } from 'react'
 import type { Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
+import type { ColourRecord } from '../types/editor'
+import type { Vec2 } from '../utils/math'
 import { buildStrands } from '../strand/buildStrands'
 import { computeCurves, smoothCurves } from '../strand/computeCurves'
 import { curvedPathD, curvedPathDSplit } from '../strand/curvedPathD'
+import { buildColourIndex, orbitOffset, resolveColour } from '../decoration/scopes'
+import { strandIdentity } from '../decoration/strandGroups'
 import { recordPerf } from '../utils/perf'
 
 interface Props {
@@ -18,12 +22,19 @@ interface Props {
    */
   ghostPolygonIds?: Set<string>
   /**
-   * Step 19.2 — Decoration **Strand colour** override. When set, every Strand
-   * is stroked in this colour instead of `config.strand.color` (which stays the
-   * fallback / Gallery default). Stage-1 Congruent scope applies one colour to
-   * all Strands; the per-class/instance rungs land later.
+   * Step 19 Stage 2 — Decoration **Strand colour** records. Each Strand
+   * resolves its own stroke through the Grouping-scope ladder (`scopes.ts`):
+   * patch-orbit key > congruent signature > `'*'` > `config.strand.color`.
+   * Undefined / empty ⇒ the global colour (Gallery + undecorated Builder).
    */
-  strokeColor?: string
+  strandRecords?: ColourRecord[]
+  /**
+   * Stage 2 — lattice translations reducing a Strand centroid to its
+   * Lattice-orbit offset for `patch`-scope matching. On the periodic
+   * fast-path this is a local ring (base-domain strands); on the full-field
+   * path the viewport stamp set. Undefined ⇒ centroids used as-is.
+   */
+  orbitStamps?: Vec2[]
 }
 
 /**
@@ -35,9 +46,9 @@ interface Props {
  * Lacing returns under the Decoration Phase per ADR-0003 and
  * `project_decoration_stage_idea.md`.
  */
-export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPolygonIds, strokeColor }: Props) {
+export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPolygonIds, strandRecords, orbitStamps }: Props) {
   const { strand } = config
-  const stroke = strokeColor ?? strand.color
+  const stroke = strand.color
 
   const strandData = useMemo(() => {
     const t0 = performance.now()
@@ -45,6 +56,24 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
     recordPerf({ strandMs: performance.now() - t0 })
     return r
   }, [segments])
+
+  // Stage 2 — per-strand stroke from the Decoration colour ladder. Null when
+  // no records apply (single global colour, the common/Gallery case) or when
+  // the ghost split is active (path indices stop aligning with strands; ghosts
+  // only exist in Design Phase, where Decoration is never active).
+  const strokes = useMemo<string[] | null>(() => {
+    if (!strandRecords || strandRecords.length === 0) return null
+    if (ghostPolygonIds && ghostPolygonIds.size > 0) return null
+    const idx = buildColourIndex(strandRecords)
+    if (idx.starColour === null && idx.bySignature.size === 0 && !idx.hasPositioned) return null
+    const ring = orbitStamps ?? []
+    return strandData.map(sd => {
+      const id = strandIdentity(sd.points)
+      // World-instance strand records aren't produced by the UI (a "single"
+      // strand is its patch orbit), so no world centroid is passed here.
+      return resolveColour(idx, id.signature, orbitOffset(id.centroid, ring), null) ?? stroke
+    })
+  }, [strandData, strandRecords, orbitStamps, ghostPolygonIds, stroke])
   const curvedStrands = useMemo(() => {
     const raw = computeCurves(strandData, segments, config)
     return config.smoothTransitions ? raw.map(smoothCurves) : raw
@@ -95,7 +124,7 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
           key={`strand-${i}`}
           d={d}
           fill="none"
-          stroke={stroke}
+          stroke={strokes ? strokes[i] : stroke}
           strokeWidth={strand.width}
           strokeLinecap="round"
           strokeLinejoin="round"

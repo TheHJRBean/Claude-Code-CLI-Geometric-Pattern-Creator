@@ -10,6 +10,7 @@ import { StrandLayer } from './StrandLayer'
 import { ControlPointLayer } from './ControlPointLayer'
 import { VoidFillLayer } from './VoidFillLayer'
 import type { VoidFill } from '../decoration/resolve'
+import type { ColourRecord } from '../types/editor'
 
 interface Props {
   polygons: Polygon[]
@@ -79,21 +80,34 @@ interface Props {
   frameNodes?: Vec2[] | null
   /**
    * Step 19.2 — Decoration **Void Fill**s (resolved). Drawn behind the Strands
-   * (ADR-0005 layer stack). Decoration bypasses the periodic fast-path (geometry
-   * is frozen, so the full-field extraction is affordable and avoids cross-seam
-   * Void splitting), so fills only render on the normal — non-`compositionStamps`
-   * — branch. Absent / empty ⇒ nothing drawn.
+   * (ADR-0005 layer stack). On the periodic fast-path these are the
+   * representative fills, rendered INSIDE the cloned fragment so `<use>` tiles
+   * them; otherwise they're world-space. Absent / empty ⇒ nothing drawn.
    */
   voidFills?: VoidFill[]
   /**
-   * Step 19.2 — Decoration **Strand colour** override. Overrides
-   * `config.strand.color` for the Strand stroke; absent ⇒ the global colour.
+   * Stage 2 — world-space `instance`-scope Void fills (fast-path only). A
+   * single world copy can't render inside the tiled fragment, so when these
+   * exist the fragment splits in two `<use>` stacks (fills+tiles, then
+   * strands) and the instance fills sandwich between them — keeping them
+   * under the Strands like every other fill.
    */
-  strandColor?: string | null
+  instanceVoidFills?: VoidFill[]
+  /**
+   * Step 19 Stage 2 — Decoration **Strand colour** records; StrandLayer
+   * resolves each Strand's stroke through the scope ladder. Absent ⇒ the
+   * global `config.strand.color`.
+   */
+  strandRecords?: ColourRecord[]
+  /**
+   * Stage 2 — lattice translations for StrandLayer's `patch`-orbit reduction
+   * (see StrandLayer.orbitStamps).
+   */
+  orbitStamps?: Vec2[]
 }
 
 export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
-  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, compositionStamps, editorOverlay, frameOutline, clipToFrame = true, frameNodes, voidFills, strandColor },
+  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, compositionStamps, editorOverlay, frameOutline, clipToFrame = true, frameNodes, voidFills, instanceVoidFills, strandRecords, orbitStamps },
   ref
 ) {
   const { x, y, zoom, rotation } = viewTransform
@@ -141,26 +155,51 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
             // Lever A periodic fast-path: render one fundamental domain into a
             // <defs> fragment, then tile it with <use> (x/y = pure-translation
             // stamp). TileLayer + StrandLayer render once; the browser clones.
-            <>
-              <defs>
-                <g id="composition-fragment">
-                  {/* Representative Decoration Void fills live INSIDE the
-                      fragment so <use> tiles them across the whole field. */}
-                  {voidFills && <VoidFillLayer fills={voidFills} />}
-                  <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
-                  {showLines && <StrandLayer segments={segments} config={config} strokeColor={strandColor ?? undefined} />}
-                </g>
-              </defs>
-              {compositionStamps.map((st, i) => (
-                <use
-                  key={i}
-                  href="#composition-fragment"
-                  x={st.translation.x}
-                  y={st.translation.y}
-                />
-              ))}
-              <ControlPointLayer segments={segments} config={config} visible={cpVisible} active={cpActive} zoom={zoom} />
-            </>
+            instanceVoidFills && instanceVoidFills.length > 0 ? (
+              // Stage 2 with world-space instance fills: split the fragment so
+              // the instance fills can render between the tiled under-layers
+              // and the tiled Strands (fills always sit under Strands).
+              <>
+                <defs>
+                  <g id="composition-fragment-under">
+                    {voidFills && <VoidFillLayer fills={voidFills} />}
+                    <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
+                  </g>
+                  <g id="composition-fragment-strands">
+                    {showLines && <StrandLayer segments={segments} config={config} strandRecords={strandRecords} orbitStamps={orbitStamps} />}
+                  </g>
+                </defs>
+                {compositionStamps.map((st, i) => (
+                  <use key={`u${i}`} href="#composition-fragment-under" x={st.translation.x} y={st.translation.y} />
+                ))}
+                <VoidFillLayer fills={instanceVoidFills} />
+                {compositionStamps.map((st, i) => (
+                  <use key={`s${i}`} href="#composition-fragment-strands" x={st.translation.x} y={st.translation.y} />
+                ))}
+                <ControlPointLayer segments={segments} config={config} visible={cpVisible} active={cpActive} zoom={zoom} />
+              </>
+            ) : (
+              <>
+                <defs>
+                  <g id="composition-fragment">
+                    {/* Representative Decoration Void fills live INSIDE the
+                        fragment so <use> tiles them across the whole field. */}
+                    {voidFills && <VoidFillLayer fills={voidFills} />}
+                    <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
+                    {showLines && <StrandLayer segments={segments} config={config} strandRecords={strandRecords} orbitStamps={orbitStamps} />}
+                  </g>
+                </defs>
+                {compositionStamps.map((st, i) => (
+                  <use
+                    key={i}
+                    href="#composition-fragment"
+                    x={st.translation.x}
+                    y={st.translation.y}
+                  />
+                ))}
+                <ControlPointLayer segments={segments} config={config} visible={cpVisible} active={cpActive} zoom={zoom} />
+              </>
+            )
           ) : (
             <>
               {boundaryOutlines && boundaryOutlines.map((outline, i) => {
@@ -172,7 +211,7 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
               })}
               <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
               {voidFills && <VoidFillLayer fills={voidFills} />}
-              {showLines && <StrandLayer segments={segments} config={config} ghostPolygonIds={ghostPolygonIds} strokeColor={strandColor ?? undefined} />}
+              {showLines && <StrandLayer segments={segments} config={config} ghostPolygonIds={ghostPolygonIds} strandRecords={strandRecords} orbitStamps={orbitStamps} />}
               <ControlPointLayer
                 segments={segments}
                 config={config}

@@ -901,9 +901,21 @@ Implementation map (all 2026-06-10):
   a mode switch (e.g. adding a Frame). Void reps are Voronoi-filtered to the
   origin cell, which gives the same property for free.
 
+**Stage 2b — `cell` rung ✅ DELIVERED same day (UI label "Twins").**
+`decoration/cellScope.ts`: per-Cell symmetry frames derived from the boundary
+outlines (`editorBase.baseOutlines` — centre = vertex average, D_n rotations
+2πk/n, mirror axes through vertex 0's angle at π/n steps), so multi-cell,
+octagon/dodecagon and alternate orientation need no special-casing. Key =
+`<sig>#<cellTag>@<canonical orbit position>` (lexicographic min over the 2n
+D_n images of the target's cell-relative Lattice-orbit position; host cell =
+nearest centre, deterministic tie-break; epsilon comparator keeps the pick
+stable — exact coordinate ties common under symmetry fall through to y).
+Resolution precedence: instance > patch > cell > congruent sig > `'*'`.
+Asymmetric arrangements degrade gracefully: twin positions with no matching
+void/strand simply don't match, so Twins paints whatever symmetric siblings
+actually exist.
+
 Known limits / deferred:
-- **`cell` rung deferred** (Cell-symmetry-orbit grouping; ties to
-  `editor/symmetry.ts`). The schema + index ignore-list already reserve it.
 - Instance keys embed world centroids; geometry edits invalidate them exactly
   like congruent signatures (accepted per ADR-0005 style-only rule).
 - Non-fast-path strand hit-targets chain the full visible field once per pan
@@ -911,8 +923,6 @@ Known limits / deferred:
 
 ### Deferred stages (capture only)
 
-- **Stage 2b — Cell scope.** The `cell` (Cell-symmetry-orbit) rung. Needs
-  stable orbit identity (ties to `editor/symmetry.ts`).
 - **Stage 3 — world-instance Strands.** Per-world-copy strand records would
   need per-stamp strand recolouring outside the fragment; deliberately skipped
   (a "single" strand = its patch orbit keeps the artifact periodic).

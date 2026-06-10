@@ -1,5 +1,5 @@
 import type { FigureRouting, PatternConfig, StrandStyle } from '../types/pattern'
-import type { BoundaryShape, ConfigurationId, EditorConfig, FrameConfig, SymmetryMode } from '../types/editor'
+import type { BoundaryShape, ConfigurationId, EditorConfig, FrameConfig, GroupingScope, SymmetryMode } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 
 /** Which strand type a curve mutation targets. 'edge' = star-arm lines (the
@@ -86,11 +86,14 @@ export type Action =
   // Gallery-mode Frame (clip-only, top-level `config.frame`). Distinct from
   // SET_FRAME, which targets the Builder's `editor.frame`. `null` clears it.
   | { type: 'SET_GALLERY_FRAME'; payload: FrameConfig | null }
-  // Step 19 Decoration (Builder-only, `editor.decoration`). Stage 1 = Congruent
-  // scope. Paint a Void's congruent class (keyed by shape signature), set the
-  // all-strands colour, or clear all decoration.
-  | { type: 'SET_DECORATION_VOID_FILL'; payload: { signature: string; colour: string } }
-  | { type: 'SET_DECORATION_STRAND_COLOR'; payload: { colour: string | null } }
+  // Step 19 Decoration (Builder-only, `editor.decoration`). Stage 2: records
+  // bind at a Grouping-scope rung — congruent (key = shape signature, or '*'
+  // for all), patch (key = sig@orbit-offset) or instance (key = sig@world
+  // centroid); see decoration/scopes.ts. Upserts by (scope, key); re-painting
+  // the same key with its current colour toggles the record off. STRAND_COLOR
+  // with colour null removes the (scope, key) record.
+  | { type: 'SET_DECORATION_VOID_FILL'; payload: { scope: GroupingScope; key: string; colour: string } }
+  | { type: 'SET_DECORATION_STRAND_COLOR'; payload: { scope: GroupingScope; key: string; colour: string | null } }
   | { type: 'CLEAR_DECORATION' }
   // Switch which Cell the user is editing in Design Phase (multi-Cell only).
   // Pure pane swap — does NOT push a history snapshot.

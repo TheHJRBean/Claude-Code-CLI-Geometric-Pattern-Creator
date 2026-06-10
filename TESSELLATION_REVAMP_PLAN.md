@@ -906,10 +906,16 @@ Implementation map (all 2026-06-10):
 outlines (`editorBase.baseOutlines` — centre = vertex average, D_n rotations
 2πk/n, mirror axes through vertex 0's angle at π/n steps), so multi-cell,
 octagon/dodecagon and alternate orientation need no special-casing. Key =
-`<sig>#<cellTag>@<canonical orbit position>` (lexicographic min over the 2n
-D_n images of the target's cell-relative Lattice-orbit position; host cell =
-nearest centre, deterministic tie-break; epsilon comparator keeps the pick
-stable — exact coordinate ties common under symmetry fall through to y).
+`<sig>#<cellTag>:<hash>` — canonicalises the target's WHOLE outline/chain:
+lexicographic min over the 2n D_n images of the quantised (0.25) vertex
+serialisation (host cell = nearest centre, deterministic tie-break; exact
+string matching, like congruent signatures). A centroid-only canonical
+position was the first cut and over-grouped — congruent targets with
+coinciding/D_n-related centroids merged without being true twins (user
+report "twins is applying to all congruent shapes"; fixed `08a0391`,
+regression `cellScopeProbe.test.ts` pins real-field orbit structure).
+NOTE: on fully symmetric single-cell patterns most congruent classes ARE
+single orbits, so Twins == Matching there is correct behaviour.
 Resolution precedence: instance > patch > cell > congruent sig > `'*'`.
 Asymmetric arrangements degrade gracefully: twin positions with no matching
 void/strand simply don't match, so Twins paints whatever symmetric siblings

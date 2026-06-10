@@ -1,49 +1,69 @@
 import { useMemo, useState } from 'react'
 import type { Vec2 } from '../utils/math'
-import type { Segment } from '../types/geometry'
-import type { VoidRegion } from '../decoration/voids'
+import type { GroupingScope } from '../types/editor'
+import type { PaintVoid, StrandHit } from '../decoration/resolve'
 
 export type PaintTarget = 'off' | 'voids' | 'strands'
 
+/** Which Grouping-scope rung a Void click binds at (ADR-0005 ladder). */
+export type VoidPaintScope = 'congruent' | 'patch' | 'instance'
+
+/** Which rung a Strand click binds at. `all` = the congruent `'*'` record;
+ * `patch` = the clicked strand's Lattice orbit ("this strand, every repeat"). */
+export type StrandPaintScope = 'all' | 'congruent' | 'patch'
+
+export interface PaintPayload {
+  scope: GroupingScope
+  key: string
+}
+
 /**
- * Step 19.3 — Decoration **Paint mode** canvas overlay. A manual **Paint target**
- * (Off · Voids · Strands) decides what is clickable so Voids and Strands never
- * fight over the cursor (and Off lets the user pan freely):
+ * Step 19.3 / Stage 2 — Decoration **Paint mode** canvas overlay. A manual
+ * **Paint target** (Off · Voids · Strands) decides what is clickable, and a
+ * per-target **Paint scope** decides how far a click reaches:
  *
- * - **Voids**: one transparent hit-target per Void; hovering one faintly
- *   highlights its whole **congruent group** in the active colour and a click
- *   **Fill**s the group (`onPaintVoid(signature)`).
- * - **Strands**: thick transparent hit-targets over every Ray; hovering any
- *   highlights *all* Strands (one Congruent group in Stage 1) and a click
- *   colours them (`onPaintStrands()`).
+ * - **Voids**: hover highlights exactly the group the active scope would
+ *   paint — every congruent Void, the Lattice orbit (`patch`), or just the
+ *   one under the cursor (`instance`) — and a click Fills it
+ *   (`onPaintVoid({ scope, key })`).
+ * - **Strands**: hover highlights all Strands (`all`), the congruent group,
+ *   or the single strand's orbit (`patch`); click colours the group
+ *   (`onPaintStrand({ scope, key })`).
  *
  * Rendered topmost (PatternSVG's overlay slot) and uses `onPointerDown` so the
  * click beats the pan handler and the strokes painted below.
  *
  * The hit-targets are memoised separately from the hover highlight, so moving
- * the cursor (which updates `hovered` on every pointer event) only re-renders
- * the small highlight set — not the hundreds of hit paths (which were the lag
- * at high zoom).
+ * the cursor (which updates the hover state on every pointer event) only
+ * re-renders the small highlight set — not the hundreds of hit paths (which
+ * were the lag at high zoom).
  */
 export function DecorationPaintLayer({
   target,
   voids,
-  segments,
+  strandHits,
+  voidScope,
+  strandScope,
   activeColor,
   zoom,
   onPaintVoid,
-  onPaintStrands,
+  onPaintStrand,
 }: {
   target: PaintTarget
-  voids: VoidRegion[]
-  segments: Segment[]
+  voids: PaintVoid[]
+  strandHits: StrandHit[]
+  voidScope: VoidPaintScope
+  strandScope: StrandPaintScope
   activeColor: string
   zoom: number
-  onPaintVoid: (signature: string) => void
-  onPaintStrands: () => void
+  onPaintVoid: (payload: PaintPayload) => void
+  onPaintStrand: (payload: PaintPayload) => void
 }) {
-  const [hoveredSig, setHoveredSig] = useState<string | null>(null)
-  const [hoverStrands, setHoverStrands] = useState(false)
+  const [hoveredVoid, setHoveredVoid] = useState<number | null>(null)
+  const [hoveredStrand, setHoveredStrand] = useState<number | null>(null)
+
+  const voidKey = (v: PaintVoid): string =>
+    voidScope === 'congruent' ? v.signature : voidScope === 'patch' ? v.patchKey : v.instanceKey
 
   const voidHits = useMemo(() => voids.map((v, i) => (
     <path
@@ -52,15 +72,20 @@ export function DecorationPaintLayer({
       fill="transparent"
       stroke="none"
       style={{ cursor: BUCKET_CURSOR }}
-      onPointerEnter={() => setHoveredSig(v.signature)}
-      onPointerLeave={() => setHoveredSig(h => (h === v.signature ? null : h))}
-      onPointerDown={e => { e.stopPropagation(); onPaintVoid(v.signature) }}
+      onPointerEnter={() => setHoveredVoid(i)}
+      onPointerLeave={() => setHoveredVoid(h => (h === i ? null : h))}
+      onPointerDown={e => {
+        e.stopPropagation()
+        onPaintVoid({ scope: voidScope, key: voidKey(v) })
+      }}
     />
-  )), [voids, onPaintVoid])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  )), [voids, onPaintVoid, voidScope])
 
   const voidHighlight = useMemo(() => {
-    if (hoveredSig === null) return null
-    return voids.filter(v => v.signature === hoveredSig).map((v, i) => (
+    if (hoveredVoid === null || hoveredVoid >= voids.length) return null
+    const k = voidKey(voids[hoveredVoid])
+    return voids.filter(v => voidKey(v) === k).map((v, i) => (
       <path
         key={`hl-${i}`}
         d={polygonPath(v.polygon)}
@@ -73,11 +98,19 @@ export function DecorationPaintLayer({
         pointerEvents="none"
       />
     ))
-  }, [hoveredSig, voids, activeColor])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hoveredVoid, voids, voidScope, activeColor])
 
-  const strandHits = useMemo(() => {
+  const strandPayload = (s: StrandHit): PaintPayload =>
+    strandScope === 'all'
+      ? { scope: 'congruent', key: '*' }
+      : strandScope === 'congruent'
+        ? { scope: 'congruent', key: s.signature }
+        : { scope: 'patch', key: s.patchKey }
+
+  const strandHitEls = useMemo(() => {
     const hitWidth = 10 / zoom // constant ~10px screen hit width
-    return segments.map((s, i) => (
+    return strandHits.map((s, i) => (
       <line
         key={i}
         x1={s.from.x} y1={s.from.y} x2={s.to.x} y2={s.to.y}
@@ -85,35 +118,41 @@ export function DecorationPaintLayer({
         strokeWidth={hitWidth}
         strokeLinecap="round"
         style={{ cursor: BUCKET_CURSOR }}
-        onPointerEnter={() => setHoverStrands(true)}
-        onPointerLeave={() => setHoverStrands(false)}
-        onPointerDown={e => { e.stopPropagation(); onPaintStrands() }}
+        onPointerEnter={() => setHoveredStrand(i)}
+        onPointerLeave={() => setHoveredStrand(h => (h === i ? null : h))}
+        onPointerDown={e => { e.stopPropagation(); onPaintStrand(strandPayload(s)) }}
       />
     ))
-  }, [segments, zoom, onPaintStrands])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [strandHits, zoom, onPaintStrand, strandScope])
+
+  const strandHighlight = useMemo(() => {
+    if (hoveredStrand === null || hoveredStrand >= strandHits.length) return null
+    const h = strandHits[hoveredStrand]
+    const inGroup: (s: StrandHit) => boolean =
+      strandScope === 'all' ? () => true
+        : strandScope === 'congruent' ? s => s.signature === h.signature
+          : s => s.patchKey === h.patchKey
+    return strandHits.filter(inGroup).map((s, i) => (
+      <line
+        key={`hl-${i}`}
+        x1={s.from.x} y1={s.from.y} x2={s.to.x} y2={s.to.y}
+        stroke={activeColor}
+        strokeOpacity={0.9}
+        strokeWidth={3}
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+        pointerEvents="none"
+      />
+    ))
+  }, [hoveredStrand, strandHits, strandScope, activeColor])
 
   if (target === 'voids') {
     return <g id="decoration-paint-layer">{voidHighlight}{voidHits}</g>
   }
 
   if (target === 'strands') {
-    return (
-      <g id="decoration-paint-layer">
-        {hoverStrands && segments.map((s, i) => (
-          <line
-            key={`hl-${i}`}
-            x1={s.from.x} y1={s.from.y} x2={s.to.x} y2={s.to.y}
-            stroke={activeColor}
-            strokeOpacity={0.9}
-            strokeWidth={3}
-            strokeLinecap="round"
-            vectorEffect="non-scaling-stroke"
-            pointerEvents="none"
-          />
-        ))}
-        {strandHits}
-      </g>
-    )
+    return <g id="decoration-paint-layer">{strandHighlight}{strandHitEls}</g>
   }
 
   return null

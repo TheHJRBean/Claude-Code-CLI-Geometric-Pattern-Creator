@@ -1,15 +1,21 @@
 import type { Vec2 } from '../utils/math'
+import { centroid } from '../utils/math'
 import type { DecorationConfig } from '../types/editor'
-import { extractVoids } from './voids'
+import { extractVoids, type VoidRegion } from './voids'
+import { buildColourIndex, orbitOffset, resolveColour, scopedKey } from './scopes'
 
 /**
- * Step 19.2 — turn the persisted Stage-1 `DecorationConfig` into render-ready
- * props (ADR-0005). Pure: no React, no DOM. The Decoration render path is
+ * Step 19.2 / Stage 2 — turn the persisted `DecorationConfig` into
+ * render-ready props (ADR-0005). Pure: no React, no DOM. The Decoration
+ * render path is
  *
- *   segments + bound + decoration  →  resolveDecoration  →  { fills, strandColor }
+ *   segments + bound + decoration + stamps  →  resolveDecoration
+ *     →  { fills, voids }
  *
- * and the SVG layer stack draws `fills` *behind* the Strands, with the Strands
- * stroked in `strandColor` (falling back to the global `StrandStyle.color`).
+ * where `fills` are drawn *behind* the Strands and `voids` carry the
+ * per-scope identity keys the Paint overlay needs for hit-testing. Strand
+ * colours resolve separately in `StrandLayer` (per-strand, from the same
+ * `ColourRecord` ladder via `scopes.ts`).
  */
 
 export interface VoidFill {
@@ -19,48 +25,73 @@ export interface VoidFill {
   colour: string
 }
 
-export interface ResolvedDecoration {
-  /** Voids whose congruent signature matched a Fill record, with their colour. */
-  fills: VoidFill[]
-  /** Resolved Strand stroke colour, or null ⇒ caller uses `StrandStyle.color`. */
-  strandColor: string | null
+/** A Void enriched with its Grouping-scope identity keys (ADR-0005). */
+export interface PaintVoid extends VoidRegion {
+  /** `patch`-scope key: signature @ Lattice-orbit offset. */
+  patchKey: string
+  /** `instance`-scope key: signature @ world centroid. */
+  instanceKey: string
 }
 
-const EMPTY: ResolvedDecoration = { fills: [], strandColor: null }
+/** One Paint-overlay strand hit-target segment, carrying its strand's
+ * identity so hover/click can group per scope. */
+export interface StrandHit {
+  from: Vec2
+  to: Vec2
+  /** Field-unique strand index (groups the hit segments of one strand). */
+  strandId: number
+  /** Congruent strand signature. */
+  signature: string
+  /** `patch`-scope key: signature @ Lattice-orbit offset of the strand. */
+  patchKey: string
+}
+
+export interface ResolvedDecoration {
+  /** Voids whose identity matched a Fill record at some rung, with colour. */
+  fills: VoidFill[]
+  /** Every extracted Void with its scope keys (Paint-overlay hit-testing). */
+  voids: PaintVoid[]
+}
 
 /**
- * Resolve Stage-1 (Congruent-scope) decoration over the given `segments`
- * (rendered Rays) bounded by the convex `bound` outline (Frame outline or
- * viewport bbox).
- *
- * - **Void Fill**: extract the Voids inside `bound`, then colour each whose
- *   congruent `signature` matches a `congruent`-scope `voidFills` record.
- * - **Strand colour**: the single `congruent`-scope `strandColours` record
- *   (`key: '*'`) overrides the global; absent ⇒ null.
- *
- * Void extraction (the costly step) is skipped entirely when there are no Fill
- * records to apply.
+ * Attach scope keys to already-extracted Voids and resolve their fills
+ * against the record ladder. `stampTranslations` are the lattice stamp
+ * offsets used to reduce a centroid to its Lattice orbit (empty ⇒ the
+ * centroid is already orbit-relative, e.g. inside the periodic fragment).
+ */
+export function decorateVoids(
+  voids: VoidRegion[],
+  decoration: DecorationConfig | undefined,
+  stampTranslations: Vec2[],
+): ResolvedDecoration {
+  const idx = buildColourIndex(decoration?.voidFills)
+  const fills: VoidFill[] = []
+  const out: PaintVoid[] = []
+  for (const v of voids) {
+    const c = centroid(v.polygon)
+    const orbit = orbitOffset(c, stampTranslations)
+    out.push({
+      ...v,
+      patchKey: scopedKey(v.signature, orbit),
+      instanceKey: scopedKey(v.signature, c),
+    })
+    const colour = resolveColour(idx, v.signature, orbit, c)
+    if (colour) fills.push({ polygon: v.polygon, colour })
+  }
+  return { fills, voids: out }
+}
+
+/**
+ * Resolve decoration over a field of `segments` (rendered Rays, pre-flattened
+ * if curved) bounded by the convex `bound` outline (frame bbox or viewport
+ * rect): extract the Voids, then key + colour them per scope.
  */
 export function resolveDecoration(
   segments: { from: Vec2; to: Vec2 }[],
   bound: Vec2[],
   decoration: DecorationConfig | undefined,
+  stampTranslations: Vec2[] = [],
 ): ResolvedDecoration {
-  if (!decoration) return EMPTY
-
-  const strandRec = decoration.strandColours.find(r => r.scope === 'congruent')
-  const strandColor = strandRec ? strandRec.colour : null
-
-  const congruentFills = decoration.voidFills.filter(r => r.scope === 'congruent')
-  if (congruentFills.length === 0 || bound.length < 3) {
-    return { fills: [], strandColor }
-  }
-
-  const colourBySignature = new Map(congruentFills.map(r => [r.key, r.colour]))
-  const fills: VoidFill[] = []
-  for (const v of extractVoids(segments, bound)) {
-    const colour = colourBySignature.get(v.signature)
-    if (colour) fills.push({ polygon: v.polygon, colour })
-  }
-  return { fills, strandColor }
+  if (bound.length < 3) return { fills: [], voids: [] }
+  return decorateVoids(extractVoids(segments, bound), decoration, stampTranslations)
 }

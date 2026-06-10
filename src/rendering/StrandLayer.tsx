@@ -7,7 +7,7 @@ import { buildStrands } from '../strand/buildStrands'
 import { computeCurves, smoothCurves } from '../strand/computeCurves'
 import { curvedPathD, curvedPathDSplit } from '../strand/curvedPathD'
 import { buildColourIndex, orbitOffset, resolveColour } from '../decoration/scopes'
-import { cellScopedKey, type CellFrame } from '../decoration/cellScope'
+import { cellOrbitKey, reduceToOrbit, type CellFrame } from '../decoration/cellScope'
 import { strandIdentity } from '../decoration/strandGroups'
 import { recordPerf } from '../utils/perf'
 
@@ -78,8 +78,8 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
       const id = strandIdentity(sd.points)
       const off = orbitOffset(id.centroid, ring)
       // Cell-rung key only when cell records exist (saves the 2n-image walk).
-      const cellKey = idx.cell.length > 0 && cellFrames
-        ? cellScopedKey(id.signature, off, cellFrames)
+      const cellKey = idx.cell.size > 0 && cellFrames
+        ? cellOrbitKey(id.signature, reduceToOrbit(sd.points, id.centroid, off), id.closed, off, cellFrames)
         : null
       // World-instance strand records aren't produced by the UI (a "single"
       // strand is its patch orbit), so no world centroid is passed here.

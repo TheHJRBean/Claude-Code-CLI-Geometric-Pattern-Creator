@@ -3,7 +3,7 @@ import { centroid } from '../utils/math'
 import type { DecorationConfig } from '../types/editor'
 import { extractVoids, type VoidRegion } from './voids'
 import { buildColourIndex, orbitOffset, resolveColour, scopedKey } from './scopes'
-import { cellScopedKey, type CellFrame } from './cellScope'
+import { cellOrbitKey, reduceToOrbit, type CellFrame } from './cellScope'
 
 /**
  * Step 19.2 / Stage 2 — turn the persisted `DecorationConfig` into
@@ -77,7 +77,7 @@ export function decorateVoids(
   for (const v of voids) {
     const c = centroid(v.polygon)
     const orbit = orbitOffset(c, stampTranslations)
-    const cellKey = cellScopedKey(v.signature, orbit, cellFrames)
+    const cellKey = cellOrbitKey(v.signature, reduceToOrbit(v.polygon, c, orbit), true, orbit, cellFrames)
     out.push({
       ...v,
       patchKey: scopedKey(v.signature, orbit),

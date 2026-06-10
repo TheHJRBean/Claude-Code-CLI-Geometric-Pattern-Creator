@@ -897,19 +897,31 @@ first for the per-commit narrative.
 - `simplifyCollinear` before signing is load-bearing for consistent group-fill.
 
 **Snagging bugs (verify + fix):**
-1. **First-paint one-time lag.** First Fill rasterises the whole tiled field at
-   once; also every paint re-runs base PIC because `editorBase` keys on whole
-   `config`. **Safe fix:** re-key `editorBase` on geometry sub-fields
-   (`config.editor.cells` ref is preserved across decoration edits) so paints
-   don't re-PIC. Load-bearing memo — confirm `runPIC`'s config reads first.
+1. ~~**First-paint one-time lag** / every paint re-runs base PIC~~ **FIXED
+   2026-06-10 (`c896a46`).** `editorBase` re-keyed on geometry sub-fields +
+   runPIC's verified config read-set (`figures` + `figureRouting`); the fills
+   memo split into a geometry-keyed `decorationReps` extraction + a cheap
+   colouring memo on the live decoration records. Paints now re-run neither
+   PIC nor extraction. ⚠ Contract: `editorBase.patch` is a geometry-time
+   snapshot — read `frame`/`decoration` from live `config.editor`. Same
+   session, `cd64218` fixed a gate-drift bug found in review: multi-cell +
+   `alternateOrientation` blanked painted fills (render fast-path fired —
+   stamps stay rotation-0 on a rotated basis — while the fills memo bailed
+   on the flag). Both gates now share one `periodicFastPathEligible`
+   predicate (usePattern.ts), whose rotation check also stops wasted
+   extraction where the fast-path never fires (triangle rotation-π
+   intra-stamp; boundary-lattice on). ⏳ browser-verify: alternate-orientation
+   paint works; HUD pic ms ≈ 0 while painting. Remaining first-paint cost is
+   pure rasterisation of the tiled fills (browser paint, no fix planned).
 2. **Multi-cell Composition seams — UNVERIFIED.** The `!multiCell` guard lift
    makes multi-cell Composition render via clones; confirm strands meet at
    unit-cell boundaries on all 5 Configurations. If broken: PIC the unit cell
    with a one-ring halo, clip to domain, then clone. Revert flag:
    `localStorage.perfPeriodicity='0'`.
-3. **Non-fast-path Decoration** (frame / vertex-lines / alternate-orientation)
-   is still full-field + view-bounded + slow. Extend the periodic treatment or
-   at least the editorBase decouple + larger fixed extraction region.
+3. **Non-fast-path Decoration** (frame / vertex-lines) is still full-field +
+   view-bounded + slow (alternate-orientation now rides the fast-path, see
+   item 1). Extend the periodic treatment or at least a larger fixed
+   extraction region. The editorBase decouple half is done.
 4. **Curved Voids zoomed-out (~580 ms)** — `flatten.ts` + buildStrands over the
    field. Fine framed/moderate.
 5. **Drag-pan starting on a Void/Strand is swallowed** by overlay pointerdown.

@@ -56,12 +56,11 @@ function coerceLegacyFigures(figures: Record<string, FigureConfig>): Record<stri
  * Read a `StrandStyle` from raw JSON.
  *
  * Accepts two shapes:
- *   - Current: `{ width, color, background }` keyed under `strand`.
- *   - Legacy `lacing`: `{ strandWidth, strandColor, gapColor, … }` —
- *     migrated to `{ width, color, background }`. Other lacing fields
- *     (`enabled`, `gapWidth`) are dropped silently; the Lacing render
- *     path was removed in Phase 6 of the context refactor (see
- *     `project_decoration_stage_idea.md`).
+ *   - Current: `{ width, color, background, weave?, weaveGap? }` keyed
+ *     under `strand`.
+ *   - Legacy `lacing`: `{ strandWidth, strandColor, gapColor, enabled,
+ *     gapWidth }` — migrated to the current shape; `enabled`/`gapWidth`
+ *     map onto the reintroduced weave fields.
  *
  * Returns `null` if neither shape parses.
  */
@@ -71,7 +70,10 @@ function readStrandStyle(r: Record<string, unknown>): StrandStyle | null {
     if (typeof direct.width === 'number'
       && typeof direct.color === 'string'
       && typeof direct.background === 'string') {
-      return { width: direct.width, color: direct.color, background: direct.background }
+      const out: StrandStyle = { width: direct.width, color: direct.color, background: direct.background }
+      if (typeof direct.weave === 'boolean') out.weave = direct.weave
+      if (typeof direct.weaveGap === 'number') out.weaveGap = direct.weaveGap
+      return out
     }
   }
   const legacy = r.lacing as Record<string, unknown> | undefined
@@ -79,11 +81,14 @@ function readStrandStyle(r: Record<string, unknown>): StrandStyle | null {
     if (typeof legacy.strandWidth === 'number'
       && typeof legacy.strandColor === 'string'
       && typeof legacy.gapColor === 'string') {
-      return {
+      const out: StrandStyle = {
         width: legacy.strandWidth,
         color: legacy.strandColor,
         background: legacy.gapColor,
       }
+      if (typeof legacy.enabled === 'boolean') out.weave = legacy.enabled
+      if (typeof legacy.gapWidth === 'number') out.weaveGap = legacy.gapWidth
+      return out
     }
   }
   return null

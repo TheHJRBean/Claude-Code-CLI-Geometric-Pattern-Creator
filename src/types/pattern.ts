@@ -70,6 +70,13 @@ export interface StrandStyle {
   /** Canvas background colour. Persisted with the Strand style since the
    * pair is what defines the pattern's "look". */
   background: string
+  /** Over/under weave (Taprats-style interlacing — the Lacing effect).
+   * Strands alternate over and under at each crossing; the under thread is
+   * drawn with a gap. Default off. */
+  weave?: boolean
+  /** Extra breathing space (px) on each side of the over thread at an
+   * under-crossing gap. Default 2. */
+  weaveGap?: number
 }
 
 /**

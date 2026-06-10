@@ -6,6 +6,8 @@ import type { Vec2 } from '../utils/math'
 import { buildStrands } from '../strand/buildStrands'
 import { computeCurves, smoothCurves } from '../strand/computeCurves'
 import { curvedPathD, curvedPathDSplit } from '../strand/curvedPathD'
+import { computeWeave } from '../strand/weave'
+import { wovenPathD } from '../strand/wovenPathD'
 import { buildColourIndex, orbitOffset, resolveColour } from '../decoration/scopes'
 import { cellOrbitKey, reduceToOrbit, type CellFrame } from '../decoration/cellScope'
 import { strandIdentity } from '../decoration/strandGroups'
@@ -44,14 +46,18 @@ interface Props {
   cellFrames?: CellFrame[]
 }
 
+/** Default extra gap (px) each side of the over thread at an under crossing. */
+const DEFAULT_WEAVE_GAP = 2
+
 /**
  * Render every Strand as a single continuous SVG path.
  *
- * Lacing (the over/under interlace effect) was removed in Phase 6 of the
- * context refactor — the legacy two-pass renderer was broken in production
- * and never produced a coherent interlace (see `feedback_lacing.md`).
- * Lacing returns under the Decoration Phase per ADR-0003 and
- * `project_decoration_stage_idea.md`.
+ * When `config.strand.weave` is on, Strands interlace Taprats-style instead:
+ * over/under alternates along each thread (`strand/weave.ts`) and the under
+ * thread is drawn with a gap cut around the crossing (`strand/wovenPathD.ts`)
+ * — a path break, not a paint-over, so Void fills and the background show
+ * through. This is the Lacing effect; the legacy two-pass renderer it
+ * replaces was removed in Phase 6 of the context refactor.
  */
 export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPolygonIds, strandRecords, orbitStamps, cellFrames }: Props) {
   const { strand } = config
@@ -91,12 +97,36 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
     return config.smoothTransitions ? raw.map(smoothCurves) : raw
   }, [strandData, segments, config])
 
+  // Weave only on the normal render path — the Design-phase ghost split
+  // already fragments paths per edge, and its preview doesn't need lacing.
+  const ghostsActive = !!ghostPolygonIds && ghostPolygonIds.size > 0
+  const weaves = useMemo(
+    () => (strand.weave && !ghostsActive ? computeWeave(strandData) : null),
+    [strand.weave, ghostsActive, strandData],
+  )
+
   // When ghost ids exist, split each Strand per-edge by host polygon so the
   // boundary crossing produces a clean colour break — strands that bridge a
   // seed and a ghost get rendered partially full-colour (seed side) and
   // partially faded (ghost side). Otherwise emit one path per Strand.
   const { seedPaths, ghostPaths } = useMemo(() => {
     if (!ghostPolygonIds || ghostPolygonIds.size === 0) {
+      if (weaves) {
+        // Half-cut per under crossing: cover the over thread (width/2 scaled
+        // by the crossing angle), absorb this thread's round line cap
+        // (width/2), then the visible gap.
+        const w = strand.width
+        const gap = strand.weaveGap ?? DEFAULT_WEAVE_GAP
+        const paths = curvedStrands.map((cs, i) => {
+          const under = weaves[i].under
+          if (under.size === 0) return curvedPathD(cs)
+          return wovenPathD(cs, idx => {
+            const factor = under.get(idx)
+            return factor ? (w / 2) * factor + w / 2 + gap : 0
+          })
+        })
+        return { seedPaths: paths, ghostPaths: [] as string[] }
+      }
       return { seedPaths: curvedStrands.map(cs => curvedPathD(cs)), ghostPaths: [] as string[] }
     }
     const seeds: string[] = []
@@ -110,7 +140,7 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
       if (ghostD) ghosts.push(ghostD)
     }
     return { seedPaths: seeds, ghostPaths: ghosts }
-  }, [curvedStrands, strandData, segments, ghostPolygonIds])
+  }, [curvedStrands, strandData, segments, ghostPolygonIds, weaves, strand.width, strand.weaveGap])
 
   if (seedPaths.length === 0 && ghostPaths.length === 0) return null
 

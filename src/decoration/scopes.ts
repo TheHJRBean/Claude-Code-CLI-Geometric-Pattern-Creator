@@ -11,6 +11,9 @@ import type { ColourRecord } from '../types/editor'
  * - `patch`     → `<sig>@<x>,<y>` where (x, y) is the target's centroid
  *                 *relative to its nearest lattice-stamp translation* — i.e.
  *                 the Lattice-orbit id. Colours that spot in every Patch repeat.
+ * - `cell`      → `<sig>#<cellTag>@<x>,<y>` where (x, y) is the canonical
+ *                 Cell-symmetry-orbit position (`cellScope.ts`) — the target
+ *                 plus its rotation/mirror twins within the Cell, per repeat.
  * - `instance`  → `<sig>@<x>,<y>` where (x, y) is the absolute **world**
  *                 centroid — exactly one target.
  *
@@ -88,9 +91,12 @@ export interface ColourIndex {
   bySignature: Map<string, string>
   /** Parsed `patch`-scope records, in record order. */
   patch: PositionedRecord[]
+  /** Parsed `cell`-scope records (signature field = `<sig>#<cellTag>`,
+   * position = canonical orbit position — see `cellScope.ts`). */
+  cell: PositionedRecord[]
   /** Parsed `instance`-scope records, in record order. */
   instance: PositionedRecord[]
-  /** True when any record needs a positioned (patch/instance) match. */
+  /** True when any record needs a positioned (patch/cell/instance) match. */
   hasPositioned: boolean
   /** True when any `instance` record exists (world-space render path needed). */
   hasInstance: boolean
@@ -101,6 +107,7 @@ export function buildColourIndex(records: ColourRecord[] | undefined): ColourInd
     starColour: null,
     bySignature: new Map(),
     patch: [],
+    cell: [],
     instance: [],
     hasPositioned: false,
     hasInstance: false,
@@ -112,16 +119,14 @@ export function buildColourIndex(records: ColourRecord[] | undefined): ColourInd
       else idx.bySignature.set(r.key, r.colour)
       continue
     }
-    if (r.scope === 'patch' || r.scope === 'instance') {
-      const parsed = parseScopedKey(r.key)
-      if (!parsed) continue
-      const rec = { ...parsed, colour: r.colour }
-      if (r.scope === 'patch') idx.patch.push(rec)
-      else idx.instance.push(rec)
-    }
-    // 'cell' rung reserved (ADR-0005); records of that scope are ignored here.
+    const parsed = parseScopedKey(r.key)
+    if (!parsed) continue
+    const rec = { ...parsed, colour: r.colour }
+    if (r.scope === 'patch') idx.patch.push(rec)
+    else if (r.scope === 'cell') idx.cell.push(rec)
+    else idx.instance.push(rec)
   }
-  idx.hasPositioned = idx.patch.length > 0 || idx.instance.length > 0
+  idx.hasPositioned = idx.patch.length > 0 || idx.cell.length > 0 || idx.instance.length > 0
   idx.hasInstance = idx.instance.length > 0
   return idx
 }
@@ -144,13 +149,16 @@ function matchPositioned(
 /**
  * Resolve one target's colour. `orbit` is its Lattice-orbit offset (see
  * `orbitOffset`); `world` its absolute centroid, or null where world-instance
- * records can't apply (e.g. inside the periodic `<use>` fragment).
+ * records can't apply (e.g. inside the periodic `<use>` fragment); `cellKey`
+ * its precomputed `cell`-scope key (`cellScope.ts`), or null to skip the rung.
+ * Precedence (fine wins): instance > patch > cell > congruent sig > `'*'`.
  */
 export function resolveColour(
   idx: ColourIndex,
   signature: string,
   orbit: Vec2,
   world: Vec2 | null,
+  cellKey: string | null = null,
   tol = KEY_TOL,
 ): string | null {
   if (world && idx.instance.length > 0) {
@@ -160,6 +168,13 @@ export function resolveColour(
   if (idx.patch.length > 0) {
     const c = matchPositioned(idx.patch, signature, orbit, tol)
     if (c) return c
+  }
+  if (cellKey && idx.cell.length > 0) {
+    const parsed = parseScopedKey(cellKey)
+    if (parsed) {
+      const c = matchPositioned(idx.cell, parsed.signature, { x: parsed.x, y: parsed.y }, tol)
+      if (c) return c
+    }
   }
   return idx.bySignature.get(signature) ?? idx.starColour
 }

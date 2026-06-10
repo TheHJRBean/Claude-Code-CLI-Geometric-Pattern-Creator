@@ -11,9 +11,10 @@ import type { ColourRecord } from '../types/editor'
  * - `patch`     → `<sig>@<x>,<y>` where (x, y) is the target's centroid
  *                 *relative to its nearest lattice-stamp translation* — i.e.
  *                 the Lattice-orbit id. Colours that spot in every Patch repeat.
- * - `cell`      → `<sig>#<cellTag>@<x>,<y>` where (x, y) is the canonical
- *                 Cell-symmetry-orbit position (`cellScope.ts`) — the target
- *                 plus its rotation/mirror twins within the Cell, per repeat.
+ * - `cell`      → `<sig>#<cellTag>:<hash>` — the canonical Cell-symmetry-orbit
+ *                 outline hash (`cellScope.ts`): the target plus its
+ *                 rotation/mirror twins within the Cell, per repeat. Matched
+ *                 by exact string equality (the hash quantises internally).
  * - `instance`  → `<sig>@<x>,<y>` where (x, y) is the absolute **world**
  *                 centroid — exactly one target.
  *
@@ -91,9 +92,9 @@ export interface ColourIndex {
   bySignature: Map<string, string>
   /** Parsed `patch`-scope records, in record order. */
   patch: PositionedRecord[]
-  /** Parsed `cell`-scope records (signature field = `<sig>#<cellTag>`,
-   * position = canonical orbit position — see `cellScope.ts`). */
-  cell: PositionedRecord[]
+  /** `cell`-scope records: canonical orbit key → colour (later records win,
+   * matched by exact equality — see `cellScope.ts`). */
+  cell: Map<string, string>
   /** Parsed `instance`-scope records, in record order. */
   instance: PositionedRecord[]
   /** True when any record needs a positioned (patch/cell/instance) match. */
@@ -107,7 +108,7 @@ export function buildColourIndex(records: ColourRecord[] | undefined): ColourInd
     starColour: null,
     bySignature: new Map(),
     patch: [],
-    cell: [],
+    cell: new Map(),
     instance: [],
     hasPositioned: false,
     hasInstance: false,
@@ -119,14 +120,18 @@ export function buildColourIndex(records: ColourRecord[] | undefined): ColourInd
       else idx.bySignature.set(r.key, r.colour)
       continue
     }
+    if (r.scope === 'cell') {
+      // Map insertion order means later records naturally win.
+      idx.cell.set(r.key, r.colour)
+      continue
+    }
     const parsed = parseScopedKey(r.key)
     if (!parsed) continue
     const rec = { ...parsed, colour: r.colour }
     if (r.scope === 'patch') idx.patch.push(rec)
-    else if (r.scope === 'cell') idx.cell.push(rec)
     else idx.instance.push(rec)
   }
-  idx.hasPositioned = idx.patch.length > 0 || idx.cell.length > 0 || idx.instance.length > 0
+  idx.hasPositioned = idx.patch.length > 0 || idx.cell.size > 0 || idx.instance.length > 0
   idx.hasInstance = idx.instance.length > 0
   return idx
 }
@@ -169,12 +174,9 @@ export function resolveColour(
     const c = matchPositioned(idx.patch, signature, orbit, tol)
     if (c) return c
   }
-  if (cellKey && idx.cell.length > 0) {
-    const parsed = parseScopedKey(cellKey)
-    if (parsed) {
-      const c = matchPositioned(idx.cell, parsed.signature, { x: parsed.x, y: parsed.y }, tol)
-      if (c) return c
-    }
+  if (cellKey && idx.cell.size > 0) {
+    const c = idx.cell.get(cellKey)
+    if (c) return c
   }
   return idx.bySignature.get(signature) ?? idx.starColour
 }

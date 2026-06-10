@@ -22,7 +22,7 @@ import { recordPerf, periodicityEnabled } from '../utils/perf'
 import { resolveDecoration, type PaintVoid, type StrandHit, type VoidFill } from '../decoration/resolve'
 import { extractVoids, type VoidRegion } from '../decoration/voids'
 import { buildColourIndex, orbitOffset, resolveColour, scopedKey } from '../decoration/scopes'
-import { cellFramesFromOutlines, cellScopedKey, type CellFrame } from '../decoration/cellScope'
+import { cellFramesFromOutlines, cellOrbitKey, reduceToOrbit, type CellFrame } from '../decoration/cellScope'
 import { strandIdentities } from '../decoration/strandGroups'
 import { curvesEnabled, flattenStrandsToSegments } from '../decoration/flatten'
 
@@ -351,7 +351,8 @@ export function usePattern(
           ...v,
           centroid: c,
           patchKey: scopedKey(v.signature, c),
-          cellKey: cellScopedKey(v.signature, c, decorationCellFrames ?? []),
+          // Rep polygons are already patch-reduced (origin Voronoi cell).
+          cellKey: cellOrbitKey(v.signature, v.polygon, true, c, decorationCellFrames ?? []),
         })
       }
     }
@@ -407,7 +408,13 @@ export function usePattern(
     const frames = decorationCellFrames ?? []
     const offsets = ids.strands.map(s => orbitOffset(s.centroid, ring))
     const patchKeys = ids.strands.map((s, i) => scopedKey(s.signature, offsets[i]))
-    const cellKeys = ids.strands.map((s, i) => cellScopedKey(s.signature, offsets[i], frames))
+    const cellKeys = ids.strands.map((s, i) => cellOrbitKey(
+      s.signature,
+      reduceToOrbit(ids.strandData[i].points, s.centroid, offsets[i]),
+      s.closed,
+      offsets[i],
+      frames,
+    ))
     return { ...ids, patchKeys, cellKeys }
   }, [editorBase, decorationActive, decorationPaintTarget, decorationOrbitRing, decorationCellFrames])
 
@@ -770,7 +777,13 @@ export function usePattern(
               strandId: strandIdx,
               signature: ident.signature,
               patchKey: scopedKey(ident.signature, off),
-              cellKey: cellScopedKey(ident.signature, off, cellFrames),
+              cellKey: cellOrbitKey(
+                ident.signature,
+                reduceToOrbit(ids.strandData[strandIdx].points, ident.centroid, off),
+                ident.closed,
+                off,
+                cellFrames,
+              ),
             })
           }
         }

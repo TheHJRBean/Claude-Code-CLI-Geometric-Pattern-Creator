@@ -1,5 +1,6 @@
 import type { Vec2 } from '../utils/math'
-import { scopedKey } from './scopes'
+import { dist } from '../utils/math'
+import { hash8, minRotation } from './voids'
 
 /**
  * Step 19 Stage 2b — the `cell` Grouping-scope rung (ADR-0005): one click
@@ -15,12 +16,20 @@ import { scopedKey } from './scopes'
  * rotations are 2πk/n about the centre, mirror axes pass through vertex 0's
  * angle at steps of π/n.
  *
- * A `cell` key is `<sig>#<cellTag>@<x>,<y>` where (x, y) is the **canonical
- * orbit position**: the lexicographically smallest image of the target's
- * cell-relative position under the full D_n image set. Orbit twins (whose
- * positions are each other's images) share the canonical position, hence the
- * key. Targets are assigned to the nearest Cell centre (Voids can straddle
- * Cells, so containment tests would be ambiguous anyway).
+ * A `cell` key is `<sig>#<cellTag>:<hash>` where the hash canonicalises the
+ * target's **whole outline** (not just its centroid): the lexicographically
+ * smallest quantised vertex serialisation over all 2n D_n images. Twins —
+ * targets some symmetry really maps onto each other — share the canonical
+ * serialisation, hence the key. Centroid-only keys were tried first and
+ * over-grouped: two congruent Voids centred on the SAME point (common at a
+ * cell centre — e.g. a star core and its 45°-rotated sibling under a D4
+ * square) have identical centroids but are twins only if a cell symmetry
+ * maps one outline onto the other.
+ *
+ * Targets are assigned to the nearest Cell centre (Voids can straddle Cells,
+ * so containment tests would be ambiguous anyway). Matching is exact string
+ * equality — like congruent signatures, the quantisation (0.25 world units)
+ * absorbs float noise.
  */
 
 export interface CellFrame {
@@ -54,43 +63,75 @@ export function cellFramesFromOutlines(outlines: Vec2[][]): CellFrame[] {
   return frames
 }
 
+/** Vertex-coordinate quantisation for the canonical serialisation. */
+const SNAP = 0.25
+const CLOSE_TOL = 1e-3
+
 /**
- * The `cell`-scope key for a target with congruent `signature` at Lattice
- * orbit position `patchOffset` (see `orbitOffset` — base-domain coords, so
- * the key is stable across Patch repeats AND across the fast-path /
- * full-field render modes).
+ * The `cell`-scope key for a target with congruent `signature`, outline /
+ * chain `points` in **patch-reduced** (base-domain) coordinates, and
+ * patch-reduced centroid `anchor` (picks the host Cell). `closed` marks a
+ * ring (Void outline, closed Strand loop) vs an open Strand chain.
  */
-export function cellScopedKey(signature: string, patchOffset: Vec2, frames: CellFrame[]): string {
-  if (frames.length === 0) return scopedKey(`${signature}#c?`, patchOffset)
+export function cellOrbitKey(
+  signature: string,
+  points: Vec2[],
+  closed: boolean,
+  anchor: Vec2,
+  frames: CellFrame[],
+): string {
+  if (frames.length === 0 || points.length < 2) return `${signature}#c?`
   // Host cell = nearest centre (strict improvement ⇒ deterministic tie-break
   // by frame order, which is stable patch.cells order).
   let f = frames[0]
   let best = Infinity
   for (const fr of frames) {
-    const dx = patchOffset.x - fr.centre.x
-    const dy = patchOffset.y - fr.centre.y
+    const dx = anchor.x - fr.centre.x
+    const dy = anchor.y - fr.centre.y
     const d = dx * dx + dy * dy
     if (d < best - 1e-9) { best = d; f = fr }
   }
-  const q = { x: patchOffset.x - f.centre.x, y: patchOffset.y - f.centre.y }
-  // Canonical orbit position: lexicographic min over the 2n D_n images of q.
-  // The epsilon comparator keeps the pick stable under float noise; exact
-  // coordinate ties (common by symmetry, e.g. (x, y) vs (x, −y)) fall through
-  // to the y comparison, which is then exact.
-  let cx = q.x, cy = q.y
-  const consider = (x: number, y: number) => {
-    if (x < cx - 1e-6 || (Math.abs(x - cx) <= 1e-6 && y < cy - 1e-6)) { cx = x; cy = y }
+  // Closed rings often repeat the first point at the end — drop the duplicate.
+  let pts = points
+  if (closed && pts.length > 2 && dist(pts[0], pts[pts.length - 1]) < CLOSE_TOL) {
+    pts = pts.slice(0, pts.length - 1)
+  }
+  const rel = pts.map(p => ({ x: p.x - f.centre.x, y: p.y - f.centre.y }))
+
+  // Canonical serialisation = lexicographic min over the 2n D_n images of the
+  // quantised vertex sequence (cyclic + reversal-free for rings via
+  // minRotation; forward/backward min for open chains). Twins are exact
+  // images of each other, so their image sets — and the min — coincide.
+  let bestSer: string | null = null
+  const considerImage = (tx: (p: Vec2) => Vec2) => {
+    const tokens = rel.map(p => {
+      const q = tx(p)
+      return `${Math.round(q.x / SNAP)},${Math.round(q.y / SNAP)}`
+    })
+    const ser = closed
+      ? minRotation(tokens)
+      : minOf(tokens.join(';'), tokens.slice().reverse().join(';'))
+    if (bestSer === null || ser < bestSer) bestSer = ser
   }
   for (let k = 0; k < f.n; k++) {
-    if (k > 0) {
-      const a = (2 * Math.PI * k) / f.n
-      const ca = Math.cos(a), sa = Math.sin(a)
-      consider(ca * q.x - sa * q.y, sa * q.x + ca * q.y)
-    }
+    const a = (2 * Math.PI * k) / f.n
+    const ca = Math.cos(a), sa = Math.sin(a)
+    considerImage(p => ({ x: ca * p.x - sa * p.y, y: sa * p.x + ca * p.y }))
     // Mirror across the axis at angle theta0 + πk/n through the centre.
     const alpha = f.theta0 + (Math.PI * k) / f.n
     const c2 = Math.cos(2 * alpha), s2 = Math.sin(2 * alpha)
-    consider(c2 * q.x + s2 * q.y, s2 * q.x - c2 * q.y)
+    considerImage(p => ({ x: c2 * p.x + s2 * p.y, y: s2 * p.x - c2 * p.y }))
   }
-  return scopedKey(`${signature}#${f.tag}`, { x: cx, y: cy })
+  return `${signature}#${f.tag}:${hash8(bestSer!)}`
+}
+
+const minOf = (a: string, b: string): string => (a < b ? a : b)
+
+/** Translate `points` so a world/field target lands in patch-reduced coords:
+ * the same shift that takes its centroid to its Lattice-orbit offset. */
+export function reduceToOrbit(points: Vec2[], centroid: Vec2, orbit: Vec2): Vec2[] {
+  const dx = orbit.x - centroid.x
+  const dy = orbit.y - centroid.y
+  if (dx === 0 && dy === 0) return points
+  return points.map(p => ({ x: p.x + dx, y: p.y + dy }))
 }

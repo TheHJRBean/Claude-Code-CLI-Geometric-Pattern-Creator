@@ -610,7 +610,7 @@ export function usePattern(
         // still covers this tight rect.
         const bx = genX + vw * pad
         const by = genY + vh * pad
-        const bound: Vec2[] = [
+        let bound: Vec2[] = [
           { x: bx, y: by }, { x: bx + vw, y: by },
           { x: bx + vw, y: by + vh }, { x: bx, y: by + vh },
         ]
@@ -620,14 +620,37 @@ export function usePattern(
         // the interior class it belongs to — painting that class skipped them
         // ("voids lose colour at the frame"). Instead extract over the FULL,
         // unfiltered stamped field (so frame-edge Voids close against the real
-        // strands just outside the frame, keeping their interior shape) bounded
-        // by the viewport rect; the frame stays a pure SVG visual clip on the
-        // fills (PatternSVG clips the fill layer to the outline). `picPolygons`
-        // is frame-filtered for the rendered strands; `polygons` is the full
-        // field, so re-PIC it for extraction only when a frame is filtering.
-        const decoField = (editorFrame && patch.frame && picPolygons !== polygons)
-          ? runPIC(polygons, config)
-          : segments
+        // strands just outside the frame, keeping their interior shape); the
+        // frame stays a pure SVG visual clip on the fills (PatternSVG clips the
+        // fill layer to the outline). `picPolygons` is frame-filtered for the
+        // rendered strands; `polygons` is the full field, so re-PIC it for
+        // extraction only when a frame is filtering.
+        let decoField = segments
+        if (editorFrame && patch.frame && picPolygons !== polygons) {
+          decoField = runPIC(polygons, config)
+          // Bound to the frame's bbox + a symmetric margin, NOT the viewport
+          // rect: the viewport rect is quantised (`bx`/`by` = floor of the pan
+          // ⇒ shifted left/up), so it sits closer to the frame's right/bottom
+          // edges and clips those Voids while leaving left/top clear — Voids
+          // "lost colour" on the right/bottom only. A frame-bbox bound is
+          // symmetric and pan-independent, and the full field above extends
+          // past it on every side so frame-edge Voids still close cleanly.
+          const outline = frameOutlinePolygon(patch.frame)
+          if (outline && outline.length >= 3) {
+            let fMinX = Infinity, fMinY = Infinity, fMaxX = -Infinity, fMaxY = -Infinity
+            for (const p of outline) {
+              fMinX = Math.min(fMinX, p.x); fMaxX = Math.max(fMaxX, p.x)
+              fMinY = Math.min(fMinY, p.y); fMaxY = Math.max(fMaxY, p.y)
+            }
+            const margin = 2 * Math.max(patch.edgeLength, cell.boundarySize)
+            bound = [
+              { x: fMinX - margin, y: fMinY - margin },
+              { x: fMaxX + margin, y: fMinY - margin },
+              { x: fMaxX + margin, y: fMaxY + margin },
+              { x: fMinX - margin, y: fMaxY + margin },
+            ]
+          }
+        }
         // Non-periodic fall-back (frame / multi-cell / vertex-lines): extract
         // over the full PIC field. Same helper as the periodic fast-path.
         const { voidFills, strandColor, decorationVoids } = buildDecorationData(decoField, bound, config)

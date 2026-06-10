@@ -119,11 +119,8 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
         const gap = strand.weaveGap ?? DEFAULT_WEAVE_GAP
         const paths = curvedStrands.map((cs, i) => {
           const under = weaves[i].under
-          if (under.size === 0) return curvedPathD(cs)
-          return wovenPathD(cs, idx => {
-            const factor = under.get(idx)
-            return factor ? (w / 2) * factor + w / 2 + gap : 0
-          })
+          if (under.length === 0) return curvedPathD(cs)
+          return wovenPathD(cs, under.map(u => ({ s: u.s, half: (w / 2) * u.factor + w / 2 + gap })))
         })
         return { seedPaths: paths, ghostPaths: [] as string[] }
       }

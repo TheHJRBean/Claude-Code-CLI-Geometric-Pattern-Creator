@@ -1,8 +1,16 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import type { Segment } from '../types/geometry'
+import type { PatternConfig } from '../types/pattern'
+import { runPIC } from '../pic/index'
+import { generateTiling } from '../tilings/archimedean'
+import { TILINGS } from '../tilings/index'
+import { resetIds } from '../tilings/shared'
+import { DEFAULT_CONFIG } from '../state/defaults'
 import { buildStrands } from './buildStrands'
 import { computeWeave } from './weave'
 import { wovenPathD } from './wovenPathD'
+
+beforeEach(() => resetIds())
 
 const seg = (fx: number, fy: number, tx: number, ty: number): Segment => ({
   from: { x: fx, y: fy },
@@ -25,14 +33,13 @@ describe('computeWeave', () => {
     expect(strands).toHaveLength(2)
 
     const weaves = computeWeave(strands)
-    const underCounts = weaves.map(w => w.under.size)
+    const underCounts = weaves.map(w => w.under.length)
     // Exactly one thread goes under at the single crossing.
     expect(underCounts.sort()).toEqual([0, 1])
-    const under = weaves.find(w => w.under.size === 1)!
-    // Perpendicular crossing ⇒ no angle widening.
-    expect([...under.under.values()][0]).toBeCloseTo(1)
-    // The crossing is the strand's interior point.
-    expect([...under.under.keys()][0]).toBe(1)
+    const under = weaves.find(w => w.under.length === 1)!
+    // Perpendicular crossing ⇒ no angle widening; at the interior chain point.
+    expect(under.under[0].factor).toBeCloseTo(1)
+    expect(under.under[0].s).toBe(1)
   })
 
   it('alternates over/under along a thread with two crossings', () => {
@@ -46,35 +53,121 @@ describe('computeWeave', () => {
     const weaves = computeWeave(strands)
     const horizontal = strands.findIndex(s => s.points.length === 4)
     // The long thread passes 2 crossings: over at one, under at the other.
-    expect(weaves[horizontal].under.size).toBe(1)
+    expect(weaves[horizontal].under.length).toBe(1)
     // Each vertical thread takes the opposite role to the horizontal one,
     // so across all three threads exactly 2 of the 4 visits are under.
-    const total = weaves.reduce((n, w) => n + w.under.size, 0)
+    const total = weaves.reduce((n, w) => n + w.under.length, 0)
     expect(total).toBe(2)
   })
 
   it('ignores plain continuations (degree-2 vertices)', () => {
     const strands = buildStrands([seg(-1, 0, 0, 0), seg(0, 0, 1, 1)])
     expect(strands).toHaveLength(1)
-    expect(computeWeave(strands)[0].under.size).toBe(0)
+    expect(computeWeave(strands)[0].under.length).toBe(0)
+  })
+
+  it('detects transversal mid-edge crossings (vertex-strand case)', () => {
+    // Two single-segment strands crossing at the origin, mid-edge for both.
+    const strands = buildStrands([seg(-1, 0, 1, 0), seg(0, -1, 0, 1)])
+    expect(strands).toHaveLength(2)
+    const weaves = computeWeave(strands)
+    const total = weaves.reduce((n, w) => n + w.under.length, 0)
+    expect(total).toBe(1)
+    const under = weaves.find(w => w.under.length === 1)!
+    expect(under.under[0].s).toBeCloseTo(0.5)
+    expect(under.under[0].factor).toBeCloseTo(1)
+  })
+
+  it('mixes chain-point and mid-edge crossings in one alternation chain', () => {
+    // Horizontal thread with a chain-point crossing at x=0 and a mid-edge
+    // crossing at x=2 (the second vertical is a single segment spanning it).
+    const strands = buildStrands([
+      seg(-1, 0, 0, 0), seg(0, 0, 3, 0),
+      seg(0, -1, 0, 0), seg(0, 0, 0, 1),
+      seg(2, -1, 2, 1),
+    ])
+    expect(strands).toHaveLength(3)
+    const weaves = computeWeave(strands)
+    const horizontal = strands.findIndex(s => s.points.length === 3)
+    // 2 crossings on the horizontal thread ⇒ exactly one under (alternation).
+    expect(weaves[horizontal].under.length).toBe(1)
+    const total = weaves.reduce((n, w) => n + w.under.length, 0)
+    expect(total).toBe(2)
+  })
+
+  it('skips T-junctions (a thread tip touching another thread)', () => {
+    const strands = buildStrands([seg(-1, 0, 1, 0), seg(0, 0, 0, 1)])
+    expect(strands).toHaveLength(2)
+    const weaves = computeWeave(strands)
+    expect(weaves.reduce((n, w) => n + w.under.length, 0)).toBe(0)
+  })
+
+  it('dedupes a crossing seen from two adjacent edges of the same thread', () => {
+    // Thread A bends at the origin; thread B passes straight through that
+    // chain point mid-edge. Both of A's edges intersect B there — one visit.
+    const strands = buildStrands([
+      seg(-1, 0, 0, 0), seg(0, 0, 1, 1),
+      seg(-0.5, -1, 0.5, 1),
+    ])
+    expect(strands).toHaveLength(2)
+    const weaves = computeWeave(strands)
+    expect(weaves.reduce((n, w) => n + w.under.length, 0)).toBe(1)
+  })
+
+  it('weaves vertex strands with edge strands on a real PIC field', () => {
+    const config: PatternConfig = {
+      ...DEFAULT_CONFIG,
+      figures: {
+        4: {
+          type: 'star', contactAngle: 67.5, lineLength: 1.0, autoLineLength: true,
+          edgeLinesEnabled: true, vertexLinesEnabled: true,
+        },
+      },
+    }
+    const viewport = { x: -200, y: -200, width: 400, height: 400 }
+    const polys = generateTiling(TILINGS['square'], viewport, config.tiling.scale)
+    const segs = runPIC(polys, config)
+    const strands = buildStrands(segs)
+    const weaves = computeWeave(strands)
+
+    // Strands made of vertex-line segments must participate in the weave.
+    const vertexStrandIdxs = strands
+      .map((sd, i) => ({ i, isVertex: sd.segmentIndices.every(si => segs[si].kind === 'vertex-line') }))
+      .filter(x => x.isVertex)
+      .map(x => x.i)
+    expect(vertexStrandIdxs.length).toBeGreaterThan(0)
+    const vertexUnders = vertexStrandIdxs.reduce((n, i) => n + weaves[i].under.length, 0)
+    expect(vertexUnders).toBeGreaterThan(0)
+
+    // Mid-edge cuts (non-integer s) must exist — the vertex/edge crossings.
+    const midEdgeCuts = weaves.flatMap(w => w.under).filter(u => u.s % 1 > 1e-6)
+    expect(midEdgeCuts.length).toBeGreaterThan(0)
   })
 })
 
 describe('wovenPathD', () => {
-  it('cuts a straight strand around an under crossing', () => {
+  it('cuts a straight strand around a chain-point crossing', () => {
     const d = wovenPathD(
       { points: [{ x: -1, y: 0 }, { x: 0, y: 0 }, { x: 1, y: 0 }], curves: [null, null] },
-      idx => (idx === 1 ? 0.25 : 0),
+      [{ s: 1, half: 0.25 }],
     )
     expect(d).toBe('M-1 0 L-0.25 0 M0.25 0 L1 0')
   })
 
-  it('skips edges fully swallowed by their cuts', () => {
+  it('cuts mid-edge', () => {
+    const d = wovenPathD(
+      { points: [{ x: 0, y: 0 }, { x: 4, y: 0 }], curves: [null] },
+      [{ s: 0.5, half: 1 }],
+    )
+    expect(d).toBe('M0 0 L1 0 M3 0 L4 0')
+  })
+
+  it('merges overlapping cuts that swallow a middle edge', () => {
     const d = wovenPathD(
       { points: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 3, y: 0 }], curves: [null, null, null] },
-      idx => (idx === 1 || idx === 2 ? 0.6 : 0),
+      [{ s: 1, half: 0.6 }, { s: 2, half: 0.6 }],
     )
-    // Middle edge (length 1) is consumed by 0.6 + 0.6.
+    // Middle edge (length 1) is consumed by the merged [0.4, 2.6] interval.
     const nums = d.match(/-?[\d.]+/g)!.map(Number)
     expect(d.replace(/-?[\d.]+/g, '#')).toBe('M# # L# # M# # L# #')
     expect(nums[2]).toBeCloseTo(0.4)
@@ -84,7 +177,7 @@ describe('wovenPathD', () => {
   it('keeps an uncut strand identical to a single continuous path', () => {
     const d = wovenPathD(
       { points: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 1 }], curves: [null, null] },
-      () => 0,
+      [],
     )
     expect(d).toBe('M0 0 L1 0 L2 1')
   })

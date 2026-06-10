@@ -526,23 +526,30 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       return { ...state, frame }
     }
     case 'SET_DECORATION_VOID_FILL': {
-      // Stage-1 Congruent Void Fill: upsert a `congruent`-scope record keyed by
-      // the Void's shape signature. Re-painting a class replaces its colour.
+      // Scoped Void Fill (Stage 2): upsert by (scope, key). Re-painting a key
+      // with its current colour toggles the record off (matches the strand
+      // button's deselect UX); a different colour replaces it.
       if (!state.editor) return state
       const deco = state.editor.decoration ?? { version: 1 as const, strandColours: [], voidFills: [] }
-      const { signature, colour } = action.payload
-      const voidFills = deco.voidFills.filter(r => !(r.scope === 'congruent' && r.key === signature))
-      voidFills.push({ scope: 'congruent', key: signature, colour })
+      const { scope, key, colour } = action.payload
+      const existing = deco.voidFills.find(r => r.scope === scope && r.key === key)
+      const voidFills = deco.voidFills.filter(r => !(r.scope === scope && r.key === key))
+      if (!existing || existing.colour.toLowerCase() !== colour.toLowerCase()) {
+        voidFills.push({ scope, key, colour })
+      }
       return { ...state, editor: { ...state.editor, decoration: { ...deco, voidFills } } }
     }
     case 'SET_DECORATION_STRAND_COLOR': {
-      // Stage-1 Congruent Strand colour: a single `congruent` record (key '*')
-      // overriding the global. `null` clears it (back to StrandStyle.color).
+      // Scoped Strand colour (Stage 2): upsert by (scope, key) with the same
+      // same-colour toggle as Void fills. `colour: null` removes the record
+      // explicitly (panel "Remove strand colour" path).
       if (!state.editor) return state
       const deco = state.editor.decoration ?? { version: 1 as const, strandColours: [], voidFills: [] }
-      const strandColours = deco.strandColours.filter(r => r.scope !== 'congruent')
-      if (action.payload.colour !== null) {
-        strandColours.push({ scope: 'congruent', key: '*', colour: action.payload.colour })
+      const { scope, key, colour } = action.payload
+      const existing = deco.strandColours.find(r => r.scope === scope && r.key === key)
+      const strandColours = deco.strandColours.filter(r => !(r.scope === scope && r.key === key))
+      if (colour !== null && (!existing || existing.colour.toLowerCase() !== colour.toLowerCase())) {
+        strandColours.push({ scope, key, colour })
       }
       return { ...state, editor: { ...state.editor, decoration: { ...deco, strandColours } } }
     }

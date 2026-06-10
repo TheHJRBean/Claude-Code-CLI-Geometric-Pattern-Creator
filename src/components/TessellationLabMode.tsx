@@ -733,8 +733,8 @@ export function TessellationLabMode({
         decorationActive={editorPhase === 'decoration'}
         paintColor={decorationColor}
         paintTarget={editorPhase === 'decoration' ? paintTarget : 'off'}
-        onPaintVoid={sig => dispatch({ type: 'SET_DECORATION_VOID_FILL', payload: { signature: sig, colour: decorationColor } })}
-        onPaintStrands={() => dispatch({ type: 'SET_DECORATION_STRAND_COLOR', payload: { colour: decorationColor } })}
+        onPaintVoid={sig => dispatch({ type: 'SET_DECORATION_VOID_FILL', payload: { scope: 'congruent', key: sig, colour: decorationColor } })}
+        onPaintStrands={() => dispatch({ type: 'SET_DECORATION_STRAND_COLOR', payload: { scope: 'congruent', key: '*', colour: decorationColor } })}
         editorFrame={!!config.editor?.frame}
         showBoundaryLattice={showBoundaryLattice}
         editorNeighbourPreview={editorPhase === 'design' && showNeighbours && !(config.editor && activeCell(config.editor).wrapBoundary)}
@@ -1219,8 +1219,8 @@ function EditorDesignControls({
               return (
                 <button
                   onClick={() => dispatch(sameColour
-                    ? { type: 'SET_DECORATION_STRAND_COLOR', payload: { colour: null } }
-                    : { type: 'SET_DECORATION_STRAND_COLOR', payload: { colour: decorationColor } })}
+                    ? { type: 'SET_DECORATION_STRAND_COLOR', payload: { scope: 'congruent', key: '*', colour: null } }
+                    : { type: 'SET_DECORATION_STRAND_COLOR', payload: { scope: 'congruent', key: '*', colour: decorationColor } })}
                   style={{
                     ...decorationButtonStyle,
                     ...(sameColour ? { border: '1px solid var(--accent)', background: 'var(--accent-bg)', color: 'var(--accent)' } : null),
@@ -1236,7 +1236,7 @@ function EditorDesignControls({
               )
             })() : (
               <button
-                onClick={() => dispatch({ type: 'SET_DECORATION_VOID_FILL', payload: { signature: '*', colour: decorationColor } })}
+                onClick={() => dispatch({ type: 'SET_DECORATION_VOID_FILL', payload: { scope: 'congruent', key: '*', colour: decorationColor } })}
                 style={decorationButtonStyle}
               >
                 Colour all Voids
@@ -1245,7 +1245,7 @@ function EditorDesignControls({
             <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
               {strandRec && (
                 <button
-                  onClick={() => dispatch({ type: 'SET_DECORATION_STRAND_COLOR', payload: { colour: null } })}
+                  onClick={() => dispatch({ type: 'SET_DECORATION_STRAND_COLOR', payload: { scope: 'congruent', key: '*', colour: null } })}
                   style={{ ...decorationButtonStyle, flex: 1 }}
                 >
                   Remove strand colour

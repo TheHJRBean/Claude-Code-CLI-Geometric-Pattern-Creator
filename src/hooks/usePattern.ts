@@ -304,8 +304,16 @@ export function usePattern(
     // Voronoi cell (one per lattice orbit ⇒ tiles without gaps/overlap). These
     // drive both the cloned fills and the Paint overlay's hit-targets (tiled by
     // translation, so the overlay never re-extracts on pan).
+    // A true periodic Void can't exceed one lattice cell's area (it would
+    // overlap its own translates), so anything bigger is the background "sea"
+    // between disconnected strand islands (sparse PIC fields) — without this
+    // cap the sea becomes a bound-sized rep tiled across every stamp, and
+    // hovering the bucket highlights the entire page. All shipping lattice
+    // bases have cell area ≤ d1², so d1² (+5% slack) is a safe ceiling.
+    const maxRepArea = d1 * d1 * 1.05
     const reps: VoidRegion[] = []
     for (const v of voids) {
+      if (Math.abs(v.area) > maxRepArea) continue
       const c = centroid(v.polygon)
       let best = Infinity
       let isOrigin = false

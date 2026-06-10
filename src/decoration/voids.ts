@@ -408,8 +408,9 @@ export function voidSignature(poly: Vec2[], lengthSnap: number, angleSnap: numbe
   return hash8(minRotation(tokens))
 }
 
-/** Lexicographically-smallest rotation of a token ring or its reversal. */
-function minRotation(tokens: string[]): string {
+/** Lexicographically-smallest rotation of a token ring or its reversal.
+ * Exported for the strand-signature builder (`strandGroups.ts`). */
+export function minRotation(tokens: string[]): string {
   const m = tokens.length
   const rev = tokens.slice().reverse()
   let best: string | null = null
@@ -422,8 +423,8 @@ function minRotation(tokens: string[]): string {
   return best ?? ''
 }
 
-/** FNV-1a → 8 hex chars. */
-function hash8(s: string): string {
+/** FNV-1a → 8 hex chars. Exported for the strand-signature builder. */
+export function hash8(s: string): string {
   let h = 0x811c9dc5
   for (let i = 0; i < s.length; i++) {
     h ^= s.charCodeAt(i)

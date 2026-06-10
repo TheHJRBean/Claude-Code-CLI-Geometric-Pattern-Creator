@@ -1218,9 +1218,9 @@ function EditorDesignControls({
             </div>
             {paintTarget === 'voids' && (
               <>
-                <FieldLabel label="Reach" tooltip="How far one click spreads. Matching = every Void with the clicked shape, everywhere. Repeat = the clicked Void's spot in every Patch repeat. Single = only the Void you click." />
+                <FieldLabel label="Reach" tooltip="How far one click spreads. Matching = every Void with the clicked shape, everywhere. Twins = the clicked Void plus its rotation/mirror twins within its Cell, in every repeat. Repeat = the clicked Void's spot in every Patch repeat. Single = only the Void you click." />
                 <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
-                  {([['congruent', 'Matching'], ['patch', 'Repeat'], ['instance', 'Single']] as const).map(([s, label]) => (
+                  {([['congruent', 'Matching'], ['cell', 'Twins'], ['patch', 'Repeat'], ['instance', 'Single']] as const).map(([s, label]) => (
                     <button key={s} onClick={() => onSetVoidScope(s)} style={segButtonStyle(voidScope === s)}>
                       {label}
                     </button>
@@ -1230,9 +1230,9 @@ function EditorDesignControls({
             )}
             {paintTarget === 'strands' && (
               <>
-                <FieldLabel label="Reach" tooltip="How far one click spreads. All = every Strand at once. Matching = every Strand with the clicked Strand's shape. Single = just the clicked Strand (it still repeats with the Patch — the pattern stays periodic)." />
+                <FieldLabel label="Reach" tooltip="How far one click spreads. All = every Strand at once. Matching = every Strand with the clicked Strand's shape. Twins = the clicked Strand plus its rotation/mirror twins within its Cell, in every repeat. Single = just the clicked Strand (it still repeats with the Patch — the pattern stays periodic)." />
                 <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
-                  {([['all', 'All'], ['congruent', 'Matching'], ['patch', 'Single']] as const).map(([s, label]) => (
+                  {([['all', 'All'], ['congruent', 'Matching'], ['cell', 'Twins'], ['patch', 'Single']] as const).map(([s, label]) => (
                     <button key={s} onClick={() => onSetStrandScope(s)} style={segButtonStyle(strandScope === s)}>
                       {label}
                     </button>

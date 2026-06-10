@@ -11,6 +11,7 @@ import { ControlPointLayer } from './ControlPointLayer'
 import { VoidFillLayer } from './VoidFillLayer'
 import type { VoidFill } from '../decoration/resolve'
 import type { ColourRecord } from '../types/editor'
+import type { CellFrame } from '../decoration/cellScope'
 
 interface Props {
   polygons: Polygon[]
@@ -112,10 +113,12 @@ interface Props {
    * (see StrandLayer.orbitStamps).
    */
   orbitStamps?: Vec2[]
+  /** Stage 2b — per-Cell symmetry frames for StrandLayer's `cell` rung. */
+  cellFrames?: CellFrame[]
 }
 
 export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
-  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, compositionStamps, editorOverlay, clipEditorOverlayToFrame = false, frameOutline, clipToFrame = true, frameNodes, voidFills, instanceVoidFills, strandRecords, orbitStamps },
+  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, compositionStamps, editorOverlay, clipEditorOverlayToFrame = false, frameOutline, clipToFrame = true, frameNodes, voidFills, instanceVoidFills, strandRecords, orbitStamps, cellFrames },
   ref
 ) {
   const { x, y, zoom, rotation } = viewTransform
@@ -174,7 +177,7 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
                     <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
                   </g>
                   <g id="composition-fragment-strands">
-                    {showLines && <StrandLayer segments={segments} config={config} strandRecords={strandRecords} orbitStamps={orbitStamps} />}
+                    {showLines && <StrandLayer segments={segments} config={config} strandRecords={strandRecords} orbitStamps={orbitStamps} cellFrames={cellFrames} />}
                   </g>
                 </defs>
                 {compositionStamps.map((st, i) => (
@@ -194,7 +197,7 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
                         fragment so <use> tiles them across the whole field. */}
                     {voidFills && <VoidFillLayer fills={voidFills} />}
                     <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
-                    {showLines && <StrandLayer segments={segments} config={config} strandRecords={strandRecords} orbitStamps={orbitStamps} />}
+                    {showLines && <StrandLayer segments={segments} config={config} strandRecords={strandRecords} orbitStamps={orbitStamps} cellFrames={cellFrames} />}
                   </g>
                 </defs>
                 {compositionStamps.map((st, i) => (
@@ -219,7 +222,7 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
               })}
               <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
               {voidFills && <VoidFillLayer fills={voidFills} />}
-              {showLines && <StrandLayer segments={segments} config={config} ghostPolygonIds={ghostPolygonIds} strandRecords={strandRecords} orbitStamps={orbitStamps} />}
+              {showLines && <StrandLayer segments={segments} config={config} ghostPolygonIds={ghostPolygonIds} strandRecords={strandRecords} orbitStamps={orbitStamps} cellFrames={cellFrames} />}
               <ControlPointLayer
                 segments={segments}
                 config={config}

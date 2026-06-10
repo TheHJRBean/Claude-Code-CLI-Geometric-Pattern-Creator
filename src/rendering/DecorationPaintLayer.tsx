@@ -5,12 +5,14 @@ import type { PaintVoid, StrandHit } from '../decoration/resolve'
 
 export type PaintTarget = 'off' | 'voids' | 'strands'
 
-/** Which Grouping-scope rung a Void click binds at (ADR-0005 ladder). */
-export type VoidPaintScope = 'congruent' | 'patch' | 'instance'
+/** Which Grouping-scope rung a Void click binds at (ADR-0005 ladder).
+ * `cell` = the clicked Void plus its rotation/mirror twins within its Cell. */
+export type VoidPaintScope = 'congruent' | 'cell' | 'patch' | 'instance'
 
 /** Which rung a Strand click binds at. `all` = the congruent `'*'` record;
+ * `cell` = the strand's symmetry twins within its Cell;
  * `patch` = the clicked strand's Lattice orbit ("this strand, every repeat"). */
-export type StrandPaintScope = 'all' | 'congruent' | 'patch'
+export type StrandPaintScope = 'all' | 'congruent' | 'cell' | 'patch'
 
 export interface PaintPayload {
   scope: GroupingScope
@@ -63,7 +65,10 @@ export function DecorationPaintLayer({
   const [hoveredStrand, setHoveredStrand] = useState<number | null>(null)
 
   const voidKey = (v: PaintVoid): string =>
-    voidScope === 'congruent' ? v.signature : voidScope === 'patch' ? v.patchKey : v.instanceKey
+    voidScope === 'congruent' ? v.signature
+      : voidScope === 'cell' ? v.cellKey
+        : voidScope === 'patch' ? v.patchKey
+          : v.instanceKey
 
   const voidHits = useMemo(() => voids.map((v, i) => (
     <path
@@ -106,7 +111,9 @@ export function DecorationPaintLayer({
       ? { scope: 'congruent', key: '*' }
       : strandScope === 'congruent'
         ? { scope: 'congruent', key: s.signature }
-        : { scope: 'patch', key: s.patchKey }
+        : strandScope === 'cell'
+          ? { scope: 'cell', key: s.cellKey }
+          : { scope: 'patch', key: s.patchKey }
 
   const strandHitEls = useMemo(() => {
     const hitWidth = 10 / zoom // constant ~10px screen hit width
@@ -132,7 +139,8 @@ export function DecorationPaintLayer({
     const inGroup: (s: StrandHit) => boolean =
       strandScope === 'all' ? () => true
         : strandScope === 'congruent' ? s => s.signature === h.signature
-          : s => s.patchKey === h.patchKey
+          : strandScope === 'cell' ? s => s.cellKey === h.cellKey
+            : s => s.patchKey === h.patchKey
     return strandHits.filter(inGroup).map((s, i) => (
       <line
         key={`hl-${i}`}

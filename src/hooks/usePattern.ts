@@ -22,6 +22,7 @@ import { recordPerf, periodicityEnabled } from '../utils/perf'
 import { resolveDecoration, type PaintVoid, type StrandHit, type VoidFill } from '../decoration/resolve'
 import { extractVoids, type VoidRegion } from '../decoration/voids'
 import { buildColourIndex, orbitOffset, resolveColour, scopedKey } from '../decoration/scopes'
+import { cellFramesFromOutlines, cellScopedKey, type CellFrame } from '../decoration/cellScope'
 import { strandIdentities } from '../decoration/strandGroups'
 import { curvesEnabled, flattenStrandsToSegments } from '../decoration/flatten'
 
@@ -112,6 +113,11 @@ export interface PatternData {
    * strands whose centroids are already orbit-relative.
    */
   decorationOrbitStamps?: Vec2[]
+  /**
+   * Stage 2b — per-Cell symmetry frames (from the boundary outlines) for
+   * `cell`-scope colour resolution in StrandLayer. Decoration only.
+   */
+  decorationCellFrames?: CellFrame[]
 }
 
 /** Translate (and, only off the fast-path, rotate) already-PIC'd base segments
@@ -170,9 +176,10 @@ function buildDecorationData(
   bound: Vec2[],
   config: PatternConfig,
   stampTranslations: Vec2[],
+  cellFrames: CellFrame[],
 ): { voidFills: VoidFill[]; decorationVoids: PaintVoid[] } {
   const decoSegments = curvesEnabled(config) ? flattenStrandsToSegments(fieldSegments, config) : fieldSegments
-  const { fills, voids } = resolveDecoration(decoSegments, bound, config.editor?.decoration, stampTranslations)
+  const { fills, voids } = resolveDecoration(decoSegments, bound, config.editor?.decoration, stampTranslations, cellFrames)
   return { voidFills: fills, decorationVoids: voids }
 }
 
@@ -260,8 +267,16 @@ export function usePattern(
 
   // A representative Void in the fundamental domain, enriched with its
   // centroid (= Lattice-orbit offset, since reps live in the origin stamp's
-  // Voronoi cell) and the derived `patch`-scope key.
-  type RepVoid = VoidRegion & { centroid: Vec2; patchKey: string }
+  // Voronoi cell) and the derived `patch`- and `cell`-scope keys.
+  type RepVoid = VoidRegion & { centroid: Vec2; patchKey: string; cellKey: string }
+
+  // Stage 2b — per-Cell symmetry frames for the `cell` rung, derived from the
+  // boundary outlines (handles multi-cell, octagon/dodecagon, alternate
+  // orientation for free). Geometry-keyed; pan-independent.
+  const decorationCellFrames = useMemo<CellFrame[] | null>(() => {
+    if (!decorationActive || !editorBase) return null
+    return cellFramesFromOutlines(editorBase.baseOutlines)
+  }, [editorBase, decorationActive])
 
   // Step 19.3 — pan-INDEPENDENT Decoration representative Voids. For a
   // periodic field, extract one representative Void per lattice cell (the
@@ -330,15 +345,22 @@ export function usePattern(
         }
       }
       // A rep lives in the origin stamp's Voronoi cell, so its centroid IS its
-      // Lattice-orbit offset — bake the `patch`-scope key here once.
-      if (isOrigin) reps.push({ ...v, centroid: c, patchKey: scopedKey(v.signature, c) })
+      // Lattice-orbit offset — bake the `patch`- and `cell`-scope keys once.
+      if (isOrigin) {
+        reps.push({
+          ...v,
+          centroid: c,
+          patchKey: scopedKey(v.signature, c),
+          cellKey: cellScopedKey(v.signature, c, decorationCellFrames ?? []),
+        })
+      }
     }
     return reps
     // Extraction depends on geometry + curve recipes only — NOT on
     // `editor.decoration`, so paints reuse the reps (19.4 snag #1). Curve
     // reads: curvesEnabled/flatten → `config.figures` + `config.smoothTransitions`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editorBase, decorationActive, editorFrame, showBoundaryLattice, config.figures, config.smoothTransitions])
+  }, [editorBase, decorationActive, editorFrame, showBoundaryLattice, config.figures, config.smoothTransitions, decorationCellFrames])
 
   // Cheap colouring pass over the stable reps. Keys on the LIVE decoration
   // records (off `config.editor`, never `editorBase.patch` — that snapshot is
@@ -351,7 +373,7 @@ export function usePattern(
     const voidIndex = buildColourIndex(config.editor?.decoration?.voidFills)
     const fills: VoidFill[] = []
     for (const r of decorationReps) {
-      const colour = resolveColour(voidIndex, r.signature, r.centroid, null)
+      const colour = resolveColour(voidIndex, r.signature, r.centroid, null, r.cellKey)
       if (colour) fills.push({ polygon: r.polygon, colour })
     }
     return { fills, reps: decorationReps, voidIndex }
@@ -382,9 +404,12 @@ export function usePattern(
     if (!decorationActive || !editorBase || decorationPaintTarget !== 'strands') return null
     const ids = strandIdentities(editorBase.baseSegments)
     const ring = decorationOrbitRing ?? []
-    const patchKeys = ids.strands.map(s => scopedKey(s.signature, orbitOffset(s.centroid, ring)))
-    return { ...ids, patchKeys }
-  }, [editorBase, decorationActive, decorationPaintTarget, decorationOrbitRing])
+    const frames = decorationCellFrames ?? []
+    const offsets = ids.strands.map(s => orbitOffset(s.centroid, ring))
+    const patchKeys = ids.strands.map((s, i) => scopedKey(s.signature, offsets[i]))
+    const cellKeys = ids.strands.map((s, i) => cellScopedKey(s.signature, offsets[i], frames))
+    return { ...ids, patchKeys, cellKeys }
+  }, [editorBase, decorationActive, decorationPaintTarget, decorationOrbitRing, decorationCellFrames])
 
   return useMemo(() => {
     // Step 17 Builder: when a Patch is active, render its Tiles directly.
@@ -561,6 +586,7 @@ export function usePattern(
                     signature: r.signature,
                     polygon: r.polygon.map(p => ({ x: p.x + tx, y: p.y + ty })),
                     patchKey: r.patchKey,
+                    cellKey: r.cellKey,
                     instanceKey: scopedKey(r.signature, { x: r.centroid.x + tx, y: r.centroid.y + ty }),
                   })
                 }
@@ -580,6 +606,7 @@ export function usePattern(
                     strandId: si * nStrands + strandIdx,
                     signature: baseStrandIds.strands[strandIdx].signature,
                     patchKey: baseStrandIds.patchKeys[strandIdx],
+                    cellKey: baseStrandIds.cellKeys[strandIdx],
                   })
                 }
               }
@@ -594,6 +621,7 @@ export function usePattern(
             decorationVoids,
             decorationStrandHits,
             decorationOrbitStamps: decorationOrbitRing ?? undefined,
+            decorationCellFrames: decorationCellFrames ?? undefined,
           }
         }
         return { polygons: basePolys, segments: editorBase.baseSegments, compositionStamps: stamps }
@@ -722,7 +750,8 @@ export function usePattern(
         // extract over the full PIC field. Everything here is world-space, so
         // all scope rungs (incl. instance) resolve straight into `voidFills`.
         const stampTranslations = stamps.map(s => s.translation)
-        const { voidFills, decorationVoids } = buildDecorationData(decoField, bound, config, stampTranslations)
+        const cellFrames = decorationCellFrames ?? []
+        const { voidFills, decorationVoids } = buildDecorationData(decoField, bound, config, stampTranslations, cellFrames)
         // Strand hit-targets with per-strand identity. Chains the rendered
         // (frame-filtered) field once per pan while the Strands target is
         // active — same order of cost as the StrandLayer render itself.
@@ -734,12 +763,14 @@ export function usePattern(
             const strandIdx = ids.strandOfSegment[i]
             if (strandIdx < 0) continue
             const ident = ids.strands[strandIdx]
+            const off = orbitOffset(ident.centroid, stampTranslations)
             decorationStrandHits.push({
               from: segments[i].from,
               to: segments[i].to,
               strandId: strandIdx,
               signature: ident.signature,
-              patchKey: scopedKey(ident.signature, orbitOffset(ident.centroid, stampTranslations)),
+              patchKey: scopedKey(ident.signature, off),
+              cellKey: cellScopedKey(ident.signature, off, cellFrames),
             })
           }
         }
@@ -751,6 +782,7 @@ export function usePattern(
           decorationVoids,
           decorationStrandHits,
           decorationOrbitStamps: stampTranslations,
+          decorationCellFrames: cellFrames,
         }
       }
       return { polygons: picPolygons, segments, boundaryOutlines }
@@ -767,5 +799,5 @@ export function usePattern(
     const segments = runPIC(polygons, config)
 
     return { polygons, segments }
-  }, [config, editorBase, decorationFills, baseStrandIds, decorationOrbitRing, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview, editorNeighbourBoundaries, editorNeighbourStrands, editorFrame, decorationActive, decorationPaintActive, decorationPaintTarget])
+  }, [config, editorBase, decorationFills, baseStrandIds, decorationOrbitRing, decorationCellFrames, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview, editorNeighbourBoundaries, editorNeighbourStrands, editorFrame, decorationActive, decorationPaintActive, decorationPaintTarget])
 }

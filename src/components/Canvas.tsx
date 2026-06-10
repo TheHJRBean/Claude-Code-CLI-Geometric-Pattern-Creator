@@ -790,6 +790,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         ghostPolygonIds={ghostPolygonIds}
         compositionStamps={compositionStamps}
         editorOverlay={decorationActive ? decorationOverlay : editorOverlay}
+        clipEditorOverlayToFrame={decorationActive}
         frameOutline={frameOutline}
         clipToFrame={config.tiling.type !== 'editor' || editorStrandMode}
         frameNodes={frameNodes}

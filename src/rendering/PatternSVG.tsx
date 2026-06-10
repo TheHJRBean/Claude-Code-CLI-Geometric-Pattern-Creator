@@ -61,6 +61,14 @@ interface Props {
   /** Editor-mode interactive overlay (Step 17.3+). Rendered above the tile layer. */
   editorOverlay?: React.ReactNode
   /**
+   * Clip `editorOverlay` to the Frame outline (only meaningful while a Frame
+   * is clipping, i.e. `clipToFrame` + a frame outline). On for the Decoration
+   * Paint overlay so highlights/hit-targets respect the frame; off for the
+   * Design-phase overlay, whose neighbour-stamp vertex dots must stay
+   * clickable outside the frame.
+   */
+  clipEditorOverlayToFrame?: boolean
+  /**
    * Shape **Frame** outline (world space). When present the outline is stroked
    * on top and its nodes drawn. Whether the pattern content is *clipped* to it
    * is controlled separately by `clipToFrame`. Undefined / null ⇒ no Frame.
@@ -107,7 +115,7 @@ interface Props {
 }
 
 export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
-  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, compositionStamps, editorOverlay, frameOutline, clipToFrame = true, frameNodes, voidFills, instanceVoidFills, strandRecords, orbitStamps },
+  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, compositionStamps, editorOverlay, clipEditorOverlayToFrame = false, frameOutline, clipToFrame = true, frameNodes, voidFills, instanceVoidFills, strandRecords, orbitStamps },
   ref
 ) {
   const { x, y, zoom, rotation } = viewTransform
@@ -248,8 +256,15 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
         {/* 17.11 — editorOverlay must be the topmost interactive layer so
             vertex dots at neighbour-stamp coordinates aren't blocked by
             strand strokes painted above. ControlPointLayer is already
-            pointerEvents="none" so order vs it is purely visual. */}
-        {editorOverlay}
+            pointerEvents="none" so order vs it is purely visual.
+            With `clipEditorOverlayToFrame` (Decoration Paint mode) the overlay
+            clips to the Frame outline like the content below it — SVG clipping
+            also removes pointer hit-testing, so hover highlights AND the
+            bucket cursor stop at the frame edge (hit-targets extracted from
+            the unfiltered field would otherwise highlight outside it). */}
+        {clipActive && clipEditorOverlayToFrame
+          ? <g clipPath={`url(#${frameClipId})`}>{editorOverlay}</g>
+          : editorOverlay}
       </g>
     </svg>
   )

@@ -9,10 +9,10 @@ import type { CurvedStrand } from './computeCurves'
  *
  * Edges are decomposed into line / cubic primitives (the same shapes
  * `curvedPathD` emits — quadratics are exactly degree-elevated, quartics use
- * the shared two-cubic approximation) and trimmed by arc length from either
- * end with De Casteljau splits. Cuts sit at Strand points, which is where
- * `buildStrands`' map vertices live; with strong curve offsets the true
- * curved-crossing point can drift off the vertex — a known approximation.
+ * the shared two-cubic approximation) and trimmed by arc length with
+ * De Casteljau splits. Cut positions come from the straight-line strand
+ * geometry; with strong curve offsets the true curved-crossing point can
+ * drift off the computed position — a known approximation.
  */
 
 type Prim =
@@ -88,98 +88,152 @@ function splitPrim(start: Vec2, prim: Prim, t: number): { split: Vec2; left: Pri
   }
 }
 
-interface Chain {
-  start: Vec2
-  prims: Prim[]
-}
-
-/** Remove arc length `d` from the front of the chain. Returns null if consumed. */
-function dropFront(chain: Chain, d: number): Chain | null {
-  let { start } = chain
-  const prims = [...chain.prims]
-  while (prims.length > 0) {
-    const cum = primCumLengths(start, prims[0])
-    const total = cum[cum.length - 1]
-    if (d < total - 1e-9) {
-      const t = paramAtDistance(cum, d)
-      if (t > 1e-9) {
-        const { split, right } = splitPrim(start, prims[0], t)
-        prims[0] = right
-        start = split
-      }
-      return { start, prims }
-    }
-    d -= total
-    start = prims[0].end
-    prims.shift()
-  }
-  return null
-}
-
-/** Remove arc length `d` from the back of the chain. Returns null if consumed. */
-function dropBack(chain: Chain, d: number): Chain | null {
-  const prims = [...chain.prims]
-  // Start point of each prim, needed to walk backwards.
-  const starts: Vec2[] = [chain.start]
-  for (let i = 0; i + 1 < prims.length; i++) starts.push(prims[i].end)
-  for (let i = prims.length - 1; i >= 0; i--) {
-    const cum = primCumLengths(starts[i], prims[i])
-    const total = cum[cum.length - 1]
-    if (d < total - 1e-9) {
-      const t = paramAtDistance(cum, total - d)
-      if (t < 1 - 1e-9) {
-        const { left } = splitPrim(starts[i], prims[i], t)
-        prims[i] = left
-      }
-      return { start: chain.start, prims: prims.slice(0, i + 1) }
-    }
-    d -= total
-    prims.pop()
-  }
-  return null
-}
-
 function primCommand(prim: Prim): string {
   return prim.kind === 'L'
     ? `L${prim.end.x} ${prim.end.y}`
     : `C${prim.cp1.x} ${prim.cp1.y} ${prim.cp2.x} ${prim.cp2.y} ${prim.end.x} ${prim.end.y}`
 }
 
+export interface PathCut {
+  /**
+   * Position along the Strand: edgeIndex + t (t ∈ [0,1) along that edge).
+   * Integers are chain points; 0 doubles as the wrap point of a closed
+   * Strand. Matches `UnderCut.s` from `weave.ts`.
+   */
+  s: number
+  /** Half-gap arc length trimmed on each side of the cut position. */
+  half: number
+}
+
 /**
  * Generate an SVG path `d` for a Strand with under-crossing gaps.
  *
- * `cutHalfAt(pointIdx)` returns the half-gap arc length to trim on each side
- * of that Strand point, or 0 for no cut. For closed Strands the wrap point
- * is queried as pointIdx 0 (never the duplicate last index). Edges fully
- * swallowed by their cuts are skipped; each gap starts a new sub-path.
+ * Each cut removes the arc interval [D−half, D+half] around its position's
+ * global arc distance D — gaps can sit mid-edge (vertex-strand crossings) or
+ * at chain points, span edge joins, and overlap each other (intervals are
+ * merged). Closed Strands wrap the interval around the seam. What remains is
+ * emitted as M-prefixed sub-paths.
  */
-export function wovenPathD(strand: CurvedStrand, cutHalfAt: (pointIdx: number) => number): string {
+export function wovenPathD(strand: CurvedStrand, cuts: PathCut[]): string {
   const { points, curves } = strand
   const n = points.length
   if (n < 2) return ''
 
-  const parts: string[] = []
-  let pen: Vec2 | null = null
-
+  // Measure the full prim chain (cum samples kept for the emission pass).
+  const allPrims: Prim[] = []
+  const primStartPt: Vec2[] = []
+  const primStartDist: number[] = []
+  const primCums: number[][] = []
+  const edgeFirstPrim: number[] = []
+  const edgeStartDist: number[] = []
+  let total = 0
   for (let i = 0; i < n - 1; i++) {
-    const trimStart = cutHalfAt(i)
-    // The duplicate closing point of a closed Strand maps back to index 0;
-    // open-Strand endpoints never carry cuts (computeWeave skips them).
-    const trimEnd = cutHalfAt(i + 1 === n - 1 ? 0 : i + 1)
-
-    let chain: Chain | null = { start: points[i], prims: edgePrims(points[i], points[i + 1], curves[i]) }
-    if (trimStart > 0) chain = dropFront(chain, trimStart)
-    if (chain && trimEnd > 0) chain = dropBack(chain, trimEnd)
-    if (!chain || chain.prims.length === 0) {
-      pen = null
-      continue
+    edgeFirstPrim.push(allPrims.length)
+    edgeStartDist.push(total)
+    let start = points[i]
+    for (const prim of edgePrims(points[i], points[i + 1], curves[i])) {
+      const cum = primCumLengths(start, prim)
+      primStartPt.push(start)
+      primStartDist.push(total)
+      primCums.push(cum)
+      allPrims.push(prim)
+      total += cum[cum.length - 1]
+      start = prim.end
     }
+  }
+  if (total < 1e-9) return ''
 
-    if (!pen || !samePt(pen, chain.start)) {
-      parts.push(`M${chain.start.x} ${chain.start.y}`)
+  // Map a cut position s = edgeIdx + t to its global arc distance. Multi-prim
+  // edges (quartics) split their parameter range evenly across prims.
+  const distAt = (s: number): number => {
+    const edge = Math.max(0, Math.min(Math.floor(s), n - 2))
+    const frac = Math.min(s - edge, 1)
+    if (frac <= 1e-9) return edgeStartDist[edge]
+    const first = edgeFirstPrim[edge]
+    const count = (edge + 1 < edgeFirstPrim.length ? edgeFirstPrim[edge + 1] : allPrims.length) - first
+    const scaled = frac * count
+    const k = Math.min(Math.floor(scaled), count - 1)
+    const pi = first + k
+    const cum = primCums[pi]
+    const x = (scaled - k) * SAMPLES
+    const k2 = Math.min(Math.floor(x), SAMPLES - 1)
+    const arc = cum[k2] + (cum[k2 + 1] - cum[k2]) * (x - k2)
+    return primStartDist[pi] + arc
+  }
+
+  const closed = samePt(points[0], points[n - 1])
+  const intervals: [number, number][] = []
+  for (const c of cuts) {
+    if (c.half <= 0) continue
+    const d = distAt(c.s)
+    const a = d - c.half
+    const b = d + c.half
+    if (b - a >= total) return '' // strand swallowed whole
+    if (closed && a < 0) {
+      intervals.push([a + total, total], [0, b])
+    } else if (closed && b > total) {
+      intervals.push([a, total], [0, b - total])
+    } else {
+      intervals.push([Math.max(0, a), Math.min(total, b)])
     }
-    for (const prim of chain.prims) parts.push(primCommand(prim))
-    pen = chain.prims[chain.prims.length - 1].end
+  }
+
+  intervals.sort((p, q) => p[0] - q[0])
+  const merged: [number, number][] = []
+  for (const iv of intervals) {
+    const last = merged[merged.length - 1]
+    if (last && iv[0] <= last[1] + 1e-9) last[1] = Math.max(last[1], iv[1])
+    else merged.push([iv[0], iv[1]])
+  }
+
+  const keep: [number, number][] = []
+  let pos = 0
+  for (const [a, b] of merged) {
+    if (a > pos + 1e-6) keep.push([pos, a])
+    pos = Math.max(pos, b)
+  }
+  if (pos < total - 1e-6) keep.push([pos, total])
+
+  // Single pass over the prim chain: clip each prim to the keep intervals it
+  // overlaps (parameter composition keeps De Casteljau splits exact), opening
+  // a new sub-path whenever a keep interval starts.
+  const parts: string[] = []
+  let ki = 0
+  let subpathOpen = false
+  for (let pi = 0; pi < allPrims.length && ki < keep.length; pi++) {
+    const start = primStartPt[pi]
+    const prim = allPrims[pi]
+    const cum = primCums[pi]
+    const d0 = primStartDist[pi]
+    const d1 = d0 + cum[cum.length - 1]
+    while (ki < keep.length && keep[ki][0] < d1 - 1e-9) {
+      const a = Math.max(keep[ki][0], d0)
+      const b = Math.min(keep[ki][1], d1)
+      if (b - a > 1e-9) {
+        let pieceStart = start
+        let piecePrim = prim
+        const ta = a <= d0 + 1e-9 ? 0 : paramAtDistance(cum, a - d0)
+        const tb = b >= d1 - 1e-9 ? 1 : paramAtDistance(cum, b - d0)
+        if (ta > 1e-9) {
+          const sp = splitPrim(pieceStart, piecePrim, ta)
+          pieceStart = sp.split
+          piecePrim = sp.right
+        }
+        if (tb < 1 - 1e-9) {
+          const sp = splitPrim(pieceStart, piecePrim, ta > 1e-9 ? (tb - ta) / (1 - ta) : tb)
+          piecePrim = sp.left
+        }
+        if (!subpathOpen) parts.push(`M${pieceStart.x} ${pieceStart.y}`)
+        parts.push(primCommand(piecePrim))
+        subpathOpen = true
+      }
+      if (keep[ki][1] <= d1 + 1e-9) {
+        ki++
+        subpathOpen = false
+      } else {
+        break // interval continues into the next prim
+      }
+    }
   }
 
   return parts.join(' ')

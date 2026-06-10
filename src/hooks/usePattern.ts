@@ -243,10 +243,13 @@ export function usePattern(
     // Only when the periodic fast-path will actually render (otherwise the
     // non-fast-path branch computes fills via buildDecorationData and this
     // extraction would be wasted — and expensive with curves on).
+    // Alternate orientation is fine here: the rigid Patch rotation is baked
+    // into basePolys AND the lattice basis (stamps stay pure-translation), so
+    // the extraction field, Voronoi reps, and the <use>-cloned render all live
+    // in the same rotated frame. Bailing on it blanked painted fills.
     if (
       !periodicityEnabled()
       || patch.frame
-      || patch.alternateOrientation
       || Object.values(config.figures).some(f => f?.vertexLinesEnabled)
     ) return null
     const cell = editorBase.cell

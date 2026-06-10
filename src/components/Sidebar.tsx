@@ -780,6 +780,30 @@ export function Sidebar({
                 value={config.strand.width}
                 onChange={e => dispatch({ type: 'SET_STRAND_STYLE', payload: { width: Number(e.target.value) } })}
               />
+              <div style={{ marginTop: 6 }}>
+                <Toggle
+                  checked={config.strand.weave ?? false}
+                  onChange={() => dispatch({ type: 'SET_STRAND_STYLE', payload: { weave: !(config.strand.weave ?? false) } })}
+                  label="Lacing (over–under weave)"
+                />
+              </div>
+              {(config.strand.weave ?? false) && (
+                <>
+                  <FieldLabel
+                    label="Weave gap"
+                    value={(config.strand.weaveGap ?? 2).toFixed(1)}
+                    unit=" px"
+                    tooltip="Breathing space on each side of the over Strand where the under Strand breaks."
+                  />
+                  <input
+                    type="range"
+                    className="pattern-slider"
+                    min={0} max={10} step={0.5}
+                    value={config.strand.weaveGap ?? 2}
+                    onChange={e => dispatch({ type: 'SET_STRAND_STYLE', payload: { weaveGap: Number(e.target.value) } })}
+                  />
+                </>
+              )}
               <div style={{ marginBottom: 4 }} />
             </>
           )}

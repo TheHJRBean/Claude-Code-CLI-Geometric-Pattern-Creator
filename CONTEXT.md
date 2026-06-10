@@ -104,7 +104,7 @@ The rung that decides how many targets share one colour, on a coarse→fine ladd
 _Avoid_: granularity / level / tier (use "scope"); "per-class" (ambiguous — name the rung)
 
 **Lacing**:
-The over/under interlace effect rendered on top of **Strands** to give the woven appearance. Standard term in Islamic-geometry literature. The current implementation is non-functional; lacing will be removed and reintroduced under the **Decoration** phase. Reserved term — kept in CONTEXT.md because the word is unambiguous and load-bearing in the literature.
+The over/under interlace effect on **Strands** that gives the woven appearance. Standard term in Islamic-geometry literature. Shipped 2026-06-10 as a **Strand style** toggle (`strand.weave` + `weaveGap`), available everywhere Strands render (Gallery + Builder), following Taprats' Interlace: over/under alternates along each thread and opposes across each crossing (BFS 2-colouring, `src/strand/weave.ts`); the under thread breaks with a gap cut around the crossing (`src/strand/wovenPathD.ts`) — a path break, not a paint-over, so Void fills show through. The non-functional legacy two-pass renderer this replaces was removed in Phase 6 of the context refactor.
 _Avoid_: weaving, interlace, braiding (acceptable casual synonyms but use "Lacing" in code and CONTEXT.md)
 
 ### Builder — operations
@@ -162,7 +162,7 @@ _Avoid_: origin (reserved for the geometric `(0,0)` point), provenance
 - A **Tile** has a `source` of `'seed'`, `'placed'`, or `'completed'`
 - A **Strand** is a chain of **Rays** across polygons; one polygon's Rays assemble into a **Figure**
 - A **Figure** is driven by a per-tile-type **Figure recipe** (`FigureConfig`)
-- **Lacing** is the over/under interlace effect rendered on top of Strands (reserved — current implementation removed; returns under Decoration)
+- **Lacing** is the over/under interlace effect on Strands (shipped 2026-06-10 as the `strand.weave` Strand-style toggle, Taprats-guided)
 
 ## Example dialogue
 

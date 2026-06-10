@@ -3,6 +3,7 @@ import { centroid } from '../utils/math'
 import type { DecorationConfig } from '../types/editor'
 import { extractVoids, type VoidRegion } from './voids'
 import { buildColourIndex, orbitOffset, resolveColour, scopedKey } from './scopes'
+import { cellScopedKey, type CellFrame } from './cellScope'
 
 /**
  * Step 19.2 / Stage 2 — turn the persisted `DecorationConfig` into
@@ -29,6 +30,9 @@ export interface VoidFill {
 export interface PaintVoid extends VoidRegion {
   /** `patch`-scope key: signature @ Lattice-orbit offset. */
   patchKey: string
+  /** `cell`-scope key: signature # host cell @ canonical symmetry-orbit
+   * position (the Void + its rotation/mirror twins within the Cell). */
+  cellKey: string
   /** `instance`-scope key: signature @ world centroid. */
   instanceKey: string
 }
@@ -44,6 +48,8 @@ export interface StrandHit {
   signature: string
   /** `patch`-scope key: signature @ Lattice-orbit offset of the strand. */
   patchKey: string
+  /** `cell`-scope key (symmetry twins within the host Cell). */
+  cellKey: string
 }
 
 export interface ResolvedDecoration {
@@ -63,6 +69,7 @@ export function decorateVoids(
   voids: VoidRegion[],
   decoration: DecorationConfig | undefined,
   stampTranslations: Vec2[],
+  cellFrames: CellFrame[] = [],
 ): ResolvedDecoration {
   const idx = buildColourIndex(decoration?.voidFills)
   const fills: VoidFill[] = []
@@ -70,12 +77,14 @@ export function decorateVoids(
   for (const v of voids) {
     const c = centroid(v.polygon)
     const orbit = orbitOffset(c, stampTranslations)
+    const cellKey = cellScopedKey(v.signature, orbit, cellFrames)
     out.push({
       ...v,
       patchKey: scopedKey(v.signature, orbit),
+      cellKey,
       instanceKey: scopedKey(v.signature, c),
     })
-    const colour = resolveColour(idx, v.signature, orbit, c)
+    const colour = resolveColour(idx, v.signature, orbit, c, cellKey)
     if (colour) fills.push({ polygon: v.polygon, colour })
   }
   return { fills, voids: out }
@@ -91,7 +100,8 @@ export function resolveDecoration(
   bound: Vec2[],
   decoration: DecorationConfig | undefined,
   stampTranslations: Vec2[] = [],
+  cellFrames: CellFrame[] = [],
 ): ResolvedDecoration {
   if (bound.length < 3) return { fills: [], voids: [] }
-  return decorateVoids(extractVoids(segments, bound), decoration, stampTranslations)
+  return decorateVoids(extractVoids(segments, bound), decoration, stampTranslations, cellFrames)
 }

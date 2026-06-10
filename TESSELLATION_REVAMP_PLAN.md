@@ -862,13 +862,60 @@ emitted the same way, and **export must use DOM export, not `segmentsRef`**).
 | 19.4 | perf/UX polish — first-paint base-PIC decouple, curved zoomed-out, multi-cell composition seam check, covering-rect overlay if needed, drag-pan-over-Void | mostly optional; Stage-1 is usable without |
 | 19.4 | Polish: perf-gate the hover highlight; empty/no-Frame viewport bound; export sanity | Hover stays smooth or auto-falls-back; export reflects fills |
 
-### Deferred stages (NOT Stage 1 — capture only)
+### Stage 2 — Grouping scopes ✅ DELIVERED 2026-06-10 (patch + instance; cell deferred)
 
-- **Stage 2 — Patch & Cell scopes.** Add the `patch` (Lattice-orbit) and `cell`
-  (Cell-symmetry-orbit) rungs + a per-target scope toggle. Needs stable orbit
-  identity (ties to `editor/symmetry.ts`, `compositionLatticeStamps`).
-- **Stage 3 — Instance scope.** World-space per-Void / per-Strand override
-  records; finest rung.
+A per-target **Reach** selector in the Decoration panel chooses how far one
+click spreads:
+
+- **Voids:** Matching (`congruent`) · Repeat (`patch` — the clicked Void's
+  Lattice orbit, i.e. that spot in every Patch repeat) · Single (`instance` —
+  exactly the clicked world Void).
+- **Strands:** All (`congruent`/`'*'`) · Matching (`congruent`/strand
+  signature) · Single (`patch` — the clicked strand's orbit; it still repeats
+  with the Patch so the pattern stays periodic; world-instance strands are
+  deliberately NOT offered).
+
+Implementation map (all 2026-06-10):
+- `decoration/scopes.ts` — positioned keys (`<sig>@<x>,<y>`), nearest-stamp
+  `orbitOffset` (deterministic tie-break), `buildColourIndex`/`resolveColour`
+  with precedence instance > patch > congruent sig > `'*'` (later records win
+  within a rung; matching is numeric-tolerant, KEY_TOL 0.05).
+- `decoration/strandGroups.ts` — per-Strand congruent signature (closed loops:
+  CCW-winding-normalised token ring, same canonicalisation as Voids; open
+  chains: lexicographic min over reversal×reflection variants) + centroid.
+- `decoration/resolve.ts` — rewritten scope-aware (`resolveDecoration` →
+  `{ fills, voids }` where voids carry `patchKey`/`instanceKey`); used by
+  usePattern's non-fast-path `buildDecorationData`.
+- Reducer: `SET_DECORATION_VOID_FILL` / `SET_DECORATION_STRAND_COLOR` take
+  `{ scope, key, colour }`, upsert by (scope,key), and **toggle off on
+  same-colour repaint**.
+- Fast-path rendering: congruent + patch fills stay INSIDE the cloned fragment
+  (a coloured rep tiled by `<use>` IS the Lattice orbit). `instance` fills are
+  world-space (`instanceVoidFills`): PatternSVG splits the fragment into an
+  under-stack (fills+tiles) and a strand-stack so instance fills render
+  *between* them (still under Strands). Per-strand colours resolve in
+  StrandLayer from the records.
+- **Key consistency across modes:** strand centroids reduce through a
+  pan-independent local lattice ring (`decorationOrbitRing`) on the fast path
+  and the viewport stamps off it, so `patch` keys painted in one mode survive
+  a mode switch (e.g. adding a Frame). Void reps are Voronoi-filtered to the
+  origin cell, which gives the same property for free.
+
+Known limits / deferred:
+- **`cell` rung deferred** (Cell-symmetry-orbit grouping; ties to
+  `editor/symmetry.ts`). The schema + index ignore-list already reserve it.
+- Instance keys embed world centroids; geometry edits invalidate them exactly
+  like congruent signatures (accepted per ADR-0005 style-only rule).
+- Non-fast-path strand hit-targets chain the full visible field once per pan
+  while the Strands target is active (same order of cost as StrandLayer).
+
+### Deferred stages (capture only)
+
+- **Stage 2b — Cell scope.** The `cell` (Cell-symmetry-orbit) rung. Needs
+  stable orbit identity (ties to `editor/symmetry.ts`).
+- **Stage 3 — world-instance Strands.** Per-world-copy strand records would
+  need per-stamp strand recolouring outside the fragment; deliberately skipped
+  (a "single" strand = its patch orbit keeps the artifact periodic).
 - **Stage 4 — Lacing / weaving v2.** Remove any legacy lacing remnants first,
   then redesign over/under as a Decoration render pass above strands
   (`project_decoration_stage_idea` Step 4). Drawn at layer 4 above.

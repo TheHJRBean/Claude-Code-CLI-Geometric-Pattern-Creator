@@ -687,6 +687,51 @@ export function TessellationLabMode({
               Show strands
             </label>
 
+            {/* Lacing — the over/under weave (`strand.weave`), same render
+                path as the Gallery toggle. Only offered while Strands draw;
+                the Design-phase ghost split skips weaving regardless. */}
+            {showStrands && (
+              <>
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  marginTop: 10,
+                  marginLeft: 26,
+                  cursor: 'pointer',
+                  fontFamily: "'EB Garamond', Georgia, serif",
+                  fontSize: 13.5,
+                  color: (config.strand.weave ?? false) ? 'var(--text)' : 'var(--text-muted)',
+                  transition: 'color 0.15s',
+                }}>
+                  <input
+                    type="checkbox"
+                    className="pattern-checkbox"
+                    checked={config.strand.weave ?? false}
+                    onChange={() => dispatch({ type: 'SET_STRAND_STYLE', payload: { weave: !(config.strand.weave ?? false) } })}
+                  />
+                  Lacing (over–under weave)
+                </label>
+                {(config.strand.weave ?? false) && (
+                  <div style={{ marginLeft: 26 }}>
+                    <FieldLabel
+                      label="Weave gap"
+                      value={(config.strand.weaveGap ?? 2).toFixed(1)}
+                      unit=" px"
+                      tooltip="Breathing space on each side of the over Strand where the under Strand breaks."
+                    />
+                    <input
+                      type="range"
+                      className="pattern-slider"
+                      min={0} max={10} step={0.5}
+                      value={config.strand.weaveGap ?? 2}
+                      onChange={e => dispatch({ type: 'SET_STRAND_STYLE', payload: { weaveGap: Number(e.target.value) } })}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+
             <FieldLabel
               label="Outline weight"
               value={outlineWidth.toFixed(1)}

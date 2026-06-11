@@ -418,6 +418,110 @@ export function usePattern(
     return { ...ids, patchKeys, cellKeys }
   }, [editorBase, decorationActive, decorationPaintTarget, decorationOrbitRing, decorationCellFrames])
 
+  // Non-fast-path Composition/Decoration stamped field — geometry+viewport
+  // keyed, NOT decoration-keyed (mirrors the editorBase 19.4 split). Before
+  // this memo the field rebuilt inside the main memo on every paint click
+  // (whole-`config` dep): full-field PIC (×2 with a frame filtering), and —
+  // once Lacing shipped — the fresh `segments` identity also re-ran
+  // buildStrands + computeWeave + wovenPathD over the full field in
+  // StrandLayer, turning each paint into a multi-second freeze on frame /
+  // vertex-line fields. Paints now reuse the field refs, so StrandLayer's
+  // strand/weave memos hold. Reads live `config.editor` for patch geometry
+  // (equal to the editorBase snapshot whenever geometry changed — see the
+  // editorBase contract); `figures`/`figureRouting` (runPIC + eligibility
+  // read-set) are covered by the editorBase dep; the reducer's paint actions
+  // preserve the `frame` ref.
+  const stampedField = useMemo(() => {
+    if (!ed || !editorBase || !editorStrandMode) return null
+    const patch = ed
+    const { multiCell, cell, basePolys } = editorBase
+    const stamps = multiCell
+      ? compositionLatticeStamps(patch, { x: genX, y: genY, width: genW, height: genH })
+      : editorLatticeStamps(cell, { x: genX, y: genY, width: genW, height: genH })
+    if (periodicFastPathEligible(config, editorFrame, showBoundaryLattice, stamps)) {
+      return { fastPath: true as const, stamps }
+    }
+    const polygons: typeof basePolys = []
+    for (let s = 0; s < stamps.length; s++) {
+      const stamp = stamps[s]
+      const t = stamp.translation
+      const cos = Math.cos(stamp.rotation)
+      const sin = Math.sin(stamp.rotation)
+      const rot = (v: Vec2): Vec2 => stamp.rotation === 0
+        ? v
+        : { x: v.x * cos - v.y * sin, y: v.x * sin + v.y * cos }
+      for (const p of basePolys) {
+        const c = rot(p.center)
+        polygons.push({
+          ...p,
+          id: `${p.id}@${s}`,
+          center: { x: c.x + t.x, y: c.y + t.y },
+          vertices: p.vertices.map(v => {
+            const r = rot(v)
+            return { x: r.x + t.x, y: r.y + t.y }
+          }),
+        })
+      }
+    }
+    // Step 17 Framing — bound the stamped field to the Frame so a gap opens
+    // for completion: keep only tiles whose centre is inside the outline
+    // (the field stops ~1 tile short of the edge), then add the completion
+    // Tiles (world space, added once — they don't repeat under the Lattice)
+    // so PIC Strands flow out to the frame edge through them via each Tile's
+    // own tile-type Figure recipe (already in `config.figures`).
+    let picPolygons = polygons
+    if (editorFrame && patch.frame) {
+      const outline = frameOutlinePolygon(patch.frame)
+      if (outline) {
+        picPolygons = polygons.filter(p => pointInPolygon(p.center, outline))
+        if (patch.frame.completedTiles?.length) {
+          picPolygons = [...picPolygons, ...tilesToPolygons(patch.frame.completedTiles)]
+        }
+      }
+    }
+    const tPic = performance.now()
+    const segments = runPIC(picPolygons, config)
+    recordPerf({
+      phase: 'composition',
+      polygons: picPolygons.length,
+      ghosts: 0,
+      stamps: stamps.length,
+      segments: segments.length,
+      picMs: performance.now() - tPic,
+      strandMs: 0,
+    })
+    // Boundary outlines are opt-in in Composition Phase (showBoundaryLattice).
+    // Multi-cell emits one outline per Cell per stamp (octagon + square × N
+    // stamps); single-cell emits one outline per stamp.
+    let boundaryOutlines: Vec2[][] | undefined
+    if (showBoundaryLattice) {
+      const baseOutlines = editorBase.baseOutlines
+      boundaryOutlines = []
+      for (const stamp of stamps) {
+        const cos = Math.cos(stamp.rotation)
+        const sin = Math.sin(stamp.rotation)
+        for (const outline of baseOutlines) {
+          boundaryOutlines.push(outline.map(v => {
+            const rx = stamp.rotation === 0 ? v.x : v.x * cos - v.y * sin
+            const ry = stamp.rotation === 0 ? v.y : v.x * sin + v.y * cos
+            return { x: rx + stamp.translation.x, y: ry + stamp.translation.y }
+          }))
+        }
+      }
+    }
+    // Decoration extraction field. Frame Voids must NOT clip the extraction
+    // to the frame outline (frame-touching Voids would change congruent
+    // signature — "voids lose colour at the frame"), so when a frame is
+    // filtering the rendered strands, re-PIC the FULL unfiltered field for
+    // extraction only. Geometry-priced ⇒ lives here, not in the main memo.
+    let decoField = segments
+    if (decorationActive && editorFrame && patch.frame && picPolygons !== polygons) {
+      decoField = runPIC(polygons, config)
+    }
+    return { fastPath: false as const, stamps, polygons, picPolygons, segments, boundaryOutlines, decoField }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editorBase, ed?.frame, editorFrame, showBoundaryLattice, editorStrandMode, decorationActive, genX, genY, genW, genH])
+
   return useMemo(() => {
     // Step 17 Builder: when a Patch is active, render its Tiles directly.
     // Design Phase = single Patch; Composition Phase = lattice-stamped across
@@ -513,13 +617,11 @@ export function usePattern(
           ghostPolygonIds,
         }
       }
-      // Composition Phase — stamp on the lattice. Single-cell Patches use the
-      // per-Cell lattice (triangle has 2 intra-stamps, square/hex have 1);
-      // multi-cell Patches use the Configuration lattice (the unit cell is
-      // already merged in basePolys via compositionToPolygons).
-      const stamps = multiCell
-        ? compositionLatticeStamps(patch, { x: genX, y: genY, width: genW, height: genH })
-        : editorLatticeStamps(cell, { x: genX, y: genY, width: genW, height: genH })
+      // Composition Phase — the stamped field (lattice stamps + polygons +
+      // PIC) comes from the geometry-keyed `stampedField` memo above so
+      // Decoration paints reuse it.
+      if (!stampedField) return { polygons: [], segments: [] }
+      const stamps = stampedField.stamps
       // Lever A (flagged): periodic fast-path. Tile ONE fundamental domain via
       // <use> instead of PIC-ing the whole stamped field every regeneration —
       // runPIC + buildStrands then run once on the base patch. Exact + seamless
@@ -528,7 +630,7 @@ export function usePattern(
       // (base PIC would miss stamp-boundary internal edges), no frame
       // (completedTiles don't repeat), no boundary-lattice overlay. Otherwise
       // fall through to the exact stamped path below.
-      if (periodicFastPathEligible(config, editorFrame, showBoundaryLattice, stamps)) {
+      if (stampedField.fastPath) {
         recordPerf({
           phase: decorationActive ? 'decoration·periodic' : 'composition·periodic',
           polygons: basePolys.length,
@@ -633,74 +735,7 @@ export function usePattern(
         }
         return { polygons: basePolys, segments: editorBase.baseSegments, compositionStamps: stamps }
       }
-      const polygons: typeof basePolys = []
-      for (let s = 0; s < stamps.length; s++) {
-        const stamp = stamps[s]
-        const t = stamp.translation
-        const cos = Math.cos(stamp.rotation)
-        const sin = Math.sin(stamp.rotation)
-        const rot = (v: Vec2): Vec2 => stamp.rotation === 0
-          ? v
-          : { x: v.x * cos - v.y * sin, y: v.x * sin + v.y * cos }
-        for (const p of basePolys) {
-          const c = rot(p.center)
-          polygons.push({
-            ...p,
-            id: `${p.id}@${s}`,
-            center: { x: c.x + t.x, y: c.y + t.y },
-            vertices: p.vertices.map(v => {
-              const r = rot(v)
-              return { x: r.x + t.x, y: r.y + t.y }
-            }),
-          })
-        }
-      }
-      // Step 17 Framing — bound the stamped field to the Frame so a gap opens
-      // for completion: keep only tiles whose centre is inside the outline
-      // (the field stops ~1 tile short of the edge), then add the completion
-      // Tiles (world space, added once — they don't repeat under the Lattice)
-      // so PIC Strands flow out to the frame edge through them via each Tile's
-      // own tile-type Figure recipe (already in `config.figures`).
-      let picPolygons = polygons
-      if (editorFrame && patch.frame) {
-        const outline = frameOutlinePolygon(patch.frame)
-        if (outline) {
-          picPolygons = polygons.filter(p => pointInPolygon(p.center, outline))
-          if (patch.frame.completedTiles?.length) {
-            picPolygons = [...picPolygons, ...tilesToPolygons(patch.frame.completedTiles)]
-          }
-        }
-      }
-      const tPic = performance.now()
-      const segments = runPIC(picPolygons, config)
-      recordPerf({
-        phase: 'composition',
-        polygons: picPolygons.length,
-        ghosts: 0,
-        stamps: stamps.length,
-        segments: segments.length,
-        picMs: performance.now() - tPic,
-        strandMs: 0,
-      })
-      // Boundary outlines are opt-in in Composition Phase (showBoundaryLattice).
-      // Multi-cell emits one outline per Cell per stamp (octagon + square × N
-      // stamps); single-cell emits one outline per stamp.
-      let boundaryOutlines: Vec2[][] | undefined
-      if (showBoundaryLattice) {
-        const baseOutlines = editorBase.baseOutlines
-        boundaryOutlines = []
-        for (const stamp of stamps) {
-          const cos = Math.cos(stamp.rotation)
-          const sin = Math.sin(stamp.rotation)
-          for (const outline of baseOutlines) {
-            boundaryOutlines.push(outline.map(v => {
-              const rx = stamp.rotation === 0 ? v.x : v.x * cos - v.y * sin
-              const ry = stamp.rotation === 0 ? v.y : v.x * sin + v.y * cos
-              return { x: rx + stamp.translation.x, y: ry + stamp.translation.y }
-            }))
-          }
-        }
-      }
+      const { polygons, picPolygons, segments, boundaryOutlines } = stampedField
       // Step 19.3 — Decoration: resolve Void fills + strand colour over the
       // current bound (the convex Frame outline if present, else the generated
       // viewport rect). Geometry is frozen in this phase, so the full-field
@@ -716,20 +751,12 @@ export function usePattern(
           { x: bx, y: by }, { x: bx + vw, y: by },
           { x: bx + vw, y: by + vh }, { x: bx, y: by + vh },
         ]
-        // Frame Voids must NOT clip the extraction to the frame outline. Doing
-        // so injects the frame's own edges into every frame-touching Void, so a
-        // Void straddling the frame gets a different congruent signature than
-        // the interior class it belongs to — painting that class skipped them
-        // ("voids lose colour at the frame"). Instead extract over the FULL,
-        // unfiltered stamped field (so frame-edge Voids close against the real
-        // strands just outside the frame, keeping their interior shape); the
-        // frame stays a pure SVG visual clip on the fills (PatternSVG clips the
-        // fill layer to the outline). `picPolygons` is frame-filtered for the
-        // rendered strands; `polygons` is the full field, so re-PIC it for
-        // extraction only when a frame is filtering.
-        let decoField = segments
+        // Frame Voids must NOT clip the extraction to the frame outline (a
+        // frame-touching Void would change congruent signature — "voids lose
+        // colour at the frame"), so `stampedField.decoField` re-PICs the FULL
+        // unfiltered field when a frame is filtering the rendered strands.
+        const decoField = stampedField.decoField
         if (editorFrame && patch.frame && picPolygons !== polygons) {
-          decoField = runPIC(polygons, config)
           // Bound to the frame's bbox + a symmetric margin, NOT the viewport
           // rect: the viewport rect is quantised (`bx`/`by` = floor of the pan
           // ⇒ shifted left/up), so it sits closer to the frame's right/bottom
@@ -812,5 +839,5 @@ export function usePattern(
     const segments = runPIC(polygons, config)
 
     return { polygons, segments }
-  }, [config, editorBase, decorationFills, baseStrandIds, decorationOrbitRing, decorationCellFrames, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview, editorNeighbourBoundaries, editorNeighbourStrands, editorFrame, decorationActive, decorationPaintActive, decorationPaintTarget])
+  }, [config, editorBase, stampedField, decorationFills, baseStrandIds, decorationOrbitRing, decorationCellFrames, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview, editorNeighbourBoundaries, editorNeighbourStrands, editorFrame, decorationActive, decorationPaintActive, decorationPaintTarget])
 }

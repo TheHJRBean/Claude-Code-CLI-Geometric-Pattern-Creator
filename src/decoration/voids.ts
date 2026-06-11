@@ -335,7 +335,90 @@ export function extractVoids(
     const poly = simplifyCollinear(ccw)
     voids.push({ polygon: poly, area, signature: voidSignature(poly, lengthSnap, angleSnap) })
   }
+  // 5. Canonicalise signatures across the field. Independent token rounding
+  //    coin-flips when a true edge length / angle sits ON a quantisation
+  //    boundary (e.g. a length at an odd multiple of lengthSnap/2): float
+  //    noise at different field positions rounds either way and one congruent
+  //    class splits into several signatures — "Matching leaves a few odd
+  //    voids unpainted". Merge classes congruent within HALF a snap (≫ the
+  //    noise, ≪ one snap, so intentionally-distinct classes never merge) and
+  //    give every member the class's lexicographically-smallest signature.
+  canonicaliseSignatures(voids, lengthSnap, angleSnap)
   return voids
+}
+
+/**
+ * Raw (unquantised) alternating interior-angle / edge-length ring of a
+ * CCW polygon — the numeric twin of `voidSignature`'s token ring.
+ */
+function rawRing(poly: Vec2[]): number[] {
+  const n = poly.length
+  const out: number[] = []
+  for (let i = 0; i < n; i++) {
+    const prev = poly[(i - 1 + n) % n]
+    const cur = poly[i]
+    const next = poly[(i + 1) % n]
+    const inDir = sub(cur, prev)
+    const outDir = sub(next, cur)
+    const turn = Math.atan2(cross(inDir, outDir), dot(inDir, outDir))
+    out.push(Math.PI - turn)        // even slots: interior angle (rad)
+    out.push(dist(cur, next))       // odd slots: edge length
+  }
+  return out
+}
+
+/** Tolerance congruence of two raw rings under rotation + reflection.
+ * Slot types must stay aligned: the forward ring is angle-first (even
+ * rotations); plain reversal re-pairs each angle with its preceding edge and
+ * lands edge-first (odd rotations re-align it). */
+function ringsCongruent(a: number[], b: number[], lenTol: number, angTol: number): boolean {
+  const m = a.length
+  if (b.length !== m) return false
+  const tolAt = (i: number) => (i % 2 === 0 ? angTol : lenTol)
+  for (const [variant, rb] of [b, b.slice().reverse()].entries()) {
+    for (let s = variant === 0 ? 0 : 1; s < m; s += 2) {
+      let ok = true
+      for (let i = 0; i < m && ok; i++) {
+        if (Math.abs(a[i] - rb[(i + s) % m]) > tolAt(i)) ok = false
+      }
+      if (ok) return true
+    }
+  }
+  return false
+}
+
+/** Merge quantisation-boundary signature splits: group the field's Voids by
+ * tolerance congruence (half a snap — see `extractVoids` step 5) and rewrite
+ * every member's signature to the group's lexicographically-smallest one.
+ * Deterministic for a given field, so persisted records stay stable across
+ * re-extractions of the same geometry. */
+function canonicaliseSignatures(voids: VoidRegion[], lengthSnap: number, angleSnap: number): void {
+  if (voids.length < 2) return
+  const lenTol = lengthSnap / 2
+  const angTol = angleSnap / 2
+  interface Cls { ring: number[]; area: number; sigs: Set<string>; members: VoidRegion[] }
+  const classes: Cls[] = []
+  for (const v of voids) {
+    const ring = rawRing(v.polygon)
+    let cls: Cls | undefined
+    for (const c of classes) {
+      if (c.ring.length !== ring.length) continue
+      if (Math.abs(c.area - v.area) > 0.01 * c.area + 0.1) continue
+      if (ringsCongruent(c.ring, ring, lenTol, angTol)) { cls = c; break }
+    }
+    if (!cls) {
+      cls = { ring, area: v.area, sigs: new Set(), members: [] }
+      classes.push(cls)
+    }
+    cls.sigs.add(v.signature)
+    cls.members.push(v)
+  }
+  for (const c of classes) {
+    if (c.sigs.size < 2) continue
+    let canonical: string | null = null
+    for (const s of c.sigs) if (canonical === null || s < canonical) canonical = s
+    for (const m of c.members) m.signature = canonical!
+  }
 }
 
 /**

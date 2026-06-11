@@ -67,6 +67,24 @@ describe('Step 19.1 — Void extraction', () => {
     expect(sigSet(voids).size).toBe(1)
   })
 
+  it('quantisation-boundary lengths do not split a congruent class', () => {
+    // Cell side 10.25 sits EXACTLY on a lengthSnap=0.5 rounding boundary
+    // (10.25 / 0.5 = 20.5). Sub-float jitter on the grid lines then rounds
+    // either way per instance and, without field-level canonicalisation, the
+    // single congruent class splits into several signatures — the "Matching
+    // leaves a few odd voids unpainted" bug.
+    const W = 41 // 4 × 10.25
+    const segs = []
+    for (let k = 1; k <= 3; k++) {
+      const jitter = (k % 2 === 0 ? 1 : -1) * 1e-6
+      segs.push(seg(10.25 * k + jitter, 0, 10.25 * k + jitter, W)) // verticals (jittered)
+      segs.push(seg(0, 10.25 * k, W, 10.25 * k))                   // horizontals
+    }
+    const voids = extractVoids(segs, boundBox(W))
+    expect(voids.length).toBe(16)
+    expect(sigSet(voids).size).toBe(1)
+  })
+
   it('Voids tile the bound (areas sum to the bound area)', () => {
     const voids = extractVoids(
       [seg(50, 0, 50, 100), seg(0, 50, 100, 50), seg(0, 0, 100, 100)],

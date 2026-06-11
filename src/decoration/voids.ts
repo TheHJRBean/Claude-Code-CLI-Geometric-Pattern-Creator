@@ -491,19 +491,49 @@ export function voidSignature(poly: Vec2[], lengthSnap: number, angleSnap: numbe
   return hash8(minRotation(tokens))
 }
 
-/** Lexicographically-smallest rotation of a token ring or its reversal.
- * Exported for the strand-signature builder (`strandGroups.ts`). */
-export function minRotation(tokens: string[]): string {
-  const m = tokens.length
-  const rev = tokens.slice().reverse()
-  let best: string | null = null
-  for (const ring of [tokens, rev]) {
-    for (let s = 0; s < m; s++) {
-      const rot = ring.slice(s).concat(ring.slice(0, s)).join(';')
-      if (best === null || rot < best) best = rot
+/** Booth's algorithm — index of the lexicographically-smallest rotation of a
+ * sequence under element-wise `<`. O(m), no string churn. */
+function leastRotationIndex(s: string[]): number {
+  const n = s.length
+  const f = new Int32Array(2 * n).fill(-1)
+  let k = 0
+  for (let j = 1; j < 2 * n; j++) {
+    const sj = s[j % n]
+    let i = f[j - k - 1]
+    while (i !== -1 && sj !== s[(k + i + 1) % n]) {
+      if (sj < s[(k + i + 1) % n]) k = j - i - 1
+      i = f[i]
+    }
+    if (i === -1 && sj !== s[k % n]) {
+      if (sj < s[k % n]) k = j
+      f[j - k] = -1
+    } else {
+      f[j - k] = i + 1
     }
   }
-  return best ?? ''
+  return k % n
+}
+
+/** Lexicographically-smallest rotation of a token ring or its reversal.
+ * Exported for the strand-signature builder (`strandGroups.ts`).
+ *
+ * O(m) via Booth's algorithm — the old all-rotations scan was O(m²) with a
+ * string join per rotation, and dominated extraction on flattened-curve
+ * fields (hundreds of tokens per Void). Tokens are compared with a `;`
+ * suffix so the ordering is EXACTLY the old joined-string ordering (a bare
+ * element-wise compare ranks prefix tokens differently, which would silently
+ * re-canonicalise — and re-hash — existing persisted signatures). */
+export function minRotation(tokens: string[]): string {
+  const m = tokens.length
+  if (m === 0) return ''
+  const fwd = tokens.map(t => t + ';')
+  const rev = fwd.slice().reverse()
+  const a = leastRotationIndex(fwd)
+  const b = leastRotationIndex(rev)
+  const revTokens = tokens.slice().reverse()
+  const sa = tokens.slice(a).concat(tokens.slice(0, a)).join(';')
+  const sb = revTokens.slice(b).concat(revTokens.slice(0, b)).join(';')
+  return sa < sb ? sa : sb
 }
 
 /** FNV-1a → 8 hex chars. Exported for the strand-signature builder. */

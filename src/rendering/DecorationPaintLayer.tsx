@@ -125,23 +125,63 @@ export function DecorationPaintLayer({
           : { scope: 'patch', key: s.patchKey, clicked }
   }
 
-  const strandHitEls = useMemo(() => {
-    const hitWidth = 10 / zoom // constant ~10px screen hit width
-    return strandHits.map((s, i) => (
-      <line
-        key={i}
-        x1={s.from.x} y1={s.from.y} x2={s.to.x} y2={s.to.y}
-        stroke="transparent"
-        strokeWidth={hitWidth}
-        strokeLinecap="round"
-        style={{ cursor: BUCKET_CURSOR }}
-        onPointerEnter={() => setHoveredStrand(i)}
-        onPointerLeave={() => setHoveredStrand(h => (h === i ? null : h))}
-        onPointerDown={e => { e.stopPropagation(); onPaintStrand(strandPayload(s)) }}
-      />
-    ))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [strandHits, zoom, onPaintStrand, strandScope])
+  // One transparent catch-all rect + math hit-testing instead of a DOM
+  // element per hit segment. A dense patch zoomed out is segments × visible
+  // stamps — easily tens of thousands of <line> elements — and mounting them
+  // froze the tab the moment the Strands target was selected. The hits stay
+  // data; the DOM cost is one rect plus a single highlight <path>.
+  const strandBBox = useMemo(() => {
+    if (strandHits.length === 0) return null
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    for (const s of strandHits) {
+      minX = Math.min(minX, s.from.x, s.to.x); maxX = Math.max(maxX, s.from.x, s.to.x)
+      minY = Math.min(minY, s.from.y, s.to.y); maxY = Math.max(maxY, s.from.y, s.to.y)
+    }
+    return { minX, minY, maxX, maxY }
+  }, [strandHits])
+
+  const toWorld = (e: React.PointerEvent<SVGRectElement>): Vec2 | null => {
+    const svg = e.currentTarget.ownerSVGElement
+    const ctm = svg?.getScreenCTM()
+    if (!svg || !ctm) return null
+    const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse())
+    return { x: pt.x, y: pt.y }
+  }
+
+  const strandIndexAt = (p: Vec2): number | null => {
+    const tol = 6 / zoom // ~constant screen-space pick radius
+    let best = -1
+    let bestD = tol
+    for (let i = 0; i < strandHits.length; i++) {
+      const s = strandHits[i]
+      const d = pointSegmentDist(p, s.from, s.to)
+      if (d < bestD) { bestD = d; best = i }
+    }
+    return best >= 0 ? best : null
+  }
+
+  const strandCatcher = strandBBox && (
+    <rect
+      x={strandBBox.minX - 10 / zoom}
+      y={strandBBox.minY - 10 / zoom}
+      width={strandBBox.maxX - strandBBox.minX + 20 / zoom}
+      height={strandBBox.maxY - strandBBox.minY + 20 / zoom}
+      fill="transparent"
+      style={hoveredStrand !== null ? { cursor: BUCKET_CURSOR } : undefined}
+      onPointerMove={e => {
+        const p = toWorld(e)
+        setHoveredStrand(p ? strandIndexAt(p) : null)
+      }}
+      onPointerLeave={() => setHoveredStrand(null)}
+      onPointerDown={e => {
+        const p = toWorld(e)
+        const i = p ? strandIndexAt(p) : null
+        if (i === null) return // off-strand: let the pan handler take it
+        e.stopPropagation()
+        onPaintStrand(strandPayload(strandHits[i]))
+      }}
+    />
+  )
 
   const strandHighlight = useMemo(() => {
     if (hoveredStrand === null || hoveredStrand >= strandHits.length) return null
@@ -151,10 +191,16 @@ export function DecorationPaintLayer({
         : strandScope === 'congruent' ? s => s.signature === h.signature
           : strandScope === 'cell' ? s => s.cellKey === h.cellKey
             : s => s.patchKey === h.patchKey
-    return strandHits.filter(inGroup).map((s, i) => (
-      <line
-        key={`hl-${i}`}
-        x1={s.from.x} y1={s.from.y} x2={s.to.x} y2={s.to.y}
+    // Single <path> no matter how large the group ('all' is the whole field).
+    let d = ''
+    for (const s of strandHits) {
+      if (inGroup(s)) d += `M${s.from.x},${s.from.y}L${s.to.x},${s.to.y}`
+    }
+    if (!d) return null
+    return (
+      <path
+        d={d}
+        fill="none"
         stroke={activeColor}
         strokeOpacity={0.9}
         strokeWidth={3}
@@ -162,7 +208,7 @@ export function DecorationPaintLayer({
         vectorEffect="non-scaling-stroke"
         pointerEvents="none"
       />
-    ))
+    )
   }, [hoveredStrand, strandHits, strandScope, activeColor])
 
   if (target === 'voids') {
@@ -170,10 +216,19 @@ export function DecorationPaintLayer({
   }
 
   if (target === 'strands') {
-    return <g id="decoration-paint-layer">{strandHighlight}{strandHitEls}</g>
+    return <g id="decoration-paint-layer">{strandHighlight}{strandCatcher}</g>
   }
 
   return null
+}
+
+function pointSegmentDist(p: Vec2, a: Vec2, b: Vec2): number {
+  const dx = b.x - a.x, dy = b.y - a.y
+  const L2 = dx * dx + dy * dy
+  let t = L2 > 0 ? ((p.x - a.x) * dx + (p.y - a.y) * dy) / L2 : 0
+  t = Math.max(0, Math.min(1, t))
+  const qx = a.x + dx * t, qy = a.y + dy * t
+  return Math.hypot(p.x - qx, p.y - qy)
 }
 
 function polygonPath(poly: Vec2[]): string {

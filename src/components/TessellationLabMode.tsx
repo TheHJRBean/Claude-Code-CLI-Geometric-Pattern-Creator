@@ -25,6 +25,7 @@ import { activeCell } from '../editor/active'
 import { useEditorHistory } from '../editor/useEditorHistory'
 import { detectCellTilingStatus } from '../editor/nonTilingDetection'
 import { FigureControls } from './strands/FigureControls'
+import { ColourPicker, pushRecentColour } from './ColourPicker'
 
 const labLibrary = createConfigLibrary('lab-tessellations-v1')
 
@@ -788,8 +789,8 @@ export function TessellationLabMode({
         paintTarget={editorPhase === 'decoration' ? paintTarget : 'off'}
         paintVoidScope={voidScope}
         paintStrandScope={strandScope}
-        onPaintVoid={p => dispatch({ type: 'SET_DECORATION_VOID_FILL', payload: { ...p, colour: decorationColor } })}
-        onPaintStrand={p => dispatch({ type: 'SET_DECORATION_STRAND_COLOR', payload: { ...p, colour: decorationColor } })}
+        onPaintVoid={p => { pushRecentColour(decorationColor); dispatch({ type: 'SET_DECORATION_VOID_FILL', payload: { ...p, colour: decorationColor } }) }}
+        onPaintStrand={p => { pushRecentColour(decorationColor); dispatch({ type: 'SET_DECORATION_STRAND_COLOR', payload: { ...p, colour: decorationColor } }) }}
         editorFrame={!!config.editor?.frame}
         showBoundaryLattice={showBoundaryLattice}
         editorNeighbourPreview={editorPhase === 'design' && showNeighbours && !(config.editor && activeCell(config.editor).wrapBoundary)}
@@ -1285,25 +1286,19 @@ function EditorDesignControls({
                 </div>
               </>
             )}
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <span style={{ minWidth: 70 }}>Paint colour</span>
-              <input
-                type="color"
-                value={decorationColor}
-                onChange={e => onSetDecorationColor(e.target.value)}
-                style={{ width: 36, height: 24, padding: 0, border: '1px solid var(--border-subtle)', background: 'transparent', cursor: 'pointer' }}
-              />
-              <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{decorationColor}</span>
-            </label>
+            <ColourPicker value={decorationColor} onChange={onSetDecorationColor} />
             {paintTarget === 'strands' ? (() => {
               // Toggle: if every strand already carries the current paint colour,
               // the button removes it (deselect); otherwise it applies/updates.
               const sameColour = !!strandRec && strandRec.colour.toLowerCase() === decorationColor.toLowerCase()
               return (
                 <button
-                  onClick={() => dispatch(sameColour
-                    ? { type: 'SET_DECORATION_STRAND_COLOR', payload: { scope: 'congruent', key: '*', colour: null } }
-                    : { type: 'SET_DECORATION_STRAND_COLOR', payload: { scope: 'congruent', key: '*', colour: decorationColor } })}
+                  onClick={() => {
+                    if (!sameColour) pushRecentColour(decorationColor)
+                    dispatch(sameColour
+                      ? { type: 'SET_DECORATION_STRAND_COLOR', payload: { scope: 'congruent', key: '*', colour: null } }
+                      : { type: 'SET_DECORATION_STRAND_COLOR', payload: { scope: 'congruent', key: '*', colour: decorationColor } })
+                  }}
                   style={{
                     ...decorationButtonStyle,
                     ...(sameColour ? { border: '1px solid var(--accent)', background: 'var(--accent-bg)', color: 'var(--accent)' } : null),
@@ -1319,7 +1314,7 @@ function EditorDesignControls({
               )
             })() : (
               <button
-                onClick={() => dispatch({ type: 'SET_DECORATION_VOID_FILL', payload: { scope: 'congruent', key: '*', colour: decorationColor } })}
+                onClick={() => { pushRecentColour(decorationColor); dispatch({ type: 'SET_DECORATION_VOID_FILL', payload: { scope: 'congruent', key: '*', colour: decorationColor } }) }}
                 style={decorationButtonStyle}
               >
                 Colour all Voids

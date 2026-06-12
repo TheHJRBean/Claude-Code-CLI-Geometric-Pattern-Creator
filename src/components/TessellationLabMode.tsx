@@ -1357,6 +1357,58 @@ function EditorDesignControls({
                 {strandRecCount > 0 && <span>{strandRecCount} Strand colour{strandRecCount === 1 ? '' : 's'}</span>}
               </div>
             )}
+            {/* Frame border stroke — the Decoration styling slot ADR-0004
+                reserved. Replaces the accent guide line with a real border
+                that's part of the artwork (and exports). */}
+            {editor.frame && (() => {
+              const frame = editor.frame
+              const stroke = frame.stroke
+              const setStroke = (s: typeof stroke) =>
+                dispatch({ type: 'SET_FRAME', payload: { ...frame, stroke: s } })
+              return (
+                <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--border-subtle)' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      className="pattern-checkbox"
+                      checked={stroke?.enabled ?? false}
+                      onChange={e => setStroke(e.target.checked
+                        ? { enabled: true, colour: stroke?.colour ?? decorationColor, width: stroke?.width ?? 4 }
+                        : stroke ? { ...stroke, enabled: false } : undefined)}
+                    />
+                    Frame border stroke
+                  </label>
+                  {stroke?.enabled && (
+                    <div style={{ marginTop: 6 }}>
+                      <FieldLabel
+                        label="Border width"
+                        value={stroke.width.toFixed(1)}
+                        unit=" px"
+                        tooltip="Stroke width of the Frame border, in world units — scales with the pattern like Strand width."
+                      />
+                      <input
+                        type="range"
+                        className="pattern-slider"
+                        min={0.5} max={30} step={0.5}
+                        value={stroke.width}
+                        onChange={e => setStroke({ ...stroke, width: Number(e.target.value) })}
+                      />
+                      <button
+                        onClick={() => setStroke({ ...stroke, colour: decorationColor })}
+                        style={{ ...decorationButtonStyle, marginTop: 6 }}
+                      >
+                        Set border to paint colour
+                        <span style={{
+                          display: 'inline-block', width: 12, height: 12, marginLeft: 8,
+                          background: stroke.colour,
+                          border: '1px solid var(--border-subtle)', verticalAlign: 'middle',
+                        }} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
           </div>
         )
       })()}

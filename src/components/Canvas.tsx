@@ -251,6 +251,13 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     [isShapeFrame, frameOutline, editorEdgeLength],
   )
   const frameNodes = useMemo(() => (frameSections ? frameNodePoints(frameSections) : null), [frameSections])
+  // Decorative Frame border stroke (FrameConfig.stroke, set from the
+  // Decoration panel). When enabled, PatternSVG draws it in place of the
+  // accent guide line.
+  const frameStrokeCfg = editorFrame
+    ? config.editor?.frame?.stroke
+    : config.tiling.type !== 'editor' ? config.frame?.stroke : undefined
+  const frameStroke = frameStrokeCfg?.enabled ? frameStrokeCfg : null
 
   const resetCamera = useCallback(() => {
     setViewTransform({
@@ -793,7 +800,10 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         clipEditorOverlayToFrame={decorationActive}
         frameOutline={frameOutline}
         clipToFrame={config.tiling.type !== 'editor' || editorStrandMode}
-        frameNodes={frameNodes}
+        // Frame nodes are Design-phase Complete pick targets; in Decoration
+        // they're visual noise over the finished artwork.
+        frameNodes={decorationActive ? null : frameNodes}
+        frameStroke={frameStroke}
         voidFills={voidFills}
         instanceVoidFills={instanceVoidFills}
         strandRecords={decorationActive ? config.editor?.decoration?.strandColours : undefined}

@@ -88,6 +88,12 @@ interface Props {
    */
   frameNodes?: Vec2[] | null
   /**
+   * Decorative Frame border stroke (`FrameConfig.stroke`, Decoration
+   * styling). When set it REPLACES the accent guide outline; width is in
+   * world units so the border scales with the pattern and exports as drawn.
+   */
+  frameStroke?: { colour: string; width: number } | null
+  /**
    * Step 19.2 — Decoration **Void Fill**s (resolved). Drawn behind the Strands
    * (ADR-0005 layer stack). On the periodic fast-path these are the
    * representative fills, rendered INSIDE the cloned fragment so `<use>` tiles
@@ -118,7 +124,7 @@ interface Props {
 }
 
 export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
-  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, compositionStamps, editorOverlay, clipEditorOverlayToFrame = false, frameOutline, clipToFrame = true, frameNodes, voidFills, instanceVoidFills, strandRecords, orbitStamps, cellFrames },
+  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, compositionStamps, editorOverlay, clipEditorOverlayToFrame = false, frameOutline, clipToFrame = true, frameNodes, frameStroke, voidFills, instanceVoidFills, strandRecords, orbitStamps, cellFrames },
   ref
 ) {
   const { x, y, zoom, rotation } = viewTransform
@@ -238,15 +244,28 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
           )}
         </g>
         {hasFrame && (
-          <polygon
-            points={framePoints}
-            fill="none"
-            stroke="var(--accent)"
-            strokeWidth={2.2}
-            strokeOpacity={0.95}
-            vectorEffect="non-scaling-stroke"
-            pointerEvents="none"
-          />
+          frameStroke ? (
+            // Decorative border stroke — part of the artwork (world-unit
+            // width, scales with zoom, included in exports).
+            <polygon
+              points={framePoints}
+              fill="none"
+              stroke={frameStroke.colour}
+              strokeWidth={frameStroke.width}
+              strokeLinejoin="round"
+              pointerEvents="none"
+            />
+          ) : (
+            <polygon
+              points={framePoints}
+              fill="none"
+              stroke="var(--accent)"
+              strokeWidth={2.2}
+              strokeOpacity={0.95}
+              vectorEffect="non-scaling-stroke"
+              pointerEvents="none"
+            />
+          )
         )}
         {hasFrame && frameNodes && frameNodes.map((p, i) => (
           // Frame nodes — kept a constant ~3.5px on screen by dividing by zoom.

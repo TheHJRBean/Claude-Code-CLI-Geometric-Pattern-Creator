@@ -120,6 +120,13 @@ function readGalleryFrame(v: unknown): FrameConfig | undefined {
     const o = f.origin as Record<string, unknown>
     if (typeof o.x === 'number' && typeof o.y === 'number') out.origin = { x: o.x, y: o.y }
   }
+  if (f.stroke && typeof f.stroke === 'object') {
+    const s = f.stroke as Record<string, unknown>
+    if (typeof s.enabled === 'boolean' && typeof s.colour === 'string' && s.colour.length > 0
+      && typeof s.width === 'number' && s.width > 0) {
+      out.stroke = { enabled: s.enabled, colour: s.colour, width: s.width }
+    }
+  }
   return out
 }
 

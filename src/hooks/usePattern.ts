@@ -792,25 +792,30 @@ export function usePattern(
         let decorationStrandHits: StrandHit[] | undefined
         if (decorationPaintTarget === 'strands') {
           const ids = strandIdentities(segments)
+          // Per-strand keys, hoisted OUT of the segment loop. cellOrbitKey
+          // canonicalises a strand's whole point chain over every dihedral
+          // image — doing that per SEGMENT (a strand has many) froze the tab
+          // on dense fields the moment the Strands target was selected.
+          const offsets = ids.strands.map(s => orbitOffset(s.centroid, stampTranslations))
+          const patchKeys = ids.strands.map((s, i) => scopedKey(s.signature, offsets[i]))
+          const cellKeys = ids.strands.map((s, i) => cellOrbitKey(
+            s.signature,
+            reduceToOrbit(ids.strandData[i].points, s.centroid, offsets[i]),
+            s.closed,
+            offsets[i],
+            cellFrames,
+          ))
           decorationStrandHits = []
           for (let i = 0; i < segments.length; i++) {
             const strandIdx = ids.strandOfSegment[i]
             if (strandIdx < 0) continue
-            const ident = ids.strands[strandIdx]
-            const off = orbitOffset(ident.centroid, stampTranslations)
             decorationStrandHits.push({
               from: segments[i].from,
               to: segments[i].to,
               strandId: strandIdx,
-              signature: ident.signature,
-              patchKey: scopedKey(ident.signature, off),
-              cellKey: cellOrbitKey(
-                ident.signature,
-                reduceToOrbit(ids.strandData[strandIdx].points, ident.centroid, off),
-                ident.closed,
-                off,
-                cellFrames,
-              ),
+              signature: ids.strands[strandIdx].signature,
+              patchKey: patchKeys[strandIdx],
+              cellKey: cellKeys[strandIdx],
             })
           }
         }

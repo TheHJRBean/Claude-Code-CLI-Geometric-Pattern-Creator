@@ -32,6 +32,15 @@ export function editorTileTypes(patch: EditorPatch): TileTypeInfo[] {
       if (!seen.has(id)) seen.set(id, tile)
     }
   }
+  // Frame-scoped completion Tiles carry their own tile types —
+  // `seedFiguresForEditor` seeds Figure recipes for them, but they never
+  // appeared in this panel list, so any completion type not shared with a
+  // lattice tile was stuck at the DEFAULT figure with no way to edit it
+  // (reported as "I curved all the gons but some stayed uncurved").
+  for (const tile of patch.frame?.completedTiles ?? []) {
+    const id = tileTypeIdFor(tile)
+    if (!seen.has(id)) seen.set(id, tile)
+  }
   // Build the irregular rank map in first-seen order.
   const irregularRank = new Map<string, number>()
   for (const id of seen.keys()) {

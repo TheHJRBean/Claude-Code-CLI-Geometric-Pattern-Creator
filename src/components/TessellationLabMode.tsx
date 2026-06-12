@@ -256,13 +256,18 @@ export function TessellationLabMode({
         return
       }
       if (e.key === 'Enter' && multiMode && picks.length >= 3) {
+        // Don't commit-and-wipe an invalid polygon: the reducer would no-op
+        // and resetting here would also clear the rejection pill, so the
+        // failure read as "nothing happened". Keep the picks + pill visible
+        // — forceable rules already offer Accept-and-continue.
+        if (config.editor && validateMultiPick(config.editor, picks).kind !== 'valid') return
         dispatch({ type: 'EDITOR_COMPLETE_N_GAP', payload: { picks } })
         resetPicks()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [dispatch, multiMode, picks])
+  }, [dispatch, multiMode, picks, config.editor])
   // useCallback so the memoised (Complete-mode) EditorVertexLayer bails on
   // pan/zoom frames. Identity changes only when `multiMode`/`picks` change —
   // i.e. on an actual pick, when the layer must re-render anyway.
@@ -291,7 +296,9 @@ export function TessellationLabMode({
       return
     }
     dispatch({ type: 'EDITOR_COMPLETE_GAP', payload: { pA: picks[0], pB: p } })
-    setPicks([])
+    // Don't clear eagerly: on success the config.editor effect above resets
+    // the picker; on a reducer no-op the first pick stays selected so the
+    // failed chord isn't a silent wipe.
   }, [multiMode, picks, dispatch])
   // Extracted from the inline Canvas prop + useCallback'd so the memoised
   // EditorVertexLayer bails on pan frames. Reset is inlined (not via the

@@ -85,6 +85,37 @@ describe('Step 19.1 — Void extraction', () => {
     expect(sigSet(voids).size).toBe(1)
   })
 
+  it('signature-threshold collinear coin-flip does not split a congruent class', () => {
+    // Two 40×40 squares whose top edge carries a mid-vertex kink hovering AT
+    // simplifyCollinear's 1.5° tolerance: 1.6° (kept → 5-vertex outline) on
+    // one, 1.4° (dropped → 4-vertex outline) on the other — the float-noise
+    // coin-flip a real field produces at T-junctions and flattened curve
+    // chords. The vertex COUNTS differ, so quantisation-tolerance merging
+    // alone can't bridge them; the coarser compare-time simplification in
+    // canonicaliseSignatures must.
+    const kinkedSquare = (x0: number, kinkTurnDeg: number) => {
+      const dy = 20 * Math.tan((kinkTurnDeg * Math.PI) / 360) // turn = 2·atan(dy/20)
+      return [
+        seg(x0, 10, x0 + 40, 10),
+        seg(x0 + 40, 10, x0 + 40, 50),
+        seg(x0 + 40, 50, x0 + 20, 50 + dy),
+        seg(x0 + 20, 50 + dy, x0, 50),
+        seg(x0, 50, x0, 10),
+      ]
+    }
+    const voids = extractVoids(
+      [...kinkedSquare(10, 1.6), ...kinkedSquare(60, 1.4)],
+      boundBox(110),
+    )
+    // 4 not 2: each square floats disconnected inside the sea, so its outline
+    // walks as an interior face AND a same-|area| mirror "hole" face (the
+    // 19.1 known hole limitation — real PIC fields are connected). All four
+    // outlines are the same shape, which is exactly what matters here.
+    const squares = voids.filter(v => v.area < 2000)
+    expect(squares.length).toBe(4)
+    expect(sigSet(squares).size).toBe(1)
+  })
+
   it('Voids tile the bound (areas sum to the bound area)', () => {
     const voids = extractVoids(
       [seg(50, 0, 50, 100), seg(0, 50, 100, 50), seg(0, 0, 100, 100)],

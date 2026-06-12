@@ -396,10 +396,20 @@ function canonicaliseSignatures(voids: VoidRegion[], lengthSnap: number, angleSn
   if (voids.length < 2) return
   const lenTol = lengthSnap / 2
   const angTol = angleSnap / 2
+  // Compare-time collinear tolerance: 2× the signature-time default
+  // (`simplifyCollinear`'s 1.5°). A vertex whose turn hovers AT the signature
+  // threshold coin-flips per instance under float noise — kept in one sibling
+  // (1.6°), dropped in another (1.4°) — changing the vertex COUNT, which the
+  // ring congruence below can't bridge (it requires equal lengths). Dropping
+  // every sub-3° vertex from the COMPARISON ring makes such siblings compare
+  // equal; classes that differ only by a near-flat kink merge deliberately.
+  // The signature-level outlines are untouched. Common on curved fields,
+  // where Bézier flattening makes shallow chord junctions.
+  const compareAngleTol = (3 * Math.PI) / 180
   interface Cls { ring: number[]; area: number; sigs: Set<string>; members: VoidRegion[] }
   const classes: Cls[] = []
   for (const v of voids) {
-    const ring = rawRing(v.polygon)
+    const ring = rawRing(simplifyCollinear(v.polygon, compareAngleTol))
     let cls: Cls | undefined
     for (const c of classes) {
       if (c.ring.length !== ring.length) continue

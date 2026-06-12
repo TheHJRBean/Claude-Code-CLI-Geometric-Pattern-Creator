@@ -260,7 +260,10 @@ export interface ColourRecord {
    * - `instance`  → world-space id     (Stage 3).
    */
   key: string
-  /** CSS colour string applied to every target in this group. */
+  /** CSS colour string applied to every target in this group. For Strand
+   * records the sentinel `'none'` HIDES the group's strands (no stroke), so
+   * removed strand paint leaves the touching Void fills meeting seamlessly
+   * instead of reverting to the global strand colour as a band between them. */
   colour: string
 }
 

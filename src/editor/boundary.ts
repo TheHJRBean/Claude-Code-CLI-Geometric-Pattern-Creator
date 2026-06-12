@@ -4,6 +4,95 @@ import type { EditorCell } from '../types/editor'
 import { EDITOR_EPS, computeExposedEdges } from './exposedEdges'
 import { editorBoundaryVertices } from './buildEditorPolygons'
 
+/** Directed perimeter piece fed to the cycle walk — an exposed edge or a
+ * subdivision of one (tags inherited from the parent edge). */
+interface CycleEdge {
+  tileId: string
+  edgeIndex: number
+  p1: Vec2
+  p2: Vec2
+}
+
+/**
+ * Subdivide exposed edges at coincident vertices and cancel covered pieces.
+ *
+ * `computeExposedEdges` only cancels *exact full-edge* matches, so an edge
+ * that abuts several shorter neighbour edges (multi-vertex Complete routinely
+ * creates these — the picked polygon's side runs along two or more existing
+ * tile edges) survives as "exposed" on BOTH sides. The raw edge set then
+ * contains T-junctions and overlapping collinear runs, and the cycle walk
+ * either cuts through the patch interior or discards whole perimeter
+ * fragments — Complete-mode vertex dots vanish or appear in wrong places
+ * (replicated on every neighbour ghost, which reuses these cycles).
+ *
+ * Fix: split every exposed edge at any other exposed edge's endpoint lying
+ * strictly inside it, then drop opposite-direction coincident sub-edge pairs
+ * (two tile interiors meet there — not perimeter) and dedupe same-direction
+ * copies. What remains chains into clean cycles.
+ */
+function subdivideAndCancel(edges: { tileId: string; edgeIndex: number; p1: Vec2; p2: Vec2 }[]): CycleEdge[] {
+  // Distinct endpoint pool — the only places a T-junction can occur.
+  const pts: Vec2[] = []
+  for (const e of edges) {
+    for (const p of [e.p1, e.p2]) {
+      if (!pts.some(q => pointsEqual(p, q, EDITOR_EPS))) pts.push(p)
+    }
+  }
+
+  const subs: CycleEdge[] = []
+  for (const e of edges) {
+    const dx = e.p2.x - e.p1.x
+    const dy = e.p2.y - e.p1.y
+    const len2 = dx * dx + dy * dy
+    if (len2 < EDITOR_EPS * EDITOR_EPS) continue
+    const cuts: { t: number; p: Vec2 }[] = []
+    for (const p of pts) {
+      const t = ((p.x - e.p1.x) * dx + (p.y - e.p1.y) * dy) / len2
+      if (t <= 0 || t >= 1) continue
+      const proj = { x: e.p1.x + t * dx, y: e.p1.y + t * dy }
+      if (
+        pointsEqual(proj, p, EDITOR_EPS)
+        && !pointsEqual(p, e.p1, EDITOR_EPS)
+        && !pointsEqual(p, e.p2, EDITOR_EPS)
+      ) {
+        cuts.push({ t, p })
+      }
+    }
+    cuts.sort((a, b) => a.t - b.t)
+    let prev = e.p1
+    for (const c of cuts) {
+      if (!pointsEqual(prev, c.p, EDITOR_EPS)) {
+        subs.push({ tileId: e.tileId, edgeIndex: e.edgeIndex, p1: prev, p2: c.p })
+        prev = c.p
+      }
+    }
+    if (!pointsEqual(prev, e.p2, EDITOR_EPS)) {
+      subs.push({ tileId: e.tileId, edgeIndex: e.edgeIndex, p1: prev, p2: e.p2 })
+    }
+  }
+
+  // Opposite-direction coincident pairs cancel (covered edge ↔ covering run);
+  // same-direction coincident copies collapse to one.
+  const removed = new Array<boolean>(subs.length).fill(false)
+  for (let i = 0; i < subs.length; i++) {
+    if (removed[i]) continue
+    for (let j = i + 1; j < subs.length; j++) {
+      if (removed[j]) continue
+      const a = subs[i]
+      const b = subs[j]
+      if (pointsEqual(a.p1, b.p2, EDITOR_EPS) && pointsEqual(a.p2, b.p1, EDITOR_EPS)) {
+        removed[i] = true
+        removed[j] = true
+        break
+      }
+      if (pointsEqual(a.p1, b.p1, EDITOR_EPS) && pointsEqual(a.p2, b.p2, EDITOR_EPS)) {
+        removed[j] = true
+      }
+    }
+  }
+  return subs.filter((_, i) => !removed[i])
+}
+
 /**
  * One vertex on the patch's outer boundary, tagged with the tile and vertex
  * index it came from so a click maps unambiguously back to a tile + index
@@ -50,7 +139,7 @@ export function computeAllCycles(cell: EditorCell): {
   const edges = computeExposedEdges(cell)
   if (edges.length === 0) return { outer: [], pockets: [] }
 
-  const remaining = [...edges]
+  const remaining = subdivideAndCancel(edges)
   const cycles: BoundaryVertex[][] = []
 
   // Each iteration consumes one closed cycle. The patch may contain multiple

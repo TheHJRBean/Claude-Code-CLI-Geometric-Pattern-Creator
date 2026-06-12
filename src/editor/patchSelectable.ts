@@ -91,17 +91,39 @@ function boundingBox(points: Vec2[]): { x: number; y: number; width: number; hei
  *
  * The canvas exposes the *full visible lattice* of neighbour copies, which is
  * viewport-dependent — but the reducer has no viewport. Instead of a fixed
- * ring we generate just the lattice stamps in a small box around the picks
- * (the lattice generators add a one-cell margin, so the stamp each pick sits
- * on is always covered). This accepts any neighbour copy the user can click,
- * however far they've panned, while staying viewport-free.
+ * ring we generate just the lattice stamps in a box around the picks. The
+ * lattice generators only add a one-cell margin, while a sprawling Patch's
+ * vertices can sit many lattice cells away from their copy's stamp origin —
+ * so the box is inflated by the Patch's own selectable-vertex radius to
+ * guarantee every stamp whose copy can reach a pick is generated. This
+ * accepts any neighbour copy the user can click, however far they've panned,
+ * while staying viewport-free.
  */
 export function neighbourStampsNear(patch: EditorPatch, points: Vec2[]): LatticeStamp[] {
   if (points.length === 0) return []
   const box = boundingBox(points)
+  // Patch extent: max distance of any selectable vertex from the Patch origin.
+  // A stamped copy's vertex is stamp.translation + (rotated) patch-local
+  // vertex, so the matching stamp's translation lies within this radius of
+  // the pick.
+  const patchRot = patchRotation(patch)
+  let r = 0
+  for (const cell of patch.cells) {
+    for (const v of cellLocalSelectableVertices(cell)) {
+      const w = applyCellTransform(v, cell, patchRot)
+      const d = Math.hypot(w.x, w.y)
+      if (d > r) r = d
+    }
+  }
+  const inflated = {
+    x: box.x - r,
+    y: box.y - r,
+    width: box.width + 2 * r,
+    height: box.height + 2 * r,
+  }
   return patch.cells.length > 1
-    ? compositionNeighbourStamps(patch, box)
-    : editorNeighbourStamps(patch.cells[0], box)
+    ? compositionNeighbourStamps(patch, inflated)
+    : editorNeighbourStamps(patch.cells[0], inflated)
 }
 
 /**

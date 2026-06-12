@@ -547,7 +547,10 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     case 'SET_DECORATION_STRAND_COLOR': {
       // Scoped Strand colour (Stage 2): same unmask-then-upsert + guarded
       // same-colour toggle as Void fills. `colour: null` removes the record
-      // explicitly (panel "Remove strand colour" path).
+      // explicitly (panel "Restore strands" path — back to the global strand
+      // colour). The colour string `'none'` is the hidden-strand sentinel
+      // (panel "Remove strand colour"): it persists as an ordinary record and
+      // renders as no stroke, so the Void fills meet underneath it.
       if (!state.editor) return state
       const deco = state.editor.decoration ?? { version: 1 as const, strandColours: [], voidFills: [] }
       const { scope, key, colour, clicked } = action.payload

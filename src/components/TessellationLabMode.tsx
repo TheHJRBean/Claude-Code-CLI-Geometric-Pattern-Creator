@@ -1289,14 +1289,18 @@ function EditorDesignControls({
             <ColourPicker value={decorationColor} onChange={onSetDecorationColor} />
             {paintTarget === 'strands' ? (() => {
               // Toggle: if every strand already carries the current paint colour,
-              // the button removes it (deselect); otherwise it applies/updates.
+              // the button removes it; otherwise it applies/updates. Removal
+              // stores the `'none'` sentinel (strands hidden, Void fills meet
+              // seamlessly) rather than reverting to the global strand colour —
+              // painted fills should touch, strands overlay only when painted.
+              const strandsHidden = strandRec?.colour === 'none'
               const sameColour = !!strandRec && strandRec.colour.toLowerCase() === decorationColor.toLowerCase()
               return (
                 <button
                   onClick={() => {
                     if (!sameColour) pushRecentColour(decorationColor)
                     dispatch(sameColour
-                      ? { type: 'SET_DECORATION_STRAND_COLOR', payload: { scope: 'congruent', key: '*', colour: null } }
+                      ? { type: 'SET_DECORATION_STRAND_COLOR', payload: { scope: 'congruent', key: '*', colour: 'none' } }
                       : { type: 'SET_DECORATION_STRAND_COLOR', payload: { scope: 'congruent', key: '*', colour: decorationColor } })
                   }}
                   style={{
@@ -1304,10 +1308,10 @@ function EditorDesignControls({
                     ...(sameColour ? { border: '1px solid var(--accent)', background: 'var(--accent-bg)', color: 'var(--accent)' } : null),
                   }}
                 >
-                  {sameColour ? 'Remove strand colour' : strandRec ? 'Update strand colour' : 'Colour all strands'}
+                  {sameColour ? 'Remove strand colour' : strandRec && !strandsHidden ? 'Update strand colour' : 'Colour all strands'}
                   <span style={{
                     display: 'inline-block', width: 12, height: 12, marginLeft: 8,
-                    background: strandRec ? strandRec.colour : 'transparent',
+                    background: strandRec && !strandsHidden ? strandRec.colour : 'transparent',
                     border: '1px solid var(--border-subtle)', verticalAlign: 'middle',
                   }} />
                 </button>
@@ -1321,12 +1325,20 @@ function EditorDesignControls({
               </button>
             )}
             <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-              {strandRec && (
+              {strandRec?.colour !== 'none' && (
+                <button
+                  onClick={() => dispatch({ type: 'SET_DECORATION_STRAND_COLOR', payload: { scope: 'congruent', key: '*', colour: 'none' } })}
+                  style={{ ...decorationButtonStyle, flex: 1 }}
+                >
+                  Remove strand colour
+                </button>
+              )}
+              {strandRec?.colour === 'none' && (
                 <button
                   onClick={() => dispatch({ type: 'SET_DECORATION_STRAND_COLOR', payload: { scope: 'congruent', key: '*', colour: null } })}
                   style={{ ...decorationButtonStyle, flex: 1 }}
                 >
-                  Remove strand colour
+                  Restore strands
                 </button>
               )}
               {hasDecoration && (

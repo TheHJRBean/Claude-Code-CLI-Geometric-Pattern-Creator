@@ -159,15 +159,19 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
         </g>
       )}
       {seedPaths.map((d, i) => (
-        <path
-          key={`strand-${i}`}
-          d={d}
-          fill="none"
-          stroke={strokes ? strokes[i] : stroke}
-          strokeWidth={strand.width}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+        // `'none'` = the hidden-strand sentinel (Decoration "Remove strand
+        // colour"): emit nothing so Void fills meet seamlessly underneath.
+        strokes && strokes[i] === 'none' ? null : (
+          <path
+            key={`strand-${i}`}
+            d={d}
+            fill="none"
+            stroke={strokes ? strokes[i] : stroke}
+            strokeWidth={strand.width}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        )
       ))}
     </g>
   )

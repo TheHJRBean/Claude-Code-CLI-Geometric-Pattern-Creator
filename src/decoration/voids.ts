@@ -31,6 +31,10 @@ export interface VoidRegion {
   /** Congruent signature: equal iff two Voids are congruent (same shape+size,
    * up to rotation / translation / reflection). 8 hex chars. */
   signature: string
+  /** When set (curved fields — see `pairCurvedOutlines`), the STRAIGHT-field
+   * outline that identity keys must derive from; `polygon` is then only the
+   * rendered (curved) outline. Absent ⇒ key from `polygon`. */
+  keyPolygon?: Vec2[]
 }
 
 export interface ExtractVoidsOptions {
@@ -385,6 +389,54 @@ function ringsCongruent(a: number[], b: number[], lenTol: number, angTol: number
     }
   }
   return false
+}
+
+/**
+ * Pair each STRAIGHT-field Void with its curved-field counterpart so that a
+ * Void's identity (signature + key outline) is **curve-insensitive** while
+ * its rendered outline follows the curves. Decoration records then survive
+ * curve-recipe changes — strand colours already work this way (strand
+ * identity comes from the un-flattened PIC segments).
+ *
+ * Matching = nearest centroid, greedy over all candidate pairs (deterministic
+ * tie-break), gated by a centroid-distance threshold relative to the Void's
+ * size and a loose area ratio. Curves bend a face's edges but barely move its
+ * centroid, so 1:1 matches are the norm; where strong curves change the
+ * arrangement topology the leftovers degrade gracefully:
+ * - unmatched straight Voids render with their straight outline;
+ * - unmatched curved Voids keep their curved-derived identity (paintable,
+ *   but their records won't survive further curve edits).
+ */
+export function pairCurvedOutlines(straight: VoidRegion[], curved: VoidRegion[]): VoidRegion[] {
+  if (straight.length === 0) return curved
+  if (curved.length === 0) return straight
+  const sc = straight.map(v => centroid(v.polygon))
+  const cc = curved.map(v => centroid(v.polygon))
+  const cands: { d: number; si: number; ci: number }[] = []
+  for (let si = 0; si < straight.length; si++) {
+    const maxD = 0.5 * Math.sqrt(straight[si].area)
+    for (let ci = 0; ci < curved.length; ci++) {
+      const ratio = curved[ci].area / straight[si].area
+      if (ratio < 0.3 || ratio > 3) continue
+      const d = Math.hypot(cc[ci].x - sc[si].x, cc[ci].y - sc[si].y)
+      if (d <= maxD) cands.push({ d, si, ci })
+    }
+  }
+  cands.sort((a, b) => a.d - b.d || a.si - b.si || a.ci - b.ci)
+  const sMatch = new Array<number>(straight.length).fill(-1)
+  const cTaken = new Array<boolean>(curved.length).fill(false)
+  for (const { si, ci } of cands) {
+    if (sMatch[si] >= 0 || cTaken[ci]) continue
+    sMatch[si] = ci
+    cTaken[ci] = true
+  }
+  const out: VoidRegion[] = straight.map((v, si) => sMatch[si] >= 0
+    ? { polygon: curved[sMatch[si]].polygon, area: v.area, signature: v.signature, keyPolygon: v.polygon }
+    : v)
+  for (let ci = 0; ci < curved.length; ci++) {
+    if (!cTaken[ci]) out.push(curved[ci])
+  }
+  return out
 }
 
 /** Merge quantisation-boundary signature splits: group the field's Voids by

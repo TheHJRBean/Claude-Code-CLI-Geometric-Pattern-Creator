@@ -92,12 +92,16 @@ export function keyVoids(
   cellFrames: CellFrame[] = [],
 ): KeyedVoid[] {
   return voids.map(v => {
-    const c = centroid(v.polygon)
+    // Identity from the straight-field outline when present (curved fields —
+    // `pairCurvedOutlines`): keys then survive curve-recipe changes while
+    // `polygon` still renders the curved outline.
+    const kp = v.keyPolygon ?? v.polygon
+    const c = centroid(kp)
     const orbit = orbitOffset(c, stampTranslations)
     return {
       ...v,
       patchKey: scopedKey(v.signature, orbit),
-      cellKey: cellOrbitKey(v.signature, reduceToOrbit(v.polygon, c, orbit), true, orbit, cellFrames),
+      cellKey: cellOrbitKey(v.signature, reduceToOrbit(kp, c, orbit), true, orbit, cellFrames),
       instanceKey: scopedKey(v.signature, c),
       orbit,
       centre: c,

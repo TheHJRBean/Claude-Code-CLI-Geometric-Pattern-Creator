@@ -20,7 +20,7 @@ import { pointInPolygon, centroid } from '../utils/math'
 import { runPIC } from '../pic/index'
 import { recordPerf, periodicityEnabled } from '../utils/perf'
 import { colourVoids, keyVoids, type PaintVoid, type StrandHit, type VoidFill } from '../decoration/resolve'
-import { extractVoids, type VoidRegion } from '../decoration/voids'
+import { extractVoids, pairCurvedOutlines, type VoidRegion } from '../decoration/voids'
 import { buildColourIndex, orbitOffset, resolveColour, scopedKey } from '../decoration/scopes'
 import { cellFramesFromOutlines, cellOrbitKey, reduceToOrbit, type CellFrame } from '../decoration/cellScope'
 import { strandIdentities } from '../decoration/strandGroups'
@@ -168,6 +168,19 @@ function periodicFastPathEligible(
     && stamps.every(s => s.rotation === 0)
 }
 
+/** Decoration Void extraction with curve-insensitive identity: Voids (and
+ * their signatures) come from the STRAIGHT strand field; with curves on, the
+ * flattened curved field is extracted too and `pairCurvedOutlines` swaps in
+ * the curved outline for rendering while `keyPolygon` keeps the straight one
+ * for identity keys. Paints then survive curve-recipe changes, matching how
+ * strand colours already behave (strand identity is never flattened). */
+function extractDecorationVoids(field: Segment[], bound: Vec2[], config: PatternConfig): VoidRegion[] {
+  const straight = extractVoids(field, bound)
+  if (!curvesEnabled(config)) return straight
+  const curved = extractVoids(flattenStrandsToSegments(field, config), bound)
+  return pairCurvedOutlines(straight, curved)
+}
+
 export function usePattern(
   config: PatternConfig,
   viewTransform: ViewTransform,
@@ -313,8 +326,7 @@ export function usePattern(
     const field = stampSegments(editorBase.baseSegments, ring)
     const R = 2.5 * d1
     const bound: Vec2[] = [{ x: -R, y: -R }, { x: R, y: -R }, { x: R, y: R }, { x: -R, y: R }]
-    const segs = curvesEnabled(config) ? flattenStrandsToSegments(field, config) : field
-    const voids = extractVoids(segs, bound)
+    const voids = extractDecorationVoids(field, bound, config)
     // Representative Voids = those whose centroid lies in the origin stamp's
     // Voronoi cell (one per lattice orbit ⇒ tiles without gaps/overlap). These
     // drive both the cloned fills and the Paint overlay's hit-targets (tiled by
@@ -329,7 +341,10 @@ export function usePattern(
     const reps: RepVoid[] = []
     for (const v of voids) {
       if (Math.abs(v.area) > maxRepArea) continue
-      const c = centroid(v.polygon)
+      // Identity (Voronoi rep test + keys) from the straight outline; the
+      // rep's `polygon` stays the rendered (curved) outline for fills.
+      const kp = v.keyPolygon ?? v.polygon
+      const c = centroid(kp)
       let best = Infinity
       let isOrigin = false
       for (const st of ring) {
@@ -348,7 +363,7 @@ export function usePattern(
           centroid: c,
           patchKey: scopedKey(v.signature, c),
           // Rep polygons are already patch-reduced (origin Voronoi cell).
-          cellKey: cellOrbitKey(v.signature, v.polygon, true, c, decorationCellFrames ?? []),
+          cellKey: cellOrbitKey(v.signature, kp, true, c, decorationCellFrames ?? []),
         })
       }
     }
@@ -587,12 +602,9 @@ export function usePattern(
         { x: qx + vw, y: qy + vh }, { x: qx, y: qy + vh },
       ]
     }
-    const decoSegments = curvesEnabled(config)
-      ? flattenStrandsToSegments(stampedField.decoField, config)
-      : stampedField.decoField
     const stampTranslations = stampedField.stamps.map(s => s.translation)
     return {
-      keyed: keyVoids(extractVoids(decoSegments, bound), stampTranslations, decorationCellFrames ?? []),
+      keyed: keyVoids(extractDecorationVoids(stampedField.decoField, bound, config), stampTranslations, decorationCellFrames ?? []),
       stampTranslations,
     }
     // Curve reads: curvesEnabled/flatten → config.figures + config.smoothTransitions.

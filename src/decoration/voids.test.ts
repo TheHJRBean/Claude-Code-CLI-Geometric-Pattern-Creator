@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { Vec2 } from '../utils/math'
-import { clipSegmentToConvex, extractVoids, voidSignature } from './voids'
+import { clipSegmentToConvex, extractVoids, pairCurvedOutlines, voidSignature } from './voids'
+import { keyVoids } from './resolve'
 import { runPIC } from '../pic/index'
 import { generateTiling } from '../tilings/archimedean'
 import { TILINGS } from '../tilings/index'
@@ -216,5 +217,40 @@ describe('Step 19.1 — convex clip', () => {
 
   it('rejects a segment fully outside', () => {
     expect(clipSegmentToConvex({ x: -50, y: -50 }, { x: -10, y: -10 }, boundBox(100))).toBeNull()
+  })
+})
+
+describe('Decoration — curve-insensitive Void identity (pairCurvedOutlines)', () => {
+  // Straight cross through a 100×100 bound = 4 congruent square Voids.
+  const straightSegs = [seg(50, 0, 50, 100), seg(0, 50, 100, 50)]
+  // "Curved" twin: the vertical strand bows into a polyline (what
+  // flattenStrandsToSegments produces), horizontal unchanged.
+  const bowedField = (dx: number) => [
+    seg(50, 0, 50 + dx, 25), seg(50 + dx, 25, 50, 50),
+    seg(50, 50, 50 - dx, 75), seg(50 - dx, 75, 50, 100),
+    seg(0, 50, 100, 50),
+  ]
+
+  it('pairs identity from the straight field with curved render outlines', () => {
+    const straight = extractVoids(straightSegs, boundBox(100))
+    const curved = extractVoids(bowedField(3), boundBox(100))
+    const paired = pairCurvedOutlines(straight, curved)
+    expect(paired.length).toBe(4)
+    // Identity = the straight field's single congruent class…
+    expect(sigSet(paired)).toEqual(sigSet(straight))
+    for (const v of paired) {
+      // …while the rendered outline is the curved one (carries a bow vertex)
+      // and the straight outline is kept for key derivation.
+      expect(v.keyPolygon).toBeDefined()
+      expect(v.polygon.length).toBeGreaterThan(4)
+    }
+  })
+
+  it('identity keys survive a curve-recipe change', () => {
+    const straight = extractVoids(straightSegs, boundBox(100))
+    const a = keyVoids(pairCurvedOutlines(straight, extractVoids(bowedField(3), boundBox(100))), [])
+    const b = keyVoids(pairCurvedOutlines(straight, extractVoids(bowedField(-5), boundBox(100))), [])
+    expect(new Set(b.map(v => v.instanceKey))).toEqual(new Set(a.map(v => v.instanceKey)))
+    expect(new Set(b.map(v => v.signature))).toEqual(new Set(a.map(v => v.signature)))
   })
 })

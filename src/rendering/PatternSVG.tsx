@@ -173,8 +173,11 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
               <>
                 <defs>
                   <g id="composition-fragment-under">
-                    {voidFills && <VoidFillLayer fills={voidFills} />}
+                    {/* Tiles under fills, matching the non-fast-path order —
+                        Void fills are part of the decorated look and must not
+                        be covered by the tile fills/outlines. */}
                     <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
+                    {voidFills && <VoidFillLayer fills={voidFills} />}
                   </g>
                   <g id="composition-fragment-strands">
                     {showLines && <StrandLayer segments={segments} config={config} strandRecords={strandRecords} orbitStamps={orbitStamps} cellFrames={cellFrames} />}
@@ -194,9 +197,10 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
                 <defs>
                   <g id="composition-fragment">
                     {/* Representative Decoration Void fills live INSIDE the
-                        fragment so <use> tiles them across the whole field. */}
-                    {voidFills && <VoidFillLayer fills={voidFills} />}
+                        fragment so <use> tiles them across the whole field.
+                        Tiles under fills, matching the non-fast-path order. */}
                     <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
+                    {voidFills && <VoidFillLayer fills={voidFills} />}
                     {showLines && <StrandLayer segments={segments} config={config} strandRecords={strandRecords} orbitStamps={orbitStamps} cellFrames={cellFrames} />}
                   </g>
                 </defs>

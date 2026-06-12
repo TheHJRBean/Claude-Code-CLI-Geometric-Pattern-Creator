@@ -1,6 +1,6 @@
 import { forwardRef } from 'react'
 import type { Polygon, Segment } from '../types/geometry'
-import type { PatternConfig } from '../types/pattern'
+import type { PatternConfig, StrandLineStyle } from '../types/pattern'
 import type { Vec2 } from '../utils/math'
 import type { ViewTransform } from '../hooks/usePanZoom'
 import type { PanZoomHandlers } from '../hooks/usePanZoom'
@@ -91,8 +91,10 @@ interface Props {
    * Decorative Frame border stroke (`FrameConfig.stroke`, Decoration
    * styling). When set it REPLACES the accent guide outline; width is in
    * world units so the border scales with the pattern and exports as drawn.
+   * `lineStyle` mirrors the Strand vocabulary (solid/double/triple/dashed/
+   * dotted).
    */
-  frameStroke?: { colour: string; width: number } | null
+  frameStroke?: { colour: string; width: number; lineStyle?: StrandLineStyle } | null
   /**
    * Step 19.2 — Decoration **Void Fill**s (resolved). Drawn behind the Strands
    * (ADR-0005 layer stack). On the periodic fast-path these are the
@@ -247,14 +249,7 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
           frameStroke ? (
             // Decorative border stroke — part of the artwork (world-unit
             // width, scales with zoom, included in exports).
-            <polygon
-              points={framePoints}
-              fill="none"
-              stroke={frameStroke.colour}
-              strokeWidth={frameStroke.width}
-              strokeLinejoin="round"
-              pointerEvents="none"
-            />
+            <FrameBorder outline={frameOutline!} points={framePoints} stroke={frameStroke} />
           ) : (
             <polygon
               points={framePoints}
@@ -295,6 +290,71 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
     </svg>
   )
 })
+
+/**
+ * Decorative Frame border with stroke styles, mirroring the Strand line
+ * styles (`StrandLayer`): dashed/dotted are dash arrays scaled to the border
+ * width; double/triple cut the stroke's centre out with a mask so the
+ * pattern and background show through between the parallel lines (an
+ * overdraw would paint over whatever the border straddles).
+ */
+function FrameBorder({ outline, points, stroke }: {
+  outline: Vec2[]
+  points: string
+  stroke: { colour: string; width: number; lineStyle?: StrandLineStyle }
+}) {
+  const w = stroke.width
+  const style = stroke.lineStyle ?? 'solid'
+  const masked = style === 'double' || style === 'triple'
+  const dashArray = style === 'dashed' ? `${w * 2.5} ${w * 1.5}`
+    : style === 'dotted' ? `0.01 ${w * 1.8}` : undefined
+  const lineCap = style === 'dashed' ? 'butt' as const : 'round' as const
+  // Centre cut width; triple keeps a thin centre line drawn separately.
+  const cutWidth = style === 'triple' ? w * 0.65 : w * 0.5
+  const centreWidth = w * 0.18
+  const maskId = 'frame-stroke-mask'
+  let maskRect = null as { x: number; y: number; width: number; height: number } | null
+  if (masked) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    for (const p of outline) {
+      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x)
+      minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y)
+    }
+    const m = w * 2
+    maskRect = { x: minX - m, y: minY - m, width: maxX - minX + 2 * m, height: maxY - minY + 2 * m }
+  }
+  return (
+    <g pointerEvents="none">
+      {maskRect && (
+        <defs>
+          <mask id={maskId} maskUnits="userSpaceOnUse" x={maskRect.x} y={maskRect.y} width={maskRect.width} height={maskRect.height}>
+            <rect x={maskRect.x} y={maskRect.y} width={maskRect.width} height={maskRect.height} fill="white" />
+            <polygon points={points} fill="none" stroke="black" strokeWidth={cutWidth} strokeLinejoin="round" />
+          </mask>
+        </defs>
+      )}
+      <polygon
+        points={points}
+        fill="none"
+        stroke={stroke.colour}
+        strokeWidth={w}
+        strokeLinejoin="round"
+        strokeLinecap={lineCap}
+        strokeDasharray={dashArray}
+        mask={maskRect ? `url(#${maskId})` : undefined}
+      />
+      {style === 'triple' && (
+        <polygon
+          points={points}
+          fill="none"
+          stroke={stroke.colour}
+          strokeWidth={centreWidth}
+          strokeLinejoin="round"
+        />
+      )}
+    </g>
+  )
+}
 
 /**
  * Editor-mode patch boundary outline, non-interactive.

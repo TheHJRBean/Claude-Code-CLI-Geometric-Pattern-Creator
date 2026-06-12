@@ -141,9 +141,70 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
 
   if (seedPaths.length === 0 && ghostPaths.length === 0) return null
 
+  // ── Strand line style ────────────────────────────────────────────────────
+  // dashed/dotted are dash arrays scaled to the Strand width; double/triple
+  // cut the stroke's centre out with a mask so Void fills / background show
+  // through between the parallel lines (an overdraw in the background colour
+  // would paint over Void fills — same trap as the hidden-strand fix).
+  const lineStyle = strand.lineStyle ?? 'solid'
+  const w = strand.width
+  const masked = lineStyle === 'double' || lineStyle === 'triple'
+  const dashArray = lineStyle === 'dashed' ? `${w * 2.5} ${w * 1.5}`
+    : lineStyle === 'dotted' ? `0.01 ${w * 1.8}` : undefined
+  const lineCap = lineStyle === 'dashed' ? 'butt' as const : 'round' as const
+  // Centre cut width; triple keeps a thin centre line drawn separately.
+  const cutWidth = lineStyle === 'triple' ? w * 0.65 : w * 0.5
+  const centreWidth = w * 0.18
+  // Visible seed paths (hidden 'none' strands excluded — their mask cuts
+  // would otherwise carve through visible strands crossing them).
+  const visibleSeed = seedPaths
+    .map((d, i) => ({ d, i }))
+    .filter(({ i }) => !(strokes && strokes[i] === 'none'))
+  // Mask region: bbox over the curved strand geometry (control points bound
+  // the Béziers) + a stroke-width margin.
+  let maskRect = null as { x: number; y: number; width: number; height: number } | null
+  if (masked && visibleSeed.length > 0) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    for (const cs of curvedStrands) {
+      for (const p of cs.points) {
+        minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x)
+        minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y)
+      }
+      for (const cps of cs.curves) {
+        if (!cps) continue
+        for (const p of cps) {
+          minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x)
+          minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y)
+        }
+      }
+    }
+    const m = w * 2
+    maskRect = { x: minX - m, y: minY - m, width: maxX - minX + 2 * m, height: maxY - minY + 2 * m }
+  }
+  const maskId = 'strand-style-mask'
+
   return (
     <g id="strand-layer">
+      {maskRect && (
+        <defs>
+          <mask id={maskId} maskUnits="userSpaceOnUse" x={maskRect.x} y={maskRect.y} width={maskRect.width} height={maskRect.height}>
+            <rect x={maskRect.x} y={maskRect.y} width={maskRect.width} height={maskRect.height} fill="white" />
+            {visibleSeed.map(({ d, i }) => (
+              <path
+                key={`cut-${i}`}
+                d={d}
+                fill="none"
+                stroke="black"
+                strokeWidth={cutWidth}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            ))}
+          </mask>
+        </defs>
+      )}
       {ghostPaths.length > 0 && (
+        // Ghosts are a Design-phase preview — always solid for legibility.
         <g opacity={0.3}>
           {ghostPaths.map((d, i) => (
             <path
@@ -158,20 +219,32 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
           ))}
         </g>
       )}
-      {seedPaths.map((d, i) => (
-        // `'none'` = the hidden-strand sentinel (Decoration "Remove strand
-        // colour"): emit nothing so Void fills meet seamlessly underneath.
-        strokes && strokes[i] === 'none' ? null : (
+      {/* `'none'` = the hidden-strand sentinel (Decoration "Remove strand
+          colour"): emit nothing so Void fills meet seamlessly underneath. */}
+      <g mask={maskRect ? `url(#${maskId})` : undefined}>
+        {visibleSeed.map(({ d, i }) => (
           <path
             key={`strand-${i}`}
             d={d}
             fill="none"
             stroke={strokes ? strokes[i] : stroke}
             strokeWidth={strand.width}
-            strokeLinecap="round"
+            strokeLinecap={lineCap}
             strokeLinejoin="round"
+            strokeDasharray={dashArray}
           />
-        )
+        ))}
+      </g>
+      {lineStyle === 'triple' && visibleSeed.map(({ d, i }) => (
+        <path
+          key={`strand-centre-${i}`}
+          d={d}
+          fill="none"
+          stroke={strokes ? strokes[i] : stroke}
+          strokeWidth={centreWidth}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       ))}
     </g>
   )

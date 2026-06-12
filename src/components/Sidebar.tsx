@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { PatternConfig } from '../types/pattern'
+import type { PatternConfig, StrandLineStyle } from '../types/pattern'
 import type { Action } from '../state/actions'
 import { TILINGS, SYMMETRY_GROUPS } from '../tilings/index'
 import { tilingRepeatLength } from '../tilings/archimedean'
@@ -780,6 +780,21 @@ export function Sidebar({
                 value={config.strand.width}
                 onChange={e => dispatch({ type: 'SET_STRAND_STYLE', payload: { width: Number(e.target.value) } })}
               />
+              <FieldLabel
+                label="Strand style"
+                tooltip="How each Strand's stroke is drawn. Double/Triple are parallel lines (the middle is cut out, so fills show through); Dashed/Dotted scale with the Strand width."
+              />
+              <select
+                value={config.strand.lineStyle ?? 'solid'}
+                onChange={e => dispatch({ type: 'SET_STRAND_STYLE', payload: { lineStyle: e.target.value as StrandLineStyle } })}
+                className="pattern-select"
+              >
+                <option value="solid">Solid</option>
+                <option value="double">Double lines</option>
+                <option value="triple">Triple lines</option>
+                <option value="dashed">Dashed</option>
+                <option value="dotted">Dotted</option>
+              </select>
               <div style={{ marginTop: 6 }}>
                 <Toggle
                   checked={config.strand.weave ?? false}

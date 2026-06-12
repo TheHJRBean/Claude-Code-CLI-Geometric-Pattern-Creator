@@ -1,4 +1,4 @@
-import type { FigureConfig, PatternConfig, StrandStyle, TilingConfig } from '../types/pattern'
+import type { FigureConfig, PatternConfig, StrandLineStyle, StrandStyle, TilingConfig } from '../types/pattern'
 import type { FrameConfig, FrameShape } from '../types/editor'
 import { migrateEditorConfig } from '../editor/migrations'
 import { MIN_FRAME_SIZE, MAX_FRAME_SIZE, DEFAULT_FRAME_SIZE } from '../editor/frame'
@@ -64,6 +64,8 @@ function coerceLegacyFigures(figures: Record<string, FigureConfig>): Record<stri
  *
  * Returns `null` if neither shape parses.
  */
+const STRAND_LINE_STYLES = new Set<StrandLineStyle>(['solid', 'double', 'triple', 'dashed', 'dotted'])
+
 function readStrandStyle(r: Record<string, unknown>): StrandStyle | null {
   const direct = r.strand as Record<string, unknown> | undefined
   if (direct && typeof direct === 'object') {
@@ -73,6 +75,9 @@ function readStrandStyle(r: Record<string, unknown>): StrandStyle | null {
       const out: StrandStyle = { width: direct.width, color: direct.color, background: direct.background }
       if (typeof direct.weave === 'boolean') out.weave = direct.weave
       if (typeof direct.weaveGap === 'number') out.weaveGap = direct.weaveGap
+      if (STRAND_LINE_STYLES.has(direct.lineStyle as StrandLineStyle)) {
+        out.lineStyle = direct.lineStyle as StrandLineStyle
+      }
       return out
     }
   }

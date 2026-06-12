@@ -212,9 +212,20 @@ export function usePattern(
   decorationPaintTarget: 'off' | 'voids' | 'strands' = 'off',
 ): PatternData {
   const decorationPaintActive = decorationPaintTarget !== 'off'
-  // Visible viewport in world coordinates
-  const vw = containerWidth / viewTransform.zoom
-  const vh = containerHeight / viewTransform.zoom
+  // Visible viewport in world coordinates — at a BUCKETED zoom (√2 steps,
+  // bucket lower bound, so the generated field always covers the exact
+  // visible rect). The rendered viewBox keeps the exact zoom; vw/vh only
+  // size the generated coverage. Pan is quantised below, but zoom wasn't:
+  // every zoom tick changed vw/vh → genX/genY/genW/genH → rebuilt the whole
+  // viewport-keyed chain (field PIC, void extraction, strand identities,
+  // weave) per tick — a zoom gesture at Decoration scale crawled at ~2fps
+  // while frames stayed short (the deferred render time-slices the work).
+  // In-bucket zooming now reuses every memo; crossing a bucket boundary
+  // rebuilds once. Cost: generated area (and extraction bound) is up to 2×
+  // the exact-zoom equivalent at the top of a bucket.
+  const zoomBucket = Math.pow(2, Math.floor(2 * Math.log2(viewTransform.zoom)) / 2)
+  const vw = containerWidth / zoomBucket
+  const vh = containerHeight / zoomBucket
 
   // Quantize the viewport position so most pan frames hit the memo cache.
   // Step = 12% of viewport size; with 75% padding the generated area

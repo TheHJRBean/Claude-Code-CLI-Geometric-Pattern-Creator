@@ -8,7 +8,7 @@ import { resetIds } from '../tilings/shared'
 import { DEFAULT_CONFIG } from '../state/defaults'
 import { buildStrands } from './buildStrands'
 import { computeWeave } from './weave'
-import { wovenPathD } from './wovenPathD'
+import { weaveCapWedgeD, wovenPath, wovenPathD } from './wovenPathD'
 
 beforeEach(() => resetIds())
 
@@ -180,5 +180,64 @@ describe('wovenPathD', () => {
       [],
     )
     expect(d).toBe('M0 0 L1 0 L2 1')
+  })
+
+  it('reports a cap per gap boundary with outward tangents', () => {
+    const cut = { s: 0.5, half: 1, point: { x: 2, y: 0 }, over: { x: 0, y: 1 }, factor: 1 }
+    const { caps } = wovenPath(
+      { points: [{ x: 0, y: 0 }, { x: 4, y: 0 }], curves: [null] },
+      [cut],
+    )
+    expect(caps).toHaveLength(2)
+    // End of the first kept piece: stroke stops at x=1, gap lies ahead (+x).
+    expect(caps[0].point.x).toBeCloseTo(1)
+    expect(caps[0].dir.x).toBeCloseTo(1)
+    // Start of the second kept piece: stroke resumes at x=3, gap behind (−x).
+    expect(caps[1].point.x).toBeCloseTo(3)
+    expect(caps[1].dir.x).toBeCloseTo(-1)
+    expect(caps[0].cut).toBe(cut)
+    expect(caps[1].cut).toBe(cut)
+  })
+})
+
+describe('weaveCapWedgeD', () => {
+  const w = 2
+  const gap = 1 // clearance face at q = w/2 + gap = 2 from the over centreline
+
+  it('builds a square-faced wedge at a perpendicular crossing', () => {
+    const cut = { s: 0.5, half: (w + gap) * 1, point: { x: 0, y: 0 }, over: { x: 0, y: 1 }, factor: 1 }
+    const d = weaveCapWedgeD(
+      [{ point: { x: -3, y: 0 }, dir: { x: 1, y: 0 }, cut }],
+      w, gap,
+    )
+    const nums = d.match(/-?[\d.]+/g)!.map(Number)
+    // Quad: back corners at x=-3.5 (stroke overlap), face corners at x=-2.
+    expect(nums[0]).toBeCloseTo(-3.5)
+    expect(nums[1]).toBeCloseTo(1)
+    expect(nums[2]).toBeCloseTo(-3.5)
+    expect(nums[3]).toBeCloseTo(-1)
+    expect(nums[4]).toBeCloseTo(-2)
+    expect(nums[5]).toBeCloseTo(-1)
+    expect(nums[6]).toBeCloseTo(-2)
+    expect(nums[7]).toBeCloseTo(1)
+  })
+
+  it('mitres the face parallel to the over thread at a 45° crossing', () => {
+    const s2 = Math.SQRT1_2
+    const over = { x: s2, y: s2 }
+    const factor = Math.SQRT2 // 1/sin(45°)
+    const cut = { s: 0.5, half: (w + gap) * factor, point: { x: 0, y: 0 }, over, factor }
+    const E = { x: -(w + gap) * factor, y: 0 }
+    const d = weaveCapWedgeD([{ point: E, dir: { x: 1, y: 0 }, cut }], w, gap)
+    const nums = d.match(/-?[\d.]+/g)!.map(Number)
+    const F = { x: -2 * Math.SQRT2, y: 0 } // q·factor along the centreline
+    // Outer corners (last two quad points) must lie on the face line
+    // through F parallel to `over` — the angled cut.
+    for (const [x, y] of [[nums[4], nums[5]], [nums[6], nums[7]]]) {
+      expect((x - F.x) * over.y - (y - F.y) * over.x).toBeCloseTo(0)
+    }
+    // And the face is genuinely slanted: the two corners extend by
+    // different amounts along the under thread.
+    expect(Math.abs(nums[4] - nums[6])).toBeGreaterThan(1)
   })
 })

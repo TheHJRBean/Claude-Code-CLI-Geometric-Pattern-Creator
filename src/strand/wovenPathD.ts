@@ -1,4 +1,4 @@
-import { dist, evalCubic, lerp, quarticToCubics, splitCubic, type Vec2 } from '../utils/math'
+import { add, clamp, cross, dist, evalCubic, len, lerp, perp, quarticToCubics, scale, splitCubic, sub, type Vec2 } from '../utils/math'
 import type { CurvedStrand } from './computeCurves'
 
 /**
@@ -103,6 +103,51 @@ export interface PathCut {
   s: number
   /** Half-gap arc length trimmed on each side of the cut position. */
   half: number
+  /** World point of the crossing (needed for angled cap wedges). */
+  point?: Vec2
+  /** Unit direction of the over thread (needed for angled cap wedges). */
+  over?: Vec2
+  /** Crossing-angle widening factor from `UnderCut` (angled cap wedges). */
+  factor?: number
+}
+
+export interface GapCap {
+  /** Stroke end point on the strand centreline (post-split, exact). */
+  point: Vec2
+  /** Unit tangent at the end, pointing out of the stroke into the gap. */
+  dir: Vec2
+  /** The cut that owns this gap boundary. */
+  cut: PathCut
+}
+
+/** Unit tangent of a primitive at its start. */
+function startTangent(start: Vec2, prim: Prim): Vec2 {
+  if (prim.kind === 'L') return safeUnit(sub(prim.end, start))
+  for (const p of [prim.cp1, prim.cp2, prim.end]) {
+    const d = sub(p, start)
+    if (len(d) > 1e-9) return safeUnit(d)
+  }
+  return { x: 1, y: 0 }
+}
+
+/** Unit tangent of a primitive at its end. */
+function endTangent(start: Vec2, prim: Prim): Vec2 {
+  if (prim.kind === 'L') return safeUnit(sub(prim.end, start))
+  for (const p of [prim.cp2, prim.cp1, start]) {
+    const d = sub(prim.end, p)
+    if (len(d) > 1e-9) return safeUnit(d)
+  }
+  return { x: 1, y: 0 }
+}
+
+function safeUnit(v: Vec2): Vec2 {
+  const l = len(v)
+  return l > 1e-12 ? scale(v, 1 / l) : { x: 1, y: 0 }
+}
+
+/** Back-compatible wrapper returning just the path `d`. */
+export function wovenPathD(strand: CurvedStrand, cuts: PathCut[]): string {
+  return wovenPath(strand, cuts).d
 }
 
 /**
@@ -113,11 +158,15 @@ export interface PathCut {
  * at chain points, span edge joins, and overlap each other (intervals are
  * merged). Closed Strands wrap the interval around the seam. What remains is
  * emitted as M-prefixed sub-paths.
+ *
+ * Alongside `d`, every gap boundary is reported as a `GapCap` (exact split
+ * point + outward tangent + owning cut) so the renderer can dress the stroke
+ * ends — see `weaveCapWedgeD`.
  */
-export function wovenPathD(strand: CurvedStrand, cuts: PathCut[]): string {
+export function wovenPath(strand: CurvedStrand, cuts: PathCut[]): { d: string; caps: GapCap[] } {
   const { points, curves } = strand
   const n = points.length
-  if (n < 2) return ''
+  if (n < 2) return { d: '', caps: [] }
 
   // Measure the full prim chain (cum samples kept for the emission pass).
   const allPrims: Prim[] = []
@@ -141,7 +190,7 @@ export function wovenPathD(strand: CurvedStrand, cuts: PathCut[]): string {
       start = prim.end
     }
   }
-  if (total < 1e-9) return ''
+  if (total < 1e-9) return { d: '', caps: [] }
 
   // Map a cut position s = edgeIdx + t to its global arc distance. Multi-prim
   // edges (quartics) split their parameter range evenly across prims.
@@ -162,42 +211,54 @@ export function wovenPathD(strand: CurvedStrand, cuts: PathCut[]): string {
   }
 
   const closed = samePt(points[0], points[n - 1])
-  const intervals: [number, number][] = []
+  const intervals: { a: number; b: number; cut: PathCut }[] = []
   for (const c of cuts) {
     if (c.half <= 0) continue
     const d = distAt(c.s)
     const a = d - c.half
     const b = d + c.half
-    if (b - a >= total) return '' // strand swallowed whole
+    if (b - a >= total) return { d: '', caps: [] } // strand swallowed whole
     if (closed && a < 0) {
-      intervals.push([a + total, total], [0, b])
+      intervals.push({ a: a + total, b: total, cut: c }, { a: 0, b, cut: c })
     } else if (closed && b > total) {
-      intervals.push([a, total], [0, b - total])
+      intervals.push({ a, b: total, cut: c }, { a: 0, b: b - total, cut: c })
     } else {
-      intervals.push([Math.max(0, a), Math.min(total, b)])
+      intervals.push({ a: Math.max(0, a), b: Math.min(total, b), cut: c })
     }
   }
 
-  intervals.sort((p, q) => p[0] - q[0])
-  const merged: [number, number][] = []
+  // Merge overlapping gaps, remembering which cut forms each boundary so the
+  // caps can be dressed against the right over thread.
+  intervals.sort((p, q) => p.a - q.a)
+  const merged: { a: number; b: number; aCut: PathCut; bCut: PathCut }[] = []
   for (const iv of intervals) {
     const last = merged[merged.length - 1]
-    if (last && iv[0] <= last[1] + 1e-9) last[1] = Math.max(last[1], iv[1])
-    else merged.push([iv[0], iv[1]])
+    if (last && iv.a <= last.b + 1e-9) {
+      if (iv.b > last.b) {
+        last.b = iv.b
+        last.bCut = iv.cut
+      }
+    } else {
+      merged.push({ a: iv.a, b: iv.b, aCut: iv.cut, bCut: iv.cut })
+    }
   }
 
-  const keep: [number, number][] = []
+  interface Keep { a: number; b: number; startCut: PathCut | null; endCut: PathCut | null }
+  const keep: Keep[] = []
   let pos = 0
-  for (const [a, b] of merged) {
-    if (a > pos + 1e-6) keep.push([pos, a])
-    pos = Math.max(pos, b)
+  let posCut: PathCut | null = null
+  for (const g of merged) {
+    if (g.a > pos + 1e-6) keep.push({ a: pos, b: g.a, startCut: posCut, endCut: g.aCut })
+    pos = Math.max(pos, g.b)
+    posCut = g.bCut
   }
-  if (pos < total - 1e-6) keep.push([pos, total])
+  if (pos < total - 1e-6) keep.push({ a: pos, b: total, startCut: posCut, endCut: null })
 
   // Single pass over the prim chain: clip each prim to the keep intervals it
   // overlaps (parameter composition keeps De Casteljau splits exact), opening
   // a new sub-path whenever a keep interval starts.
   const parts: string[] = []
+  const caps: GapCap[] = []
   let ki = 0
   let subpathOpen = false
   for (let pi = 0; pi < allPrims.length && ki < keep.length; pi++) {
@@ -206,9 +267,9 @@ export function wovenPathD(strand: CurvedStrand, cuts: PathCut[]): string {
     const cum = primCums[pi]
     const d0 = primStartDist[pi]
     const d1 = d0 + cum[cum.length - 1]
-    while (ki < keep.length && keep[ki][0] < d1 - 1e-9) {
-      const a = Math.max(keep[ki][0], d0)
-      const b = Math.min(keep[ki][1], d1)
+    while (ki < keep.length && keep[ki].a < d1 - 1e-9) {
+      const a = Math.max(keep[ki].a, d0)
+      const b = Math.min(keep[ki].b, d1)
       if (b - a > 1e-9) {
         let pieceStart = start
         let piecePrim = prim
@@ -223,11 +284,19 @@ export function wovenPathD(strand: CurvedStrand, cuts: PathCut[]): string {
           const sp = splitPrim(pieceStart, piecePrim, ta > 1e-9 ? (tb - ta) / (1 - ta) : tb)
           piecePrim = sp.left
         }
-        if (!subpathOpen) parts.push(`M${pieceStart.x} ${pieceStart.y}`)
+        if (!subpathOpen) {
+          parts.push(`M${pieceStart.x} ${pieceStart.y}`)
+          const sc = keep[ki].startCut
+          if (sc) caps.push({ point: pieceStart, dir: scale(startTangent(pieceStart, piecePrim), -1), cut: sc })
+        }
         parts.push(primCommand(piecePrim))
         subpathOpen = true
+        const ec = keep[ki].endCut
+        if (ec && b >= keep[ki].b - 1e-9) {
+          caps.push({ point: piecePrim.end, dir: endTangent(pieceStart, piecePrim), cut: ec })
+        }
       }
-      if (keep[ki][1] <= d1 + 1e-9) {
+      if (keep[ki].b <= d1 + 1e-9) {
         ki++
         subpathOpen = false
       } else {
@@ -236,5 +305,56 @@ export function wovenPathD(strand: CurvedStrand, cuts: PathCut[]): string {
     }
   }
 
+  return { d: parts.join(' '), caps }
+}
+
+/**
+ * Angled-cut cap wedges — the smooth-transition dressing for woven gaps.
+ *
+ * A gap end rendered with a plain (round/butt) line cap meets the over
+ * thread perpendicular to the **under** thread; at shallow crossing angles
+ * its two corners sit unevenly — one hugs the over thread, the other drifts
+ * far from it. Each wedge is a filled quad extending the stroke end so the
+ * visible cut face runs **parallel to the over thread** at a uniform
+ * clearance of `width/2 + gap` from its centreline (i.e. `gap` px past its
+ * stroke edge) — a mitred cut, consistent at every crossing angle.
+ *
+ * Requires cuts carrying `point` / `over` / `factor`, and the cut half-length
+ * set to `(width + gap) * factor` — that places the stroke end's round cap
+ * tangent to (or just behind) the target face, with the wedge filling the
+ * remainder. The straight-line crossing frame is used for the face position
+ * (same approximation as the cut positions themselves); the wedge's inner
+ * edge anchors on the exact post-split stroke end so it always meets the
+ * stroke seamlessly, even on curved Strands.
+ */
+export function weaveCapWedgeD(caps: GapCap[], width: number, gap: number): string {
+  const q = width / 2 + gap
+  const parts: string[] = []
+  for (const cap of caps) {
+    const { point: crossing, over, factor } = cap.cut
+    if (!crossing || !over || !factor) continue
+    const E = cap.point
+    const toE = sub(E, crossing)
+    const dPE = len(toE)
+    if (dPE < 1e-9) continue
+    // Face: line through F (on the under centreline, q·factor from the
+    // crossing) parallel to the over thread.
+    const F = add(crossing, scale(toE, (q * factor) / dPE))
+    const t = cap.dir
+    const denom = cross(t, over)
+    if (Math.abs(denom) < 1e-9) continue // threads parallel — no face to mitre against
+    const half = scale(perp(t), width / 2)
+    const back = scale(t, -width * 0.25) // overlap the stroke so no hairline seam
+    const sMax = width * (factor + 1)
+    const project = (corner: Vec2): Vec2 =>
+      add(corner, scale(t, clamp(cross(sub(F, corner), over) / denom, 0, sMax)))
+    const c1 = add(E, half)
+    const c2 = sub(E, half)
+    const o1 = project(c1)
+    const o2 = project(c2)
+    const b1 = add(c1, back)
+    const b2 = add(c2, back)
+    parts.push(`M${b1.x} ${b1.y} L${b2.x} ${b2.y} L${o2.x} ${o2.y} L${o1.x} ${o1.y} Z`)
+  }
   return parts.join(' ')
 }

@@ -44,6 +44,10 @@ export interface UnderCut {
    * crossings need a longer cut for the over thread to read as covering.
    */
   factor: number
+  /** World point of the crossing (straight-line strand geometry). */
+  point: Vec2
+  /** Unit direction of the over thread at the crossing. */
+  over: Vec2
 }
 
 export interface StrandWeave {
@@ -262,7 +266,14 @@ export function computeWeave(strands: StrandData[]): StrandWeave[] {
       if (v.over !== false) continue
       const other = v.group.find(w => w !== v)!
       const sin = Math.abs(cross(v.dir, other.dir))
-      weaves[v.strand].under.push({ s: v.s, factor: 1 / clamp(sin, MIN_SIN, 1) })
+      const pts = strands[v.strand].points
+      const i = Math.max(0, Math.min(Math.floor(v.s), pts.length - 2))
+      weaves[v.strand].under.push({
+        s: v.s,
+        factor: 1 / clamp(sin, MIN_SIN, 1),
+        point: lerp(pts[i], pts[i + 1], v.s - i),
+        over: other.dir,
+      })
     }
   }
 

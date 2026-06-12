@@ -7,7 +7,7 @@ import { buildStrands } from '../strand/buildStrands'
 import { computeCurves, smoothCurves } from '../strand/computeCurves'
 import { curvedPathD, curvedPathDSplit } from '../strand/curvedPathD'
 import { computeWeave } from '../strand/weave'
-import { wovenPathD } from '../strand/wovenPathD'
+import { weaveCapWedgeD, wovenPath, wovenPathD } from '../strand/wovenPathD'
 import { buildColourIndex, orbitOffset, resolveColour } from '../decoration/scopes'
 import { cellOrbitKey, reduceToOrbit, type CellFrame } from '../decoration/cellScope'
 import { strandIdentity } from '../decoration/strandGroups'
@@ -109,22 +109,46 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
   // boundary crossing produces a clean colour break — strands that bridge a
   // seed and a ghost get rendered partially full-colour (seed side) and
   // partially faded (ghost side). Otherwise emit one path per Strand.
-  const { seedPaths, ghostPaths } = useMemo(() => {
+  const { seedPaths, ghostPaths, capPaths } = useMemo(() => {
+    const noCaps = null as (string | null)[] | null
     if (!ghostPolygonIds || ghostPolygonIds.size === 0) {
       if (weaves) {
-        // Half-cut per under crossing: cover the over thread (width/2 scaled
-        // by the crossing angle), absorb this thread's round line cap
-        // (width/2), then the visible gap.
         const w = strand.width
         const gap = strand.weaveGap ?? DEFAULT_WEAVE_GAP
+        // Solid strands get angled-cut cap wedges: the cut is deepened to
+        // (w + gap)·factor (round cap tangent-or-behind the mitre face) and
+        // weaveCapWedgeD fills the stroke end back up to a face parallel to
+        // the over thread. Other line styles keep the plain perpendicular
+        // cut — wedges are solid fills and would fight dash gaps / the
+        // double/triple centre mask.
+        const wedges = (strand.lineStyle ?? 'solid') === 'solid'
+        const caps: (string | null)[] = []
         const paths = curvedStrands.map((cs, i) => {
           const under = weaves[i].under
-          if (under.length === 0) return curvedPathD(cs)
-          return wovenPathD(cs, under.map(u => ({ s: u.s, half: (w / 2) * u.factor + w / 2 + gap })))
+          if (under.length === 0) {
+            caps.push(null)
+            return curvedPathD(cs)
+          }
+          if (!wedges) {
+            // Half-cut per under crossing: cover the over thread (width/2
+            // scaled by the crossing angle), absorb this thread's round line
+            // cap (width/2), then the visible gap.
+            caps.push(null)
+            return wovenPathD(cs, under.map(u => ({ s: u.s, half: (w / 2) * u.factor + w / 2 + gap })))
+          }
+          const r = wovenPath(cs, under.map(u => ({
+            s: u.s,
+            half: (w + gap) * u.factor,
+            point: u.point,
+            over: u.over,
+            factor: u.factor,
+          })))
+          caps.push(weaveCapWedgeD(r.caps, w, gap) || null)
+          return r.d
         })
-        return { seedPaths: paths, ghostPaths: [] as string[] }
+        return { seedPaths: paths, ghostPaths: [] as string[], capPaths: caps }
       }
-      return { seedPaths: curvedStrands.map(cs => curvedPathD(cs)), ghostPaths: [] as string[] }
+      return { seedPaths: curvedStrands.map(cs => curvedPathD(cs)), ghostPaths: [] as string[], capPaths: noCaps }
     }
     const seeds: string[] = []
     const ghosts: string[] = []
@@ -136,8 +160,8 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
       if (seedD) seeds.push(seedD)
       if (ghostD) ghosts.push(ghostD)
     }
-    return { seedPaths: seeds, ghostPaths: ghosts }
-  }, [curvedStrands, strandData, segments, ghostPolygonIds, weaves, strand.width, strand.weaveGap])
+    return { seedPaths: seeds, ghostPaths: ghosts, capPaths: noCaps }
+  }, [curvedStrands, strandData, segments, ghostPolygonIds, weaves, strand.width, strand.weaveGap, strand.lineStyle])
 
   if (seedPaths.length === 0 && ghostPaths.length === 0) return null
 
@@ -234,6 +258,17 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
             strokeDasharray={dashArray}
           />
         ))}
+        {/* Angled-cut wedges dressing the woven gap ends (solid style only). */}
+        {capPaths && visibleSeed.map(({ i }) =>
+          capPaths[i] ? (
+            <path
+              key={`strand-cap-${i}`}
+              d={capPaths[i]!}
+              fill={strokes ? strokes[i] : stroke}
+              stroke="none"
+            />
+          ) : null,
+        )}
       </g>
       {lineStyle === 'triple' && visibleSeed.map(({ d, i }) => (
         <path

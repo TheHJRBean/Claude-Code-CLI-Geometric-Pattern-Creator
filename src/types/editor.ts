@@ -198,6 +198,20 @@ export type FrameShape = 'square' | 'pentagon' | 'hexagon' | 'octagon'
 export type FrameBoundaryTreatment = 'complete' | 'clip'
 
 /**
+ * Decorative border stroke drawn along the Frame outline (set from the
+ * Decoration panel — this is the "border styling defers to Decoration" slot
+ * ADR-0004 reserved). When enabled it replaces the editor's accent guide
+ * line. `width` is in world units so the border scales with the pattern.
+ */
+export interface FrameStroke {
+  enabled: boolean
+  /** CSS colour of the border stroke. */
+  colour: string
+  /** Stroke width in world units (matches Strand width semantics). */
+  width: number
+}
+
+/**
  * Step 17 Framing — the **Frame** wrapped around the Composition in the
  * Framing Phase. Lives on `PatternConfig.editor` (Builder-only). Optional;
  * absent ⇒ no Frame. Structural only (ADR-0004): geometry lives here, border
@@ -221,6 +235,8 @@ export interface FrameConfig {
   /** Frame-scoped boundary-completion Tiles, in world space. NOT Cell Tiles —
    * they don't repeat under the **Lattice**. Populated by completion-to-frame. */
   completedTiles?: EditorTile[]
+  /** Decorative border stroke along the outline (Decoration styling). */
+  stroke?: FrameStroke
   // ── n-ring frames ──
   /** Number of Patch-stamp shells (≥ 1). */
   rings?: number

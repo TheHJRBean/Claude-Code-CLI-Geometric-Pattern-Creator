@@ -150,6 +150,13 @@ function migrateFrame(raw: unknown): FrameConfig | undefined {
     }
     if (tiles.length) out.completedTiles = tiles
   }
+  if (typeof r.stroke === 'object' && r.stroke !== null) {
+    const s = r.stroke as Record<string, unknown>
+    if (typeof s.enabled === 'boolean' && typeof s.colour === 'string' && s.colour.length > 0
+      && typeof s.width === 'number' && s.width > 0) {
+      out.stroke = { enabled: s.enabled, colour: s.colour, width: s.width }
+    }
+  }
   return out
 }
 

@@ -62,6 +62,17 @@ export interface FigureConfig {
  * (`project_decoration_stage_idea.md`). `background` keeps the canvas
  * background colour that the legacy `lacing.gapColor` field was carrying.
  */
+/**
+ * How each Strand's stroke is drawn:
+ * - `'solid'`  — one continuous stroke (default).
+ * - `'double'` — two parallel lines (the stroke's centre is cut out with a
+ *                mask, so Void fills / background show through the middle).
+ * - `'triple'` — double plus a thin centre line.
+ * - `'dashed'` — dash pattern scaled to the Strand width.
+ * - `'dotted'` — round dots scaled to the Strand width.
+ */
+export type StrandLineStyle = 'solid' | 'double' | 'triple' | 'dashed' | 'dotted'
+
 export interface StrandStyle {
   /** Stroke width of each Strand (px). */
   width: number
@@ -77,6 +88,8 @@ export interface StrandStyle {
   /** Extra breathing space (px) on each side of the over thread at an
    * under-crossing gap. Default 2. */
   weaveGap?: number
+  /** Stroke rendering variant. Default `'solid'`. */
+  lineStyle?: StrandLineStyle
 }
 
 /**

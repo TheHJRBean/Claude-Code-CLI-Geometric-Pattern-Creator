@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Segment } from '../types/geometry'
-import type { PatternConfig } from '../types/pattern'
+import type { PatternConfig, StrandLineStyle } from '../types/pattern'
 import type { Action } from '../state/actions'
 import { TILINGS } from '../tilings/index'
 import type { TileTypeInfo } from '../types/tiling'
@@ -693,6 +693,23 @@ export function TessellationLabMode({
                 the Design-phase ghost split skips weaving regardless. */}
             {showStrands && (
               <>
+                <div style={{ marginLeft: 26 }}>
+                  <FieldLabel
+                    label="Strand style"
+                    tooltip="How each Strand's stroke is drawn. Double/Triple are parallel lines (the middle is cut out, so Void fills show through); Dashed/Dotted scale with the Strand width."
+                  />
+                  <select
+                    value={config.strand.lineStyle ?? 'solid'}
+                    onChange={e => dispatch({ type: 'SET_STRAND_STYLE', payload: { lineStyle: e.target.value as StrandLineStyle } })}
+                    className="pattern-select"
+                  >
+                    <option value="solid">Solid</option>
+                    <option value="double">Double lines</option>
+                    <option value="triple">Triple lines</option>
+                    <option value="dashed">Dashed</option>
+                    <option value="dotted">Dotted</option>
+                  </select>
+                </div>
                 <label style={{
                   display: 'flex',
                   alignItems: 'center',

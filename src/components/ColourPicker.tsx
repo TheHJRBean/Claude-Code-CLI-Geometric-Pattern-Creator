@@ -115,6 +115,15 @@ function isHexColour(c: string): boolean {
   return /^#[0-9a-fA-F]{6}$/.test(c)
 }
 
+/* ── Eye dropper (native EyeDropper API, Chromium-only) ── */
+
+interface EyeDropperAPI {
+  open: () => Promise<{ sRGBHex: string }>
+}
+
+// `typeof window` guard: this module is evaluated under SSR/vitest too.
+const eyeDropperSupported = typeof window !== 'undefined' && 'EyeDropper' in window
+
 /* ── Component ────────────────────────────────────────── */
 
 interface Props {
@@ -242,10 +251,29 @@ export function ColourPicker({ value, onChange }: Props) {
     else onChange(c)
   }
 
+  const [pickingFromScreen, setPickingFromScreen] = useState(false)
+  const pickFromScreen = async () => {
+    const Ctor = (window as unknown as { EyeDropper?: new () => EyeDropperAPI }).EyeDropper
+    if (!Ctor || pickingFromScreen) return
+    setPickingFromScreen(true)
+    try {
+      const result = await new Ctor().open()
+      // Spec says 6-digit sRGBHex; tolerate an 8-digit (alpha) variant.
+      const hex = result.sRGBHex.length === 9 ? result.sRGBHex.slice(0, 7) : result.sRGBHex
+      if (isHexColour(hex)) onChange(hex.toLowerCase())
+    } catch {
+      // User cancelled (Esc) — nothing to do.
+    } finally {
+      setPickingFromScreen(false)
+    }
+  }
+
   return (
     <div>
-      {/* Current colour: native picker + hex entry */}
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+      {/* Current colour: native picker + eye dropper + hex entry.
+          (A div, not a label — a label would forward button clicks to the
+          colour input and pop its dialog.) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <span style={{ minWidth: 70 }}>Paint colour</span>
         <input
           type="color"
@@ -253,6 +281,32 @@ export function ColourPicker({ value, onChange }: Props) {
           onChange={e => onChange(e.target.value)}
           style={{ width: 36, height: 24, padding: 0, border: '1px solid var(--border-subtle)', background: 'transparent', cursor: 'pointer' }}
         />
+        {eyeDropperSupported && (
+          <button
+            onClick={pickFromScreen}
+            disabled={pickingFromScreen}
+            title="Pick a colour from the screen"
+            style={{
+              width: 26,
+              height: 24,
+              padding: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              border: `1px solid ${pickingFromScreen ? 'var(--accent)' : 'var(--border-subtle)'}`,
+              background: 'transparent',
+              color: pickingFromScreen ? 'var(--accent)' : 'var(--text-muted)',
+              cursor: pickingFromScreen ? 'wait' : 'pointer',
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="m2 22 1-1h3l9-9" />
+              <path d="M3 21v-3l9-9" />
+              <path d="m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z" />
+            </svg>
+          </button>
+        )}
         <input
           type="text"
           value={hexDraft}
@@ -274,7 +328,7 @@ export function ColourPicker({ value, onChange }: Props) {
             outline: 'none',
           }}
         />
-      </label>
+      </div>
 
       {/* Theme selector + management */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>

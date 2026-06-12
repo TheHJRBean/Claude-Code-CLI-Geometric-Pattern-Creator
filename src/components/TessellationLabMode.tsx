@@ -1424,6 +1424,21 @@ function EditorDesignControls({
                         value={stroke.width}
                         onChange={e => setStroke({ ...stroke, width: Number(e.target.value) })}
                       />
+                      <FieldLabel
+                        label="Border style"
+                        tooltip="How the border stroke is drawn — same styles as Strands. Double/Triple are parallel lines (the middle is cut out, so the pattern shows through); Dashed/Dotted scale with the border width."
+                      />
+                      <select
+                        value={stroke.lineStyle ?? 'solid'}
+                        onChange={e => setStroke({ ...stroke, lineStyle: e.target.value as StrandLineStyle })}
+                        className="pattern-select"
+                      >
+                        <option value="solid">Solid</option>
+                        <option value="double">Double lines</option>
+                        <option value="triple">Triple lines</option>
+                        <option value="dashed">Dashed</option>
+                        <option value="dotted">Dotted</option>
+                      </select>
                       <button
                         onClick={() => setStroke({ ...stroke, colour: decorationColor })}
                         style={{ ...decorationButtonStyle, marginTop: 6 }}

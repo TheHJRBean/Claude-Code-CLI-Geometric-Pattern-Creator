@@ -1,4 +1,5 @@
 import type { Vec2 } from '../utils/math'
+import type { StrandLineStyle } from './pattern'
 
 /**
  * Step 17 — user-editable tessellation editor data model (v3).
@@ -209,6 +210,10 @@ export interface FrameStroke {
   colour: string
   /** Stroke width in world units (matches Strand width semantics). */
   width: number
+  /** Stroke style, same vocabulary as Strands (`StrandStyle.lineStyle`).
+   * Double/Triple cut the centre out with a mask so the pattern shows
+   * through between the parallel lines. Default solid. */
+  lineStyle?: StrandLineStyle
 }
 
 /**

@@ -19,7 +19,7 @@ import { frameOutlinePolygon } from '../editor/frame'
 import { pointInPolygon, centroid } from '../utils/math'
 import { runPIC } from '../pic/index'
 import { recordPerf, periodicityEnabled } from '../utils/perf'
-import { resolveDecoration, type PaintVoid, type StrandHit, type VoidFill } from '../decoration/resolve'
+import { colourVoids, keyVoids, type PaintVoid, type StrandHit, type VoidFill } from '../decoration/resolve'
 import { extractVoids, type VoidRegion } from '../decoration/voids'
 import { buildColourIndex, orbitOffset, resolveColour, scopedKey } from '../decoration/scopes'
 import { cellFramesFromOutlines, cellOrbitKey, reduceToOrbit, type CellFrame } from '../decoration/cellScope'
@@ -166,21 +166,6 @@ function periodicFastPathEligible(
     && !showBoundaryLattice
     && !Object.values(config.figures).some(f => f?.vertexLinesEnabled)
     && stamps.every(s => s.rotation === 0)
-}
-
-/** Resolve Decoration render data (scoped Void fills + keyed Voids for Paint
- * hit-testing) from a field of segments + a convex bound. `stampTranslations`
- * reduce centroids to their Lattice orbit for `patch`-scope keys. */
-function buildDecorationData(
-  fieldSegments: Segment[],
-  bound: Vec2[],
-  config: PatternConfig,
-  stampTranslations: Vec2[],
-  cellFrames: CellFrame[],
-): { voidFills: VoidFill[]; decorationVoids: PaintVoid[] } {
-  const decoSegments = curvesEnabled(config) ? flattenStrandsToSegments(fieldSegments, config) : fieldSegments
-  const { fills, voids } = resolveDecoration(decoSegments, bound, config.editor?.decoration, stampTranslations, cellFrames)
-  return { voidFills: fills, decorationVoids: voids }
 }
 
 export function usePattern(
@@ -429,6 +414,38 @@ export function usePattern(
     return { ...ids, patchKeys, cellKeys }
   }, [editorBase, decorationActive, decorationPaintTarget, decorationOrbitRing, decorationCellFrames])
 
+  // With a Frame filtering the field, everything the stamped field feeds is
+  // clipped to the world-fixed Frame outline (Composition + Decoration both
+  // clip to it), so the field generates over the FRAME's region instead of
+  // the moving viewport: pan/zoom then reuses the entire chain (PIC ×2,
+  // extraction, strand identities, weave downstream) instead of rebuilding it
+  // every 12% pan step / zoom bucket. Margin: the Decoration extraction bound
+  // is the frame bbox + 2 units (see nonFastVoidData), +1 unit so bound-edge
+  // Voids close over real field — matching the old 0.75·vw coverage intent.
+  const frameFieldBox = useMemo(() => {
+    if (!editorStrandMode || !editorFrame || !ed?.frame || !editorBase) return null
+    const outline = frameOutlinePolygon(ed.frame)
+    if (!outline || outline.length < 3) return null
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    for (const p of outline) {
+      if (p.x < minX) minX = p.x
+      if (p.x > maxX) maxX = p.x
+      if (p.y < minY) minY = p.y
+      if (p.y > maxY) maxY = p.y
+    }
+    const margin = 3 * Math.max(editorBase.patch.edgeLength, editorBase.cell.boundarySize)
+    return {
+      x: minX - margin,
+      y: minY - margin,
+      width: (maxX - minX) + 2 * margin,
+      height: (maxY - minY) + 2 * margin,
+    }
+  }, [editorStrandMode, editorFrame, ed?.frame, editorBase])
+  const fbX = frameFieldBox ? frameFieldBox.x : genX
+  const fbY = frameFieldBox ? frameFieldBox.y : genY
+  const fbW = frameFieldBox ? frameFieldBox.width : genW
+  const fbH = frameFieldBox ? frameFieldBox.height : genH
+
   // Non-fast-path Composition/Decoration stamped field — geometry+viewport
   // keyed, NOT decoration-keyed (mirrors the editorBase 19.4 split). Before
   // this memo the field rebuilt inside the main memo on every paint click
@@ -447,8 +464,8 @@ export function usePattern(
     const patch = ed
     const { multiCell, cell, basePolys } = editorBase
     const stamps = multiCell
-      ? compositionLatticeStamps(patch, { x: genX, y: genY, width: genW, height: genH })
-      : editorLatticeStamps(cell, { x: genX, y: genY, width: genW, height: genH })
+      ? compositionLatticeStamps(patch, { x: fbX, y: fbY, width: fbW, height: fbH })
+      : editorLatticeStamps(cell, { x: fbX, y: fbY, width: fbW, height: fbH })
     if (periodicFastPathEligible(config, editorFrame, showBoundaryLattice, stamps)) {
       return { fastPath: true as const, stamps }
     }
@@ -531,7 +548,95 @@ export function usePattern(
     }
     return { fastPath: false as const, stamps, polygons, picPolygons, segments, boundaryOutlines, decoField }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editorBase, ed?.frame, editorFrame, showBoundaryLattice, editorStrandMode, decorationActive, genX, genY, genW, genH])
+  }, [editorBase, ed?.frame, editorFrame, showBoundaryLattice, editorStrandMode, decorationActive, fbX, fbY, fbW, fbH])
+
+  // Non-fast-path Decoration extraction + Void keying — FIELD-keyed, never
+  // decoration- or Paint-target-keyed (the fast path's `decorationReps` twin):
+  // switching Paint targets and painting reuse it; only geometry / frame /
+  // curve-recipe / (frameless) viewport changes re-extract. With a frame the
+  // bound is pan-independent (frame bbox + margin) and the field above is
+  // frame-keyed, so pan/zoom never re-extracts at all.
+  const nonFastBoundSig = decorationActive && stampedField && !stampedField.fastPath
+    ? (frameFieldBox ? 'frame' : `${qx},${qy},${vw},${vh}`)
+    : null
+  const nonFastVoidData = useMemo(() => {
+    if (!nonFastBoundSig || !stampedField || stampedField.fastPath || !ed || !editorBase) return null
+    let bound: Vec2[]
+    if (frameFieldBox && ed.frame) {
+      // Frame bbox + symmetric margin — NOT the frame outline (a clipping
+      // bound changes a frame-touching Void's congruent signature) and NOT
+      // the viewport rect (its quantisation is asymmetric around the frame).
+      const outline = frameOutlinePolygon(ed.frame)!
+      let fMinX = Infinity, fMinY = Infinity, fMaxX = -Infinity, fMaxY = -Infinity
+      for (const p of outline) {
+        if (p.x < fMinX) fMinX = p.x
+        if (p.x > fMaxX) fMaxX = p.x
+        if (p.y < fMinY) fMinY = p.y
+        if (p.y > fMaxY) fMaxY = p.y
+      }
+      const margin = 2 * Math.max(editorBase.patch.edgeLength, editorBase.cell.boundarySize)
+      bound = [
+        { x: fMinX - margin, y: fMinY - margin },
+        { x: fMaxX + margin, y: fMinY - margin },
+        { x: fMaxX + margin, y: fMaxY + margin },
+        { x: fMinX - margin, y: fMaxY + margin },
+      ]
+    } else {
+      bound = [
+        { x: qx, y: qy }, { x: qx + vw, y: qy },
+        { x: qx + vw, y: qy + vh }, { x: qx, y: qy + vh },
+      ]
+    }
+    const decoSegments = curvesEnabled(config)
+      ? flattenStrandsToSegments(stampedField.decoField, config)
+      : stampedField.decoField
+    const stampTranslations = stampedField.stamps.map(s => s.translation)
+    return {
+      keyed: keyVoids(extractVoids(decoSegments, bound), stampTranslations, decorationCellFrames ?? []),
+      stampTranslations,
+    }
+    // Curve reads: curvesEnabled/flatten → config.figures + config.smoothTransitions.
+    // qx/qy/vw/vh are captured via nonFastBoundSig (frameless bound only).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nonFastBoundSig, stampedField, frameFieldBox, ed?.frame, decorationCellFrames, config.figures, config.smoothTransitions])
+
+  // Non-fast-path Strands hit data — strand chaining + per-strand identity
+  // keys over the rendered field. Field-keyed so paints and hover reuse it;
+  // gated on the Strands target so Voids-mode users don't pay the chaining.
+  const nonFastStrandHits = useMemo<StrandHit[] | null>(() => {
+    if (!decorationActive || decorationPaintTarget !== 'strands' || !stampedField || stampedField.fastPath) return null
+    const segments = stampedField.segments
+    const ids = strandIdentities(segments)
+    const stampTranslations = stampedField.stamps.map(s => s.translation)
+    const frames = decorationCellFrames ?? []
+    // Per-strand keys, hoisted OUT of the segment loop. cellOrbitKey
+    // canonicalises a strand's whole point chain over every dihedral
+    // image — doing that per SEGMENT (a strand has many) froze the tab
+    // on dense fields the moment the Strands target was selected.
+    const offsets = ids.strands.map(s => orbitOffset(s.centroid, stampTranslations))
+    const patchKeys = ids.strands.map((s, i) => scopedKey(s.signature, offsets[i]))
+    const cellKeys = ids.strands.map((s, i) => cellOrbitKey(
+      s.signature,
+      reduceToOrbit(ids.strandData[i].points, s.centroid, offsets[i]),
+      s.closed,
+      offsets[i],
+      frames,
+    ))
+    const hits: StrandHit[] = []
+    for (let i = 0; i < segments.length; i++) {
+      const strandIdx = ids.strandOfSegment[i]
+      if (strandIdx < 0) continue
+      hits.push({
+        from: segments[i].from,
+        to: segments[i].to,
+        strandId: strandIdx,
+        signature: ids.strands[strandIdx].signature,
+        patchKey: patchKeys[strandIdx],
+        cellKey: cellKeys[strandIdx],
+      })
+    }
+    return hits
+  }, [decorationActive, decorationPaintTarget, stampedField, decorationCellFrames])
 
   return useMemo(() => {
     // Step 17 Builder: when a Patch is active, render its Tiles directly.
@@ -746,99 +851,25 @@ export function usePattern(
         }
         return { polygons: basePolys, segments: editorBase.baseSegments, compositionStamps: stamps }
       }
-      const { polygons, picPolygons, segments, boundaryOutlines } = stampedField
-      // Step 19.3 — Decoration: resolve Void fills + strand colour over the
-      // current bound (the convex Frame outline if present, else the generated
-      // viewport rect). Geometry is frozen in this phase, so the full-field
-      // extraction here only re-runs on pan/zoom, not on interaction.
+      const { picPolygons, segments, boundaryOutlines } = stampedField
+      // Step 19.3 — Decoration (non-periodic fall-back: frame / rotated
+      // stamps / vertex-lines). Extraction + Void keying live in the
+      // field-keyed `nonFastVoidData` memo above; strand hit data in
+      // `nonFastStrandHits`. Everything is world-space, so all scope rungs
+      // (incl. instance) resolve straight into `voidFills` — only this cheap
+      // colouring pass re-runs on a paint or a Paint-target switch.
       if (decorationActive) {
-        // Bound extraction to the VISIBLE viewport, not the padded generation
-        // rect (genW/genH carry 0.75× padding ⇒ ~6× the area ⇒ ~36× the O(n²)
-        // arrangement work — enough to hang on entry). The generated field
-        // still covers this tight rect.
-        const bx = genX + vw * pad
-        const by = genY + vh * pad
-        let bound: Vec2[] = [
-          { x: bx, y: by }, { x: bx + vw, y: by },
-          { x: bx + vw, y: by + vh }, { x: bx, y: by + vh },
-        ]
-        // Frame Voids must NOT clip the extraction to the frame outline (a
-        // frame-touching Void would change congruent signature — "voids lose
-        // colour at the frame"), so `stampedField.decoField` re-PICs the FULL
-        // unfiltered field when a frame is filtering the rendered strands.
-        const decoField = stampedField.decoField
-        if (editorFrame && patch.frame && picPolygons !== polygons) {
-          // Bound to the frame's bbox + a symmetric margin, NOT the viewport
-          // rect: the viewport rect is quantised (`bx`/`by` = floor of the pan
-          // ⇒ shifted left/up), so it sits closer to the frame's right/bottom
-          // edges and clips those Voids while leaving left/top clear — Voids
-          // "lost colour" on the right/bottom only. A frame-bbox bound is
-          // symmetric and pan-independent, and the full field above extends
-          // past it on every side so frame-edge Voids still close cleanly.
-          const outline = frameOutlinePolygon(patch.frame)
-          if (outline && outline.length >= 3) {
-            let fMinX = Infinity, fMinY = Infinity, fMaxX = -Infinity, fMaxY = -Infinity
-            for (const p of outline) {
-              fMinX = Math.min(fMinX, p.x); fMaxX = Math.max(fMaxX, p.x)
-              fMinY = Math.min(fMinY, p.y); fMaxY = Math.max(fMaxY, p.y)
-            }
-            const margin = 2 * Math.max(patch.edgeLength, cell.boundarySize)
-            bound = [
-              { x: fMinX - margin, y: fMinY - margin },
-              { x: fMaxX + margin, y: fMinY - margin },
-              { x: fMaxX + margin, y: fMaxY + margin },
-              { x: fMinX - margin, y: fMaxY + margin },
-            ]
-          }
-        }
-        // Non-periodic fall-back (frame / rotated stamps / vertex-lines):
-        // extract over the full PIC field. Everything here is world-space, so
-        // all scope rungs (incl. instance) resolve straight into `voidFills`.
-        const stampTranslations = stamps.map(s => s.translation)
-        const cellFrames = decorationCellFrames ?? []
-        const { voidFills, decorationVoids } = buildDecorationData(decoField, bound, config, stampTranslations, cellFrames)
-        // Strand hit-targets with per-strand identity. Chains the rendered
-        // (frame-filtered) field once per pan while the Strands target is
-        // active — same order of cost as the StrandLayer render itself.
-        let decorationStrandHits: StrandHit[] | undefined
-        if (decorationPaintTarget === 'strands') {
-          const ids = strandIdentities(segments)
-          // Per-strand keys, hoisted OUT of the segment loop. cellOrbitKey
-          // canonicalises a strand's whole point chain over every dihedral
-          // image — doing that per SEGMENT (a strand has many) froze the tab
-          // on dense fields the moment the Strands target was selected.
-          const offsets = ids.strands.map(s => orbitOffset(s.centroid, stampTranslations))
-          const patchKeys = ids.strands.map((s, i) => scopedKey(s.signature, offsets[i]))
-          const cellKeys = ids.strands.map((s, i) => cellOrbitKey(
-            s.signature,
-            reduceToOrbit(ids.strandData[i].points, s.centroid, offsets[i]),
-            s.closed,
-            offsets[i],
-            cellFrames,
-          ))
-          decorationStrandHits = []
-          for (let i = 0; i < segments.length; i++) {
-            const strandIdx = ids.strandOfSegment[i]
-            if (strandIdx < 0) continue
-            decorationStrandHits.push({
-              from: segments[i].from,
-              to: segments[i].to,
-              strandId: strandIdx,
-              signature: ids.strands[strandIdx].signature,
-              patchKey: patchKeys[strandIdx],
-              cellKey: cellKeys[strandIdx],
-            })
-          }
-        }
+        const keyed = nonFastVoidData?.keyed ?? []
+        const stampTranslations = nonFastVoidData?.stampTranslations ?? stamps.map(s => s.translation)
         return {
           polygons: picPolygons,
           segments,
           boundaryOutlines,
-          voidFills,
-          decorationVoids,
-          decorationStrandHits,
+          voidFills: colourVoids(keyed, patch.decoration),
+          decorationVoids: keyed,
+          decorationStrandHits: nonFastStrandHits ?? undefined,
           decorationOrbitStamps: stampTranslations,
-          decorationCellFrames: cellFrames,
+          decorationCellFrames: decorationCellFrames ?? [],
         }
       }
       return { polygons: picPolygons, segments, boundaryOutlines }
@@ -855,5 +886,5 @@ export function usePattern(
     const segments = runPIC(polygons, config)
 
     return { polygons, segments }
-  }, [config, editorBase, stampedField, decorationFills, baseStrandIds, decorationOrbitRing, decorationCellFrames, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview, editorNeighbourBoundaries, editorNeighbourStrands, editorFrame, decorationActive, decorationPaintActive, decorationPaintTarget])
+  }, [config, editorBase, stampedField, decorationFills, baseStrandIds, decorationOrbitRing, decorationCellFrames, nonFastVoidData, nonFastStrandHits, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview, editorNeighbourBoundaries, editorNeighbourStrands, editorFrame, decorationActive, decorationPaintActive, decorationPaintTarget])
 }

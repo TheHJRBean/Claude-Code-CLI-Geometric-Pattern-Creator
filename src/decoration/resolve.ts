@@ -71,23 +71,53 @@ export function decorateVoids(
   stampTranslations: Vec2[],
   cellFrames: CellFrame[] = [],
 ): ResolvedDecoration {
-  const idx = buildColourIndex(decoration?.voidFills)
-  const fills: VoidFill[] = []
-  const out: PaintVoid[] = []
-  for (const v of voids) {
+  const keyed = keyVoids(voids, stampTranslations, cellFrames)
+  return { fills: colourVoids(keyed, decoration), voids: keyed }
+}
+
+/** A keyed Void carrying the raw orbit offset / centroid the colour resolver
+ * needs — produced by `keyVoids`, consumed by `colourVoids`. */
+export interface KeyedVoid extends PaintVoid {
+  orbit: Vec2
+  centre: Vec2
+}
+
+/** Key already-extracted Voids with their scope identities. The expensive
+ * half of `decorateVoids` — `cellOrbitKey` canonicalises each Void's outline
+ * over every dihedral image — so callers must memoise it on the FIELD, never
+ * on decoration records or the Paint target. */
+export function keyVoids(
+  voids: VoidRegion[],
+  stampTranslations: Vec2[],
+  cellFrames: CellFrame[] = [],
+): KeyedVoid[] {
+  return voids.map(v => {
     const c = centroid(v.polygon)
     const orbit = orbitOffset(c, stampTranslations)
-    const cellKey = cellOrbitKey(v.signature, reduceToOrbit(v.polygon, c, orbit), true, orbit, cellFrames)
-    out.push({
+    return {
       ...v,
       patchKey: scopedKey(v.signature, orbit),
-      cellKey,
+      cellKey: cellOrbitKey(v.signature, reduceToOrbit(v.polygon, c, orbit), true, orbit, cellFrames),
       instanceKey: scopedKey(v.signature, c),
-    })
-    const colour = resolveColour(idx, v.signature, orbit, c, cellKey)
+      orbit,
+      centre: c,
+    }
+  })
+}
+
+/** Cheap colouring pass over keyed Voids — safe to re-run per paint or
+ * record change. */
+export function colourVoids(
+  keyed: KeyedVoid[],
+  decoration: DecorationConfig | undefined,
+): VoidFill[] {
+  const idx = buildColourIndex(decoration?.voidFills)
+  const fills: VoidFill[] = []
+  for (const v of keyed) {
+    const colour = resolveColour(idx, v.signature, v.orbit, v.centre, v.cellKey)
     if (colour) fills.push({ polygon: v.polygon, colour })
   }
-  return { fills, voids: out }
+  return fills
 }
 
 /**

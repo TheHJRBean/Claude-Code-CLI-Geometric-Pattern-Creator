@@ -695,6 +695,19 @@ export function TessellationLabMode({
               <>
                 <div style={{ marginLeft: 26 }}>
                   <FieldLabel
+                    label="Strand width"
+                    value={config.strand.width.toFixed(1)}
+                    unit=" px"
+                    tooltip="Stroke width applied to every Strand. Dashed/Dotted spacing scales with it too."
+                  />
+                  <input
+                    type="range"
+                    className="pattern-slider"
+                    min={1} max={20} step={0.5}
+                    value={config.strand.width}
+                    onChange={e => dispatch({ type: 'SET_STRAND_STYLE', payload: { width: Number(e.target.value) } })}
+                  />
+                  <FieldLabel
                     label="Strand style"
                     tooltip="How each Strand's stroke is drawn. Double/Triple are parallel lines (the middle is cut out, so Void fills show through); Dashed/Dotted scale with the Strand width."
                   />
@@ -751,9 +764,10 @@ export function TessellationLabMode({
             )}
 
             <FieldLabel
-              label="Outline weight"
+              label="Tile outline weight"
               value={outlineWidth.toFixed(1)}
               unit=" px"
+              tooltip="Stroke weight of the faint Tile outlines (Show tiles) — not the Strands; use Strand width above for those."
             />
             <input
               type="range"

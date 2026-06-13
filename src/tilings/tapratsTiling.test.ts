@@ -1,7 +1,16 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { generateTapratsTiling } from './tapratsTiling'
+import { generateTapratsTiling, getTapratsTileTypes } from './tapratsTiling'
 import { resetIds } from './shared'
 import { buildEdgeMap } from './archimedean'
+
+/** Every shipping Taprats tiling key (characterization anchor for the data-
+ *  integrity sweep below — TAPRATS_DATA is module-private). */
+const ALL_KEYS = [
+  'pentagonal-rosette', 'heptagonal-rosette', 'nonagonal-rosette',
+  'decagonal-rosette', 'hendecagonal-rosette', 'tetrakis-square',
+  'cairo-pentagonal', 'kisrhombille', 'deltoidal-trihexagonal',
+  'floret-pentagonal', 'rhombille', 'hexadecagonal-rosette',
+] as const
 
 beforeEach(() => resetIds())
 
@@ -214,5 +223,103 @@ describe('generateTapratsTiling — unknown key', () => {
   it('returns empty array', () => {
     const polys = generateTapratsTiling('nonexistent', viewport, edgeLen)
     expect(polys).toEqual([])
+  })
+})
+
+// ── Adversarial / boundary coverage (thermo-nuclear review Chunk 6) ──────────
+
+describe('generateTapratsTiling — degenerate edge length', () => {
+  // A non-positive edgeLen zeroes the lattice vectors; without the guard the
+  // lattice range is ceil(diag/0)=Infinity and the generation loop never
+  // terminates. Each of these would HANG the suite (test timeout) pre-fix.
+  it('returns [] for a zero edge length instead of hanging', () => {
+    expect(generateTapratsTiling('pentagonal-rosette', viewport, 0)).toEqual([])
+  })
+  it('returns [] for a negative edge length', () => {
+    expect(generateTapratsTiling('kisrhombille', viewport, -50)).toEqual([])
+  })
+  it('returns [] for a NaN edge length', () => {
+    expect(generateTapratsTiling('rhombille', viewport, Number.NaN)).toEqual([])
+  })
+})
+
+describe('generateTapratsTiling — degenerate viewport', () => {
+  it('does not crash on a zero-area viewport', () => {
+    const polys = generateTapratsTiling('pentagonal-rosette', { x: 0, y: 0, width: 0, height: 0 }, edgeLen)
+    expect(Array.isArray(polys)).toBe(true) // may be empty; must not throw/hang
+  })
+})
+
+describe('generateTapratsTiling — viewport straddle (AABB-only inclusion)', () => {
+  // After deleting the redundant "any vertex inside the viewport" pre-check, a
+  // tile that covers a window WITHOUT placing a vertex inside it must still be
+  // included by the AABB-overlap test. With ~50-spaced vertices and a 2×2
+  // window, essentially every covering tile straddles with no vertex inside —
+  // so such a polygon must exist (proves the simplification kept coverage).
+  it('includes tiles that straddle a tiny window with no vertex inside it', () => {
+    const tiny = { x: -1, y: -1, width: 2, height: 2 }
+    const polys = generateTapratsTiling('pentagonal-rosette', tiny, 50)
+    expect(polys.length).toBeGreaterThan(0)
+    const inWindow = (v: { x: number; y: number }) =>
+      v.x >= tiny.x && v.x <= tiny.x + tiny.width && v.y >= tiny.y && v.y <= tiny.y + tiny.height
+    expect(polys.some(p => p.vertices.every(v => !inWindow(v)))).toBe(true)
+  })
+})
+
+describe('generateTapratsTiling — data integrity across all tilings', () => {
+  for (const key of ALL_KEYS) {
+    it(`${key}: every polygon is well-formed (sides === vertices, all finite)`, () => {
+      const polys = generateTapratsTiling(key, viewport, edgeLen)
+      expect(polys.length).toBeGreaterThan(0)
+      for (const p of polys) {
+        expect(p.sides).toBeGreaterThanOrEqual(3)
+        expect(p.vertices.length).toBe(p.sides) // catches hand-entered data typos
+        for (const v of p.vertices) {
+          expect(Number.isFinite(v.x)).toBe(true)
+          expect(Number.isFinite(v.y)).toBe(true)
+        }
+        expect(Number.isFinite(p.center.x)).toBe(true)
+        expect(Number.isFinite(p.center.y)).toBe(true)
+      }
+    })
+  }
+})
+
+describe('generateTapratsTiling — determinism & polygon cap', () => {
+  it('is deterministic: identical inputs yield identical count and IDs', () => {
+    const a = generateTapratsTiling('nonagonal-rosette', viewport, edgeLen)
+    const b = generateTapratsTiling('nonagonal-rosette', viewport, edgeLen)
+    expect(b.length).toBe(a.length)
+    expect(b.map(p => p.id)).toEqual(a.map(p => p.id))
+  })
+
+  it('never exceeds the MAX_POLYGONS cap on a huge viewport', () => {
+    const huge = { x: -5000, y: -5000, width: 10000, height: 10000 }
+    const polys = generateTapratsTiling('rhombille', huge, 50)
+    expect(polys.length).toBeLessThanOrEqual(4000)
+  })
+})
+
+describe('getTapratsTileTypes', () => {
+  it('returns [] for an unknown key', () => {
+    expect(getTapratsTileTypes('nonexistent')).toEqual([])
+  })
+
+  it('suffixes duplicate side counts (pentagonal: two quads → 4.1 / 4.2)', () => {
+    const ids = getTapratsTileTypes('pentagonal-rosette').map(t => t.id)
+    expect(new Set(ids)).toEqual(new Set(['4.1', '5', '4.2']))
+  })
+
+  it('honours explicit tileTypeId overrides (decagonal: 6.1 / 6.2 / 6.3)', () => {
+    const ids = getTapratsTileTypes('decagonal-rosette').map(t => t.id)
+    expect(ids).toContain('10')
+    expect(ids).toContain('6.1')
+    expect(ids).toContain('6.2')
+    expect(ids).toContain('6.3')
+  })
+
+  it('returns one entry per distinct tile-type id', () => {
+    const types = getTapratsTileTypes('kisrhombille') // two tiles both tileTypeId '3'
+    expect(types).toEqual([{ id: '3', sides: 3 }])
   })
 })

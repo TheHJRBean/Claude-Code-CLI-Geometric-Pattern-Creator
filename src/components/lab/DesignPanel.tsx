@@ -4,7 +4,7 @@ import type { BoundaryShape, ConfigurationId, SymmetryMode } from '../../types/e
 import type { Vec2 } from '../../utils/math'
 import { BOUNDARY_SIZE_MAX_BY_SHAPE } from '../../editor/createDefault'
 import { activeCell } from '../../editor/active'
-import { FieldLabel } from './labShared'
+import { FieldLabel, segmentedButtonStyle } from './labShared'
 
 type BoundaryPickerKind =
   | { kind: 'shape'; shape: BoundaryShape }
@@ -448,20 +448,7 @@ export function DesignPanel({
                 key={m}
                 onClick={() => onSetEditorMode(m)}
                 title={tooltip}
-                style={{
-                  flex: 1,
-                  padding: '5px 0',
-                  fontFamily: "'Cinzel', Georgia, serif",
-                  fontSize: 9,
-                  fontWeight: 600,
-                  letterSpacing: '0.10em',
-                  textTransform: 'uppercase',
-                  cursor: 'pointer',
-                  border: `1px solid ${active ? 'var(--accent)' : 'var(--border-subtle)'}`,
-                  background: active ? 'var(--accent-bg)' : 'transparent',
-                  color: active ? 'var(--accent)' : 'var(--text-muted)',
-                  transition: 'all 0.15s',
-                }}
+                style={segmentedButtonStyle(active, { letterSpacing: '0.10em' })}
               >
                 {m === 'place' ? 'Place' : 'Complete'}
               </button>

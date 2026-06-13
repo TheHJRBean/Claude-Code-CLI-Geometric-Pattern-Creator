@@ -2,7 +2,7 @@ import type { PatternConfig, StrandLineStyle } from '../../types/pattern'
 import type { Action } from '../../state/actions'
 import type { PaintTarget, StrandPaintScope, VoidPaintScope } from '../../rendering/DecorationPaintLayer'
 import { ColourPicker, pushRecentColour } from '../ColourPicker'
-import { FieldLabel } from './labShared'
+import { FieldLabel, segmentedButtonStyle } from './labShared'
 
 const decorationButtonStyle: React.CSSProperties = {
   padding: '5px 8px',
@@ -52,19 +52,10 @@ export function DecorationPanel({
   const strandRecCount = editor.decoration?.strandColours.length ?? 0
   const voidCount = editor.decoration?.voidFills.length ?? 0
   const hasDecoration = strandRecCount > 0 || voidCount > 0
-  const segButtonStyle = (active: boolean): React.CSSProperties => ({
-    flex: 1,
-    padding: '5px 0',
-    fontFamily: "'Cinzel', Georgia, serif",
-    fontSize: 9,
-    fontWeight: 600,
-    letterSpacing: '0.06em',
-    textTransform: 'uppercase',
-    cursor: 'pointer',
-    border: `1px solid ${active ? 'var(--accent)' : 'var(--border-subtle)'}`,
-    background: active ? 'var(--accent-bg)' : 'transparent',
-    color: active ? 'var(--accent)' : 'var(--text-muted)',
-  })
+  // The Decoration seg buttons match the phase switch minus the hover
+  // transition (they snap on click).
+  const segButtonStyle = (active: boolean): React.CSSProperties =>
+    segmentedButtonStyle(active, { transition: false })
   return (
     <div style={{
       marginTop: 0,

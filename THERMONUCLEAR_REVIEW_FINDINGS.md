@@ -48,4 +48,12 @@ Green baseline captured on `main`. Re-show these numbers at every Verification C
 
 | Chunk | File | Sev | Finding | Remedy | Status |
 | --- | --- | --- | --- | --- | --- |
-| _none yet_ | | | | | |
+| 1 | `TessellationLabMode.tsx` | S1 | File was 2243 ln (2.2× the 1k bar). Two oversized components in one file. | Split into `lab/` module. **DONE:** shell now 812 ln; `lab/` = labShared 232, EditorDesignControls 199 (orchestrator), CompositionPanel 51, DecorationPanel 257, FramePanel 316, DesignPanel 555. No file >1000. | done |
+| 1 | `TessellationLabMode.tsx` | S1/S2 | `EditorDesignControls` was ~1137 ln — 7 independent panels inlined into one function body. | **DONE:** each phase panel → its own focused component; `EditorDesignControls` is now a 199-ln orchestrator (undo/redo + phase switch + composition). Each panel self-derives `cell`/`multiCell` from `editor` — removes prop-drilling. | done |
+| 1 | `lab/DesignPanel.tsx` | S1 | 555 ln — under the 1k bar but above the plan's ~400-500 target. Three logical groups (boundary/seed, symmetry/wrap/neighbours, tool). | Optional further split. Deferred — low risk, diminishing returns. | deferred |
+| 1 | `TessellationLabMode.tsx` | S3/S4 | "Cinzel uppercase pill button" inline-style object copy-pasted ~10× with minor variants (phase btn, tool btn, undo/redo, clear, frame btns). | Extract shared `segmentedButtonStyle(active)` / pill-button style helpers in `labShared`. | open |
+| 1 | `TessellationLabMode.tsx` | S8 | Zero tests; pure-presentational + dispatch-wiring. The only testable derived logic (`tileTypes`, `validity`) is already covered by `editorTileTypes`/`validateMultiPick` unit tests. | Manual-verify only (Wave-B checkpoint: Design→Composition→Decoration walk). | open (awaiting user verify) |
+
+### Chunk-1 result (extraction increment) — green
+
+`tsc` clean · **315/315 tests pass** · build OK · bundle 420.71 kB (gzip 127.72, was 127.73). Pure verbatim JSX relocation, no logic change. **user-verified: no** (pending Wave-B checkpoint).

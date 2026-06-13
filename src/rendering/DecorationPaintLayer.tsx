@@ -3,6 +3,7 @@ import type { Vec2 } from '../utils/math'
 import type { GroupingScope } from '../types/editor'
 import type { ClickedTargetKeys } from '../decoration/scopes'
 import type { PaintVoid, StrandHit } from '../decoration/resolve'
+import { nearestSegmentIndex, polygonPath } from './svgGeometry'
 
 export type PaintTarget = 'off' | 'voids' | 'strands'
 
@@ -148,17 +149,9 @@ export function DecorationPaintLayer({
     return { x: pt.x, y: pt.y }
   }
 
-  const strandIndexAt = (p: Vec2): number | null => {
-    const tol = 6 / zoom // ~constant screen-space pick radius
-    let best = -1
-    let bestD = tol
-    for (let i = 0; i < strandHits.length; i++) {
-      const s = strandHits[i]
-      const d = pointSegmentDist(p, s.from, s.to)
-      if (d < bestD) { bestD = d; best = i }
-    }
-    return best >= 0 ? best : null
-  }
+  const strandIndexAt = (p: Vec2): number | null =>
+    // ~constant screen-space pick radius; a miss falls through to the pan handler.
+    nearestSegmentIndex(p, strandHits, 6 / zoom)
 
   const strandCatcher = strandBBox && (
     <rect
@@ -220,20 +213,6 @@ export function DecorationPaintLayer({
   }
 
   return null
-}
-
-function pointSegmentDist(p: Vec2, a: Vec2, b: Vec2): number {
-  const dx = b.x - a.x, dy = b.y - a.y
-  const L2 = dx * dx + dy * dy
-  let t = L2 > 0 ? ((p.x - a.x) * dx + (p.y - a.y) * dy) / L2 : 0
-  t = Math.max(0, Math.min(1, t))
-  const qx = a.x + dx * t, qy = a.y + dy * t
-  return Math.hypot(p.x - qx, p.y - qy)
-}
-
-function polygonPath(poly: Vec2[]): string {
-  if (poly.length < 3) return ''
-  return `M${poly.map(p => `${p.x},${p.y}`).join('L')}Z`
 }
 
 /** A small paint-bucket cursor so the user sees they're in Paint mode. */

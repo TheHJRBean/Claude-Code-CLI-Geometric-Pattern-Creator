@@ -8,6 +8,7 @@ import { computeCurves, smoothCurves } from '../strand/computeCurves'
 import { curvedPathD, curvedPathDSplit } from '../strand/curvedPathD'
 import { computeWeave } from '../strand/weave'
 import { weaveCapWedgeD, wovenPath, wovenPathD } from '../strand/wovenPathD'
+import { strandStyleAttrs } from './strandStyle'
 import { buildColourIndex, orbitOffset, resolveColour } from '../decoration/scopes'
 import { cellOrbitKey, reduceToOrbit, type CellFrame } from '../decoration/cellScope'
 import { strandIdentity } from '../decoration/strandGroups'
@@ -172,13 +173,8 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
   // would paint over Void fills — same trap as the hidden-strand fix).
   const lineStyle = strand.lineStyle ?? 'solid'
   const w = strand.width
-  const masked = lineStyle === 'double' || lineStyle === 'triple'
-  const dashArray = lineStyle === 'dashed' ? `${w * 2.5} ${w * 1.5}`
-    : lineStyle === 'dotted' ? `0.01 ${w * 1.8}` : undefined
-  const lineCap = lineStyle === 'dashed' ? 'butt' as const : 'round' as const
-  // Centre cut width; triple keeps a thin centre line drawn separately.
-  const cutWidth = lineStyle === 'triple' ? w * 0.65 : w * 0.5
-  const centreWidth = w * 0.18
+  // dashed/dotted dash arrays, double/triple centre-cut mask flag + widths.
+  const { masked, dashArray, lineCap, cutWidth, centreWidth } = strandStyleAttrs(lineStyle, w)
   // Visible seed paths (hidden 'none' strands excluded — their mask cuts
   // would otherwise carve through visible strands crossing them).
   const visibleSeed = seedPaths

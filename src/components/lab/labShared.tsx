@@ -1,0 +1,232 @@
+import type { ReactNode } from 'react'
+import type { PatternConfig } from '../../types/pattern'
+import { detectCellTilingStatus } from '../../editor/nonTilingDetection'
+
+/**
+ * Shared presentational primitives for the Builder (Lab) sidebar — icons,
+ * the mode toggle, collapsible section title, field label, and the
+ * non-tiling warning. Extracted from `TessellationLabMode.tsx` so the Lab
+ * shell and `EditorDesignControls` panels can share them without the file
+ * sprawling past the 1k-line bar.
+ */
+
+export function SunIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+      <circle cx="12" cy="12" r="5" />
+      <line x1="12" y1="1" x2="12" y2="3" />
+      <line x1="12" y1="21" x2="12" y2="23" />
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+      <line x1="1" y1="12" x2="3" y2="12" />
+      <line x1="21" y1="12" x2="23" y2="12" />
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+    </svg>
+  )
+}
+
+export function MoonIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+    </svg>
+  )
+}
+
+export function ModeToggleButton({ mode, onToggleMode }: { mode: 'main' | 'lab'; onToggleMode: () => void }) {
+  const inMain = mode === 'main'
+  return (
+    <button
+      onClick={onToggleMode}
+      aria-label={inMain ? 'Open Lab' : 'Return to Gallery'}
+      title={inMain ? 'Open Lab — Exploratory Workspace' : 'Return to Gallery'}
+      style={{
+        position: 'absolute',
+        top: 14,
+        left: 12,
+        height: 26,
+        background: inMain ? 'transparent' : 'var(--accent-bg)',
+        color: 'var(--accent)',
+        border: `1px solid ${inMain ? 'var(--border-accent)' : 'var(--accent)'}`,
+        padding: '0 10px',
+        fontFamily: "'Cinzel', Georgia, serif",
+        fontSize: 9,
+        fontWeight: 600,
+        letterSpacing: '0.14em',
+        textTransform: 'uppercase',
+        cursor: 'pointer',
+        zIndex: 5,
+      }}
+    >
+      {inMain ? 'Lab' : '← Gallery'}
+    </button>
+  )
+}
+
+function SectionChevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="9"
+      height="9"
+      viewBox="0 0 10 10"
+      style={{
+        transform: open ? 'rotate(0deg)' : 'rotate(-90deg)',
+        transition: 'transform 0.2s ease',
+        flexShrink: 0,
+        color: 'var(--accent)',
+        opacity: 0.5,
+      }}
+      aria-hidden="true"
+    >
+      <polyline points="2.5 4 5 6.5 7.5 4" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+export function SectionTitle({ children, open, onToggle, tooltip }: {
+  children: ReactNode
+  open?: boolean
+  onToggle?: () => void
+  tooltip?: string
+}) {
+  const interactive = typeof onToggle === 'function'
+  const isOpen = open ?? true
+  const inner = (
+    <>
+      <span style={{
+        fontFamily: "'Cinzel', Georgia, serif",
+        fontSize: 10,
+        fontWeight: 600,
+        color: 'var(--accent)',
+        letterSpacing: '0.20em',
+        textTransform: 'uppercase' as const,
+        textDecoration: tooltip ? 'underline dotted var(--text-muted)' : 'none',
+        textUnderlineOffset: 4,
+      }}>
+        {children}
+      </span>
+      <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, var(--divider), transparent)' }} />
+      {interactive && <SectionChevron open={isOpen} />}
+    </>
+  )
+  if (!interactive) {
+    return (
+      <div
+        title={tooltip}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 7,
+          marginBottom: 14,
+          cursor: tooltip ? 'help' : 'default',
+        }}
+      >
+        {inner}
+      </div>
+    )
+  }
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={isOpen}
+      title={tooltip}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 7,
+        marginBottom: isOpen ? 14 : 2,
+        width: '100%',
+        background: 'transparent',
+        border: 'none',
+        padding: '6px 0',
+        cursor: 'pointer',
+        textAlign: 'left',
+        transition: 'margin-bottom 0.2s ease',
+      }}
+    >
+      {inner}
+    </button>
+  )
+}
+
+export function FieldLabel({ label, value, unit, tooltip }: { label: string; value?: string; unit?: string; tooltip?: string }) {
+  return (
+    <div style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'baseline',
+      marginBottom: 7,
+      marginTop: 12,
+    }}>
+      <span
+        title={tooltip}
+        style={{
+          fontFamily: "'EB Garamond', Georgia, serif",
+          fontSize: 13.5,
+          color: 'var(--text-secondary)',
+          letterSpacing: '0.02em',
+          cursor: tooltip ? 'help' : 'default',
+          textDecoration: tooltip ? 'underline dotted var(--text-muted)' : 'none',
+          textUnderlineOffset: 3,
+        }}
+      >
+        {label}
+      </span>
+      {value !== undefined && (
+        <span style={{
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 11,
+          color: 'var(--accent)',
+          letterSpacing: '0.04em',
+        }}>
+          {value}{unit}
+        </span>
+      )}
+    </div>
+  )
+}
+
+/* ── Step 17.10 — non-tiling patch warning ─────────────── */
+
+export function NonTilingWarning({ editor }: { editor: NonNullable<PatternConfig['editor']> }) {
+  // Aggregate across every Cell: if any Cell is non-tiling, surface that as
+  // the Patch-level warning. Multi-cell Configurations are non-tiling as soon
+  // as a single Cell is — the lattice stamps depend on all Cells fitting.
+  let status: ReturnType<typeof detectCellTilingStatus> | null = null
+  for (const cell of editor.cells) {
+    const s = detectCellTilingStatus(cell)
+    if (s.kind === 'non-tiling') { status = s; break }
+  }
+  if (!status) return null
+  const message = status.reason === 'overflows'
+    ? "Patch extends past the boundary — stamped copies will overlap."
+    : status.reason === 'empty'
+      ? "Patch is empty — no tiles to stamp."
+      : "Patch doesn't fill the boundary — stamped copies will leave gaps."
+  return (
+    <div style={{
+      marginTop: 8,
+      padding: '6px 8px',
+      border: '1px solid #a85050',
+      background: 'rgba(168, 80, 80, 0.08)',
+      color: '#a85050',
+      fontSize: 11.5,
+      lineHeight: 1.4,
+    }}>
+      <span style={{
+        fontFamily: "'Cinzel', Georgia, serif",
+        fontSize: 9,
+        fontWeight: 600,
+        letterSpacing: '0.14em',
+        textTransform: 'uppercase',
+        display: 'block',
+        marginBottom: 3,
+      }}>
+        Non-tiling patch
+      </span>
+      {message}
+    </div>
+  )
+}

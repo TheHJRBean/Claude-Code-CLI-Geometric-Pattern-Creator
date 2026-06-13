@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
+import { pointerAngle, applyDragDelta, wheelStep } from './rotationDial.logic'
 
 interface Props {
   rotation: number
@@ -11,16 +12,6 @@ const INNER_R = R - 14     // inner circle radius
 const TICK_OUTER = R - 4   // tick start (from center)
 const CX = R
 const CY = R
-
-/** Normalise degrees into [0, 360) */
-function normDeg(d: number): number {
-  return ((d % 360) + 360) % 360
-}
-
-/** Convert page coordinates to angle relative to dial center */
-function pointerAngle(cx: number, cy: number, px: number, py: number): number {
-  return normDeg(Math.atan2(py - cy, px - cx) * (180 / Math.PI) + 90)
-}
 
 export function RotationDial({ rotation, onChange }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -50,11 +41,7 @@ export function RotationDial({ rotation, onChange }: Props) {
     e.preventDefault()
     const { cx, cy } = getCenter()
     const currentAngle = pointerAngle(cx, cy, e.clientX, e.clientY)
-    let delta = currentAngle - startAngle.current
-    // Handle wrap-around
-    if (delta > 180) delta -= 360
-    if (delta < -180) delta += 360
-    onChange(normDeg(startRotation.current + delta))
+    onChange(applyDragDelta(startAngle.current, currentAngle, startRotation.current))
   }, [getCenter, onChange])
 
   const onPointerUp = useCallback(() => {
@@ -63,9 +50,7 @@ export function RotationDial({ rotation, onChange }: Props) {
 
   const onWheel = useCallback((e: React.WheelEvent) => {
     e.stopPropagation()
-    const step = e.shiftKey ? 0.5 : (e.ctrlKey || e.metaKey) ? 15 : 1
-    const direction = e.deltaY > 0 ? 1 : -1
-    onChange(normDeg(rotation + direction * step))
+    onChange(wheelStep(rotation, e.deltaY, e))
   }, [rotation, onChange])
 
   const onDoubleClick = useCallback((e: React.MouseEvent) => {

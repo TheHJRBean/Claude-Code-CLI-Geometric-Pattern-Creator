@@ -16,6 +16,7 @@ import { EDITOR_EPS } from '../editor/exposedEdges'
 import { applyStamp } from '../editor/lattice'
 import { patchRotation } from '../editor/compositionLattice'
 import { viableSidesForEdge, viableSidesForVertexOrbit, vertexOrientationsWithOrbit } from '../editor/orbit'
+import { applyCellTransform } from '../editor/patchSelectable'
 import { EditorEdgeLayer } from './EditorEdgeLayer'
 import { EditorPickerOverlay } from './EditorPickerOverlay'
 import { OverlapConfirmModal } from './OverlapConfirmModal'
@@ -37,47 +38,26 @@ import { PerfHud } from './PerfHud'
 /**
  * Each **Cell** in a Patch lives in Patch-local coords via its own `center` +
  * `rotation`. Picker overlays (edges, vertices) are computed per-Cell in
- * Cell-local coords; we transform them via the Cell's transform to render in
- * Patch-local coords.
- *
- * Returns the Cell's transform. For a single-cell Patch with the lone Cell
- * at the Patch origin this is the identity.
+ * Cell-local coords; we lift them into Patch-local coords via the canonical
+ * `applyCellTransform` (shared with the reducer + patch-selection validation).
+ * For a single-cell Patch with the lone Cell at the Patch origin this is the
+ * identity. The thin `transformEdge` / `transformBoundaryVertex` wrappers just
+ * map every point of a structured value through that transform.
  */
-function cellTransform(
-  cell: { center: Vec2; rotation: number },
-  patchRot = 0,
-): { translation: Vec2; rotation: number } {
-  if (patchRot === 0) return { translation: cell.center, rotation: cell.rotation }
-  const c = Math.cos(patchRot), s = Math.sin(patchRot)
-  return {
-    translation: { x: cell.center.x * c - cell.center.y * s, y: cell.center.x * s + cell.center.y * c },
-    rotation: cell.rotation + patchRot,
-  }
-}
+type CellLike = { center: Vec2; rotation: number }
 
-function applyTransform(p: Vec2, tx: { translation: Vec2; rotation: number }): Vec2 {
-  if (tx.rotation === 0) {
-    return { x: p.x + tx.translation.x, y: p.y + tx.translation.y }
-  }
-  const c = Math.cos(tx.rotation), s = Math.sin(tx.rotation)
-  return {
-    x: p.x * c - p.y * s + tx.translation.x,
-    y: p.x * s + p.y * c + tx.translation.y,
-  }
-}
-
-function transformEdge(e: ExposedEdge, tx: { translation: Vec2; rotation: number }): ExposedEdge {
+function transformEdge(e: ExposedEdge, cell: CellLike, patchRot: number): ExposedEdge {
   return {
     ...e,
-    p1: applyTransform(e.p1, tx),
-    p2: applyTransform(e.p2, tx),
-    midpoint: applyTransform(e.midpoint, tx),
-    sourceCenter: applyTransform(e.sourceCenter, tx),
+    p1: applyCellTransform(e.p1, cell, patchRot),
+    p2: applyCellTransform(e.p2, cell, patchRot),
+    midpoint: applyCellTransform(e.midpoint, cell, patchRot),
+    sourceCenter: applyCellTransform(e.sourceCenter, cell, patchRot),
   }
 }
 
-function transformBoundaryVertex(v: BoundaryVertex, tx: { translation: Vec2; rotation: number }): BoundaryVertex {
-  return { ...v, p: applyTransform(v.p, tx) }
+function transformBoundaryVertex(v: BoundaryVertex, cell: CellLike, patchRot: number): BoundaryVertex {
+  return { ...v, p: applyCellTransform(v.p, cell, patchRot) }
 }
 
 export interface SelectedEdge {
@@ -319,15 +299,15 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   }, [editorActive, config.editor])
   const renderedEdges = useMemo(() => {
     if (!editorActive || !config.editor) return exposedEdges
-    const txByHost = new Map<string, { translation: Vec2; rotation: number }>()
+    const cellById = new Map<string, CellLike>()
     for (const cell of config.editor.cells) {
-      txByHost.set(cell.id, cellTransform(cell, patchRot))
+      cellById.set(cell.id, cell)
     }
     return exposedEdges.map(e => {
-      const tx = e.hostCellId ? txByHost.get(e.hostCellId) : undefined
-      return tx ? transformEdge(e, tx) : e
+      const cell = e.hostCellId ? cellById.get(e.hostCellId) : undefined
+      return cell ? transformEdge(e, cell, patchRot) : e
     })
-  }, [exposedEdges, editorActive, config.editor])
+  }, [exposedEdges, editorActive, config.editor, patchRot])
   const [hoveredEdge, setHoveredEdge] = useState<SelectedEdge | null>(null)
   useEffect(() => { if (!editorActive) setHoveredEdge(null) }, [editorActive])
 
@@ -354,21 +334,20 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       const outer: BoundaryVertex[] = []
       const pockets: BoundaryVertex[][] = []
       for (const cell of config.editor.cells) {
-        const tx = cellTransform(cell, patchRot)
         const cycles = computeAllCycles(cell)
         for (const v of cycles.outer) {
-          outer.push({ ...transformBoundaryVertex(v, tx), tileId: `${cell.id}/${v.tileId}` })
+          outer.push({ ...transformBoundaryVertex(v, cell, patchRot), tileId: `${cell.id}/${v.tileId}` })
         }
         for (const cycle of cycles.pockets) {
           pockets.push(cycle.map(v => ({
-            ...transformBoundaryVertex(v, tx),
+            ...transformBoundaryVertex(v, cell, patchRot),
             tileId: `${cell.id}/${v.tileId}`,
           })))
         }
       }
       return { outer, pockets }
     },
-    [editorActive, config.editor, editorMode],
+    [editorActive, config.editor, editorMode, patchRot],
   )
   const boundaryCycle = allCycles.outer
   // Pocket vertices are clickable in Complete mode. Flatten the per-pocket
@@ -385,16 +364,15 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     if (!editorActive || !config.editor || editorMode !== 'complete') return []
     const collected: BoundaryVertex[] = []
     for (const cell of config.editor.cells) {
-      const tx = cellTransform(cell, patchRot)
       const raw = computeBoundaryCycle(cell)
       for (const v of raw) {
-        collected.push({ ...transformBoundaryVertex(v, tx), tileId: `${cell.id}/${v.tileId}` })
+        collected.push({ ...transformBoundaryVertex(v, cell, patchRot), tileId: `${cell.id}/${v.tileId}` })
       }
     }
     return collected.filter(c => !boundaryCycle.some(v =>
       Math.abs(v.p.x - c.p.x) < EDITOR_EPS && Math.abs(v.p.y - c.p.y) < EDITOR_EPS,
     ))
-  }, [editorActive, config.editor, editorMode, boundaryCycle])
+  }, [editorActive, config.editor, editorMode, boundaryCycle, patchRot])
   // Step 17.11 — neighbour-stamp vertices, exposed only when "Show neighbours"
   // is on so cross-boundary picks line up with the visible ghost geometry. The
   // stamp set (full visible lattice minus the centre copy) comes straight from
@@ -412,7 +390,6 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     for (let s = 0; s < neighbourStamps.length; s++) {
       const stamp = neighbourStamps[s]
       for (const cell of patch.cells) {
-        const tx = cellTransform(cell, patchRot)
         const cycles = computeAllCycles(cell)
         const cellLocal: Vec2[] = [
           ...cycles.outer.map(v => v.p),
@@ -420,7 +397,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
           ...computeBoundaryCycle(cell).map(v => v.p),
         ]
         for (let i = 0; i < cellLocal.length; i++) {
-          const patchLocal = applyTransform(cellLocal[i], tx)
+          const patchLocal = applyCellTransform(cellLocal[i], cell, patchRot)
           out.push({
             p: applyStamp(patchLocal, stamp),
             tileId: `neighbour-${s}/${cell.id}`,
@@ -464,14 +441,13 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   }, [sectionsActive, activeCellForSections])
   const renderedSections = useMemo(() => {
     if (!sectionsActive || !activeCellForSections) return cellLocalSections
-    const tx = cellTransform(activeCellForSections, patchRot)
     return cellLocalSections.map(s => ({
       ...s,
-      p1: applyTransform(s.p1, tx),
-      p2: applyTransform(s.p2, tx),
-      midpoint: applyTransform(s.midpoint, tx),
+      p1: applyCellTransform(s.p1, activeCellForSections, patchRot),
+      p2: applyCellTransform(s.p2, activeCellForSections, patchRot),
+      midpoint: applyCellTransform(s.midpoint, activeCellForSections, patchRot),
     }))
-  }, [sectionsActive, activeCellForSections, cellLocalSections])
+  }, [sectionsActive, activeCellForSections, cellLocalSections, patchRot])
   const [hoveredSection, setHoveredSection] = useState<SectionKey | null>(null)
   useEffect(() => { if (!sectionsActive) setHoveredSection(null) }, [sectionsActive])
   const selectedSectionData = selectedSection && cellLocalSections.find(
@@ -497,9 +473,8 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   }, [vertexPlacementActive, activeCellForSections])
   const renderedVertices = useMemo<ExposedVertex[]>(() => {
     if (!vertexPlacementActive || !activeCellForSections) return cellLocalVertices
-    const tx = cellTransform(activeCellForSections, patchRot)
-    return cellLocalVertices.map(v => ({ ...v, p: applyTransform(v.p, tx) }))
-  }, [vertexPlacementActive, activeCellForSections, cellLocalVertices])
+    return cellLocalVertices.map(v => ({ ...v, p: applyCellTransform(v.p, activeCellForSections, patchRot) }))
+  }, [vertexPlacementActive, activeCellForSections, cellLocalVertices, patchRot])
   const [selectedVertexKey, setSelectedVertexKey] = useState<VertexKey | null>(null)
   const [hoveredVertexKey, setHoveredVertexKey] = useState<VertexKey | null>(null)
   const [vertexPickedSides, setVertexPickedSides] = useState<number | null>(null)
@@ -594,12 +569,11 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       '__preview__',
     )
     const verts = regularPolygonVertices(tile.sides, tile.center, tile.edgeLength, tile.rotation)
-    const tx = cellTransform(activeCellForSections, patchRot)
     return verts.map(v => {
-      const w = applyTransform(v, tx)
+      const w = applyCellTransform(v, activeCellForSections, patchRot)
       return `${w.x},${w.y}`
     }).join(' ')
-  }, [selectedVertexData, vertexPickedSides, vertexOrientations, vertexOrientationIdx, activeCellForSections, config.editor])
+  }, [selectedVertexData, vertexPickedSides, vertexOrientations, vertexOrientationIdx, activeCellForSections, config.editor, patchRot])
 
   // Closing the picker without committing — also clears the page-2 state.
   // useCallback so the memoised EditorVertexPlacementLayer (whose onSelect
@@ -735,7 +709,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       ?? config.editor.cells[0]
     : null
   const pickerWorldPos = selectedEdgeData
-    ? (selectedHostCell ? applyTransform(selectedEdgeData.midpoint, cellTransform(selectedHostCell, patchRot)) : selectedEdgeData.midpoint)
+    ? (selectedHostCell ? applyCellTransform(selectedEdgeData.midpoint, selectedHostCell, patchRot) : selectedEdgeData.midpoint)
     : null
   const pickerScreenPos = pickerWorldPos && editorMode === 'place' && !editorStrandMode
     ? worldToScreen(pickerWorldPos, viewTransform, size.width, size.height)
@@ -753,7 +727,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // Step 17.12c — boundary-section picker. Mirrors the edge picker: world →
   // screen via `worldToScreen`, viable sides via `viableSidesForBoundarySection`.
   const sectionPickerWorldPos = selectedSectionData && activeCellForSections
-    ? applyTransform(selectedSectionData.midpoint, cellTransform(activeCellForSections, patchRot))
+    ? applyCellTransform(selectedSectionData.midpoint, activeCellForSections, patchRot)
     : null
   const sectionPickerScreenPos = sectionPickerWorldPos && sectionsActive
     ? worldToScreen(sectionPickerWorldPos, viewTransform, size.width, size.height)
@@ -769,7 +743,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // Step 17.13c — vertex picker. World pos = anchor vertex transformed into
   // Patch-local coords. Vertex placement is single-cell only in v1.
   const vertexPickerWorldPos = selectedVertexData && activeCellForSections
-    ? applyTransform(selectedVertexData.p, cellTransform(activeCellForSections, patchRot))
+    ? applyCellTransform(selectedVertexData.p, activeCellForSections, patchRot)
     : null
   const vertexPickerScreenPos = vertexPickerWorldPos && vertexPlacementActive
     ? worldToScreen(vertexPickerWorldPos, viewTransform, size.width, size.height)

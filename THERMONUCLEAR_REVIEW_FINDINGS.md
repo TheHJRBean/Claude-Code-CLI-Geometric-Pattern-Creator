@@ -156,6 +156,20 @@ Audit conclusion: all files **under the 1k bar**. The plan asked "is there a can
 | 8 | placement family | S8 | The three validators had no direct unit coverage (only exercised indirectly via reducer/orbit tests). | **DONE**: `placementViability.test.ts` — viable-size fingerprints for edge/section/vertex on the default square cell (guard the probe extraction) + sides<3 rejection + 3 direct `placedTileOverlaps` adversarial cases (strong overlap / disjoint / empty). 7 tests. | done |
 | 8 | `reducer` / `completeN` | S6 | `centroidOf` ALSO reimplemented in `state/reducer.ts` (Chunk 5, merged) and the `tileInteriorAngleAt`/`interiorAngle` pure helper is duplicated `placement`↔`vertexPlacement`. | **DEFERRED to Chunk 13** (cross-cutting dup sweep) — out of this chunk's file set; low-risk pure-helper consolidation best done in one pass. | deferred |
 
+### Chunk 9 — `decoration/voids.ts` (609) + `scopes.ts` + `strand/`
+
+Audit conclusion: **the healthiest layer in the codebase** — best test density (11 decoration + 2 strand test files), all files under 1k, clean structure. The plan's Std-2 hypothesis (Reach-ladder special-case sprawl) **does not bite**: `scopes.ts`'s ladder is a tidy precedence model (`instance > patch > cell > sig > '*'`) with a clean `buildColourIndex`/`resolveColour`/`clearMaskingRecords` split, already tested. `voids.ts` is dense but its complexity is **essential** (Cyrus–Beck clip → planar arrangement w/ spatial-grid broad-phase → DCEL face walk → congruent signature), clearly sectioned and documented; no incidental spaghetti to delete. Coordinating with the layer's many open ⏳ browser-verifies (memory `project_decoration_stage_idea`), I did **not** refactor on top of unconfirmed behaviour. The one real gap was Std-8.
+
+| Chunk | File | Sev | Finding | Remedy | Status |
+| --- | --- | --- | --- | --- | --- |
+| 9 | `voids.ts` | S8 | `minRotation` (Booth's-algorithm ring canonicaliser) + `hash8` underpin **every** persisted Void/strand signature but were untested. `minRotation`'s own comment warns it must reproduce the pre-Booth O(m²) joined-string ordering EXACTLY — a deviation silently re-canonicalises + re-hashes existing saves. | **DONE**: `voidSignatureCanonical.test.ts` — rotation/reversal invariance, hand-picked prefix-token cases, a **2000-trial differential fuzz against a reference O(m²) implementation** (pins the exact-ordering invariant), + `hash8` determinism/format. 8 tests. | done |
+| 9 | `decoration/` `strand/` | — | Reach ladder (`scopes.ts`) + Void extraction (`voids.ts`) + weave (`weave.ts`/`wovenPathD.ts`). | **NO ACTION**: structurally healthy + well-tested; refactoring on top of the open browser-verifies would be premature (memory note). Audited clean. | done |
+| 9 | `strand/computeCurves.ts` | S8 | `computeCurves` (206 ln) is only exercised by the perf probe, not a behavioural regression. | **NOTED**: candidate for a focused render-output test in Chunk 10 (`rendering/`) where the curve→path pipeline is reviewed end-to-end. | deferred |
+
+### Chunk-9 result — green
+
+`tsc` clean · **444/444 tests pass** (436 +8) · build OK · bundle unchanged. **Zero production-code change** — the decoration layer is genuinely healthy; the deliverable is pinning its single most identity-critical untested primitive (`minRotation`) with a differential fuzz so a future "optimise the canonicaliser" change can't silently re-hash every saved pattern. **user-verified: n/a** (no observable change).
+
 ### Chunk-8 result — green
 
 `tsc` clean · **436/436 tests pass** (429 +7; all existing editor/orbit/reducer tests still green — they exercise the refactored validators) · build OK · bundle JS 418.87→**418.31 kB** (gzip 127.23→127.07, the dedup). Sizes: placement 144→126, vertexPlacement 487→474, boundaryInward 251→240, orbit 342→336, tileOverlap 129→160 (gained the shared helper) — net family logic down, one canonical probe. Behaviour-preserving: the placer geometry is untouched; only the triplicated validation probe + the centroid copies were consolidated, pinned by the fingerprints. **user-verified: n/a** (internal dedup, no observable change).

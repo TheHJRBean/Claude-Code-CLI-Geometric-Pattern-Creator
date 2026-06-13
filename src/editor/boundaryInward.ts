@@ -1,11 +1,11 @@
 import type { EditorCell, EditorRegularTile, EditorTile } from '../types/editor'
 import type { Vec2 } from '../utils/math'
-import { pointInPolygon, pointsEqual } from '../utils/math'
+import { pointsEqual } from '../utils/math'
 import { editorBoundaryVertices } from './buildEditorPolygons'
-import { EDITOR_EPS, tileVertices } from './exposedEdges'
+import { EDITOR_EPS } from './exposedEdges'
 import { regularPolygonVertices } from './regularPolygon'
 import { applySym, boundarySymmetries } from './symmetry'
-import { overlapsExisting } from './tileOverlap'
+import { placedTileOverlaps } from './tileOverlap'
 import { PICKER_SIDES } from './placement'
 
 /**
@@ -175,13 +175,8 @@ export function isBoundarySectionPlacementViable(
   const candidateVerts = regularPolygonVertices(
     candidate.sides, candidate.center, candidate.edgeLength, candidate.rotation,
   )
-  for (const tile of cell.tiles) {
-    const tv = tileVertices(tile)
-    const tc = tile.kind === 'regular' ? tile.center : avgCenter(tv)
-    if (pointInPolygon(tc, candidateVerts)) return false
-    if (pointInPolygon(candidate.center, tv)) return false
-  }
-  return !overlapsExisting(candidateVerts, cell.tiles.map(t => tileVertices(t)))
+  // Shared body-overlap probe (centre-containment + edge-cross/vertex-intrusion).
+  return !placedTileOverlaps(candidateVerts, candidate.center, cell.tiles)
 }
 
 /** Subset of `PICKER_SIDES` that pass `isBoundarySectionPlacementViable`. */
@@ -242,10 +237,4 @@ export function placeTilesOnBoundarySectionOrbit(
     placedIndex++
   }
   return placements.length > 0 ? placements : null
-}
-
-function avgCenter(verts: Vec2[]): Vec2 {
-  let x = 0, y = 0
-  for (const v of verts) { x += v.x; y += v.y }
-  return { x: x / verts.length, y: y / verts.length }
 }

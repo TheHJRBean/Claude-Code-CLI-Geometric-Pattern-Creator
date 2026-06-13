@@ -1,10 +1,10 @@
 import type { Vec2 } from '../utils/math'
-import { dist, pointInPolygon, pointsEqual } from '../utils/math'
+import { centroid, dist, pointInPolygon, pointsEqual } from '../utils/math'
 import type { EditorCell, EditorRegularTile, EditorTile } from '../types/editor'
 import { EDITOR_EPS, tileVertices } from './exposedEdges'
 import { editorBoundaryVertices } from './buildEditorPolygons'
 import { regularPolygonVertices } from './regularPolygon'
-import { overlapsExisting } from './tileOverlap'
+import { placedTileOverlaps } from './tileOverlap'
 
 /**
  * Step 17.13 — vertex placement (sub-step A: geometry foundation).
@@ -348,16 +348,9 @@ export function isVertexPlacementViable(
     candidate.edgeLength,
     candidate.rotation,
   )
-  const tileVerts = cell.tiles.map(tileVertices)
-  for (let i = 0; i < cell.tiles.length; i++) {
-    const tv = tileVerts[i]
-    const tc = cell.tiles[i].kind === 'regular' ? (cell.tiles[i] as { center: Vec2 }).center : centroidOf(tv)
-    if (pointInPolygon(tc, candidateVerts)) return false
-    if (pointInPolygon(candidate.center, tv)) return false
-  }
-  // Edge-crossing / vertex-intrusion probe — catches partial overlaps the
-  // centre-only test misses (shared with edge + boundary-section validators).
-  if (overlapsExisting(candidateVerts, tileVerts)) return false
+  // Shared body-overlap probe (centre-containment + edge-cross/vertex-intrusion,
+  // identical across the edge + boundary-section validators).
+  if (placedTileOverlaps(candidateVerts, candidate.center, cell.tiles)) return false
   // Boundary corner — verify the candidate centre lies inside the Boundary
   // polygon (inward-only constraint). For interior vertices this is always
   // true given the open-sector gate so we skip it.
@@ -366,12 +359,6 @@ export function isVertexPlacementViable(
     if (!pointInPolygon(candidate.center, boundaryVerts)) return false
   }
   return true
-}
-
-function centroidOf(verts: Vec2[]): Vec2 {
-  let x = 0, y = 0
-  for (const v of verts) { x += v.x; y += v.y }
-  return { x: x / verts.length, y: y / verts.length }
 }
 
 /**
@@ -476,7 +463,7 @@ export function hostTileForClick(
     const inc = vertex.incidentTiles[i]
     const tile = cell.tiles.find(t => t.id === inc.tileId)
     if (!tile) continue
-    const c = tile.kind === 'regular' ? tile.center : centroidOf(tileVertices(tile))
+    const c = tile.kind === 'regular' ? tile.center : centroid(tileVertices(tile))
     const d = dist(c, clickPoint)
     if (d < bestDist) {
       bestDist = d

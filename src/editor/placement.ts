@@ -1,9 +1,9 @@
 import type { Vec2 } from '../utils/math'
-import { pointInPolygon, pointsEqual } from '../utils/math'
+import { pointsEqual } from '../utils/math'
 import type { EditorCell, EditorRegularTile, EditorTile } from '../types/editor'
 import { regularPolygonVertices } from './regularPolygon'
 import { EDITOR_EPS, tileVertices, type ExposedEdge } from './exposedEdges'
-import { overlapsExisting } from './tileOverlap'
+import { placedTileOverlaps } from './tileOverlap'
 
 /**
  * The candidate set for the viable-polygon picker (Q10).
@@ -84,31 +84,13 @@ export function isPlacementViable(
 
   // Stronger overlap guard for cases the angle-sum test misses (large
   // candidate n-gons that wrap past non-adjacent existing tiles, where no
-  // vertex coincides with the new tile). Build the candidate's vertices and
-  // check it doesn't contain any existing centre, and no existing tile
-  // contains the candidate's centre.
+  // vertex coincides with the new tile). The shared body-overlap probe
+  // (centre-containment + edge-cross/vertex-intrusion) is identical across the
+  // edge / boundary-section / vertex validators.
   const candidate = placeRegularNGonOnEdge(sides, edge.length, edge.p1, edge.p2, edge.sourceCenter, '__probe__')
   const candidateVerts = regularPolygonVertices(candidate.sides, candidate.center, candidate.edgeLength, candidate.rotation)
-  const tileVerts = cell.tiles.map(tileVertices)
-  for (let i = 0; i < cell.tiles.length; i++) {
-    const tv = tileVerts[i]
-    const tc = cell.tiles[i].kind === 'regular'
-      ? (cell.tiles[i] as EditorRegularTile).center
-      : avgCenter(tv)
-    if (pointInPolygon(tc, candidateVerts)) return false
-    if (pointInPolygon(candidate.center, tv)) return false
-  }
-  // Edge-crossing / vertex-intrusion probe (catches partial overlaps where
-  // neither centre lands inside the other — the false-negative the centre-only
-  // test misses). Shared with the boundary-section and Complete validators.
-  if (overlapsExisting(candidateVerts, tileVerts)) return false
+  if (placedTileOverlaps(candidateVerts, candidate.center, cell.tiles)) return false
   return true
-}
-
-function avgCenter(verts: Vec2[]): Vec2 {
-  let x = 0, y = 0
-  for (const v of verts) { x += v.x; y += v.y }
-  return { x: x / verts.length, y: y / verts.length }
 }
 
 function checkAngleSum(p: Vec2, newAngle: number, existing: EditorTile[]): boolean {

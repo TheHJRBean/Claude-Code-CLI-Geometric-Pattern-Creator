@@ -45,6 +45,39 @@ export const MAX_FRAME_UNITS = 16
 /** √2 rectangle aspect — A-series, paper-friendly. */
 export const SQRT2 = Math.SQRT2
 
+/** Slider model for sizing the Gallery Frame in whole tiling **repeat units**. */
+export interface FrameUnitModel {
+  /** Smallest whole unit whose px ≥ MIN_FRAME_SIZE (≥ 1). */
+  min: number
+  /** Largest whole unit, capped at MAX_FRAME_UNITS and at the px ceiling so the
+   *  top unit's px (units × repeat) never exceeds MAX_FRAME_SIZE — otherwise
+   *  `frameUnitsToPx`'s clamp would round it back and freeze the slider. */
+  max: number
+  /** The current `sizePx` expressed (and clamped) in whole units. */
+  units: number
+}
+
+/**
+ * Derive the unit-slider bounds + current value from the live tiling repeat
+ * length and the stored frame size (px). One unit = one lattice translate; the
+ * frame's `size` stays stored in px so world geometry/validation are unchanged
+ * — the slider just snaps to integer multiples of the repeat. Pulled out of
+ * `Sidebar` so the clamp logic (whose edges previously froze the slider) is
+ * unit-testable. `repeat` is assumed > 0 (callers fall back to the tiling
+ * scale, which is always positive).
+ */
+export function frameUnitModel(repeat: number, sizePx: number): FrameUnitModel {
+  const min = Math.max(1, Math.ceil(MIN_FRAME_SIZE / repeat))
+  const max = Math.max(min, Math.min(MAX_FRAME_UNITS, Math.floor(MAX_FRAME_SIZE / repeat)))
+  const units = Math.min(max, Math.max(min, Math.round(sizePx / repeat)))
+  return { min, max, units }
+}
+
+/** Convert a whole-unit frame size back to px, clamped to the px range. */
+export function frameUnitsToPx(units: number, repeat: number): number {
+  return Math.min(MAX_FRAME_SIZE, Math.max(MIN_FRAME_SIZE, units * repeat))
+}
+
 /**
  * World-space outline polygon (CCW) for a Shape Frame, or `null` for n-ring
  * Frames / unknown shapes. `size` is the circumradius before aspect; `aspect`

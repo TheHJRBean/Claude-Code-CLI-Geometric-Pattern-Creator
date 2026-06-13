@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import type { Vec2 } from '../utils/math'
-import { frameOutlinePolygon, computeFrameSections, frameNodePoints } from './frame'
+import {
+  frameOutlinePolygon, computeFrameSections, frameNodePoints,
+  frameUnitModel, frameUnitsToPx,
+  MIN_FRAME_SIZE, MAX_FRAME_SIZE, MAX_FRAME_UNITS,
+} from './frame'
 
 /** Axis-aligned 100×100 square outline (CCW). */
 const square100: Vec2[] = [
@@ -95,4 +99,64 @@ describe('computeFrameSections', () => {
     const sections = computeFrameSections(square100, 30)
     expect(frameNodePoints(sections).length).toBe(sections.length)
   })
+})
+
+// Characterization tests for the Gallery Frame unit-sizing clamp (thermo-nuclear
+// review Chunk 3). Extracted out of Sidebar.tsx; the clamp edges previously
+// froze the slider, so the round-trip stability below is the regression guard.
+
+describe('frameUnitModel', () => {
+  it('typical case: a 500-unit repeat gives the full 1..MAX range', () => {
+    expect(frameUnitModel(500, 400)).toEqual({ min: 1, max: MAX_FRAME_UNITS, units: 1 })
+  })
+
+  it('expresses the stored px size in whole repeat units', () => {
+    expect(frameUnitModel(100, 400).units).toBe(4) // round(400/100)
+  })
+
+  it('a tiny repeat raises min above 1 (a unit must be ≥ MIN_FRAME_SIZE px)', () => {
+    const m = frameUnitModel(40, 400)
+    expect(m.min).toBe(Math.ceil(MIN_FRAME_SIZE / 40)) // = 2
+    expect(frameUnitModel(40, 50).units).toBe(m.min)   // round(1.25)=1 clamped up to min
+  })
+
+  it('clamps units to [min, max]', () => {
+    expect(frameUnitModel(40, 1e7).units).toBe(frameUnitModel(40, 1e7).max) // huge → max
+    expect(frameUnitModel(500, 1).units).toBe(1)                            // tiny → min
+  })
+
+  it('max never drops below min, even for an enormous repeat', () => {
+    const m = frameUnitModel(10000, 400) // floor(8000/10000)=0 would beat min
+    expect(m.max).toBeGreaterThanOrEqual(m.min)
+    expect(m.max).toBe(1)
+  })
+
+  it('max is capped at MAX_FRAME_UNITS', () => {
+    expect(frameUnitModel(10, 400).max).toBe(MAX_FRAME_UNITS) // floor(800) capped to 16
+  })
+})
+
+describe('frameUnitsToPx', () => {
+  it('multiplies units by the repeat within the px range', () => {
+    expect(frameUnitsToPx(4, 100)).toBe(400)
+  })
+
+  it('clamps below MIN and above MAX frame size', () => {
+    expect(frameUnitsToPx(1, 40)).toBe(MIN_FRAME_SIZE)    // 40 < 80 → clamped up
+    expect(frameUnitsToPx(100, 500)).toBe(MAX_FRAME_SIZE) // 50000 → clamped down
+  })
+})
+
+describe('frame unit round-trip stability (slider-freeze guard)', () => {
+  // The documented bug: if the top unit's px (max × repeat) exceeded
+  // MAX_FRAME_SIZE, frameUnitsToPx clamped it back and the model re-derived a
+  // smaller unit, so the slider snapped away from its max and froze. The `max`
+  // formula caps units so this can't happen — pin it across a range of repeats.
+  for (const repeat of [40, 100, 333, 500, 600, 1000, 2000]) {
+    it(`max unit survives a px round-trip at repeat=${repeat}`, () => {
+      const { max } = frameUnitModel(repeat, 400)
+      const px = frameUnitsToPx(max, repeat)
+      expect(frameUnitModel(repeat, px).units).toBe(max)
+    })
+  }
 })

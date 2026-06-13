@@ -104,4 +104,18 @@ Audit conclusion: **under the 1k bar** (no Std-1 violation). The plan floated co
 
 ### Chunk-5 result — green
 
-`tsc` clean · **367/367 tests pass** (342 +25 in `figureMutations.test.ts`) · build OK · bundle gzip 127.21 kB (unchanged). **Zero production-code change** — pure characterization tests pinning invariants for a future refactor. **user-verified: n/a** (no observable change).
+`tsc` clean · **367/367 tests pass** (342 +25 in `figureMutations.test.ts`) · build OK · bundle gzip 127.21 kB (unchanged). **Zero production-code change** — pure characterization tests pinning invariants for a future refactor. **user-verified: n/a** (no observable change). **MERGED to `main`** (`7bf724f`).
+
+### Chunk 3 — `components/Sidebar.tsx` (907)
+
+Audit conclusion: **under the 1k bar**. The small sub-components (OctaStar, SectionTitle, Toggle, ExportBtn…) are already well-factored. The plan's "data-driven control registry" hypothesis is right-sized to a **`<Section>` wrapper component** — the section-wrapper chrome (border row + Lotus divider + collapsible `SectionTitle` + open-gate) was hand-repeated 8× — NOT a heterogeneous section-descriptor array (the bodies reference too much local state/handlers; a descriptor array would be the over-abstraction trap the skill warns against). Separately, the **frame units↔px clamp math** inlined in the component is the one genuinely behavior-bearing, testable piece (and its clamp edges had a documented past slider-freeze bug).
+
+| Chunk | File | Sev | Finding | Remedy | Status |
+| --- | --- | --- | --- | --- | --- |
+| 3 | `Sidebar.tsx` | S2/S6 | Section-wrapper chrome (`<div border><LotusDivider/><SectionTitle open onToggle/>{open && body}</div>`) hand-duplicated across 8 control groups. | **DONE**: extracted a `<Section>` shell; 8 sections route through it (bodies stay inline children). 907→890 ln (−39 boilerplate net of the +22-ln component). One section (My Patterns) left raw **on purpose** — its trailing spacer renders OUTSIDE the open-gate, which `Section` can't express without changing behaviour; commented. | done |
+| 3 | `Sidebar.tsx` / `editor/frame.ts` | S8 | Frame unit-sizing clamp (units↔px, with edge clamps that previously froze the slider) was inline + untested. | **DONE**: extracted pure `frameUnitModel` + `frameUnitsToPx` to `frame.ts`; +15 tests incl. a parametric **round-trip-stability** guard for the freeze bug (`max × repeat` survives the px clamp across 7 repeats). | done |
+| 3 | `Sidebar.tsx` | S8 | Remainder is pure-presentational JSX (selects/sliders/toggles wired straight to `dispatch`) — no extractable logic left. | Manual-verify only (Wave-D checkpoint: toggle every control + collapse/expand each section). | open (awaiting user verify) |
+
+### Chunk-3 result — green
+
+`tsc` clean · **382/382 tests pass** (367 +15 frame-unit tests) · build OK · bundle JS 419.71→418.96 kB (gzip 127.23, ≈flat). Sidebar 907→890. One Std-2/6 dedup (`<Section>`) + one Std-8 extraction (tested frame-units helper). Behaviour-preserving: `<Section>` is verbatim chrome relocation (same DOM, same styles — the merged style objects are byte-equal per section); the frame-units math is a pure-arithmetic move pinned by the round-trip test. **user-verified: pending** (Wave-D checkpoint: open Gallery Sidebar, collapse/expand every section, toggle each control, drag the Frame size slider to its max + min — should not freeze).

@@ -89,4 +89,19 @@ Audit conclusion: the geometry-pipeline orchestrator is **under the 1k bar** and
 
 ### Chunk-4 result — green
 
-`tsc` clean · **342/342 tests pass** (328 +14: 6 stampSegments, 8 periodicFastPathEligible) · build OK · bundle gzip 127.21 kB (= Chunk-2, no regression). Two pure helpers exported + pinned; **no production logic changed** (only `function` → `export function` on the two helpers). The behavior-preserving bar is trivially met — there is no behavior change to verify, only the new tests. **user-verified: n/a** (no observable change; metrics snapshot is the deliverable). Restructure deferred with rationale above.
+`tsc` clean · **342/342 tests pass** (328 +14: 6 stampSegments, 8 periodicFastPathEligible) · build OK · bundle gzip 127.21 kB (= Chunk-2, no regression). Two pure helpers exported + pinned; **no production logic changed** (only `function` → `export function` on the two helpers). The behavior-preserving bar is trivially met — there is no behavior change to verify, only the new tests. **user-verified: n/a** (no observable change; metrics snapshot is the deliverable). Restructure deferred with rationale above. **MERGED to `main`** (`219d44f`).
+
+### Chunk 5 — `state/reducer.ts` (877)
+
+Audit conclusion: **under the 1k bar** (no Std-1 violation). The plan floated converting the mega-`switch` to a `Record<type, handler>` dispatcher (Std 2), but a discriminated-union `switch` is the idiomatic, type-safe reducer shape — a handler-map would *lose* per-case payload narrowing and add indirection, which is the "unnecessary abstraction/wrapper" the skill's Approval Bar warns against (lateral motion, not deletion). The repeated `if (!state.editor) return state` guard and the `applyWrap(seedFigures(updateActiveCell(...)))` composition vary meaningfully per case (which post-processors run differs), so extracting them trades legibility for little real dedup. **No restructure.** The genuine gap is Std-8: the figure/curve mutation helpers (`updateFigure` / `updateCurve` / `curveBase` / `curveField`) and the **edge↔vertex line mutual-exclusion invariant** were entirely untested — exactly the kind of invariant a refactor silently breaks. Existing suites cover only the decoration actions + figure-key pruning.
+
+| Chunk | File | Sev | Finding | Remedy | Status |
+| --- | --- | --- | --- | --- | --- |
+| 5 | `reducer.ts` | S8 | Edge↔vertex line **mutual-exclusion invariant** (disabling either line source force-enables the other so a tile keeps ≥1 source) was untested; trivially broken by a refactor. | **DONE**: 3 tests pinning both directions + the "enable doesn't touch the other" case. | done |
+| 5 | `reducer.ts` | S8 | Figure/curve mutation helpers untested: scalar field writes + unknown-tile fallback seeding, `SET_VERTEX_LINES_DECOUPLED` seeding (vertex fields from coupled values + deep-copied `vertexCurve`), curve defaults / `[1,3]` clamp / per-index merge, edge-vs-vertex curve target isolation, `RESET_FIGURES` (gallery default vs `DEFAULT_EDITOR_FIGURE`), immutability. | **DONE**: 22 tests in `figureMutations.test.ts`. | done |
+| 5 | `reducer.ts` | S8 | Editor no-op guards + the multi-cell `SET_CELL_BOUNDARY_SIZE` lattice-scale invariant (all cell `boundarySize` follow `edgeLength`; centres scale by k) + triangle symmetry-mode coercion untested. | **DONE**: covered in the same file. | done |
+| 5 | `reducer.ts` | S2 | ~30-case mega-switch. | Convert to handler-map. **REJECTED** (not deferred): idiomatic type-safe reducer; conversion loses payload narrowing + adds indirection for no deletion. Documented rationale above. | rejected |
+
+### Chunk-5 result — green
+
+`tsc` clean · **367/367 tests pass** (342 +25 in `figureMutations.test.ts`) · build OK · bundle gzip 127.21 kB (unchanged). **Zero production-code change** — pure characterization tests pinning invariants for a future refactor. **user-verified: n/a** (no observable change).

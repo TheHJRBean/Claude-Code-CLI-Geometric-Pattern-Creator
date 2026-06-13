@@ -5,8 +5,9 @@ import type { Vec2 } from '../utils/math'
 import { usePattern } from '../hooks/usePattern'
 import { frameOutlinePolygon, computeFrameSections, frameNodePoints } from '../editor/frame'
 import { nRingOutline, DEFAULT_FRAME_RINGS } from '../editor/frameNRing'
-import { usePanZoom, type ViewTransform } from '../hooks/usePanZoom'
+import { usePanZoom } from '../hooks/usePanZoom'
 import { PatternSVG } from '../rendering/PatternSVG'
+import { worldToScreen } from '../rendering/screenSpace'
 import { DecorationPaintLayer, type PaintPayload, type PaintTarget, type StrandPaintScope, type VoidPaintScope } from '../rendering/DecorationPaintLayer'
 import { RotationDial } from './RotationDial'
 import type { ExposedEdge } from '../editor/exposedEdges'
@@ -919,30 +920,3 @@ function isDeletableTile(editor: PatternConfig['editor'], tileId: string): boole
   return false
 }
 
-/**
- * Map a world-space point to screen-space pixels relative to the canvas
- * container, accounting for pan, zoom, and the rotation `<g>` applied
- * around the viewBox centre.
- */
-function worldToScreen(
-  world: Vec2,
-  vt: ViewTransform,
-  width: number,
-  height: number,
-): { x: number; y: number } {
-  const vw = width / vt.zoom
-  const vh = height / vt.zoom
-  const cx = vt.x + vw / 2
-  const cy = vt.y + vh / 2
-  const rad = (vt.rotation * Math.PI) / 180
-  const cos = Math.cos(rad)
-  const sin = Math.sin(rad)
-  const dx = world.x - cx
-  const dy = world.y - cy
-  const vbx = cx + dx * cos - dy * sin
-  const vby = cy + dx * sin + dy * cos
-  return {
-    x: (vbx - vt.x) * vt.zoom,
-    y: (vby - vt.y) * vt.zoom,
-  }
-}

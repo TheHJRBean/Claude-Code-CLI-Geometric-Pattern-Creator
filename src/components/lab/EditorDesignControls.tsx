@@ -2,7 +2,7 @@ import type { PatternConfig } from '../../types/pattern'
 import type { Action } from '../../state/actions'
 import type { PaintTarget, StrandPaintScope, VoidPaintScope } from '../../rendering/DecorationPaintLayer'
 import type { Vec2 } from '../../utils/math'
-import { FieldLabel } from './labShared'
+import { FieldLabel, segmentedButtonStyle } from './labShared'
 import { CompositionPanel } from './CompositionPanel'
 import { DecorationPanel } from './DecorationPanel'
 import { FramePanel } from './FramePanel'
@@ -130,20 +130,7 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
             <button
               key={p}
               onClick={() => onSetEditorPhase(p)}
-              style={{
-                flex: 1,
-                padding: '5px 0',
-                fontFamily: "'Cinzel', Georgia, serif",
-                fontSize: 9,
-                fontWeight: 600,
-                letterSpacing: '0.06em',
-                textTransform: 'uppercase',
-                cursor: 'pointer',
-                border: `1px solid ${active ? 'var(--accent)' : 'var(--border-subtle)'}`,
-                background: active ? 'var(--accent-bg)' : 'transparent',
-                color: active ? 'var(--accent)' : 'var(--text-muted)',
-                transition: 'all 0.15s',
-              }}
+              style={segmentedButtonStyle(active)}
             >
               {label}
             </button>

@@ -1,6 +1,36 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import type { PatternConfig } from '../../types/pattern'
 import { detectCellTilingStatus } from '../../editor/nonTilingDetection'
+
+/**
+ * Shared style for the Lab's segmented-control buttons — the accent-when-active
+ * pill used by the phase switch, the Place/Complete tool toggle, and the
+ * Decoration paint-target / reach toggles. The accent active/inactive triplet
+ * (border + background + colour) was copy-pasted across those sites; centring
+ * it here keeps them in lockstep. `letterSpacing` and the hover `transition`
+ * are the only per-site variations, so they're options (defaults match the
+ * phase switch).
+ */
+export function segmentedButtonStyle(
+  active: boolean,
+  opts: { letterSpacing?: string; transition?: boolean } = {},
+): CSSProperties {
+  const { letterSpacing = '0.06em', transition = true } = opts
+  return {
+    flex: 1,
+    padding: '5px 0',
+    fontFamily: "'Cinzel', Georgia, serif",
+    fontSize: 9,
+    fontWeight: 600,
+    letterSpacing,
+    textTransform: 'uppercase',
+    cursor: 'pointer',
+    border: `1px solid ${active ? 'var(--accent)' : 'var(--border-subtle)'}`,
+    background: active ? 'var(--accent-bg)' : 'transparent',
+    color: active ? 'var(--accent)' : 'var(--text-muted)',
+    ...(transition ? { transition: 'all 0.15s' } : null),
+  }
+}
 
 /**
  * Shared presentational primitives for the Builder (Lab) sidebar — icons,

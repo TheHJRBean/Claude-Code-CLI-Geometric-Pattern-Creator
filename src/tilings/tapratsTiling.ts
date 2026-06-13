@@ -131,10 +131,9 @@ export function getTapratsTileTypes(tilingKey: string): { id: string; sides: num
 // ── Tiling generation ────────────────────────────────────
 
 function intersectsViewport(verts: Vec2[], vp: Viewport): boolean {
-  for (const v of verts) {
-    if (v.x >= vp.x && v.x <= vp.x + vp.width &&
-        v.y >= vp.y && v.y <= vp.y + vp.height) return true
-  }
+  // AABB overlap between the polygon's bounding box and the viewport. This also
+  // subsumes the "any vertex inside the viewport" case (a contained vertex
+  // forces the boxes to overlap), so no separate per-vertex pass is needed.
   const xs = verts.map(v => v.x)
   const ys = verts.map(v => v.y)
   const minX = Math.min(...xs), maxX = Math.max(...xs)
@@ -152,6 +151,11 @@ export function generateTapratsTiling(
 ): Polygon[] {
   const data = TAPRATS_DATA[tilingKey]
   if (!data) return []
+  // A non-positive (or NaN) edge length scales the lattice vectors to zero
+  // length, which would make the lattice range `ceil(diag / 0) = Infinity` and
+  // spin the generation loops forever. Callers clamp the scale slider, but a
+  // crafted/legacy LOAD_CONFIG can reach here — fail closed instead of hanging.
+  if (!(edgeLen > 0)) return []
 
   resetIds()
 

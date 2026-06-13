@@ -24,16 +24,15 @@ import { EPSILON, dist, midpoint, pointInPolygon, isConvexPolygon, type Vec2 } f
  *     (their symmetry forces both t the same sign).
  *  4. Neither is even partially valid (parallel, or both t negative): null.
  *
- * The `convex` flag is no longer used to skip pointInPolygon — for irregular
- * convex tiles, pair A's intersection can be outside even though the polygon
- * is convex. The cost of pointInPolygon is negligible at this call rate.
+ * A polygon-convexity flag is deliberately NOT taken to skip pointInPolygon —
+ * for irregular convex tiles, pair A's intersection can be outside even though
+ * the polygon is convex. The cost of pointInPolygon is negligible here.
  */
 function pairAtVertex(
   rays: ContactRay[],
   prevEdge: number,
   currEdge: number,
   polyVertices: Vec2[],
-  _convex: boolean,
 ): { ray1: ContactRay; ray2: ContactRay; result: IntersectResult } | null {
   const rA1 = rays[prevEdge * 2 + 1]
   const rA2 = rays[currEdge * 2]
@@ -433,7 +432,6 @@ function pairVertexAtEdge(
   vIdx1: number,
   vIdx2: number,
   polyVertices: Vec2[],
-  _convex: boolean,
 ): { ray1: VertexRay; ray2: VertexRay; result: IntersectResult } | null {
   const rA1 = vertexRays[vIdx1 * 2 + 1]
   const rA2 = vertexRays[vIdx2 * 2]
@@ -578,13 +576,12 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
     const rays = computeContactRays(poly, fig.contactAngle)
     const n = poly.sides
     const inradius = n > 0 ? dist(poly.center, rays[0].origin) : 0
-    const convex = isConvexPolygon(poly.vertices)
 
     const emittedRays = new Set<string>()
 
     for (let k = 0; k < n; k++) {
       const prevEdge = (k - 1 + n) % n
-      const pair = pairAtVertex(rays, prevEdge, k, poly.vertices, convex)
+      const pair = pairAtVertex(rays, prevEdge, k, poly.vertices)
       if (!pair) continue
 
       if (edgeEnabled) {
@@ -654,7 +651,7 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
         if (!internalEdges.has(eKey)) continue
 
         const nextV = (k + 1) % n
-        const pair = pairVertexAtEdge(vertexRays, k, nextV, poly.vertices, convex)
+        const pair = pairVertexAtEdge(vertexRays, k, nextV, poly.vertices)
         if (!pair) continue
         emitVertexArms(pair, vtxAutoLen, vtxLineLen, circumradius, poly.id, poly.tileTypeId, poly.center, n, eMid, poly.vertices, segments)
       }

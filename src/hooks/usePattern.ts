@@ -122,8 +122,9 @@ export interface PatternData {
 
 /** Translate (and, only off the fast-path, rotate) already-PIC'd base segments
  * across lattice stamps to build the full field WITHOUT re-running PIC — valid
- * because PIC is translation-invariant on a periodic field. */
-function stampSegments(base: Segment[], stamps: LatticeStamp[]): Segment[] {
+ * because PIC is translation-invariant on a periodic field. Exported for
+ * characterization tests (thermo-nuclear review Chunk 4). */
+export function stampSegments(base: Segment[], stamps: LatticeStamp[]): Segment[] {
   const out: Segment[] = []
   for (const st of stamps) {
     const tx = st.translation.x, ty = st.translation.y
@@ -154,8 +155,9 @@ function stampSegments(base: Segment[], stamps: LatticeStamp[]): Segment[] {
  * memo bailed) or wastes a full extraction (fills computed but the render
  * falls back to the exact stamped path). `stamps` can be ANY stamp set for
  * the patch: rotations come from the cell shape / Configuration basis, never
- * the viewport, so eligibility is viewport-independent. */
-function periodicFastPathEligible(
+ * the viewport, so eligibility is viewport-independent. Exported for
+ * characterization tests (thermo-nuclear review Chunk 4). */
+export function periodicFastPathEligible(
   config: PatternConfig,
   editorFrame: boolean,
   showBoundaryLattice: boolean,

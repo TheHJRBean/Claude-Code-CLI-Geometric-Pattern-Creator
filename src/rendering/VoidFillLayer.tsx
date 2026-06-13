@@ -1,6 +1,6 @@
 import { memo } from 'react'
-import type { Vec2 } from '../utils/math'
 import type { VoidFill } from '../decoration/resolve'
+import { polygonPath } from './svgGeometry'
 
 /**
  * Step 19.2 — Decoration **Void Fill** layer. Paints each resolved Void as a
@@ -18,8 +18,3 @@ export const VoidFillLayer = memo(function VoidFillLayer({ fills }: { fills: Voi
     </g>
   )
 })
-
-function polygonPath(poly: Vec2[]): string {
-  if (poly.length < 3) return ''
-  return `M${poly.map(p => `${p.x},${p.y}`).join('L')}Z`
-}

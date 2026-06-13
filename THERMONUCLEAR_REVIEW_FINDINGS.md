@@ -166,6 +166,21 @@ Audit conclusion: **the healthiest layer in the codebase** — best test density
 | 9 | `decoration/` `strand/` | — | Reach ladder (`scopes.ts`) + Void extraction (`voids.ts`) + weave (`weave.ts`/`wovenPathD.ts`). | **NO ACTION**: structurally healthy + well-tested; refactoring on top of the open browser-verifies would be premature (memory note). Audited clean. | done |
 | 9 | `strand/computeCurves.ts` | S8 | `computeCurves` (206 ln) is only exercised by the perf probe, not a behavioural regression. | **NOTED**: candidate for a focused render-output test in Chunk 10 (`rendering/`) where the curve→path pipeline is reviewed end-to-end. | deferred |
 
+### Chunk 10 — `rendering/` (1080 ln, was 0 tests beyond screenSpace)
+
+Audit conclusion: the layer is React/SVG **components** in a `node` test env (no DOM) — full component snapshots would need a jsdom infra change, out of scope. So the plan's "write render-output tests" becomes the codebase's stated mitigation for thin UI coverage: **extract the pure, behaviour-bearing logic embedded in the components into tested helpers.** `PatternSVG` (384) is pure wiring/composition (no extractable logic); the logic lived in `StrandLayer` + the paint overlay.
+
+| Chunk | File | Sev | Finding | Remedy | Status |
+| --- | --- | --- | --- | --- | --- |
+| 10 | `VoidFillLayer` + `DecorationPaintLayer` | S6 | `polygonPath` (polygon→`M…L…Z`) was byte-identical in both. | **DONE**: extracted to `rendering/svgGeometry.ts`; both import it. | done |
+| 10 | `DecorationPaintLayer` | S8 | The strand Paint hit-test (`pointSegmentDist` + the nearest-within-tolerance `strandIndexAt`) was inline + untested — it's the interaction the perf fix introduced (miss ⇒ click falls through to pan). | **DONE**: extracted `pointSegmentDist` + `nearestSegmentIndex` to `svgGeometry.ts`; component calls them. +10 tests (on/perp/past-endpoint/zero-length dist; nearest/miss/empty/tie). | done |
+| 10 | `StrandLayer` | S8 | The `lineStyle`→stroke-attribute derivation (dash arrays, butt-vs-round cap, mask flag, cut/centre widths) was inline + untested. | **DONE**: extracted `strandStyleAttrs(lineStyle, w)` to `rendering/strandStyle.ts`. +5 tests (solid/double/triple/dashed/dotted). | done |
+| 10 | `strand/computeCurves` | S8 | Still only perf-probe-tested (carried from Chunk 9). | **DEFERRED**: best as an end-to-end curve→path-output test alongside the `curvedPathD`/`wovenPathD` render path — its own focused pass; the inputs are heavy to construct by hand. | deferred |
+
+### Chunk-10 result — green
+
+`tsc` clean · **459/459 tests pass** (444 +15) · build OK · bundle gzip 127.07→127.09 (≈flat). Components shrank (StrandLayer 286→282, DecorationPaintLayer 241→220, VoidFillLayer 25→20) with logic moved into 2 small tested modules (`svgGeometry.ts` 46, `strandStyle.ts` 33). Behaviour-preserving — pure extractions; the helpers reproduce the inline code verbatim, pinned by the new tests + confirmed by `tsc` + the unchanged build. **user-verified: pending** (Wave-F checkpoint: Decoration strand painting still hit-tests correctly; double/triple/dashed/dotted strand styles still render — both exercise the extracted helpers).
+
 ### Chunk-9 result — green
 
 `tsc` clean · **444/444 tests pass** (436 +8) · build OK · bundle unchanged. **Zero production-code change** — the decoration layer is genuinely healthy; the deliverable is pinning its single most identity-critical untested primitive (`minRotation`) with a differential fuzz so a future "optimise the canonicaliser" change can't silently re-hash every saved pattern. **user-verified: n/a** (no observable change).

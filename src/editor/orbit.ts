@@ -1,5 +1,5 @@
 import type { Vec2 } from '../utils/math'
-import { pointsEqual } from '../utils/math'
+import { centroid, pointsEqual } from '../utils/math'
 import type { EditorCell, EditorTile } from '../types/editor'
 import { EDITOR_EPS, computeExposedEdges, tileVertices, type ExposedEdge } from './exposedEdges'
 import { applySym, boundarySymmetries, type Sym } from './symmetry'
@@ -119,24 +119,18 @@ export function placeTilesOnOrbit(
  * happen to sit at orbit-equivalent positions.
  */
 export function orbitTileIds(cell: EditorCell, tile: EditorTile): string[] {
-  const center = tile.kind === 'regular' ? tile.center : centroidOf(tileVertices(tile))
+  const center = tile.kind === 'regular' ? tile.center : centroid(tileVertices(tile))
   const syms = boundarySymmetries(cell.shape, cell.symmetryMode ?? 'none')
   const ids = new Set<string>([tile.id])
 
   for (const s of syms) {
     const q = applySym(s, center)
     for (const other of cell.tiles) {
-      const oc = other.kind === 'regular' ? other.center : centroidOf(tileVertices(other))
+      const oc = other.kind === 'regular' ? other.center : centroid(tileVertices(other))
       if (pointsEqual(q, oc, EDITOR_EPS)) ids.add(other.id)
     }
   }
   return Array.from(ids)
-}
-
-function centroidOf(verts: Vec2[]): Vec2 {
-  let x = 0, y = 0
-  for (const v of verts) { x += v.x; y += v.y }
-  return { x: x / verts.length, y: y / verts.length }
 }
 
 /**
@@ -185,7 +179,7 @@ export function placePolygonsOnOrbit(
   for (let i = 0; i < syms.length; i++) {
     const transformed = picks.map(p => applySym(syms[i], p))
     if (!transformed.every(inSelectable)) continue
-    const c = centroidOf(transformed)
+    const c = centroid(transformed)
     if (seenCentroids.some(q => pointsEqual(c, q, EDITOR_EPS))) continue
     seenCentroids.push(c)
     const tile = completeNGap(working, transformed, `${idPrefix}-${i}`)

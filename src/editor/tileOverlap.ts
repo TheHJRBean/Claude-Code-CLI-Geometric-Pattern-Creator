@@ -1,6 +1,7 @@
 import type { Vec2 } from '../utils/math'
-import { pointInPolygon, pointsEqual } from '../utils/math'
-import { EDITOR_EPS, edgesShareEndpoints } from './exposedEdges'
+import { centroid, pointInPolygon, pointsEqual } from '../utils/math'
+import type { EditorTile } from '../types/editor'
+import { EDITOR_EPS, edgesShareEndpoints, tileVertices } from './exposedEdges'
 
 /**
  * Geometric validators for Complete-mode candidates.
@@ -103,6 +104,36 @@ export function overlapsExistingDetail(polygon: Vec2[], existingTiles: Vec2[][])
     }
   }
   return null
+}
+
+/**
+ * Body-overlap probe shared by all three placement validators (edge /
+ * boundary-section / vertex). True if a candidate placement — given its
+ * vertices + centre — overlaps any existing Tile, by either:
+ *   - centre containment (an existing Tile's centre inside the candidate, or
+ *     the candidate's centre inside an existing Tile), or
+ *   - the strict edge-cross / vertex-intrusion test (`overlapsExisting`).
+ *
+ * Each Tile's "centre" is its stored centre (regular) or its vertex centroid
+ * (irregular). This was copy-pasted into `isPlacementViable`,
+ * `isVertexPlacementViable`, and `isBoundarySectionPlacementViable`; it's the
+ * one genuinely-shared primitive under those three names (the *placers*
+ * themselves are legitimately distinct — they anchor differently).
+ */
+export function placedTileOverlaps(
+  candidateVerts: Vec2[],
+  candidateCenter: Vec2,
+  tiles: EditorTile[],
+): boolean {
+  const bodies = tiles.map(t => {
+    const verts = tileVertices(t)
+    return { verts, center: t.kind === 'regular' ? t.center : centroid(verts) }
+  })
+  for (const b of bodies) {
+    if (pointInPolygon(b.center, candidateVerts)) return true
+    if (pointInPolygon(candidateCenter, b.verts)) return true
+  }
+  return overlapsExisting(candidateVerts, bodies.map(b => b.verts))
 }
 
 /**

@@ -4,7 +4,7 @@
 
 ## ▶ RESUME HERE
 
-**🧹 2026-06-13 — thermo-nuclear whole-codebase review IN PROGRESS.** Driven by `THERMONUCLEAR_REVIEW_PLAN.md`; live ledger + metrics in `THERMONUCLEAR_REVIEW_FINDINGS.md`. **Wave A done** (green baseline pinned). **Everything below is MERGED to `main` + pushed** (head `3dac419`); working tree clean, no open review branches; **382 tests / tsc / build all green**.
+**🧹 2026-06-13 — thermo-nuclear whole-codebase review IN PROGRESS.** Driven by `THERMONUCLEAR_REVIEW_PLAN.md`; live ledger + metrics in `THERMONUCLEAR_REVIEW_FINDINGS.md`. **Wave A done** (green baseline pinned). **Chunks 1–10 MERGED to `main` + pushed** (head `6825f7a`); working tree clean, no open review branches; **459 tests / tsc / build all green**. NEXT = Chunk 11 (remaining `components/`) — see the cold-start recipe lower down.
 
 > **Metrics snapshot (2026-06-13):** tests **315 → 459** (+144 across chunks 2/3/4/5/6/7/8/9/10). Largest-file table (vs Tier-0 baseline): TessellationLabMode 2243→812, Canvas 974→922, Sidebar 907→890, reducer 877 (unchanged), usePattern 902 (unchanged), tapratsTiling 796→800, pic/index 667→664, rendering/ components all shrank (logic → tested helpers). Bundle JS 418.37 kB (gzip 127.09). No file >1000. FPS not re-measured this session (no perf-touching change).
 >

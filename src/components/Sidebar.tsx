@@ -9,7 +9,7 @@ import { FigureControls } from './strands/FigureControls'
 import { mainConfigLibrary } from '../state/mainConfigs'
 import { ConfigLibraryPanel } from './ConfigLibraryPanel'
 import type { FrameConfig, FrameShape } from '../types/editor'
-import { DEFAULT_FRAME_SIZE, MIN_FRAME_SIZE, MAX_FRAME_SIZE, MAX_FRAME_UNITS } from '../editor/frame'
+import { DEFAULT_FRAME_SIZE, frameUnitModel, frameUnitsToPx } from '../editor/frame'
 
 interface Props {
   mode: 'main' | 'lab'
@@ -158,6 +158,31 @@ function SectionTitle({ children, open, onToggle, tooltip }: {
     >
       {inner}
     </button>
+  )
+}
+
+/**
+ * Collapsible sidebar section shell. Dedupes the wrapper chrome (border row +
+ * optional Lotus divider + collapsible `SectionTitle`) that every control group
+ * repeated by hand. The heterogeneous bodies stay inline as `children`; only
+ * the chrome is shared. `divider` defaults on (off for the first section);
+ * `style` overrides padding/border for the first/last sections.
+ */
+function Section({ title, tooltip, open, onToggle, divider = true, style, children }: {
+  title: React.ReactNode
+  tooltip?: string
+  open: boolean
+  onToggle: () => void
+  divider?: boolean
+  style?: React.CSSProperties
+  children?: React.ReactNode
+}) {
+  return (
+    <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)', ...style }}>
+      {divider && <LotusDivider />}
+      <SectionTitle open={open} onToggle={onToggle} tooltip={tooltip}>{title}</SectionTitle>
+      {open && children}
+    </div>
   )
 }
 
@@ -359,15 +384,9 @@ export function Sidebar({
     ? tilingRepeatLength(frameTilingDef, config.tiling.scale)
     : config.tiling.scale
   const frameSizePx = galleryFrame?.size ?? DEFAULT_FRAME_SIZE
-  const frameMinUnits = Math.max(1, Math.ceil(MIN_FRAME_SIZE / frameRepeat))
-  // Cap at MAX_FRAME_UNITS, and never above what the px ceiling allows — so the
-  // top unit's px (units × repeat) is always ≤ MAX_FRAME_SIZE and the setter's
-  // clamp can't round it back (which would freeze the slider).
-  const frameMaxUnits = Math.max(frameMinUnits, Math.min(MAX_FRAME_UNITS, Math.floor(MAX_FRAME_SIZE / frameRepeat)))
-  const frameUnits = Math.min(frameMaxUnits, Math.max(frameMinUnits, Math.round(frameSizePx / frameRepeat)))
+  const { min: frameMinUnits, max: frameMaxUnits, units: frameUnits } = frameUnitModel(frameRepeat, frameSizePx)
   const setFrameUnits = (units: number) => {
-    const px = Math.min(MAX_FRAME_SIZE, Math.max(MIN_FRAME_SIZE, units * frameRepeat))
-    setGalleryFrame({ size: px })
+    setGalleryFrame({ size: frameUnitsToPx(units, frameRepeat) })
   }
 
   return (
@@ -494,10 +513,7 @@ export function Sidebar({
       <div className="sidebar-sections">
 
         {/* Tiling */}
-        <div style={{ paddingTop: 20, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
-          <SectionTitle open={isOpen('tiling')} onToggle={() => toggleSection('tiling')}>Tiling</SectionTitle>
-          {isOpen('tiling') && (
-            <>
+        <Section title="Tiling" open={isOpen('tiling')} onToggle={() => toggleSection('tiling')} divider={false} style={{ paddingTop: 20 }}>
               <FieldLabel label="Type" />
               <select
                 value={config.tiling.type}
@@ -522,17 +538,11 @@ export function Sidebar({
                 onChange={e => dispatch({ type: 'SET_SCALE', payload: Number(e.target.value) })}
               />
               <div style={{ marginBottom: 4 }} />
-            </>
-          )}
-        </div>
+        </Section>
 
         {/* Frame (Gallery only) — clip the pattern to a parametric Shape Frame. */}
         {mode === 'main' && (
-          <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
-            <LotusDivider />
-            <SectionTitle open={isOpen('frame')} onToggle={() => toggleSection('frame')}>Frame</SectionTitle>
-            {isOpen('frame') && (
-              <>
+          <Section title="Frame" open={isOpen('frame')} onToggle={() => toggleSection('frame')}>
                 <FieldLabel label="Shape" />
                 <select
                   value={frameShape}
@@ -581,16 +591,12 @@ export function Sidebar({
                     <div style={{ marginBottom: 4 }} />
                   </>
                 )}
-              </>
-            )}
-          </div>
+          </Section>
         )}
 
         {/* Figures */}
-        <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
-          <LotusDivider />
-          <SectionTitle open={isOpen('figures')} onToggle={() => toggleSection('figures')}>Figures</SectionTitle>
-          {isOpen('figures') && (<>{tileTypes.map(tt => {
+        <Section title="Figures" open={isOpen('figures')} onToggle={() => toggleSection('figures')}>
+          {tileTypes.map(tt => {
             const fig = config.figures[tt.id]
             const angle = fig?.contactAngle ?? 60
             const lineLength = fig?.lineLength ?? 1.0
@@ -686,38 +692,29 @@ export function Sidebar({
           >
             Reset parameters
           </button>
-          <div style={{ marginBottom: 4 }} /></>)}
-        </div>
+          <div style={{ marginBottom: 4 }} />
+        </Section>
 
         {/* Curves — global options that apply across all figures */}
-        <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
-          <LotusDivider />
-          <SectionTitle open={isOpen('curves')} onToggle={() => toggleSection('curves')}>Curves</SectionTitle>
-          {isOpen('curves') && (
-            <>
+        <Section title="Curves" open={isOpen('curves')} onToggle={() => toggleSection('curves')}>
               <Toggle
                 checked={config.smoothTransitions ?? false}
                 onChange={v => dispatch({ type: 'SET_SMOOTH_TRANSITIONS', payload: v })}
                 label="Smooth transitions"
               />
               <div style={{ marginBottom: 4 }} />
-            </>
-          )}
-        </div>
+        </Section>
 
         {/* Figure routing — picks how degenerate pair-A meetings are handled
             on irregular polygons. Auto (default) routes through the polygon
             centre on convex tiles; Edge runs the original boundary slide;
             Centroid forces centroid V everywhere it's safe. */}
-        <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
-          <LotusDivider />
-          <SectionTitle
-            open={isOpen('figureRouting')}
-            onToggle={() => toggleSection('figureRouting')}
-            tooltip="On irregular tilings (kisrhombille, floret, deltoid, heptagonal-rosette) the natural ray meeting can fall outside the polygon. This picks how that case is handled. Auto keeps strands interior; Edge brings back the visible boundary slide."
-          >Figure Routing</SectionTitle>
-          {isOpen('figureRouting') && (
-            <>
+        <Section
+          title="Figure Routing"
+          open={isOpen('figureRouting')}
+          onToggle={() => toggleSection('figureRouting')}
+          tooltip="On irregular tilings (kisrhombille, floret, deltoid, heptagonal-rosette) the natural ray meeting can fall outside the polygon. This picks how that case is handled. Auto keeps strands interior; Edge brings back the visible boundary slide."
+        >
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginTop: 2 }}>
                 {(['auto', 'edge', 'centroid'] as const).map(mode => {
                   const active = (config.figureRouting ?? 'auto') === mode
@@ -753,20 +750,15 @@ export function Sidebar({
                 })}
               </div>
               <div style={{ marginBottom: 4 }} />
-            </>
-          )}
-        </div>
+        </Section>
 
         {/* Strand thickness — stroke width applied to every rendered Strand. */}
-        <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
-          <LotusDivider />
-          <SectionTitle
-            open={isOpen('lineThickness')}
-            onToggle={() => toggleSection('lineThickness')}
-            tooltip="Stroke width of rendered Strands. Strand-level (not Ray-level)."
-          >Strand Thickness</SectionTitle>
-          {isOpen('lineThickness') && (
-            <>
+        <Section
+          title="Strand Thickness"
+          open={isOpen('lineThickness')}
+          onToggle={() => toggleSection('lineThickness')}
+          tooltip="Stroke width of rendered Strands. Strand-level (not Ray-level)."
+        >
               <FieldLabel
                 label="Strand width"
                 value={config.strand.width.toFixed(1)}
@@ -820,16 +812,10 @@ export function Sidebar({
                 </>
               )}
               <div style={{ marginBottom: 4 }} />
-            </>
-          )}
-        </div>
+        </Section>
 
         {/* Display */}
-        <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
-          <LotusDivider />
-          <SectionTitle open={isOpen('display')} onToggle={() => toggleSection('display')}>Display</SectionTitle>
-          {isOpen('display') && (
-            <>
+        <Section title="Display" open={isOpen('display')} onToggle={() => toggleSection('display')}>
               <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
                 <Toggle
                   checked={showLines}
@@ -843,11 +829,12 @@ export function Sidebar({
                 />
               </div>
               <div style={{ marginBottom: 4 }} />
-            </>
-          )}
-        </div>
+        </Section>
 
-        {/* My Patterns — in-app library of saved configs (mirrors Lab's). */}
+        {/* My Patterns — in-app library of saved configs (mirrors Lab's). Left
+            as a raw section div on purpose: its trailing spacer renders OUTSIDE
+            the collapse gate (unlike every other section), which `Section`
+            can't express without changing that behaviour. */}
         <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
           <LotusDivider />
           <SectionTitle open={isOpen('library')} onToggle={() => toggleSection('library')}>My Patterns</SectionTitle>
@@ -865,10 +852,7 @@ export function Sidebar({
         </div>
 
         {/* Export */}
-        <div style={{ paddingTop: 4, paddingBottom: 28 }}>
-          <LotusDivider />
-          <SectionTitle open={isOpen('export')} onToggle={() => toggleSection('export')}>Export</SectionTitle>
-          {isOpen('export') && (
+        <Section title="Export" open={isOpen('export')} onToggle={() => toggleSection('export')} style={{ paddingBottom: 28, borderBottom: 'none' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               <ExportBtn onClick={onExportSVG}>SVG</ExportBtn>
               <ExportBtn onClick={onExportPNG}>PNG</ExportBtn>
@@ -876,8 +860,7 @@ export function Sidebar({
               <ExportBtn onClick={onSaveJSON} secondary>Save JSON</ExportBtn>
               <ExportBtn onClick={handleLoadJSON} secondary>Load JSON</ExportBtn>
             </div>
-          )}
-        </div>
+        </Section>
 
       </div>
 

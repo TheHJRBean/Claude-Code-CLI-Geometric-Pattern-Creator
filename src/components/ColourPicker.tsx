@@ -1,4 +1,20 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
+import {
+  isHexColour,
+  normaliseEyeDropperHex,
+  pushRecentColour,
+  subscribeRecents,
+  getRecents,
+  loadUserThemes,
+  saveUserThemes,
+  createUserTheme,
+  addColourToTheme,
+  removeColourFromTheme,
+  deleteUserTheme,
+  BUILT_IN_THEMES,
+  ACTIVE_THEME_KEY,
+  type ColourTheme,
+} from './colourPicker.logic'
 
 /**
  * ColourPicker — the Decoration Phase's paint-colour control.
@@ -12,108 +28,12 @@ import { useEffect, useState, useSyncExternalStore } from 'react'
  * - **Recent colours** — the last colours actually *used* to paint (not
  *   merely previewed). Callers record use via `pushRecentColour`; the row
  *   updates live through a module-level store + `useSyncExternalStore`.
+ *
+ * The non-JSX logic lives in `colourPicker.logic.ts` (tested). The store +
+ * theme type are re-exported here so existing import sites stay stable.
  */
-
-/* ── Recent-colours store (module-level, localStorage-backed) ── */
-
-const RECENTS_KEY = 'recent-paint-colours'
-const RECENTS_MAX = 10
-
-function loadRecents(): string[] {
-  try {
-    const raw = localStorage.getItem(RECENTS_KEY)
-    if (!raw) return []
-    const parsed: unknown = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return []
-    return parsed.filter((c): c is string => typeof c === 'string' && isHexColour(c)).slice(0, RECENTS_MAX)
-  } catch {
-    return []
-  }
-}
-
-let recents: string[] = loadRecents()
-const recentsListeners = new Set<() => void>()
-
-/** Record a colour as actually used (a paint landed). Call from the paint
- * dispatch sites, not from picker interactions — "recent" means used. */
-export function pushRecentColour(colour: string) {
-  const c = colour.toLowerCase()
-  if (!isHexColour(c)) return
-  if (recents[0] === c) return
-  recents = [c, ...recents.filter(r => r !== c)].slice(0, RECENTS_MAX)
-  try { localStorage.setItem(RECENTS_KEY, JSON.stringify(recents)) } catch { /* ignore */ }
-  recentsListeners.forEach(l => l())
-}
-
-function subscribeRecents(l: () => void) {
-  recentsListeners.add(l)
-  return () => { recentsListeners.delete(l) }
-}
-const getRecents = () => recents
-
-/* ── Themes ───────────────────────────────────────────── */
-
-export interface ColourTheme {
-  id: string
-  name: string
-  colours: string[]
-}
-
-const THEMES_KEY = 'user-colour-themes'
-const ACTIVE_THEME_KEY = 'active-colour-theme'
-
-const BUILT_IN_THEMES: ColourTheme[] = [
-  {
-    id: 'builtin-art-deco',
-    name: 'Art Deco',
-    colours: ['#c9943a', '#1b2a4a', '#7b1e26', '#0f6b5c', '#2c2c34', '#b87333', '#e8dcc0', '#f4ecd8'],
-  },
-  {
-    id: 'builtin-nile',
-    name: 'Nile & Gold',
-    colours: ['#0e4d64', '#137a63', '#c9a227', '#e1bb80', '#88ab75', '#cd5334', '#2d3a3a', '#edf6f9'],
-  },
-  {
-    id: 'builtin-lapis',
-    name: 'Classic Lapis',
-    colours: ['#1f3b73', '#2e5ea8', '#d4af37', '#7d1d1d', '#0d6e57', '#c97f4e', '#101418', '#f5f0e1'],
-  },
-  {
-    id: 'builtin-desert',
-    name: 'Desert Dusk',
-    colours: ['#9c4a1a', '#d98e32', '#f2d0a4', '#5f0f40', '#0b3954', '#ef798a', '#310e68', '#fdf0d5'],
-  },
-  {
-    id: 'builtin-jewel',
-    name: 'Jewel Box',
-    colours: ['#9b1d64', '#5727a3', '#1c5d99', '#0f8b8d', '#119822', '#f2bb05', '#dd7230', '#a4031f'],
-  },
-]
-
-function loadUserThemes(): ColourTheme[] {
-  try {
-    const raw = localStorage.getItem(THEMES_KEY)
-    if (!raw) return []
-    const parsed: unknown = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return []
-    return parsed.filter((t): t is ColourTheme =>
-      !!t && typeof t === 'object' &&
-      typeof (t as ColourTheme).id === 'string' &&
-      typeof (t as ColourTheme).name === 'string' &&
-      Array.isArray((t as ColourTheme).colours) &&
-      (t as ColourTheme).colours.every(c => typeof c === 'string'))
-  } catch {
-    return []
-  }
-}
-
-function saveUserThemes(themes: ColourTheme[]) {
-  try { localStorage.setItem(THEMES_KEY, JSON.stringify(themes)) } catch { /* ignore */ }
-}
-
-function isHexColour(c: string): boolean {
-  return /^#[0-9a-fA-F]{6}$/.test(c)
-}
+export { pushRecentColour }
+export type { ColourTheme }
 
 /* ── Eye dropper (native EyeDropper API, Chromium-only) ── */
 
@@ -215,13 +135,8 @@ export function ColourPicker({ value, onChange }: Props) {
   }
 
   const createTheme = () => {
-    const name = newName.trim()
-    if (!name) return
-    const theme: ColourTheme = {
-      id: `user-${Date.now().toString(36)}`,
-      name,
-      colours: [value.toLowerCase()],
-    }
+    const theme = createUserTheme(newName, value, `user-${Date.now().toString(36)}`)
+    if (!theme) return
     updateUserThemes([...userThemes, theme])
     setActiveTheme(theme.id)
     setCreating(false)
@@ -230,19 +145,17 @@ export function ColourPicker({ value, onChange }: Props) {
 
   const addCurrentToTheme = () => {
     if (!isUserTheme) return
-    const c = value.toLowerCase()
-    if (activeTheme.colours.includes(c)) return
-    updateUserThemes(userThemes.map(t => t.id === activeTheme.id ? { ...t, colours: [...t.colours, c] } : t))
+    updateUserThemes(addColourToTheme(userThemes, activeTheme.id, value))
   }
 
   const removeFromTheme = (colour: string) => {
     if (!isUserTheme) return
-    updateUserThemes(userThemes.map(t => t.id === activeTheme.id ? { ...t, colours: t.colours.filter(c => c !== colour) } : t))
+    updateUserThemes(removeColourFromTheme(userThemes, activeTheme.id, colour))
   }
 
   const deleteTheme = () => {
     if (!isUserTheme) return
-    updateUserThemes(userThemes.filter(t => t.id !== activeTheme.id))
+    updateUserThemes(deleteUserTheme(userThemes, activeTheme.id))
     setActiveTheme(BUILT_IN_THEMES[0].id)
   }
 
@@ -258,9 +171,8 @@ export function ColourPicker({ value, onChange }: Props) {
     setPickingFromScreen(true)
     try {
       const result = await new Ctor().open()
-      // Spec says 6-digit sRGBHex; tolerate an 8-digit (alpha) variant.
-      const hex = result.sRGBHex.length === 9 ? result.sRGBHex.slice(0, 7) : result.sRGBHex
-      if (isHexColour(hex)) onChange(hex.toLowerCase())
+      const hex = normaliseEyeDropperHex(result.sRGBHex)
+      if (hex) onChange(hex)
     } catch {
       // User cancelled (Esc) — nothing to do.
     } finally {

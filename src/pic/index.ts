@@ -561,9 +561,21 @@ function dedupPolygonSegments(segments: Segment[], startIdx: number): void {
   }
 }
 
-export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
+/**
+ * @param edgeContext Extra polygons used **only** to decide which edges are
+ *   internal (shared by two tiles) — never iterated for figure emission. The
+ *   vertex-line gate emits only on internal edges; when PIC runs over a single
+ *   periodic unit cell in isolation (the Builder Composition path), edges on
+ *   the unit-cell boundary are shared with the *next* stamped copy, not with
+ *   anything in `polygons`, so they'd wrongly read as external and silently
+ *   drop their vertex strands. Passing one ring of lattice-neighbour copies
+ *   here restores them without double-emitting figures.
+ */
+export function runPIC(polygons: Polygon[], config: PatternConfig, edgeContext?: Polygon[]): Segment[] {
   const segments: Segment[] = []
-  const internalEdges = buildInternalEdgeSet(polygons)
+  const internalEdges = buildInternalEdgeSet(
+    edgeContext && edgeContext.length > 0 ? [...polygons, ...edgeContext] : polygons,
+  )
   const edgeKeyF = 1e3
   const routing: FigureRouting = config.figureRouting ?? 'auto'
 

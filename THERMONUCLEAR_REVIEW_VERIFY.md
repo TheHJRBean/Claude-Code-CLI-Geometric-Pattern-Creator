@@ -1,5 +1,8 @@
 # Thermo-Nuclear Review — Owed Browser-Verifies
 
+> **2026-06-14 — VERIFIED.** Chunks 3 / 10 / 11 browser-checks all PASSED ("everything is good"). Two *pre-existing* Builder-geometry bugs surfaced during the pass (NOT chunk regressions): multi-cell vertex-strand inconsistency (FIXED `e42c12e` on `fix/builder-strand-bugs`) and vertex strands missing in overlapped cells (OPEN). See `SESSION_STATE.md` ▶ RESUME HERE + memories `project_vertex_strands_multicell_bug.md` / `project_overlap_tiles_strand_bug.md`.
+
+
 Manual checks owed from behaviour-touching chunks of the thermo-nuclear review.
 Every chunk is **behaviour-preserving**, so these are confirmations of "still works",
 not bug hunts. Run `npm run dev` and open the app. Tick each off and record the result

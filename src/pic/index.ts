@@ -516,20 +516,60 @@ function emitVertexArms(
  * Run the full PIC pipeline for all polygons. Rays from adjacent edges
  * sharing a vertex meet at a star tip (Kaplan's PIC construction).
  */
-/** Build a set of edge-midpoint keys that are shared by 2+ polygons (internal edges). */
+interface BBox { minX: number; minY: number; maxX: number; maxY: number }
+function polyBBox(poly: Polygon): BBox {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  for (const v of poly.vertices) {
+    if (v.x < minX) minX = v.x
+    if (v.y < minY) minY = v.y
+    if (v.x > maxX) maxX = v.x
+    if (v.y > maxY) maxY = v.y
+  }
+  return { minX, minY, maxX, maxY }
+}
+
+/**
+ * Build a set of edge-midpoint keys for edges that have a tile on their *other*
+ * side (internal edges — the vertex-line gate emits only on these). Two cases:
+ *
+ *  - **Shared edge** (clean edge-to-edge tilings + periodic ghost copies): the
+ *    midpoint coincides exactly with a neighbour's edge midpoint, so the edge
+ *    appears 2+ times in the count map.
+ *  - **Overlap-covered edge** (force-overlapped Builder tiles): the edge runs
+ *    through another tile's interior, so no edge midpoints coincide, yet the
+ *    midpoint is strictly inside that tile. A ray-cast point-in-polygon test
+ *    (bbox broad-phase) catches these. It never disturbs the clean case — a
+ *    shared/outer-boundary midpoint sits *on* a polygon edge, not strictly
+ *    inside it, and the shared ones are already flagged by the exact match.
+ */
 function buildInternalEdgeSet(polygons: Polygon[]): Set<string> {
   const f = 1e3
   const edgeCounts = new Map<string, number>()
+  const mids: { poly: Polygon; key: string; mid: Vec2 }[] = []
   for (const poly of polygons) {
     for (let i = 0; i < poly.sides; i++) {
       const mid = midpoint(poly.vertices[i], poly.vertices[(i + 1) % poly.sides])
       const key = `${Math.round(mid.x * f)},${Math.round(mid.y * f)}`
       edgeCounts.set(key, (edgeCounts.get(key) ?? 0) + 1)
+      mids.push({ poly, key, mid })
     }
   }
   const internal = new Set<string>()
   for (const [key, count] of edgeCounts) {
     if (count >= 2) internal.add(key)
+  }
+  // Overlap pass: an edge whose midpoint is strictly inside another tile is
+  // internal even though no midpoints coincide. Bbox broad-phase keeps it cheap.
+  const bboxes = polygons.map(polyBBox)
+  for (const { poly, key, mid } of mids) {
+    if (internal.has(key)) continue
+    for (let q = 0; q < polygons.length; q++) {
+      const other = polygons[q]
+      if (other === poly) continue
+      const b = bboxes[q]
+      if (mid.x < b.minX || mid.x > b.maxX || mid.y < b.minY || mid.y > b.maxY) continue
+      if (pointInPolygon(mid, other.vertices)) { internal.add(key); break }
+    }
   }
   return internal
 }
@@ -573,9 +613,14 @@ function dedupPolygonSegments(segments: Segment[], startIdx: number): void {
  */
 export function runPIC(polygons: Polygon[], config: PatternConfig, edgeContext?: Polygon[]): Segment[] {
   const segments: Segment[] = []
-  const internalEdges = buildInternalEdgeSet(
-    edgeContext && edgeContext.length > 0 ? [...polygons, ...edgeContext] : polygons,
-  )
+  // internalEdges only gates vertex lines; skip building it (and its overlap
+  // point-in-polygon pass) entirely when no figure emits vertex lines.
+  const anyVertexLines = Object.values(config.figures).some(fg => fg?.vertexLinesEnabled)
+  const internalEdges = anyVertexLines
+    ? buildInternalEdgeSet(
+        edgeContext && edgeContext.length > 0 ? [...polygons, ...edgeContext] : polygons,
+      )
+    : new Set<string>()
   const edgeKeyF = 1e3
   const routing: FigureRouting = config.figureRouting ?? 'auto'
 

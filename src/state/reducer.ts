@@ -46,7 +46,7 @@ import { patchRotation } from '../editor/compositionLattice'
 import { overlapsExisting } from '../editor/tileOverlap'
 import { tileVertices } from '../editor/exposedEdges'
 import type { LatticeStamp } from '../editor/lattice'
-import { pointsEqual } from '../utils/math'
+import { centroid, pointsEqual } from '../utils/math'
 import { EDITOR_EPS } from '../editor/exposedEdges'
 
 const FALLBACK_FIGURE: FigureConfig = { type: 'star', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
@@ -797,7 +797,7 @@ function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[], force
     // asymmetric setups where the orbit branch has no real pick targets.
     const patchLocal = transformed.map(p => applyCellTransform(p, active, patchRot))
     if (!patchLocal.every(p => isPatchSelectableVertex(patch, p, true))) continue
-    const c = centroidOf(transformed)
+    const c = centroid(transformed)
     if (seenCentroids.some(q => pointsEqual(c, q, EDITOR_EPS))) continue
     seenCentroids.push(c)
     const tile = completeNGap(working, transformed, `${idPrefix}-${i}`, force)
@@ -815,13 +815,6 @@ function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[], force
   if (placements.length === 0) return state
   return applyWrap(seedFigures(updateActiveCell(state, _ => working)))
 }
-
-function centroidOf(verts: Vec2[]): Vec2 {
-  let x = 0, y = 0
-  for (const v of verts) { x += v.x; y += v.y }
-  return { x: x / verts.length, y: y / verts.length }
-}
-
 
 /**
  * Q15 — after any editor mutation, ensure every distinct `tileTypeId` across

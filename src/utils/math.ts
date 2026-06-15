@@ -79,6 +79,22 @@ export function centroid(poly: Vec2[]): Vec2 {
   return { x: x / n, y: y / n }
 }
 
+/**
+ * Unsigned interior angle (radians) of polygon `poly` at vertex `i` — the angle
+ * between the edges to the previous and next vertices. Operation order is fixed
+ * (it underpins the `tileTypeId` signature hash, so the value must stay stable).
+ */
+export function polygonInteriorAngleAt(poly: Vec2[], i: number): number {
+  const n = poly.length
+  const prev = poly[(i - 1 + n) % n]
+  const curr = poly[i]
+  const next = poly[(i + 1) % n]
+  const v1x = prev.x - curr.x, v1y = prev.y - curr.y
+  const v2x = next.x - curr.x, v2y = next.y - curr.y
+  const cosA = (v1x * v2x + v1y * v2y) / (Math.hypot(v1x, v1y) * Math.hypot(v2x, v2y))
+  return Math.acos(Math.max(-1, Math.min(1, cosA)))
+}
+
 /* ── Bézier utilities ──────────────────────────────────────────── */
 
 export interface CubicCurve {

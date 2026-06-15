@@ -1,5 +1,5 @@
 import type { Vec2 } from '../utils/math'
-import { pointsEqual } from '../utils/math'
+import { pointsEqual, rotate } from '../utils/math'
 import type { EditorCell } from '../types/editor'
 import { EDITOR_EPS } from './exposedEdges'
 import { editorBoundaryVertices } from './buildEditorPolygons'
@@ -209,7 +209,5 @@ export function nRingOutline(cell: EditorCell, rings: number, rotation = 0): Vec
   const polys = stamps.map(s => base.map(v => applyStamp(v, s)))
   const outline = unionOutline(polys)
   if (!outline || rotation === 0) return outline
-  const cos = Math.cos(rotation)
-  const sin = Math.sin(rotation)
-  return outline.map(p => ({ x: p.x * cos - p.y * sin, y: p.x * sin + p.y * cos }))
+  return outline.map(p => rotate(p, rotation))
 }

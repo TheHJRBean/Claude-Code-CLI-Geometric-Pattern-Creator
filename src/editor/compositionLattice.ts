@@ -1,5 +1,6 @@
 import type { Polygon } from '../types/geometry'
 import type { Vec2 } from '../utils/math'
+import { rotate } from '../utils/math'
 import type { EditorPatch } from '../types/editor'
 import { editorBoundaryVertices, editorTilesToPolygons } from './buildEditorPolygons'
 import type { LatticeStamp } from './lattice'
@@ -22,14 +23,8 @@ import type { LatticeStamp } from './lattice'
 
 /** Transform a `Vec2` by a rotation about origin then a translation. */
 function transformPoint(p: Vec2, translation: Vec2, rotation: number): Vec2 {
-  if (rotation === 0) {
-    return { x: p.x + translation.x, y: p.y + translation.y }
-  }
-  const c = Math.cos(rotation), s = Math.sin(rotation)
-  return {
-    x: p.x * c - p.y * s + translation.x,
-    y: p.x * s + p.y * c + translation.y,
-  }
+  const r = rotation === 0 ? p : rotate(p, rotation)
+  return { x: r.x + translation.x, y: r.y + translation.y }
 }
 
 function transformPolygon(poly: Polygon, translation: Vec2, rotation: number): Polygon {

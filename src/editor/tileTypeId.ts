@@ -1,4 +1,5 @@
 import type { Vec2 } from '../utils/math'
+import { polygonInteriorAngleAt } from '../utils/math'
 import type { EditorTile } from '../types/editor'
 
 /**
@@ -32,18 +33,7 @@ function fnv1a(input: string): string {
 
 /** Interior angles of a CCW polygon in radians. */
 function interiorAngles(vertices: Vec2[]): number[] {
-  const n = vertices.length
-  const out: number[] = []
-  for (let i = 0; i < n; i++) {
-    const prev = vertices[(i - 1 + n) % n]
-    const curr = vertices[i]
-    const next = vertices[(i + 1) % n]
-    const v1x = prev.x - curr.x, v1y = prev.y - curr.y
-    const v2x = next.x - curr.x, v2y = next.y - curr.y
-    const cosA = (v1x * v2x + v1y * v2y) / (Math.hypot(v1x, v1y) * Math.hypot(v2x, v2y))
-    out.push(Math.acos(Math.max(-1, Math.min(1, cosA))))
-  }
-  return out
+  return vertices.map((_, i) => polygonInteriorAngleAt(vertices, i))
 }
 
 /** Edge lengths around a CCW polygon, normalised so the longest edge = 1. */

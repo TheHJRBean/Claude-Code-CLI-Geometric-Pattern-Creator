@@ -1,7 +1,7 @@
 import type { Vec2 } from '../utils/math'
 import { centroid, dist, pointInPolygon, pointsEqual } from '../utils/math'
-import type { EditorCell, EditorRegularTile, EditorTile } from '../types/editor'
-import { EDITOR_EPS, tileVertices } from './exposedEdges'
+import type { EditorCell, EditorRegularTile } from '../types/editor'
+import { EDITOR_EPS, tileInteriorAngleAt, tileVertices } from './exposedEdges'
 import { editorBoundaryVertices } from './buildEditorPolygons'
 import { regularPolygonVertices } from './regularPolygon'
 import { placedTileOverlaps } from './tileOverlap'
@@ -119,20 +119,6 @@ function ccwSweep(from: number, to: number): number {
 }
 
 /* ── Tile incidence ────────────────────────────────────────────────────── */
-
-/** Interior angle of `tile` at its vertex with index `i`. */
-function tileInteriorAngleAt(tile: EditorTile, verts: Vec2[], i: number): number {
-  if (tile.kind === 'regular') return ((tile.sides - 2) * Math.PI) / tile.sides
-  const n = verts.length
-  const prev = verts[(i - 1 + n) % n]
-  const next = verts[(i + 1) % n]
-  const v1x = prev.x - verts[i].x
-  const v1y = prev.y - verts[i].y
-  const v2x = next.x - verts[i].x
-  const v2y = next.y - verts[i].y
-  const cosA = (v1x * v2x + v1y * v2y) / (Math.hypot(v1x, v1y) * Math.hypot(v2x, v2y))
-  return Math.acos(Math.max(-1, Math.min(1, cosA)))
-}
 
 /** Outgoing edge angle of `tile` at vertex `i` — direction from `verts[i]`
  *  to `verts[(i+1) % n]` (CCW along the Tile boundary). */

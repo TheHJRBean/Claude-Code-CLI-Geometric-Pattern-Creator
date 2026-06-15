@@ -1,5 +1,5 @@
 import type { Vec2 } from '../utils/math'
-import { pointsEqual } from '../utils/math'
+import { pointsEqual, rotate } from '../utils/math'
 import type { EditorPatch, EditorCell, EditorTile } from '../types/editor'
 import { computeAllCycles, computeBoundaryCycle } from './boundary'
 import { EDITOR_EPS, tileVertices } from './exposedEdges'
@@ -26,9 +26,7 @@ import { frameOutlinePolygon, computeFrameSections, frameNodePoints } from './fr
 
 /** Rotate a `Vec2` about the origin by `theta`. */
 function rotateAboutOrigin(p: Vec2, theta: number): Vec2 {
-  if (theta === 0) return p
-  const c = Math.cos(theta), s = Math.sin(theta)
-  return { x: p.x * c - p.y * s, y: p.x * s + p.y * c }
+  return theta === 0 ? p : rotate(p, theta)
 }
 
 /**
@@ -42,12 +40,8 @@ export function applyCellTransform(
   cell: { center: Vec2; rotation: number },
   patchRot = 0,
 ): Vec2 {
-  const base = cell.rotation === 0
-    ? { x: p.x + cell.center.x, y: p.y + cell.center.y }
-    : (() => {
-        const c = Math.cos(cell.rotation), s = Math.sin(cell.rotation)
-        return { x: p.x * c - p.y * s + cell.center.x, y: p.x * s + p.y * c + cell.center.y }
-      })()
+  const r = cell.rotation === 0 ? p : rotate(p, cell.rotation)
+  const base = { x: r.x + cell.center.x, y: r.y + cell.center.y }
   return rotateAboutOrigin(base, patchRot)
 }
 
@@ -56,11 +50,8 @@ export function applyCellTransform(
  * both Cell transforms and lattice stamps (both have the same shape).
  */
 export function inverseRotateTranslate(p: Vec2, t: { translation: Vec2; rotation: number }): Vec2 {
-  const dx = p.x - t.translation.x
-  const dy = p.y - t.translation.y
-  if (t.rotation === 0) return { x: dx, y: dy }
-  const c = Math.cos(t.rotation), s = Math.sin(t.rotation)
-  return { x: dx * c + dy * s, y: -dx * s + dy * c }
+  const d = { x: p.x - t.translation.x, y: p.y - t.translation.y }
+  return t.rotation === 0 ? d : rotate(d, -t.rotation)
 }
 
 /** Patch-world → Cell-local. Inverse of `applyCellTransform` (un-rotates the

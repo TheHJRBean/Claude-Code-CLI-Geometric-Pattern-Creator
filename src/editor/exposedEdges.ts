@@ -1,5 +1,5 @@
 import type { Vec2 } from '../utils/math'
-import { centroid, pointsEqual } from '../utils/math'
+import { centroid, polygonInteriorAngleAt, pointsEqual } from '../utils/math'
 import type { EditorCell, EditorTile } from '../types/editor'
 import { regularPolygonVertices } from './regularPolygon'
 
@@ -47,6 +47,15 @@ export function tileVertices(tile: EditorTile): Vec2[] {
 /** Centre of an editor tile. */
 export function tileCenter(tile: EditorTile): Vec2 {
   return tile.kind === 'regular' ? tile.center : centroid(tile.vertices)
+}
+
+/**
+ * Interior angle (radians) of `tile` at vertex `i`. Regular tiles use the exact
+ * `(n-2)π/n`; irregular tiles measure the geometric angle from their vertices.
+ */
+export function tileInteriorAngleAt(tile: EditorTile, verts: Vec2[], i: number): number {
+  if (tile.kind === 'regular') return ((tile.sides - 2) * Math.PI) / tile.sides
+  return polygonInteriorAngleAt(verts, i)
 }
 
 export function edgesShareEndpoints(a1: Vec2, a2: Vec2, b1: Vec2, b2: Vec2, eps = EDITOR_EPS): boolean {

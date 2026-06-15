@@ -2,7 +2,7 @@ import type { Vec2 } from '../utils/math'
 import { pointsEqual } from '../utils/math'
 import type { EditorCell, EditorRegularTile, EditorTile } from '../types/editor'
 import { regularPolygonVertices } from './regularPolygon'
-import { EDITOR_EPS, tileVertices, type ExposedEdge } from './exposedEdges'
+import { EDITOR_EPS, tileInteriorAngleAt, tileVertices, type ExposedEdge } from './exposedEdges'
 import { placedTileOverlaps } from './tileOverlap'
 
 /**
@@ -99,25 +99,11 @@ function checkAngleSum(p: Vec2, newAngle: number, existing: EditorTile[]): boole
     const verts = tileVertices(tile)
     for (let i = 0; i < verts.length; i++) {
       if (pointsEqual(verts[i], p, EDITOR_EPS)) {
-        sum += interiorAngle(tile, verts, i)
+        sum += tileInteriorAngleAt(tile, verts, i)
       }
     }
   }
   return sum <= 2 * Math.PI + EDITOR_EPS
-}
-
-function interiorAngle(tile: EditorTile, verts: Vec2[], i: number): number {
-  if (tile.kind === 'regular') return ((tile.sides - 2) * Math.PI) / tile.sides
-  // Irregular: signed angle between edge to previous and edge to next vertex.
-  const n = verts.length
-  const prev = verts[(i - 1 + n) % n]
-  const next = verts[(i + 1) % n]
-  const v1x = prev.x - verts[i].x
-  const v1y = prev.y - verts[i].y
-  const v2x = next.x - verts[i].x
-  const v2y = next.y - verts[i].y
-  const cosA = (v1x * v2x + v1y * v2y) / (Math.hypot(v1x, v1y) * Math.hypot(v2x, v2y))
-  return Math.acos(Math.max(-1, Math.min(1, cosA)))
 }
 
 /** Subset of `PICKER_SIDES` that pass `isPlacementViable` for the given edge. */

@@ -1,14 +1,6 @@
 import type { PatternConfig } from '../types/pattern'
 import { ConfigValidationError, loadPatternConfig } from '../state/configValidation'
-
-function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
-}
+import { downloadBlob } from './download'
 
 export function saveJSON(config: PatternConfig) {
   const json = JSON.stringify(config, null, 2)

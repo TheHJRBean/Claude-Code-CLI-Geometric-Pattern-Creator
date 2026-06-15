@@ -1,14 +1,6 @@
 import type { Segment } from '../types/geometry'
 import { buildStrands } from '../strand/buildStrands'
-
-function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
-}
+import { downloadBlob } from './download'
 
 export function exportSVG(svgEl: SVGSVGElement) {
   const clone = svgEl.cloneNode(true) as SVGSVGElement
@@ -22,12 +14,15 @@ export function exportSVG(svgEl: SVGSVGElement) {
   downloadBlob(blob, 'islamic-pattern.svg')
 }
 
-/** Export clean editable SVG — one <path> per Strand with nodes at every vertex.
- *  Thin strokes for Inkscape editing. */
-export function exportUnwovenSVG(segments: Segment[], viewBox: string, width: number, height: number) {
+/**
+ * Build the clean editable "unwoven" SVG markup — one `<path>` per Strand with
+ * nodes at every vertex, thin strokes for Inkscape editing. Pure (no DOM); the
+ * download wrapper is `exportUnwovenSVG`. The stroke width is ~0.1% of the
+ * viewBox diagonal so lines stay visible but thin at any scale.
+ */
+export function unwovenSvgMarkup(segments: Segment[], viewBox: string, width: number, height: number): string {
   const strandData = buildStrands(segments)
 
-  // Compute a stroke width ~0.1% of the viewBox diagonal so lines are visible but thin
   const vbParts = viewBox.split(/[\s,]+/).map(Number)
   const vbW = vbParts[2] || width
   const vbH = vbParts[3] || height
@@ -39,13 +34,17 @@ export function exportUnwovenSVG(segments: Segment[], viewBox: string, width: nu
     return `  <path id="strand-${i}" d="${d}" fill="none" stroke="#000000" stroke-width="${strokeWidth.toFixed(4)}" stroke-linecap="round" stroke-linejoin="round"/>`
   }).join('\n')
 
-  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+  return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="${width}" height="${height}">
 ${pathEls}
 </svg>
 `
+}
 
-  const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' })
+/** Export clean editable SVG — one <path> per Strand with nodes at every vertex.
+ *  Thin strokes for Inkscape editing. */
+export function exportUnwovenSVG(segments: Segment[], viewBox: string, width: number, height: number) {
+  const blob = new Blob([unwovenSvgMarkup(segments, viewBox, width, height)], { type: 'image/svg+xml;charset=utf-8' })
   downloadBlob(blob, 'islamic-pattern-unwoven.svg')
 }
 

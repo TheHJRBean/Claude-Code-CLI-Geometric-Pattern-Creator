@@ -241,5 +241,13 @@ describe('editor no-op guards and invariants', () => {
       expect(c.center.x).toBeCloseTo(centres0[i].x * 2, 6)
       expect(c.center.y).toBeCloseTo(centres0[i].y * 2, 6)
     })
+    // Tiles scale with the lattice too — otherwise the Cells spread apart
+    // while their polygons stay small, opening gaps that drop shared-edge
+    // Strands. Every regular Tile's edgeLength stays flush with the lattice.
+    out.editor!.cells.forEach(c =>
+      c.tiles.forEach(t => {
+        if (t.kind === 'regular') expect(t.edgeLength).toBeCloseTo(next, 6)
+      }),
+    )
   })
 })

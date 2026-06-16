@@ -282,8 +282,13 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       // scale proportionally, every Cell's boundarySize updates, and
       // `patch.edgeLength` (which drives `compositionCellBasis`) follows so
       // the 4.8.8 invariant — octagon edge = square edge = lattice edge —
-      // holds. Seed Tile sizes stay so the inside of each Cell keeps its
-      // authored polygon (single-shape parity).
+      // holds. The Cells' Tiles scale with the lattice too: `boundarySize`
+      // doubles as the lattice constant here, so leaving Tile sizes fixed
+      // would spread the Cells apart while the polygons inside stay small,
+      // opening gaps that break edge-to-edge contact (and silently drop the
+      // vertex/edge Strands that only emit on shared edges). Scaling every
+      // Tile by the same factor `k` keeps the authored arrangement intact as
+      // a uniform similarity transform and the tessellation flush.
       if (!state.editor) return state
       const next = action.payload
       if (next <= 0) return state
@@ -295,6 +300,11 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
           center: { x: c.center.x * k, y: c.center.y * k },
           boundarySize: next,
           wrapBoundary: false,
+          tiles: c.tiles.map(t =>
+            t.kind === 'regular'
+              ? { ...t, center: { x: t.center.x * k, y: t.center.y * k }, edgeLength: t.edgeLength * k }
+              : { ...t, vertices: t.vertices.map(v => ({ x: v.x * k, y: v.y * k })) },
+          ),
         }))
         return {
           ...state,

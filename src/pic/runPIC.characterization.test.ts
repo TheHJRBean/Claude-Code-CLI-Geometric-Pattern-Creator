@@ -107,7 +107,9 @@ const GOLDEN: Record<string, ReturnType<typeof fingerprint>> = {
   'hexagonal@60': { n: 540, len: 21600, arms: 540, vtx: 0 },
   'triangular@60': { n: 1648, len: 38916, arms: 1648, vtx: 0 },
   '4.8.8': { n: 551, len: 21315, arms: 551, vtx: 0 },
-  'square-vertexlines': { n: 1848, len: 84669, arms: 968, vtx: 880 },
+  // vtx == arms: vertex lines emit on EVERY edge (no shared-edge gate, 2026-06-17),
+  // including the field-boundary squares the old gate suppressed (was vtx 880).
+  'square-vertexlines': { n: 1936, len: 89432, arms: 968, vtx: 968 },
   'square-fixedlen': { n: 968, len: 29040, arms: 968, vtx: 0 },
   'cairo@27.5': { n: 1008, len: 23837, arms: 1008, vtx: 0 },
   'floret@40': { n: 660, len: 21631, arms: 660, vtx: 0 },

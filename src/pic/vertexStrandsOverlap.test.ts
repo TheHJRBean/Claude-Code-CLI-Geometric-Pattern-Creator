@@ -3,13 +3,11 @@ import { runPIC } from './index'
 import type { Polygon } from '../types/geometry'
 import type { FigureConfig, PatternConfig } from '../types/pattern'
 
-// Vertex lines emit only on *internal* edges = edges SHARED by two tiles (their
-// midpoints coincide exactly). Overlapping tiles are deliberately NOT treated as
-// sharing an edge: a force-placed / lattice-packed overlap keeps each tile's
-// Figure self-contained and the two just cross visually (locked decision, see
-// project_overlap_tiles_strand_bug). The earlier overlap pass that flagged
-// covered edges internal was removed 2026-06-17 — it produced stray vertex
-// strands that popped in/out as tiles slid through each other.
+// Vertex lines emit on EVERY edge of any shape that has them enabled — a tile's
+// Figure is self-contained, not gated on shared/internal edges (user decision
+// 2026-06-17). Overlapping tiles are a non-issue: PIC iterates real tiles only,
+// so an overlap region is never its own tile — each tile keeps its own distinct
+// strands and they simply cross. These tests pin both properties.
 
 const vertexFigure: FigureConfig = {
   type: 'star',
@@ -49,31 +47,28 @@ function vertexEdges(polys: Polygon[], id: string): number {
   return edges.size
 }
 
-describe('vertex strands on overlapping tiles', () => {
-  it('does NOT emit on an edge merely covered by an overlapping tile (self-contained figures)', () => {
-    // A at origin (x,y ∈ [-1,1]); B offset to overlap A's upper-right quadrant.
-    // No edge midpoints coincide, so no edge is shared — the overlap must not
-    // synthesise internal edges, and each tile keeps its own (here empty, since
-    // no edge is shared) vertex-line set. Overlaps just cross visually.
+describe('vertex strands are self-contained per tile', () => {
+  it('a lone tile emits vertex strands on all of its own edges', () => {
+    const A = square('A', 0, 0)
+    expect(vertexEdges([A], 'A')).toBe(4)
+  })
+
+  it('overlapping tiles each keep their own full figure; the overlap is never a new tile', () => {
+    // B overlaps A's upper-right quadrant. Each tile emits on all 4 of its own
+    // edges, and every emitted segment belongs to A or B — the overlap region
+    // does not become a separate tile with its own strands.
     const A = square('A', 0, 0)
     const B = square('B', 1.1, 0.3)
-    expect(vertexEdges([A, B], 'A')).toBe(0)
-    expect(vertexEdges([A, B], 'B')).toBe(0)
+    expect(vertexEdges([A, B], 'A')).toBe(4)
+    expect(vertexEdges([A, B], 'B')).toBe(4)
+    const ids = new Set(runPIC([A, B], config).map(s => s.polygonId))
+    expect([...ids].sort()).toEqual(['A', 'B'])
   })
 
-  it('still emits on a clean shared edge (baseline preserved)', () => {
-    // A and B share edge x=1 exactly — caught by the exact-midpoint match.
-    const A = square('A', 0, 0)
-    const B = square('B', 2, 0)
-    expect(vertexEdges([A, B], 'A')).toBe(1)
-    expect(vertexEdges([A, B], 'B')).toBe(1)
-  })
-
-  it('does not emit on disjoint tiles with no shared or covered edge', () => {
-    // Far apart: every edge is on the outer boundary of the union.
+  it('disjoint tiles still each emit on all of their edges', () => {
     const A = square('A', 0, 0)
     const B = square('B', 5, 0)
-    expect(vertexEdges([A, B], 'A')).toBe(0)
-    expect(vertexEdges([A, B], 'B')).toBe(0)
+    expect(vertexEdges([A, B], 'A')).toBe(4)
+    expect(vertexEdges([A, B], 'B')).toBe(4)
   })
 })

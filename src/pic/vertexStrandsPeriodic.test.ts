@@ -1,16 +1,19 @@
 import { describe, it, expect } from 'vitest'
 import { runPIC } from './index'
 import { createDefault31212EditorConfig, createDefault4612EditorConfig } from '../editor/createDefault'
-import { compositionToPolygons, compositionOneRingStamps } from '../editor/compositionLattice'
-import { applyStamp } from '../editor/lattice'
+import { compositionToPolygons } from '../editor/compositionLattice'
 import type { Polygon } from '../types/geometry'
 import type { FigureConfig, PatternConfig } from '../types/pattern'
 
-// A figure with vertex lines enabled — these only emit on internal (tile-shared)
-// edges, which is the behaviour the periodic edge-context fix restores.
+// Vertex lines emit on every edge of any shape with them enabled — no longer
+// gated on internal/shared edges (user decision 2026-06-17). A multi-cell unit
+// cell PIC'd in isolation therefore shows the FULL vertex figure on each tile,
+// including the dodecagon's 12 edges, with no lattice edge-context needed (the
+// old `edgeContext` workaround for the gate is gone).
+
 const vertexFigure: FigureConfig = {
   type: 'star',
-  contactAngle: 30,
+  contactAngle: 60,
   lineLength: 1,
   autoLineLength: true,
   edgeLinesEnabled: false,
@@ -23,16 +26,8 @@ function configFor(polys: Polygon[]): PatternConfig {
   return { figures, figureRouting: 'auto' } as unknown as PatternConfig
 }
 
-function neighbourGhosts(polys: Polygon[], patch: ReturnType<typeof createDefault31212EditorConfig>): Polygon[] {
-  const ghosts: Polygon[] = []
-  for (const s of compositionOneRingStamps(patch)) {
-    for (const p of polys) ghosts.push({ ...p, vertices: p.vertices.map(v => applyStamp(v, s)) })
-  }
-  return ghosts
-}
-
-function dodecagonEdgesCovered(polys: Polygon[], config: PatternConfig, ctx?: Polygon[]): number {
-  const segs = runPIC(polys, config, ctx)
+function dodecagonEdgesCovered(polys: Polygon[], config: PatternConfig): number {
+  const segs = runPIC(polys, config)
   const f = 1e3
   const edges = new Set<string>()
   for (const s of segs) {
@@ -47,20 +42,12 @@ for (const [name, seed] of [
   ['3.12.12', createDefault31212EditorConfig],
   ['4.6.12', createDefault4612EditorConfig],
 ] as const) {
-  describe(`periodic vertex strands — ${name}`, () => {
-    it('dodecagon emits vertex strands on all 12 edges only with lattice edge-context', () => {
+  describe(`vertex strands — ${name}`, () => {
+    it('dodecagon emits vertex strands on all 12 edges from the isolated unit cell', () => {
       const patch = seed()
       const polys = compositionToPolygons(patch)
       const config = configFor(polys)
-
-      const without = dodecagonEdgesCovered(polys, config)
-      const withCtx = dodecagonEdgesCovered(polys, config, neighbourGhosts(polys, patch))
-
-      // The bug: the isolated unit cell sees only the cell-interior edges as
-      // internal, so the dodecagon strands on a strict minority of its edges.
-      expect(without).toBeLessThan(12)
-      // The fix: every dodecagon edge is internal in the infinite tiling.
-      expect(withCtx).toBe(12)
+      expect(dodecagonEdgesCovered(polys, config)).toBe(12)
     })
   })
 }

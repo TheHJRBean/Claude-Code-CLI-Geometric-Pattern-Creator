@@ -513,42 +513,6 @@ function emitVertexArms(
 }
 
 /**
- * Build a set of edge-midpoint keys for edges that are **shared** by two tiles
- * (internal edges — the vertex-line gate emits only on these). A shared edge's
- * midpoint coincides exactly with a neighbour's edge midpoint (clean
- * edge-to-edge tilings + periodic ghost copies via `edgeContext`), so the edge
- * appears 2+ times in the count map.
- *
- * NOTE — overlapping tiles deliberately do NOT count as internal. An earlier
- * "overlap pass" (`5e15e78`) also flagged an edge internal when its midpoint
- * fell strictly *inside* another tile, so force-overlapped / lattice-packed
- * tiles would emit vertex strands across the overlap. That produced stray
- * vertex strands that pop in and out as tiles are slid through each other (e.g.
- * the multi-cell boundary-size ratio slider), and it was never the wanted
- * behaviour: the locked decision is that overlapping tiles keep self-contained
- * Figures and just cross visually (see `project_overlap_tiles_strand_bug`). The
- * pass was removed 2026-06-17. If "treat overlap as a shared edge" is ever
- * actually wanted, reintroduce it behind an explicit opt-in toggle, not as the
- * default.
- */
-function buildInternalEdgeSet(polygons: Polygon[]): Set<string> {
-  const f = 1e3
-  const edgeCounts = new Map<string, number>()
-  for (const poly of polygons) {
-    for (let i = 0; i < poly.sides; i++) {
-      const mid = midpoint(poly.vertices[i], poly.vertices[(i + 1) % poly.sides])
-      const key = `${Math.round(mid.x * f)},${Math.round(mid.y * f)}`
-      edgeCounts.set(key, (edgeCounts.get(key) ?? 0) + 1)
-    }
-  }
-  const internal = new Set<string>()
-  for (const [key, count] of edgeCounts) {
-    if (count >= 2) internal.add(key)
-  }
-  return internal
-}
-
-/**
  * Dedup collinear/overlapping segments within a single polygon.
  * At certain contact angles (e.g. 60° on equilateral triangles) two adjacent
  * edges' contact rays become collinear — pair A fails, pair B succeeds, and
@@ -575,27 +539,8 @@ function dedupPolygonSegments(segments: Segment[], startIdx: number): void {
   }
 }
 
-/**
- * @param edgeContext Extra polygons used **only** to decide which edges are
- *   internal (shared by two tiles) — never iterated for figure emission. The
- *   vertex-line gate emits only on internal edges; when PIC runs over a single
- *   periodic unit cell in isolation (the Builder Composition path), edges on
- *   the unit-cell boundary are shared with the *next* stamped copy, not with
- *   anything in `polygons`, so they'd wrongly read as external and silently
- *   drop their vertex strands. Passing one ring of lattice-neighbour copies
- *   here restores them without double-emitting figures.
- */
-export function runPIC(polygons: Polygon[], config: PatternConfig, edgeContext?: Polygon[]): Segment[] {
+export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
   const segments: Segment[] = []
-  // internalEdges only gates vertex lines; skip building it (and its overlap
-  // point-in-polygon pass) entirely when no figure emits vertex lines.
-  const anyVertexLines = Object.values(config.figures).some(fg => fg?.vertexLinesEnabled)
-  const internalEdges = anyVertexLines
-    ? buildInternalEdgeSet(
-        edgeContext && edgeContext.length > 0 ? [...polygons, ...edgeContext] : polygons,
-      )
-    : new Set<string>()
-  const edgeKeyF = 1e3
   const routing: FigureRouting = config.figureRouting ?? 'auto'
 
   for (const poly of polygons) {
@@ -675,12 +620,16 @@ export function runPIC(polygons: Polygon[], config: PatternConfig, edgeContext?:
       const vertexRays = computeVertexRays(poly, vtxAngle)
       const circumradius = n > 0 ? dist(poly.center, poly.vertices[0]) : 0
 
+      // Emit vertex lines on EVERY edge of any shape with them enabled — a
+      // shape's figure is self-contained, so enabling vertex lines shows them
+      // across the whole shape (user decision 2026-06-17). They are NOT gated
+      // on shared/internal edges: that gate produced partial figures (strands
+      // on only the edges that happened to abut a neighbour) and was the source
+      // of the appear/disappear-as-tiles-slide behaviour. Overlap stays a
+      // non-issue: PIC iterates real tiles only, so an overlap region is never
+      // its own tile — each tile keeps its own distinct strands and they cross.
       for (let k = 0; k < n; k++) {
-        // Only emit vertex lines for internal edges (shared by 2 polygons)
         const eMid = midpoint(poly.vertices[k], poly.vertices[(k + 1) % n])
-        const eKey = `${Math.round(eMid.x * edgeKeyF)},${Math.round(eMid.y * edgeKeyF)}`
-        if (!internalEdges.has(eKey)) continue
-
         const nextV = (k + 1) % n
         const pair = pairVertexAtEdge(vertexRays, k, nextV, poly.vertices)
         if (!pair) continue

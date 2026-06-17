@@ -7,12 +7,11 @@ import { TILINGS } from '../tilings/index'
 import { generateTiling } from '../tilings/archimedean'
 import { generateRosettePatch } from '../tilings/rosettePatch'
 import { editorBoundaryVertices, editorTilesToPolygons, tilesToPolygons } from '../editor/buildEditorPolygons'
-import { applyStamp, editorLatticeStamps, editorNeighbourStamps, editorOneRingNeighbourStamps, type LatticeStamp } from '../editor/lattice'
+import { editorLatticeStamps, editorNeighbourStamps, type LatticeStamp } from '../editor/lattice'
 import {
   compositionBoundaryOutlines,
   compositionLatticeStamps,
   compositionNeighbourStamps,
-  compositionOneRingStamps,
   compositionToPolygons,
 } from '../editor/compositionLattice'
 import { activeCell } from '../editor/active'
@@ -26,22 +25,6 @@ import { buildColourIndex, orbitOffset, resolveColour, scopedKey } from '../deco
 import { cellFramesFromOutlines, cellOrbitKey, reduceToOrbit, type CellFrame } from '../decoration/cellScope'
 import { strandIdentities } from '../decoration/strandGroups'
 import { curvesEnabled, flattenStrandsToSegments } from '../decoration/flatten'
-
-/**
- * One ring of lattice-neighbour copies of `basePolys`, used purely as
- * `runPIC` edge-context so unit-cell-boundary edges read as internal and their
- * vertex strands emit (see `runPIC`'s `edgeContext` doc). Only vertices matter
- * downstream, so the other polygon fields are carried verbatim.
- */
-function neighbourEdgeContext(basePolys: Polygon[], stamps: LatticeStamp[]): Polygon[] {
-  const ghosts: Polygon[] = []
-  for (const s of stamps) {
-    for (const p of basePolys) {
-      ghosts.push({ ...p, vertices: p.vertices.map(v => applyStamp(v, s)) })
-    }
-  }
-  return ghosts
-}
 
 export interface PatternData {
   polygons: Polygon[]
@@ -288,15 +271,7 @@ export function usePattern(
     const baseOutlines: Vec2[][] = multiCell
       ? compositionBoundaryOutlines(patch)
       : [editorBoundaryVertices(cell)]
-    // Vertex strands only emit on internal (tile-shared) edges. The base PIC
-    // runs over a single periodic unit cell, so its boundary edges are shared
-    // with the next stamped copy — invisible to the isolated set. Feed one ring
-    // of lattice neighbours as edge-context so those edges read as internal and
-    // their vertex strands emit consistently (fixes multi-cell dodecagon etc.).
-    const edgeContext = multiCell
-      ? neighbourEdgeContext(basePolys, compositionOneRingStamps(patch))
-      : neighbourEdgeContext(basePolys, editorOneRingNeighbourStamps(cell))
-    const baseSegments = runPIC(basePolys, config, edgeContext)
+    const baseSegments = runPIC(basePolys, config)
     return { patch, multiCell, cell, basePolys, baseOutlines, baseSegments }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ed?.cells, ed?.activeCellId, ed?.edgeLength, ed?.configuration, ed?.alternateOrientation, config.figures, config.figureRouting])

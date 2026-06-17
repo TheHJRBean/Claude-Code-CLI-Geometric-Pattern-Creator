@@ -6,6 +6,12 @@ Severity = the skill's standards (S0–S8). Status = `open | in-progress | done 
 
 ---
 
+## ✅ PROGRAM COMPLETE — 2026-06-17
+
+The thermo-nuclear standing-code review is **DONE**. Chunks 1–13 are merged to `main`; tests **315 → 549** all green; every source file is under the 1k bar. Browser-verifies (Chunks 3 / 10 / 11) all PASSED (2026-06-14). The single carved-out item — the **PIC branch-ladder reframe** — was, by user decision (2026-06-17), **folded into the bespoke-rosette-figures epic** (`memory/project_star_tilings_gallery_idea.md`) rather than executed as a standalone refactor, because a fingerprint-preserving reframe would lock in the known-wrong borderline emissions while the rosette fold deletes generic PIC from that path anyway. Every ledger row is now `done`, `rejected`, or `deferred` with a recorded reason. The review-program project memory has been retired.
+
+---
+
 ## Tier-0 Baseline (Wave A) — 2026-06-13
 
 Green baseline captured on `main`. Re-show these numbers at every Verification Checkpoint.
@@ -212,7 +218,7 @@ The final whole-codebase pass, done last so it has every file's context. Two cle
 | 13 | `editor/compositionLattice`/`patchSelectable`/`frameNRing` | S6 | Five sites hand-rolled the 2-D rotation matrix (`x·cos−y·sin, x·sin+y·cos`) — three forward, one inverse, one rotate-about-origin — all duplicating canonical `rotate(p, ±θ)`. | **DONE**: each swapped for `rotate()` (inverse = `rotate(d, −θ)`), keeping the `θ===0` fast paths. Byte-equivalent; guarded by cellTransform/frameNRing/decoration-probe tests. Net −36 ln, bundle 419.83→418.94 kB. | done |
 | 13 | `strand/computeCurves.ts` | S8 | The per-edge Bézier control-point generator (`computeCurves` + `smoothCurves`) was behaviour-bearing but only touched by a *perf probe* — no correctness test. | **DONE**: +10 characterization tests (`computeCurves.test.ts`): null/disabled/degenerate cases, control-point placement, the left/right direction mirror invariant, alternating parity sign-flip + the triangle odd-cycle skip, seg.from anchoring under reversed traversal, and `smoothCurves`' <3-point passthrough + quadratic→cubic upgrade. | done |
 | 13 | `decoration/strandGroups.ts` | S6 | A local inline centroid (`sum/n` over `ring`) duplicates `centroid()`. | **NO ACTION** (judgment): the local is *named* `centroid` and used below; aliasing the import to dedup a 3-line inline in Chunk-9's "healthiest layer" adds more ceremony than it removes. Logged, not churned. | done |
-| 13 | `pic/index.ts` — `emitStarArms` / `pairAtVertex` branch ladder | S0/S6 | The documented edge-case minefield: ordered-`if` branch ladder + triplicated probe / copy-pasted emission. The Std-0 prize (reframe as a named-case policy table + extract `pushSegment`/centroid-V helpers). | **DEFERRED — dedicated session** (per plan §3 Chunk 7 + §5b Wave-E + SESSION_STATE). Now safe to do behind the Chunk-7 golden fingerprint, but **gated on the preserve-vs-fix product decision** (memories: borderline irregular-polygon emissions are still wrong). This is where the Wave-E "latent PIC bugs fixed" headline is earned — it must not be rushed into a routine dedup commit. | deferred |
+| 13 | `pic/index.ts` — `emitStarArms` / `pairAtVertex` branch ladder | S0/S6 | The documented edge-case minefield: ordered-`if` branch ladder + triplicated probe / copy-pasted emission. The Std-0 prize (reframe as a named-case policy table + extract `pushSegment`/centroid-V helpers). | **FOLDED INTO THE ROSETTE EPIC (2026-06-17, user decision).** The preserve-vs-fix gate resolved by *not* doing the reframe standalone: a fingerprint-preserving refactor would lock in the known-wrong borderline emissions, and the rosette-patch fold (`project_star_tilings_gallery_idea`) *removes* generic PIC from the irregular-Laves path entirely — so the branch-ladder is reframed/pared as part of carving generic PIC to its still-needed scope, not before. The Chunk-7 golden fingerprint stays as the net for the symmetric/Archimedean tilings generic PIC still serves. | deferred (folded) |
 
 ### Chunk-13 result — green
 

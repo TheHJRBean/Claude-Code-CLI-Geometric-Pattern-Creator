@@ -4,6 +4,10 @@
 
 ## ▶ RESUME HERE
 
+**✅ 2026-06-17 — THERMO-NUCLEAR REVIEW PROGRAM CLOSED.** Chunks 1–13 merged to `main`, tests 315 → 549 green, every file under 1k, browser-verifies (3/10/11) passed. The one carved-out item — the PIC `emitStarArms`/`pairAtVertex` branch-ladder reframe — was **folded into the bespoke-rosette-figures epic** (`memory/project_star_tilings_gallery_idea.md`) by user decision, not done standalone (a fingerprint-preserving reframe would lock in the known-wrong borderline emissions; the rosette fold deletes generic PIC from that path anyway). Program-complete banner in `THERMONUCLEAR_REVIEW_FINDINGS.md`; the review project memory is retired. **No open thermo-nuclear work remains.** Next real work picks up from the idea backlog (see `MEMORY.md` Ideas / Future).
+
+---
+
 **🐛 2026-06-14/15 — Builder strand bugs found during Chunk-11/12 browser verify.** Owned browser-verifies (Chunks 3 / 10 / 11 in `THERMONUCLEAR_REVIEW_VERIFY.md`) all PASSED. Two *pre-existing* Builder-geometry issues surfaced (NOT chunk regressions — tsc + tests green) — **BOTH NOW FIXED**:
 
 - **FIXED ✅ + MERGED — vertex strands inconsistent within multi-cell Cells.** Commit **`e42c12e`**, **merged to `main` (`1a849f9`) + pushed 2026-06-15**. Root cause: vertex lines (`fig.vertexLinesEnabled`) gate on internal edges, but the Composition path PIC'd a single periodic unit cell in isolation → unit-cell-boundary edges never counted internal → dodecagon emitted strands on only 2/12 (3.12.12) or 5/12 (4.6.12) edges. Fix: optional `edgeContext` arg to `runPIC` (one ring of lattice neighbours, internal-edge detection only — figure emission untouched), wired in `usePattern`'s `editorBase` memo for single + multi cell. Now 12/12. Regression test `src/pic/vertexStrandsPeriodic.test.ts`. Memory: `project_vertex_strands_multicell_bug.md`.

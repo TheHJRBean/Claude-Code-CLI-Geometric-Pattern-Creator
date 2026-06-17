@@ -1152,3 +1152,40 @@ without needing an explicit reflex-vertex test.
       configs). Any future per-tile-type state map needs the same
       tiling-scoped reconciliation. See memory
       `feedback_figures_map_pollution`.
+- **2026-06-17** — three reusable findings from the Builder vertex-strand /
+  multi-cell-slider work (commits `b44b7ce`, `33e9591`, `d99c725`):
+    * *Vertex strands no longer gate on shared/internal edges.* The PIC
+      vertex-line emission used to fire only on edges shared by two tiles
+      (`buildInternalEdgeSet` + a `runPIC` `edgeContext` arg + an overlap
+      point-in-polygon pass). That produced *partial* figures (strands on
+      only the edges that happened to abut a neighbour) and made strands
+      wink in/out as tiles slid in/out of contact. **Removed entirely
+      (`d99c725`)** — vertex arms now emit on **every** edge of any figure
+      with vertex lines on; a figure is self-contained per tile. This makes
+      the θ = 180/n degeneracy bullet above the *only* remaining reason a
+      shape's vertex strands look patchy (it's the collinear-dedup, not a
+      shared-edge gate). Field-boundary tiles now emit outward stubs
+      (off-screen in stamped fields; trim if ever in view). Overlap is a
+      non-issue by construction: PIC iterates *real* tiles only, so an
+      overlap region is never its own tile — each tile keeps its own
+      strands and they just cross. The deleted `edgeContext`/`e42c12e`
+      periodic workaround existed *only* to feed the old gate.
+    * *Multi-cell tile size and lattice constant are ONE degree of freedom,
+      not two.* In a periodic multi-cell Configuration `boundarySize` IS the
+      lattice constant, and a valid flush tessellation fixes the tile size
+      to it. So a "lattice edge" slider that scales tiles too is just a zoom
+      (visually pointless); a slider that scales only the lattice is a
+      **tile-to-lattice ratio** control whose off-flush values deliberately
+      open gaps / force overlaps (shared-edge strands then only cross at the
+      exact flush value). There is no third "useful independent scale" —
+      pick zoom or ratio. (Builder slider is now the ratio control,
+      `b44b7ce`.)
+    * *Debugging recipe for Builder strand/PIC bugs.* Don't reason
+      abstractly — **replay the actual saved JSON headless**: feed the
+      loaded `config` through the `reducer` (to apply the exact action, e.g.
+      a slider drag) → `compositionToPolygons(patch)` (multi-cell) → `runPIC`
+      → count `vertex-line` / `star-arm` segments **per polygonId/shape**.
+      This session it instantly distinguished a real bug from a desynced
+      save (per-shape counts at flush vs off-flush) and caught a θ=30
+      probe artifact (hexagon n=6 sits on the 180/n degenerate angle). One-
+      shot `scripts/*.mts` run with `npx tsx`, deleted after.

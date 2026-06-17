@@ -223,7 +223,7 @@ describe('editor no-op guards and invariants', () => {
     expect(out.editor!.cells[0].symmetryMode).toBe('none')
   })
 
-  it('multi-cell SET_CELL_BOUNDARY_SIZE scales the whole lattice and keeps the edge invariant', () => {
+  it('multi-cell SET_CELL_BOUNDARY_SIZE scales the lattice but leaves Tiles fixed (ratio control)', () => {
     const s: PatternConfig = {
       ...structuredClone(DEFAULT_CONFIG),
       tiling: { type: 'editor', scale: 1 },
@@ -231,23 +231,30 @@ describe('editor no-op guards and invariants', () => {
     }
     const e0 = s.editor!.edgeLength
     const centres0 = s.editor!.cells.map(c => ({ ...c.center }))
+    const tileEdges0 = s.editor!.cells.map(c =>
+      c.tiles.filter(t => t.kind === 'regular').map(t => (t as { edgeLength: number }).edgeLength),
+    )
     const next = e0 * 2
     const out = reducer(s, { type: 'SET_CELL_BOUNDARY_SIZE', payload: next } as Action)
     expect(out.editor!.edgeLength).toBe(next)
     // every cell's boundarySize follows edgeLength (the 4.8.8 edge invariant)
     expect(out.editor!.cells.every(c => c.boundarySize === next)).toBe(true)
-    // centres scale by k = next/e0 = 2
+    // centres scale by k = next/e0 = 2 (the lattice grows)
     out.editor!.cells.forEach((c, i) => {
       expect(c.center.x).toBeCloseTo(centres0[i].x * 2, 6)
       expect(c.center.y).toBeCloseTo(centres0[i].y * 2, 6)
     })
-    // Tiles scale with the lattice too — otherwise the Cells spread apart
-    // while their polygons stay small, opening gaps that drop shared-edge
-    // Strands. Every regular Tile's edgeLength stays flush with the lattice.
-    out.editor!.cells.forEach(c =>
+    // Tiles stay fixed — the slider changes the tile-to-lattice ratio (user
+    // decision 2026-06-17). Scaling the lattice past the flush ratio is meant
+    // to open gaps / overlaps; it must NOT resize the authored polygons.
+    out.editor!.cells.forEach((c, i) => {
+      let j = 0
       c.tiles.forEach(t => {
-        if (t.kind === 'regular') expect(t.edgeLength).toBeCloseTo(next, 6)
-      }),
-    )
+        if (t.kind === 'regular') {
+          expect(t.edgeLength).toBeCloseTo(tileEdges0[i][j], 6)
+          j++
+        }
+      })
+    })
   })
 })

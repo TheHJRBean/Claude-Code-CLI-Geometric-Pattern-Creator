@@ -278,17 +278,17 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       // untouched. Manual slider drag implies the user wants a specific size,
       // so wrap turns off on the touched Cells.
       //
-      // Multi-cell: the slider scales the whole lattice. All Cell centres
-      // scale proportionally, every Cell's boundarySize updates, and
-      // `patch.edgeLength` (which drives `compositionCellBasis`) follows so
-      // the 4.8.8 invariant — octagon edge = square edge = lattice edge —
-      // holds. The Cells' Tiles scale with the lattice too: `boundarySize`
-      // doubles as the lattice constant here, so leaving Tile sizes fixed
-      // would spread the Cells apart while the polygons inside stay small,
-      // opening gaps that break edge-to-edge contact (and silently drop the
-      // vertex/edge Strands that only emit on shared edges). Scaling every
-      // Tile by the same factor `k` keeps the authored arrangement intact as
-      // a uniform similarity transform and the tessellation flush.
+      // Multi-cell: the slider scales the LATTICE only — the Tiles stay fixed,
+      // so dragging it changes the tile-to-lattice ratio (user decision
+      // 2026-06-17). All Cell centres scale proportionally, every Cell's
+      // boundarySize updates, and `patch.edgeLength` (which drives
+      // `compositionCellBasis`) follows, so the lattice constant grows/shrinks
+      // while the authored polygons keep their size. A ratio ≠ the flush value
+      // deliberately opens gaps (ratio < 1) or overlaps (ratio > 1); shared-edge
+      // Strands only cross where edges still meet flush — that gap/overlap is
+      // the intended effect of this control, not a bug. (Earlier this scaled
+      // the Tiles too, which made the slider a pure zoom — pointless; see
+      // `e1beea9`, reverted here.)
       if (!state.editor) return state
       const next = action.payload
       if (next <= 0) return state
@@ -300,11 +300,6 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
           center: { x: c.center.x * k, y: c.center.y * k },
           boundarySize: next,
           wrapBoundary: false,
-          tiles: c.tiles.map(t =>
-            t.kind === 'regular'
-              ? { ...t, center: { x: t.center.x * k, y: t.center.y * k }, edgeLength: t.edgeLength * k }
-              : { ...t, vertices: t.vertices.map(v => ({ x: v.x * k, y: v.y * k })) },
-          ),
         }))
         return {
           ...state,

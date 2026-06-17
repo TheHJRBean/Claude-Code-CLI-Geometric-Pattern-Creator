@@ -513,63 +513,37 @@ function emitVertexArms(
 }
 
 /**
- * Run the full PIC pipeline for all polygons. Rays from adjacent edges
- * sharing a vertex meet at a star tip (Kaplan's PIC construction).
- */
-interface BBox { minX: number; minY: number; maxX: number; maxY: number }
-function polyBBox(poly: Polygon): BBox {
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-  for (const v of poly.vertices) {
-    if (v.x < minX) minX = v.x
-    if (v.y < minY) minY = v.y
-    if (v.x > maxX) maxX = v.x
-    if (v.y > maxY) maxY = v.y
-  }
-  return { minX, minY, maxX, maxY }
-}
-
-/**
- * Build a set of edge-midpoint keys for edges that have a tile on their *other*
- * side (internal edges — the vertex-line gate emits only on these). Two cases:
+ * Build a set of edge-midpoint keys for edges that are **shared** by two tiles
+ * (internal edges — the vertex-line gate emits only on these). A shared edge's
+ * midpoint coincides exactly with a neighbour's edge midpoint (clean
+ * edge-to-edge tilings + periodic ghost copies via `edgeContext`), so the edge
+ * appears 2+ times in the count map.
  *
- *  - **Shared edge** (clean edge-to-edge tilings + periodic ghost copies): the
- *    midpoint coincides exactly with a neighbour's edge midpoint, so the edge
- *    appears 2+ times in the count map.
- *  - **Overlap-covered edge** (force-overlapped Builder tiles): the edge runs
- *    through another tile's interior, so no edge midpoints coincide, yet the
- *    midpoint is strictly inside that tile. A ray-cast point-in-polygon test
- *    (bbox broad-phase) catches these. It never disturbs the clean case — a
- *    shared/outer-boundary midpoint sits *on* a polygon edge, not strictly
- *    inside it, and the shared ones are already flagged by the exact match.
+ * NOTE — overlapping tiles deliberately do NOT count as internal. An earlier
+ * "overlap pass" (`5e15e78`) also flagged an edge internal when its midpoint
+ * fell strictly *inside* another tile, so force-overlapped / lattice-packed
+ * tiles would emit vertex strands across the overlap. That produced stray
+ * vertex strands that pop in and out as tiles are slid through each other (e.g.
+ * the multi-cell boundary-size ratio slider), and it was never the wanted
+ * behaviour: the locked decision is that overlapping tiles keep self-contained
+ * Figures and just cross visually (see `project_overlap_tiles_strand_bug`). The
+ * pass was removed 2026-06-17. If "treat overlap as a shared edge" is ever
+ * actually wanted, reintroduce it behind an explicit opt-in toggle, not as the
+ * default.
  */
 function buildInternalEdgeSet(polygons: Polygon[]): Set<string> {
   const f = 1e3
   const edgeCounts = new Map<string, number>()
-  const mids: { poly: Polygon; key: string; mid: Vec2 }[] = []
   for (const poly of polygons) {
     for (let i = 0; i < poly.sides; i++) {
       const mid = midpoint(poly.vertices[i], poly.vertices[(i + 1) % poly.sides])
       const key = `${Math.round(mid.x * f)},${Math.round(mid.y * f)}`
       edgeCounts.set(key, (edgeCounts.get(key) ?? 0) + 1)
-      mids.push({ poly, key, mid })
     }
   }
   const internal = new Set<string>()
   for (const [key, count] of edgeCounts) {
     if (count >= 2) internal.add(key)
-  }
-  // Overlap pass: an edge whose midpoint is strictly inside another tile is
-  // internal even though no midpoints coincide. Bbox broad-phase keeps it cheap.
-  const bboxes = polygons.map(polyBBox)
-  for (const { poly, key, mid } of mids) {
-    if (internal.has(key)) continue
-    for (let q = 0; q < polygons.length; q++) {
-      const other = polygons[q]
-      if (other === poly) continue
-      const b = bboxes[q]
-      if (mid.x < b.minX || mid.x > b.maxX || mid.y < b.minY || mid.y > b.maxY) continue
-      if (pointInPolygon(mid, other.vertices)) { internal.add(key); break }
-    }
   }
   return internal
 }

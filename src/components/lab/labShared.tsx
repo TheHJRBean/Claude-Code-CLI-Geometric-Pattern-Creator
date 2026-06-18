@@ -77,12 +77,13 @@ export function LabExportButton({ children, onClick, secondary = false }: {
 }
 
 /**
- * Typeable numeric field with up/down nudge arrows — the precise-entry
- * counterpart to a coarse slider. The text input keeps a local draft so
- * partial entries ("1.", "") don't fight the controlled value; it commits on
- * blur / Enter (clamped + rounded to `precision`), reverting an unparseable
- * draft. ArrowUp/Down in the field and the ▲/▼ buttons step by `step`. Used by
- * the Frame controls so size / aspect / angle can be typed or nudged exactly.
+ * Typeable numeric field flanked by horizontal nudge arrows — the
+ * precise-entry counterpart to a coarse slider, designed to sit *under* the
+ * slider it refines. The text input keeps a local draft so partial entries
+ * ("1.", "") don't fight the controlled value; it commits on blur / Enter
+ * (clamped + rounded to `precision`), reverting an unparseable draft.
+ * ArrowUp/Down in the field and the ◀ / ▶ buttons step by `step`. Used by the
+ * Frame controls so size / ratio / angle can be typed or nudged exactly.
  */
 export function NumberStepper({
   value, onChange, min, max, step, precision = 0, suffix = '', ariaLabel, width = 56,
@@ -111,12 +112,13 @@ export function NumberStepper({
 
   const arrowBtn: CSSProperties = {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    width: 18, height: 11, padding: 0, lineHeight: 1, fontSize: 7,
+    width: 22, height: 22, padding: 0, lineHeight: 1, fontSize: 10,
     cursor: 'pointer', color: 'var(--text-muted)',
     background: 'transparent', border: '1px solid var(--border-subtle)',
   }
   return (
-    <div style={{ display: 'flex', alignItems: 'stretch', gap: 4 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      <button type="button" aria-label="Decrease" onClick={() => nudge(-1)} style={arrowBtn}>◀</button>
       <input
         type="text"
         inputMode="decimal"
@@ -130,19 +132,16 @@ export function NumberStepper({
           else if (e.key === 'ArrowDown') { e.preventDefault(); nudge(-1) }
         }}
         style={{
-          width, padding: '3px 6px', textAlign: 'right',
+          width, padding: '3px 6px', textAlign: 'center',
           fontFamily: "'EB Garamond', Georgia, serif", fontSize: 12,
           color: 'var(--text)', background: 'transparent',
           border: '1px solid var(--border-subtle)',
         }}
       />
       {suffix && (
-        <span style={{ alignSelf: 'center', fontSize: 11, color: 'var(--text-muted)', fontFamily: "'EB Garamond', Georgia, serif" }}>{suffix}</span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: "'EB Garamond', Georgia, serif" }}>{suffix}</span>
       )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-        <button type="button" aria-label="Increase" onClick={() => nudge(1)} style={arrowBtn}>▲</button>
-        <button type="button" aria-label="Decrease" onClick={() => nudge(-1)} style={arrowBtn}>▼</button>
-      </div>
+      <button type="button" aria-label="Increase" onClick={() => nudge(1)} style={arrowBtn}>▶</button>
     </div>
   )
 }

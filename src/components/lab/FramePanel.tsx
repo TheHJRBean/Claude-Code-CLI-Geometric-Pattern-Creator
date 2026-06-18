@@ -165,16 +165,16 @@ export function FramePanel({
             label="Frame size"
             tooltip="Half-extent (centre → corner) of the Frame in world units. Drag the slider, type an exact value, or nudge with the arrows."
           />
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-            <input
-              type="range"
-              min={MIN_FRAME_SIZE}
-              max={MAX_FRAME_SIZE}
-              step={1}
-              value={editor.frame.size ?? DEFAULT_FRAME_SIZE}
-              onChange={e => updateFrameGeom({ size: Number(e.target.value) })}
-              style={{ flex: 1 }}
-            />
+          <input
+            type="range"
+            min={MIN_FRAME_SIZE}
+            max={MAX_FRAME_SIZE}
+            step={1}
+            value={editor.frame.size ?? DEFAULT_FRAME_SIZE}
+            onChange={e => updateFrameGeom({ size: Number(e.target.value) })}
+            style={{ width: '100%', marginBottom: 6 }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
             <NumberStepper
               value={Math.round(editor.frame.size ?? DEFAULT_FRAME_SIZE)}
               onChange={v => updateFrameGeom({ size: v })}
@@ -216,7 +216,7 @@ export function FramePanel({
               </button>
             ))}
           </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
             <NumberStepper
               value={Number((editor.frame.aspect ?? 1).toFixed(2))}
               onChange={v => updateFrameGeom({ aspect: v })}
@@ -231,16 +231,16 @@ export function FramePanel({
             label="Angle"
             tooltip="Turn the whole Frame about its origin. Type an exact angle in degrees or nudge with the arrows."
           />
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-            <input
-              type="range"
-              min={0}
-              max={360}
-              step={1}
-              value={Math.round(((editor.frame.rotation ?? 0) * 180) / Math.PI)}
-              onChange={e => updateFrameGeom({ rotation: (Number(e.target.value) * Math.PI) / 180 })}
-              style={{ flex: 1 }}
-            />
+          <input
+            type="range"
+            min={0}
+            max={360}
+            step={1}
+            value={Math.round(((editor.frame.rotation ?? 0) * 180) / Math.PI)}
+            onChange={e => updateFrameGeom({ rotation: (Number(e.target.value) * Math.PI) / 180 })}
+            style={{ width: '100%', marginBottom: 6 }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
             <NumberStepper
               value={Math.round(((editor.frame.rotation ?? 0) * 180) / Math.PI)}
               onChange={deg => updateFrameGeom({ rotation: (deg * Math.PI) / 180 })}
@@ -337,16 +337,16 @@ export function FramePanel({
                 label="Rings"
                 tooltip="Number of neighbour-Patch shells around the centre Patch. 0 = the centre Patch alone; each ring adds one surrounding shell. Type or nudge for an exact count."
               />
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-                <input
-                  type="range"
-                  min={MIN_FRAME_RINGS}
-                  max={MAX_FRAME_RINGS}
-                  step={1}
-                  value={editor.frame.rings ?? DEFAULT_FRAME_RINGS}
-                  onChange={e => dispatch({ type: 'SET_FRAME', payload: { ...editor.frame!, rings: Number(e.target.value) } })}
-                  style={{ flex: 1 }}
-                />
+              <input
+                type="range"
+                min={MIN_FRAME_RINGS}
+                max={MAX_FRAME_RINGS}
+                step={1}
+                value={editor.frame.rings ?? DEFAULT_FRAME_RINGS}
+                onChange={e => dispatch({ type: 'SET_FRAME', payload: { ...editor.frame!, rings: Number(e.target.value) } })}
+                style={{ width: '100%', marginBottom: 6 }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
                 <NumberStepper
                   value={editor.frame.rings ?? DEFAULT_FRAME_RINGS}
                   onChange={v => dispatch({ type: 'SET_FRAME', payload: { ...editor.frame!, rings: v } })}
@@ -360,16 +360,16 @@ export function FramePanel({
                 label="Angle"
                 tooltip="Turn the whole Frame outline about its centre. Clip-only — the outline still follows whole Patch edges, just oriented. Type an exact angle or nudge with the arrows."
               />
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-                <input
-                  type="range"
-                  min={0}
-                  max={360}
-                  step={1}
-                  value={Math.round(((editor.frame.rotation ?? 0) * 180) / Math.PI)}
-                  onChange={e => updateFrameGeom({ rotation: (Number(e.target.value) * Math.PI) / 180 })}
-                  style={{ flex: 1 }}
-                />
+              <input
+                type="range"
+                min={0}
+                max={360}
+                step={1}
+                value={Math.round(((editor.frame.rotation ?? 0) * 180) / Math.PI)}
+                onChange={e => updateFrameGeom({ rotation: (Number(e.target.value) * Math.PI) / 180 })}
+                style={{ width: '100%', marginBottom: 6 }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
                 <NumberStepper
                   value={Math.round(((editor.frame.rotation ?? 0) * 180) / Math.PI)}
                   onChange={deg => updateFrameGeom({ rotation: (deg * Math.PI) / 180 })}

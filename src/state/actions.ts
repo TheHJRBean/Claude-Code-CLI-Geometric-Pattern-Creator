@@ -41,7 +41,9 @@ export type Action =
   | { type: 'SET_CELL_SHAPE'; payload: BoundaryShape }
   | { type: 'SET_CELL_BOUNDARY_SIZE'; payload: number }
   | { type: 'SET_EDITOR_ALTERNATE_BOUNDARY'; payload: boolean }
-  | { type: 'SET_CELL_SEED_SIDES'; payload: number }
+  // Per-cell. `cellId` targets a specific Cell (the panel shows a control
+  // group per Cell); absent ⇒ the active Cell (back-compat / single-cell).
+  | { type: 'SET_CELL_SEED_SIDES'; payload: { sides: number; cellId?: string } }
   // `force` (2026-06-01 flexible-placement) commits the placement even when it
   // would overlap an existing Tile (or, under symmetry, an orbit sibling) —
   // the user accepted a skippable overlap warning in the picker.
@@ -64,7 +66,7 @@ export type Action =
   // Cell starts empty and the user builds from the boundary inward (or via
   // Complete picking boundary corners). Refused while the Cell holds any
   // non-Seed Tile — see reducer for the lock semantic.
-  | { type: 'SET_CELL_NO_SEED'; payload: boolean }
+  | { type: 'SET_CELL_NO_SEED'; payload: { value: boolean; cellId?: string } }
   | { type: 'EDITOR_DELETE_TILE'; payload: { tileId: string } }
   // Step 17.5 — Complete operation (manual, 2-vertex chord)
   | { type: 'EDITOR_COMPLETE_GAP'; payload: { pA: Vec2; pB: Vec2 } }
@@ -74,9 +76,9 @@ export type Action =
   | { type: 'SET_EDITOR_AUTO_COMPLETE_ENABLED'; payload: boolean }
   | { type: 'EDITOR_RUN_AUTO_COMPLETE' }
   // Wrap boundary — Design-Phase Boundary fitting (formerly match-boundary).
-  | { type: 'SET_EDITOR_WRAP_BOUNDARY'; payload: boolean }
+  | { type: 'SET_EDITOR_WRAP_BOUNDARY'; payload: { value: boolean; cellId?: string } }
   // Step 17.4 (re-enabled) — orbit propagation subgroup picker.
-  | { type: 'SET_EDITOR_SYMMETRY_MODE'; payload: SymmetryMode }
+  | { type: 'SET_EDITOR_SYMMETRY_MODE'; payload: { mode: SymmetryMode; cellId?: string } }
   // Step 17.9 — undo/redo restores a snapshot. `null` means "no editor".
   | { type: 'EDITOR_RESTORE_SNAPSHOT'; payload: EditorConfig | null }
   // Switch the Patch between single-Cell and a multi-Cell **Configuration**

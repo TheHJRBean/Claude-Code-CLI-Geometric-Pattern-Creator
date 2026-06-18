@@ -1,9 +1,8 @@
 import type { PatternConfig } from '../../types/pattern'
 import type { Action } from '../../state/actions'
-import type { BoundaryShape, ConfigurationId, SymmetryMode } from '../../types/editor'
+import type { BoundaryShape, ConfigurationId, EditorCell, SymmetryMode } from '../../types/editor'
 import type { Vec2 } from '../../utils/math'
 import { BOUNDARY_SIZE_MAX_BY_SHAPE } from '../../editor/createDefault'
-import { activeCell } from '../../editor/active'
 import { FieldLabel, segmentedButtonStyle } from './labShared'
 
 type BoundaryPickerKind =
@@ -20,6 +19,160 @@ const BOUNDARY_OPTIONS: { value: BoundaryPickerKind; label: string }[] = [
   { value: { kind: 'configuration', id: '3.6.3.6' }, label: '3.6.3.6' },
   { value: { kind: 'configuration', id: '3.4.6.4' }, label: '3.4.6.4' },
 ]
+
+// Repeated "small uppercase hint" style used by the lock / wrap notes.
+const mutedNoteStyle: React.CSSProperties = {
+  fontFamily: "'Cinzel', Georgia, serif",
+  fontSize: 9,
+  fontWeight: 600,
+  letterSpacing: '0.08em',
+  textTransform: 'uppercase',
+  color: 'var(--text-muted)',
+  marginTop: 2,
+  marginBottom: 4,
+  lineHeight: 1.4,
+}
+
+const checkboxLabelStyle = (on: boolean, extra?: React.CSSProperties): React.CSSProperties => ({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 10,
+  cursor: 'pointer',
+  fontFamily: "'EB Garamond', Georgia, serif",
+  fontSize: 13,
+  color: on ? 'var(--text)' : 'var(--text-muted)',
+  transition: 'color 0.15s',
+  ...extra,
+})
+
+/**
+ * Per-Cell Design controls — Boundary size (single-cell only), Seed sides,
+ * Symmetry, Wrap boundary, No Seed. Each mutation carries the Cell's `id` so
+ * the reducer targets this Cell directly. In a multi-cell Patch the panel
+ * stacks one of these groups per Cell (there is no active-Cell selector); in a
+ * single-cell Patch there's just one, unheaded.
+ */
+function CellControls({
+  cell,
+  dispatch,
+  multiCell,
+}: {
+  cell: EditorCell
+  dispatch: React.Dispatch<Action>
+  multiCell: boolean
+}) {
+  const cellId = cell.id
+  // Once the Cell holds any non-Seed Tile, changing Seed sides / toggling
+  // No Seed would wipe that work — lock both until the Cell is cleared.
+  const originLocked = cell.tiles.some(t => t.source !== 'seed')
+  return (
+    <>
+      {/* Boundary size is per-Cell only in a single-cell Patch; multi-cell
+          uses the shared patch-level Lattice edge slider instead. */}
+      {!multiCell && (
+        <>
+          <FieldLabel
+            label="Boundary size"
+            value={cell.boundarySize.toFixed(0)}
+            unit=" u"
+            tooltip="Diameter of the Cell's Boundary polygon in world units. Scales the Cell uniformly."
+          />
+          <input
+            type="range"
+            className="pattern-slider"
+            min={80}
+            max={BOUNDARY_SIZE_MAX_BY_SHAPE[cell.shape]}
+            step={1}
+            value={cell.boundarySize}
+            onChange={e => dispatch({ type: 'SET_CELL_BOUNDARY_SIZE', payload: Number(e.target.value) })}
+          />
+          {cell.wrapBoundary && <div style={mutedNoteStyle}>Driven by Wrap boundary — drag to override.</div>}
+        </>
+      )}
+
+      <FieldLabel
+        label="Seed sides"
+        value={String(cell.seedSides)}
+        tooltip="Side count of the auto-placed Seed Tile — the starter polygon the Builder drops into a Cell so you have something to build from."
+      />
+      <input
+        type="range"
+        className="pattern-slider"
+        min={3}
+        max={24}
+        step={1}
+        value={cell.seedSides}
+        disabled={originLocked}
+        onChange={e => dispatch({ type: 'SET_CELL_SEED_SIDES', payload: { sides: Number(e.target.value), cellId } })}
+        style={originLocked ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
+      />
+      {originLocked && (
+        <div style={mutedNoteStyle}>Locked — clear the {multiCell ? 'cell' : 'patch'} to change the origin shape.</div>
+      )}
+
+      {/* Step 17.4 (re-enabled) — Symmetry picker. The chosen subgroup of the
+          boundary's dihedral group governs how placements + deletes propagate.
+          Horizontal mirror is hidden for triangle (no horizontal mirror axis
+          exists on an equilateral triangle). */}
+      <FieldLabel label="Symmetry" />
+      <select
+        className="pattern-select"
+        value={cell.symmetryMode ?? 'none'}
+        onChange={e => dispatch({ type: 'SET_EDITOR_SYMMETRY_MODE', payload: { mode: e.target.value as SymmetryMode, cellId } })}
+      >
+        <option value="none">None — single edge</option>
+        <option value="full">Full — all rotations + mirrors</option>
+        <option value="rotation">Rotation only</option>
+        <option value="vertical">Vertical mirror only</option>
+        {cell.shape !== 'triangle' && (
+          <option value="horizontal">Horizontal mirror only</option>
+        )}
+      </select>
+      {(cell.symmetryMode ?? 'none') !== 'none' && (
+        <div style={mutedNoteStyle}>Placements + deletes propagate under this subgroup.</div>
+      )}
+
+      {/* Wrap boundary — Design-Phase Boundary fitting (live). Per-Cell: wraps
+          the lattice cell to this Cell's Tiles. In a multi-cell Patch the
+          reducer's applyWrap propagates the fit to sibling Cells so the
+          invariant — every Cell's Boundary edge = lattice edge — holds. */}
+      <div style={{ marginTop: 14 }}>
+        <label style={checkboxLabelStyle(!!cell.wrapBoundary, { cursor: 'pointer' })}>
+          <input
+            type="checkbox"
+            checked={!!cell.wrapBoundary}
+            onChange={e => dispatch({ type: 'SET_EDITOR_WRAP_BOUNDARY', payload: { value: e.target.checked, cellId } })}
+          />
+          Wrap boundary
+        </label>
+      </div>
+
+      {/* Step 17.12 — No Seed Tile. Per-Cell: when on, the Cell starts empty
+          (no auto-placed Seed) — useful when authoring from the boundary inward
+          via the always-on section picker. Locked while the Cell holds any
+          non-Seed Tile (mirrors the Seed-sides lock); the reducer silently
+          refuses out-of-lock toggles. */}
+      <div style={{ marginTop: 10 }}>
+        <label style={checkboxLabelStyle(!!cell.noSeed, {
+          cursor: originLocked ? 'not-allowed' : 'pointer',
+          opacity: originLocked ? 0.5 : 1,
+          transition: 'color 0.15s, opacity 0.15s',
+        })}>
+          <input
+            type="checkbox"
+            checked={!!cell.noSeed}
+            disabled={originLocked}
+            onChange={e => dispatch({ type: 'SET_CELL_NO_SEED', payload: { value: e.target.checked, cellId } })}
+          />
+          No Seed Tile
+        </label>
+        {originLocked && (
+          <div style={mutedNoteStyle}>Locked — clear the {multiCell ? 'cell' : 'patch'} to toggle the Seed Tile.</div>
+        )}
+      </div>
+    </>
+  )
+}
 
 interface DesignPanelProps {
   editor: NonNullable<PatternConfig['editor']>
@@ -39,10 +192,11 @@ interface DesignPanelProps {
 }
 
 /**
- * Design-Phase controls in the Builder sidebar: boundary/Configuration picker,
- * active-Cell selector, alternate orientation, boundary size, Seed sides,
- * symmetry, wrap, No-Seed, neighbour preview, and the Place/Complete tool
- * toggle. Extracted from `EditorDesignControls`.
+ * Design-Phase controls in the Builder sidebar: boundary/Configuration picker
+ * and alternate orientation (patch-level), then a per-Cell control group for
+ * every Cell (Symmetry, Seed sides, Wrap, No Seed — all Cells exposed at once,
+ * no active-Cell selector), then neighbour preview + the Place/Complete tool
+ * toggle (patch-level). Extracted from `EditorDesignControls`.
  */
 export function DesignPanel({
   editor,
@@ -60,12 +214,9 @@ export function DesignPanel({
   showNeighbourStrands,
   onToggleShowNeighbourStrands,
 }: DesignPanelProps) {
-  const cell = activeCell(editor)
   const multiCell = editor.cells.length > 1
-  // Once the user has placed (or completed) any Tile in the active Cell
-  // beyond the auto-placed Seed, changing Seed sides (or toggling No Seed)
-  // would wipe their work — lock both controls until the Cell is cleared.
-  const originLocked = cell.tiles.some(t => t.source !== 'seed')
+  const primaryCell = editor.cells[0]
+  const anyWrap = editor.cells.some(c => c.wrapBoundary)
   return (
     <>
       <FieldLabel
@@ -77,7 +228,7 @@ export function DesignPanel({
         value={
           multiCell && editor.configuration
             ? `configuration:${editor.configuration}`
-            : `shape:${cell.shape}`
+            : `shape:${primaryCell.shape}`
         }
         onChange={e => {
           const [kind, id] = e.target.value.split(':') as [
@@ -106,65 +257,14 @@ export function DesignPanel({
         })}
       </select>
 
-      {multiCell && (
-        <>
-          <FieldLabel
-            label="Editing Cell"
-            tooltip="Which Cell of the multi-cell Patch you're authoring Tiles into. Composition Phase renders all Cells together; Design Phase lets you author them one at a time."
-          />
-          <select
-            className="pattern-select"
-            value={editor.activeCellId}
-            onChange={e => dispatch({ type: 'SET_ACTIVE_CELL', payload: { cellId: e.target.value } })}
-            style={{ marginBottom: 8 }}
-          >
-            {editor.cells.map(t => (
-              <option key={t.id} value={t.id}>
-                {t.id.charAt(0).toUpperCase() + t.id.slice(1)}
-              </option>
-            ))}
-          </select>
-        </>
-      )}
-
-      <label style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        marginTop: 10,
-        cursor: 'pointer',
-        fontFamily: "'EB Garamond', Georgia, serif",
-        fontSize: 13,
-        color: (multiCell ? editor.alternateOrientation : cell.alternateBoundary) ? 'var(--text)' : 'var(--text-muted)',
-        transition: 'color 0.15s',
-      }}>
+      <label style={checkboxLabelStyle(multiCell ? !!editor.alternateOrientation : !!primaryCell.alternateBoundary, { marginTop: 10 })}>
         <input
           type="checkbox"
-          checked={multiCell ? !!editor.alternateOrientation : !!cell.alternateBoundary}
+          checked={multiCell ? !!editor.alternateOrientation : !!primaryCell.alternateBoundary}
           onChange={e => dispatch({ type: 'SET_EDITOR_ALTERNATE_BOUNDARY', payload: e.target.checked })}
         />
         Alternate orientation
       </label>
-
-      {!multiCell && (
-        <>
-          <FieldLabel
-            label="Boundary size"
-            value={cell.boundarySize.toFixed(0)}
-            unit=" u"
-            tooltip="Diameter of the Cell's Boundary polygon in world units. Scales the Cell uniformly."
-          />
-          <input
-            type="range"
-            className="pattern-slider"
-            min={80}
-            max={BOUNDARY_SIZE_MAX_BY_SHAPE[cell.shape]}
-            step={1}
-            value={cell.boundarySize}
-            onChange={e => dispatch({ type: 'SET_CELL_BOUNDARY_SIZE', payload: Number(e.target.value) })}
-          />
-        </>
-      )}
 
       {multiCell && (
         <>
@@ -187,185 +287,52 @@ export function DesignPanel({
             value={editor.edgeLength}
             onChange={e => dispatch({ type: 'SET_CELL_BOUNDARY_SIZE', payload: Number(e.target.value) })}
           />
+          {anyWrap && <div style={mutedNoteStyle}>Driven by Wrap boundary — drag to override.</div>}
         </>
       )}
-      {cell.wrapBoundary && (
-        <div
-          style={{
-            fontFamily: "'Cinzel', Georgia, serif",
-            fontSize: 9,
-            fontWeight: 600,
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            color: 'var(--text-muted)',
-            marginTop: 2,
-            marginBottom: 4,
-            lineHeight: 1.4,
-          }}
-        >
-          Driven by Wrap boundary — drag to override.
-        </div>
-      )}
 
-      <FieldLabel
-        label="Seed sides"
-        value={String(cell.seedSides)}
-        tooltip="Side count of the auto-placed Seed Tile — the starter polygon the Builder drops into a Cell so you have something to build from."
-      />
-      <input
-        type="range"
-        className="pattern-slider"
-        min={3}
-        max={24}
-        step={1}
-        value={cell.seedSides}
-        disabled={originLocked}
-        onChange={e => dispatch({ type: 'SET_CELL_SEED_SIDES', payload: Number(e.target.value) })}
-        style={originLocked ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
-      />
-      {originLocked && (
-        <div
-          style={{
-            fontFamily: "'Cinzel', Georgia, serif",
-            fontSize: 9,
-            fontWeight: 600,
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            color: 'var(--text-muted)',
-            marginTop: 2,
-            marginBottom: 4,
-            lineHeight: 1.4,
-          }}
-        >
-          Locked — clear the patch to change the origin shape.
-        </div>
-      )}
-
-      {/* Step 17.4 (re-enabled) — Symmetry picker. The chosen subgroup of
-          the boundary's dihedral group governs how placements + deletes
-          propagate. None = single-edge (17.3 behaviour, the default).
-          Horizontal mirror is hidden for triangle (no horizontal mirror
-          axis exists on an equilateral triangle). */}
-      <FieldLabel label="Symmetry" />
-      <select
-        className="pattern-select"
-        value={cell.symmetryMode ?? 'none'}
-        onChange={e => dispatch({ type: 'SET_EDITOR_SYMMETRY_MODE', payload: e.target.value as SymmetryMode })}
-      >
-        <option value="none">None — single edge</option>
-        <option value="full">Full — all rotations + mirrors</option>
-        <option value="rotation">Rotation only</option>
-        <option value="vertical">Vertical mirror only</option>
-        {cell.shape !== 'triangle' && (
-          <option value="horizontal">Horizontal mirror only</option>
-        )}
-      </select>
-      {(cell.symmetryMode ?? 'none') !== 'none' && (
-        <div style={{
-          fontFamily: "'Cinzel', Georgia, serif",
-          fontSize: 9,
-          fontWeight: 600,
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          color: 'var(--text-muted)',
-          marginTop: 4,
-          marginBottom: 4,
-          lineHeight: 1.4,
-        }}>
-          Placements + deletes propagate under this subgroup.
-        </div>
-      )}
-
-      {/* Wrap boundary — Design-Phase Boundary fitting (live). In a multi-Cell
-          Patch the toggle is per-active-Cell: wraps the lattice cell to
-          whichever Cell the user is currently editing. The reducer's
-          applyWrap propagates the fit to sibling Cells so the 4.8.8
-          invariant — every Cell's Boundary edge = lattice edge — holds. */}
-      <div style={{ marginTop: 14 }}>
-        <label style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          cursor: 'pointer',
-          fontFamily: "'EB Garamond', Georgia, serif",
-          fontSize: 13,
-          color: cell.wrapBoundary ? 'var(--text)' : 'var(--text-muted)',
-          transition: 'color 0.15s',
-        }}>
-          <input
-            type="checkbox"
-            checked={!!cell.wrapBoundary}
-            onChange={e => dispatch({ type: 'SET_EDITOR_WRAP_BOUNDARY', payload: e.target.checked })}
-          />
-          Wrap boundary
-        </label>
-      </div>
-
-      {/* Step 17.12 — No Seed Tile. Per-Cell: applies to whichever Cell is
-          currently active in Design Phase (single-cell Patch or one Cell of a
-          multi-cell Configuration). When on, the active Cell starts empty
-          (no auto-placed Seed) — useful when authoring from the boundary
-          inward via the always-on section picker. Locked while the Cell
-          holds any non-Seed Tile (mirrors the existing Seed-sides slider
-          lock); the reducer silently refuses out-of-lock toggles. */}
-      <div style={{ marginTop: 10 }}>
-        <label style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          cursor: originLocked ? 'not-allowed' : 'pointer',
-          fontFamily: "'EB Garamond', Georgia, serif",
-          fontSize: 13,
-          color: cell.noSeed ? 'var(--text)' : 'var(--text-muted)',
-          opacity: originLocked ? 0.5 : 1,
-          transition: 'color 0.15s, opacity 0.15s',
-        }}>
-          <input
-            type="checkbox"
-            checked={!!cell.noSeed}
-            disabled={originLocked}
-            onChange={e => dispatch({ type: 'SET_CELL_NO_SEED', payload: e.target.checked })}
-          />
-          No Seed Tile
-        </label>
-        {originLocked && (
-          <div style={{
-            fontFamily: "'Cinzel', Georgia, serif",
-            fontSize: 9,
-            fontWeight: 600,
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            color: 'var(--text-muted)',
-            marginTop: 2,
-            marginBottom: 4,
-            lineHeight: 1.4,
-          }}>
-            Locked — clear the {multiCell ? 'cell' : 'patch'} to toggle the Seed Tile.
+      {/* Per-Cell controls. Single-cell: one unheaded group. Multi-cell: a
+          headed group per Cell — all Cells editable at once, no selector. */}
+      {multiCell ? (
+        editor.cells.map(cell => (
+          <div
+            key={cell.id}
+            style={{
+              marginTop: 14,
+              paddingTop: 10,
+              borderTop: '1px solid var(--border-subtle)',
+            }}
+          >
+            <div style={{
+              fontFamily: "'Cinzel', Georgia, serif",
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              color: 'var(--text)',
+              marginBottom: 6,
+            }}>
+              {cell.id.charAt(0).toUpperCase() + cell.id.slice(1)} Cell
+            </div>
+            <CellControls cell={cell} dispatch={dispatch} multiCell />
           </div>
-        )}
-      </div>
+        ))
+      ) : (
+        <CellControls cell={primaryCell} dispatch={dispatch} multiCell={false} />
+      )}
 
-      {/* Step 17.6d — Show neighbours. Disabled while wrap is on (boundary
-          edge moves under the user's feet). Triangle support added — the
-          three edge-shared down-triangles are computed directly from the
-          boundary vertices. */}
+      {/* Step 17.6d — Show neighbours. Disabled while any Cell has wrap on
+          (boundary edge moves under the user's feet). */}
       {(() => {
-        const wrapOn = !!cell.wrapBoundary
-        const disabled = wrapOn
+        const disabled = anyWrap
         const active = showNeighbours && !disabled
         return (
-          <div style={{ marginTop: 10 }}>
-            <label style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
+          <div style={{ marginTop: 14 }}>
+            <label style={checkboxLabelStyle(active, {
               cursor: disabled ? 'not-allowed' : 'pointer',
-              fontFamily: "'EB Garamond', Georgia, serif",
-              fontSize: 13,
-              color: active ? 'var(--text)' : 'var(--text-muted)',
               opacity: disabled ? 0.5 : 1,
               transition: 'color 0.15s, opacity 0.15s',
-            }}>
+            })}>
               <input
                 type="checkbox"
                 checked={active}
@@ -375,32 +342,11 @@ export function DesignPanel({
               Show neighbours
             </label>
             {disabled && (
-              <div style={{
-                fontFamily: "'Cinzel', Georgia, serif",
-                fontSize: 9,
-                fontWeight: 600,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                color: 'var(--text-muted)',
-                marginTop: 2,
-                marginBottom: 4,
-                lineHeight: 1.4,
-              }}>
-                Disable Wrap boundary to preview neighbours.
-              </div>
+              <div style={mutedNoteStyle}>Disable Wrap boundary to preview neighbours.</div>
             )}
             {active && (
               <div style={{ marginTop: 6, marginLeft: 22, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  cursor: 'pointer',
-                  fontFamily: "'EB Garamond', Georgia, serif",
-                  fontSize: 12.5,
-                  color: showNeighbourBoundaries ? 'var(--text)' : 'var(--text-muted)',
-                  transition: 'color 0.15s',
-                }}>
+                <label style={checkboxLabelStyle(showNeighbourBoundaries, { fontSize: 12.5 })}>
                   <input
                     type="checkbox"
                     checked={showNeighbourBoundaries}
@@ -408,16 +354,7 @@ export function DesignPanel({
                   />
                   Show boundaries
                 </label>
-                <label style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  cursor: 'pointer',
-                  fontFamily: "'EB Garamond', Georgia, serif",
-                  fontSize: 12.5,
-                  color: showNeighbourStrands ? 'var(--text)' : 'var(--text-muted)',
-                  transition: 'color 0.15s',
-                }}>
+                <label style={checkboxLabelStyle(showNeighbourStrands, { fontSize: 12.5 })}>
                   <input
                     type="checkbox"
                     checked={showNeighbourStrands}
@@ -460,17 +397,7 @@ export function DesignPanel({
             {/* Step 17.7 — Auto-complete on flip (Decision 11). Lives in
                 Complete mode since it's a Complete-style operation that
                 fires automatically on Design→Strand flip. */}
-            <label style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              marginTop: 10,
-              cursor: 'pointer',
-              fontFamily: "'EB Garamond', Georgia, serif",
-              fontSize: 13,
-              color: editor.autoComplete?.enabled ? 'var(--text)' : 'var(--text-muted)',
-              transition: 'color 0.15s',
-            }}>
+            <label style={checkboxLabelStyle(!!editor.autoComplete?.enabled, { marginTop: 10 })}>
               <input
                 type="checkbox"
                 checked={!!editor.autoComplete?.enabled}

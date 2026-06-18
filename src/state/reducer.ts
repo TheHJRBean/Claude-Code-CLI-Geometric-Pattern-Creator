@@ -337,13 +337,13 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     }
     case 'SET_CELL_SEED_SIDES': {
       if (!state.editor) return state
-      const sides = Math.max(3, Math.floor(action.payload))
+      const sides = Math.max(3, Math.floor(action.payload.sides))
       // Changing Seed sides invalidates any placed/completed Tiles built on
-      // the previous Seed Tile's edges. Reset the active Cell to the new
+      // the previous Seed Tile's edges. Reset the target Cell to the new
       // Seed Tile only. With `noSeed` on, the Cell stays empty — the field
       // still tracks `seedSides` so toggling no-Seed back off restores the
       // user's preferred Seed shape.
-      return applyWrap(seedFigures(updateActiveCell(state, cell => {
+      return applyWrap(seedFigures(updateCell(state, action.payload.cellId, cell => {
         if (cell.noSeed) return { ...cell, seedSides: sides, tiles: [] }
         // Preserve the current Seed Tile's own edge length + rotation rather
         // than snapping to `patch.edgeLength`. In a composite Patch the
@@ -461,22 +461,22 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       })))
     }
     case 'SET_CELL_NO_SEED': {
-      // Toggle the Seed Tile on/off for the active Cell. Refuse if the Cell
+      // Toggle the Seed Tile on/off for the target Cell. Refuse if the Cell
       // holds any non-Seed Tile — mirrors the existing Seed-sides lock
       // pattern (see SET_CELL_SEED_SIDES). Turning on wipes the Seed Tile to
       // empty `tiles: []`; turning off re-adds a Seed at the current
       // `seedSides` + Patch `edgeLength`.
       if (!state.editor) return state
-      const cell = activeCell(state.editor)
+      const { value: next, cellId } = action.payload
+      const cell = (cellId && state.editor.cells.find(c => c.id === cellId)) || activeCell(state.editor)
       const hasNonSeed = cell.tiles.some(t => t.source !== 'seed')
       if (hasNonSeed) return state
-      const next = action.payload
       if (next === !!cell.noSeed) return state
       if (next) {
-        return seedFigures(updateActiveCell(state, c => ({ ...c, noSeed: true, tiles: [] })))
+        return seedFigures(updateCell(state, cellId, c => ({ ...c, noSeed: true, tiles: [] })))
       }
       const edgeLength = state.editor.edgeLength
-      return seedFigures(updateActiveCell(state, c => ({
+      return seedFigures(updateCell(state, cellId, c => ({
         ...c,
         noSeed: false,
         tiles: [createSeedTile(c.seedSides, edgeLength)],
@@ -592,18 +592,20 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     }
     case 'SET_EDITOR_WRAP_BOUNDARY': {
       if (!state.editor) return state
-      // Per-active-Cell wrap. Toggling on must take effect immediately —
-      // otherwise the toggle does nothing visible until the next mutation.
-      const next = updateActiveCell(state, cell => ({ ...cell, wrapBoundary: action.payload }))
-      return action.payload ? applyWrap(next) : next
+      // Per-Cell wrap. Toggling on must take effect immediately — otherwise
+      // the toggle does nothing visible until the next mutation.
+      const { value, cellId } = action.payload
+      const next = updateCell(state, cellId, cell => ({ ...cell, wrapBoundary: value }))
+      return value ? applyWrap(next) : next
     }
     case 'SET_EDITOR_SYMMETRY_MODE': {
       if (!state.editor) return state
-      return updateActiveCell(state, cell => {
+      const { mode: requested, cellId } = action.payload
+      return updateCell(state, cellId, cell => {
         // Triangle has no horizontal mirror — coerce the request defensively.
-        const mode = action.payload === 'horizontal' && cell.shape === 'triangle'
+        const mode = requested === 'horizontal' && cell.shape === 'triangle'
           ? 'none'
-          : action.payload
+          : requested
         return { ...cell, symmetryMode: mode }
       })
     }
@@ -687,6 +689,39 @@ function updateActiveCell(
   const next = fn(current)
   if (next === current) return state
   return { ...state, editor: { ...withActiveCell(state.editor, next), version: state.editor.version } }
+}
+
+/**
+ * Update a specific Cell by id (the panel now shows a per-Cell control group,
+ * so per-Cell mutations carry an explicit `cellId`). Falls back to the active
+ * Cell when `cellId` is absent — single-cell Patches and back-compat callers.
+ *
+ * Also focuses the mutated Cell as `activeCellId`. There is no user-facing
+ * active-Cell selector any more, but `activeCellId` survives as an internal
+ * "representative Cell" pointer that `applyWrap` (boundary fit), the n-ring
+ * Frame, and `patchSelectable` still read — so a per-Cell mutation must point
+ * it at the Cell being edited or those would target the wrong Cell.
+ */
+function updateCell(
+  state: PatternConfig,
+  cellId: string | undefined,
+  fn: (cell: EditorCell) => EditorCell,
+): PatternConfig {
+  if (!state.editor) return state
+  const current = cellId
+    ? state.editor.cells.find(c => c.id === cellId) ?? activeCell(state.editor)
+    : activeCell(state.editor)
+  const next = fn(current)
+  if (next === current) return state
+  return {
+    ...state,
+    editor: {
+      ...state.editor,
+      activeCellId: current.id,
+      cells: state.editor.cells.map(c => (c.id === current.id ? next : c)),
+      version: state.editor.version,
+    },
+  }
 }
 
 /**

@@ -219,7 +219,7 @@ describe('editor no-op guards and invariants', () => {
 
   it('SET_EDITOR_SYMMETRY_MODE coerces horizontal→none on a triangle cell (no horizontal mirror)', () => {
     const s = editor({ shape: 'triangle' })
-    const out = reducer(s, { type: 'SET_EDITOR_SYMMETRY_MODE', payload: 'horizontal' } as Action)
+    const out = reducer(s, { type: 'SET_EDITOR_SYMMETRY_MODE', payload: { mode: 'horizontal' } } as Action)
     expect(out.editor!.cells[0].symmetryMode).toBe('none')
   })
 

@@ -4,7 +4,7 @@ import type { Segment } from '../types/geometry'
 import type { Vec2 } from '../utils/math'
 import { usePattern } from '../hooks/usePattern'
 import { frameOutlinePolygon, computeFrameSections, frameNodePoints } from '../editor/frame'
-import { nRingOutline, DEFAULT_FRAME_RINGS } from '../editor/frameNRing'
+import { nRingOutline, compositionNRingOutline, DEFAULT_FRAME_RINGS } from '../editor/frameNRing'
 import { usePanZoom } from '../hooks/usePanZoom'
 import { PatternSVG } from '../rendering/PatternSVG'
 import { worldToScreen } from '../rendering/screenSpace'
@@ -209,6 +209,11 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       if (!frame || !config.editor) return null
       if (frame.type === 'n-ring') {
         const patch = config.editor
+        // Multi-cell Configurations stamp the whole Patch (every Cell's
+        // Boundary) across the ring; single-cell Patches stamp the one Cell.
+        if (patch.cells.length > 1) {
+          return compositionNRingOutline(patch, frame.rings ?? DEFAULT_FRAME_RINGS, frame.rotation ?? 0)
+        }
         const active = patch.cells.find(c => c.id === patch.activeCellId) ?? patch.cells[0]
         return active ? nRingOutline(active, frame.rings ?? DEFAULT_FRAME_RINGS, frame.rotation ?? 0) : null
       }

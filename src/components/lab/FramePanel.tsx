@@ -20,9 +20,10 @@ export function FramePanel({
 }) {
   const cell = activeCell(editor)
   const multiCell = editor.cells.length > 1
-  // n-ring Frames are single-cell-only (square / hexagon / triangle) in v1 —
-  // multi-cell Configurations + octagon/dodecagon are deferred.
-  const nRingSupported = !multiCell && (cell.shape === 'square' || cell.shape === 'hexagon' || cell.shape === 'triangle')
+  // n-ring Frames support every multi-cell Configuration (the whole Patch tiles
+  // by translation), and single-cell square / hexagon / triangle. Only a
+  // single-cell octagon / dodecagon Patch has no lattice and stays unsupported.
+  const nRingSupported = multiCell || cell.shape === 'square' || cell.shape === 'hexagon' || cell.shape === 'triangle'
   // Frame — update a Frame geometry field. Geometry changes move the frame
   // nodes, so clear `completedTiles` (frame-scoped completions are anchored to
   // the old outline; the user re-completes against the new edge).
@@ -82,7 +83,7 @@ export function FramePanel({
               payload: { type: 'n-ring', rings: DEFAULT_FRAME_RINGS },
             })}
             disabled={!nRingSupported}
-            title={nRingSupported ? undefined : 'n-Ring frames need a single-cell square, hexagon, or triangle Patch.'}
+            title={nRingSupported ? undefined : 'n-Ring frames need a square, hexagon, or triangle Patch (single-cell octagon / dodecagon has no lattice).'}
             style={{
               width: '100%',
               padding: '7px 0',

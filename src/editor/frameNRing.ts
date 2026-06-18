@@ -1,9 +1,10 @@
 import type { Vec2 } from '../utils/math'
 import { pointsEqual, rotate } from '../utils/math'
-import type { EditorCell } from '../types/editor'
+import type { EditorCell, EditorPatch } from '../types/editor'
 import { EDITOR_EPS } from './exposedEdges'
 import { editorBoundaryVertices } from './buildEditorPolygons'
 import { expandedLattice, applyStamp, type LatticeStamp } from './lattice'
+import { compositionBoundaryOutlines, compositionCellBasis } from './compositionLattice'
 
 /**
  * Step 17 Framing slice 10 — **n-ring** Frame geometry.
@@ -23,8 +24,14 @@ import { expandedLattice, applyStamp, type LatticeStamp } from './lattice'
  *     polygons), exact iff the tiling is edge-to-edge;
  *   - ring neighbourhood = per-lattice ring distance (square → box, hexagon →
  *     hex distance, triangle → orientation-tracking edge-adjacency BFS);
- *   - v1 scope = single-cell square / hexagon / triangle. Octagon / dodecagon
- *     and multi-cell Configurations are unsupported (return `null`).
+ *   - single-cell scope = square / hexagon / triangle (single-cell octagon /
+ *     dodecagon have no lattice → `null`).
+ *
+ * Multi-cell **Configurations** are supported via `compositionNRingOutline`
+ * (added 2026-06-18): the whole Patch tiles by translation over
+ * `compositionCellBasis`, so the ring stamps every Cell's Boundary across the
+ * composition lattice and unions them — same edge-cancellation machinery, just
+ * a multi-polygon unit cell.
  */
 
 /** Default / clamp range for the ring count. N = 0 is just the centre Patch. */
@@ -207,6 +214,68 @@ export function nRingOutline(cell: EditorCell, rings: number, rotation = 0): Vec
   const base = editorBoundaryVertices(cell)
   if (base.length < 3) return null
   const polys = stamps.map(s => base.map(v => applyStamp(v, s)))
+  const outline = unionOutline(polys)
+  if (!outline || rotation === 0) return outline
+  return outline.map(p => rotate(p, rotation))
+}
+
+/**
+ * Translation stamps for the N-ring neighbourhood of a multi-cell **Patch**,
+ * over its Configuration's composition lattice (`compositionCellBasis`). The
+ * unit cell is one whole Patch tiled by pure translation, so every stamp is a
+ * translation (rotation 0) — the per-Cell rotations are baked into the Patch's
+ * boundary outlines, not the lattice.
+ *
+ * Ring metric follows the lattice geometry: an orthogonal basis (4.8.8's square
+ * lattice) uses the Chebyshev box, matching the single-cell square ring; a
+ * non-orthogonal basis (every hex-lattice Configuration) uses the hex-distance
+ * ring, with the third axis chosen as whichever of `u±v` is the shorter
+ * diagonal so the 6 nearest neighbours are unit-distance.
+ */
+export function compositionNRingStamps(patch: EditorPatch, rings: number): LatticeStamp[] {
+  const { u, v } = compositionCellBasis(patch)
+  const N = Math.max(0, Math.floor(rings))
+  const uLen = Math.hypot(u.x, u.y)
+  const vLen = Math.hypot(v.x, v.y)
+  const dot = u.x * v.x + u.y * v.y
+  const orthogonal = Math.abs(dot) < 1e-6 * uLen * vLen
+  const thirdIsSum = Math.hypot(u.x + v.x, u.y + v.y) <= Math.hypot(u.x - v.x, u.y - v.y)
+  const inRing = orthogonal
+    ? (a: number, b: number) => Math.max(Math.abs(a), Math.abs(b)) <= N
+    : (a: number, b: number) => Math.max(Math.abs(a), Math.abs(b), Math.abs(thirdIsSum ? a + b : a - b)) <= N
+
+  const stamps: LatticeStamp[] = []
+  for (let a = -N; a <= N; a++) {
+    for (let b = -N; b <= N; b++) {
+      if (!inRing(a, b)) continue
+      stamps.push({ translation: { x: a * u.x + b * v.x, y: a * u.y + b * v.y }, rotation: 0 })
+    }
+  }
+  return stamps
+}
+
+/**
+ * Multi-cell sibling of `nRingOutline`: the world-space clip outline for an
+ * n-ring Frame over a multi-cell **Configuration** Patch. Stamps every Cell's
+ * Boundary outline across the N-ring neighbourhood and takes the outer
+ * boundary of their union (interior edges between adjacent Cells / Patches
+ * cancel exactly because the seeds are boundary-matching and edge-to-edge).
+ *
+ * `rotation` is the same clip-only spin as the single-cell path — the union
+ * follows whole Patch edges, then turns about the world origin; the lattice
+ * field underneath is unchanged. Returns `null` on degenerate input.
+ */
+export function compositionNRingOutline(patch: EditorPatch, rings: number, rotation = 0): Vec2[] | null {
+  const stamps = compositionNRingStamps(patch, rings)
+  if (stamps.length === 0) return null
+  const base = compositionBoundaryOutlines(patch).filter(o => o.length >= 3)
+  if (base.length === 0) return null
+  const polys: Vec2[][] = []
+  for (const s of stamps) {
+    for (const outline of base) {
+      polys.push(outline.map(v => ({ x: v.x + s.translation.x, y: v.y + s.translation.y })))
+    }
+  }
   const outline = unionOutline(polys)
   if (!outline || rotation === 0) return outline
   return outline.map(p => rotate(p, rotation))

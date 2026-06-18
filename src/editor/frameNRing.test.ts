@@ -2,7 +2,15 @@ import { describe, it, expect } from 'vitest'
 import type { Vec2 } from '../utils/math'
 import type { CellShape, EditorCell } from '../types/editor'
 import { editorBoundaryVertices } from './buildEditorPolygons'
-import { nRingCellStamps, nRingOutline, unionOutline } from './frameNRing'
+import { nRingCellStamps, nRingOutline, unionOutline, compositionNRingStamps, compositionNRingOutline } from './frameNRing'
+import { compositionBoundaryOutlines } from './compositionLattice'
+import {
+  createDefault488EditorConfig,
+  createDefault31212EditorConfig,
+  createDefault4612EditorConfig,
+  createDefault3636EditorConfig,
+  createDefault3464EditorConfig,
+} from './createDefault'
 
 /** Minimal single-cell of the given shape (edge length = `size`). */
 function cell(shape: CellShape, size = 100): EditorCell {
@@ -87,6 +95,65 @@ describe('nRingOutline', () => {
     // A 45°-turned 3×3 square block reaches its corner at 150·√2 on an axis.
     const xs = turned.map(v => v.x)
     expect(Math.max(...xs)).toBeCloseTo(150 * Math.SQRT2, 2)
+  })
+})
+
+// ── Multi-cell n-ring (every shipping Configuration) ──────────────────────
+const hexConfigs = [
+  ['3.12.12', createDefault31212EditorConfig],
+  ['4.6.12', createDefault4612EditorConfig],
+  ['3.6.3.6', createDefault3636EditorConfig],
+  ['3.4.6.4', createDefault3464EditorConfig],
+] as const
+
+/** Sum of the Patch's per-Cell Boundary-outline areas = one unit-cell area. */
+function unitCellArea(patch: ReturnType<typeof createDefault488EditorConfig>): number {
+  return compositionBoundaryOutlines(patch).reduce((s, o) => s + polyArea(o), 0)
+}
+
+describe('compositionNRingStamps', () => {
+  it('4.8.8 (square lattice) uses the Chebyshev box: (2N+1)^2', () => {
+    const p = createDefault488EditorConfig()
+    expect(compositionNRingStamps(p, 0).length).toBe(1)
+    expect(compositionNRingStamps(p, 1).length).toBe(9)
+    expect(compositionNRingStamps(p, 2).length).toBe(25)
+  })
+
+  it.each(hexConfigs)('%s (hex lattice) uses the hex-distance ring: 1 + 3N(N+1)', (_name, make) => {
+    const p = make()
+    expect(compositionNRingStamps(p, 0).length).toBe(1)
+    expect(compositionNRingStamps(p, 1).length).toBe(7)
+    expect(compositionNRingStamps(p, 2).length).toBe(19)
+  })
+})
+
+describe('compositionNRingOutline', () => {
+  const allConfigs = [['4.8.8', createDefault488EditorConfig] as const, ...hexConfigs]
+
+  it.each(allConfigs)('%s N=0 union equals one unit-cell boundary area', (_name, make) => {
+    const p = make()
+    const out = compositionNRingOutline(p, 0)
+    expect(out).not.toBeNull()
+    // Cells tile edge-to-edge, so the union has no holes: area = Σ cell areas.
+    expect(polyArea(out!) / unitCellArea(p)).toBeCloseTo(1, 4)
+  })
+
+  it.each(allConfigs)('%s ring area scales with the cell count', (name, make) => {
+    const p = make()
+    const square = name === '4.8.8'
+    const cellCount = (N: number) => (square ? (2 * N + 1) ** 2 : 1 + 3 * N * (N + 1))
+    for (const N of [1, 2]) {
+      const out = compositionNRingOutline(p, N)
+      expect(out).not.toBeNull()
+      expect(polyArea(out!) / unitCellArea(p)).toBeCloseTo(cellCount(N), 3)
+    }
+  })
+
+  it('rotation preserves area and turns the outline about the origin', () => {
+    const p = createDefault488EditorConfig()
+    const plain = compositionNRingOutline(p, 1)!
+    const turned = compositionNRingOutline(p, 1, Math.PI / 6)!
+    expect(polyArea(turned)).toBeCloseTo(polyArea(plain), 2)
   })
 })
 

@@ -512,12 +512,12 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   const selectedVertexData = selectedVertexKey
     ? cellLocalVertices.find(v => v.key === selectedVertexKey) ?? null
     : null
-  // Edge length for the candidate Tile — sized to the active Cell's own Tiles,
-  // not `patch.edgeLength` (which is the lattice constant in a multi-cell
-  // Patch after the boundary-size slider). Must match the reducer
-  // (`cellPlacementEdgeLength`) so the picker badges + preview reflect what
-  // actually gets placed.
-  const vertexEdgeLength = activeCellForSections && config.editor
+  // Edge length for a candidate placed Tile (vertex AND boundary-section) —
+  // sized to the active Cell's own Tiles, not `patch.edgeLength` (which is the
+  // lattice constant in a multi-cell Patch after the boundary-size slider).
+  // Must match the reducer (`cellPlacementEdgeLength`) so the picker badges +
+  // preview reflect what actually gets placed.
+  const placementEdgeLength = activeCellForSections && config.editor
     ? cellPlacementEdgeLength(activeCellForSections, config.editor.edgeLength)
     : 0
   const vertexPickerViableSides = useMemo<number[]>(() => {
@@ -526,11 +526,11 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     // places without force. Mirrors the edge picker's viableSidesForEdge.
     return viableSidesForVertexOrbit(
       selectedVertexData,
-      vertexEdgeLength,
+      placementEdgeLength,
       activeCellForSections,
       PICKER_SIDES,
     )
-  }, [selectedVertexData, activeCellForSections, config.editor, vertexEdgeLength])
+  }, [selectedVertexData, activeCellForSections, config.editor, placementEdgeLength])
   // Sizes that only produce overlapping orientations — placeable via the
   // skippable warning. The complement of clean within the angularly-placeable
   // set (sizes with no fitting sector at all stay disabled).
@@ -538,12 +538,12 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     if (!selectedVertexData || !activeCellForSections || !config.editor) return []
     const placeable = placeableSidesForVertex(
       selectedVertexData,
-      vertexEdgeLength,
+      placementEdgeLength,
       activeCellForSections,
       PICKER_SIDES,
     )
     return placeable.filter(n => !vertexPickerViableSides.includes(n))
-  }, [selectedVertexData, activeCellForSections, config.editor, vertexEdgeLength, vertexPickerViableSides])
+  }, [selectedVertexData, activeCellForSections, config.editor, placementEdgeLength, vertexPickerViableSides])
   const vertexOrientations = useMemo(() => {
     if (!selectedVertexData || vertexPickedSides === null || !activeCellForSections || !config.editor) {
       return []
@@ -553,10 +553,10 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     return vertexOrientationsWithOrbit(
       selectedVertexData,
       vertexPickedSides,
-      vertexEdgeLength,
+      placementEdgeLength,
       activeCellForSections,
     )
-  }, [selectedVertexData, vertexPickedSides, activeCellForSections, config.editor, vertexEdgeLength])
+  }, [selectedVertexData, vertexPickedSides, activeCellForSections, config.editor, placementEdgeLength])
   useEffect(() => {
     // Clamp orientation index if the available orientations shrank.
     if (vertexOrientationIdx >= vertexOrientations.length && vertexOrientations.length > 0) {
@@ -576,7 +576,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     if (!orientation) return null
     const tile = placeRegularNGonOnVertex(
       vertexPickedSides,
-      vertexEdgeLength,
+      placementEdgeLength,
       selectedVertexData,
       orientation.rotation,
       '__preview__',
@@ -586,7 +586,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       const w = applyCellTransform(v, activeCellForSections, patchRot)
       return `${w.x},${w.y}`
     }).join(' ')
-  }, [selectedVertexData, vertexPickedSides, vertexOrientations, vertexOrientationIdx, activeCellForSections, config.editor, patchRot, vertexEdgeLength])
+  }, [selectedVertexData, vertexPickedSides, vertexOrientations, vertexOrientationIdx, activeCellForSections, config.editor, patchRot, placementEdgeLength])
 
   // Closing the picker without committing — also clears the page-2 state.
   // useCallback so the memoised EditorVertexPlacementLayer (whose onSelect
@@ -746,7 +746,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     ? worldToScreen(sectionPickerWorldPos, viewTransform, size.width, size.height)
     : null
   const sectionPickerViable = selectedSectionData && activeCellForSections && config.editor
-    ? viableSidesForBoundarySection(selectedSectionData, activeCellForSections, config.editor.edgeLength)
+    ? viableSidesForBoundarySection(selectedSectionData, activeCellForSections, placementEdgeLength)
     : []
   // Boundary-section placement always constructs, so forceable = complement.
   const sectionPickerForceable = selectedSectionData && activeCellForSections && config.editor

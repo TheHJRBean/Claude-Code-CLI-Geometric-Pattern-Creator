@@ -404,7 +404,10 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       const { edgeIndex, sectionIndex, sides, force } = action.payload
       const patch = state.editor
       const cell = activeCell(patch)
-      const patchEdgeLength = patch.edgeLength
+      // Size to the Cell's own Tiles, not `patch.edgeLength` — in a multi-cell
+      // Patch the latter is the lattice constant after the boundary-size slider,
+      // which would make placements far too large (mirrors vertex placement).
+      const patchEdgeLength = cellPlacementEdgeLength(cell, patch.edgeLength)
       const sections = computeBoundarySections(cell)
       const section = sections.find(s => s.edgeIndex === edgeIndex && s.sectionIndex === sectionIndex)
       if (!section) return state

@@ -83,6 +83,10 @@ export interface ExposedVertex {
   /** Open angular sectors around the vertex — at least one is present (we
    *  drop fully-occupied vertices from `computeExposedVertices`). */
   openSectors: OpenSector[]
+  /** Owning Cell — set when vertices are aggregated across a multi-cell Patch
+   *  so a click round-trips the host Cell (keys are Cell-local and can collide
+   *  between Cells). Absent for single-cell. */
+  hostCellId?: string
 }
 
 /** One viable orientation for a candidate n-gon at a vertex. */

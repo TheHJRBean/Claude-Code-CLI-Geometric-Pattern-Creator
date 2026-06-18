@@ -170,7 +170,7 @@ export function TessellationLabMode({
   // Step 17.13c — vertex placement. Canvas owns the (selectedVertex,
   // pickedSides, orientationIndex) picker state and resolves the rotation +
   // force flag before dispatching; we just relay the payload to the reducer.
-  const handlePlaceTileOnVertex = (payload: { vertexKey: string; sides: number; rotation: number; force?: boolean }) => {
+  const handlePlaceTileOnVertex = (payload: { vertexKey: string; sides: number; rotation: number; force?: boolean; hostCellId?: string }) => {
     dispatch({ type: 'EDITOR_PLACE_TILE_ON_VERTEX', payload })
   }
   const handleDeleteTile = (tileId: string) => {

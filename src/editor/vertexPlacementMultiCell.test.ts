@@ -46,7 +46,7 @@ describe('vertex placement — multi-cell Patches', () => {
     const octBefore = state.editor!.cells.find(c => c.id === 'octagon')!.tiles.length
     const next = reducer(state, {
       type: 'EDITOR_PLACE_TILE_ON_VERTEX',
-      payload: { vertexKey: chosen!.key, sides: 3, rotation: chosen!.rotation },
+      payload: { vertexKey: chosen!.key, sides: 3, rotation: chosen!.rotation, hostCellId: 'square' },
     })
 
     const sqAfter = next.editor!.cells.find(c => c.id === 'square')!
@@ -54,6 +54,27 @@ describe('vertex placement — multi-cell Patches', () => {
     expect(sqAfter.tiles.length).toBe(1)
     expect(sqAfter.tiles[0].kind).toBe('regular')
     expect(octAfter.tiles.length).toBe(octBefore)
+  })
+
+  it('routes placement by hostCellId, not the (internal) active cell', () => {
+    const state = multiCellState()
+    // Active cell is the octagon; the click is on a square vertex.
+    state.editor!.activeCellId = 'octagon'
+    const squareCell = state.editor!.cells.find(c => c.id === 'square')!
+    const v = computeExposedVertices(squareCell)[0]
+    const clean = vertexPlacementOrientations(v, 3, state.editor!.edgeLength, squareCell)
+      .find(o => !o.overlaps)!
+    const octBefore = state.editor!.cells.find(c => c.id === 'octagon')!.tiles.length
+
+    const next = reducer(state, {
+      type: 'EDITOR_PLACE_TILE_ON_VERTEX',
+      payload: { vertexKey: v.key, sides: 3, rotation: clean.rotation, hostCellId: 'square' },
+    })
+    // Tile landed in the square (the host), NOT the active octagon.
+    expect(next.editor!.cells.find(c => c.id === 'square')!.tiles.length).toBe(1)
+    expect(next.editor!.cells.find(c => c.id === 'octagon')!.tiles.length).toBe(octBefore)
+    // updateCell focuses the host as the internal activeCellId.
+    expect(next.editor!.activeCellId).toBe('square')
   })
 
   it('sizes the placed Tile to the Cell Seed, not the (enlarged) lattice edgeLength', () => {
@@ -89,7 +110,7 @@ describe('vertex placement — multi-cell Patches', () => {
 
     const next = reducer(state, {
       type: 'EDITOR_PLACE_TILE_ON_VERTEX',
-      payload: { vertexKey: chosen!.key, sides: 3, rotation: chosen!.rotation },
+      payload: { vertexKey: chosen!.key, sides: 3, rotation: chosen!.rotation, hostCellId: 'square' },
     })
     const placed = next.editor!.cells.find(c => c.id === 'square')!.tiles
       .find(t => t.source === 'placed')

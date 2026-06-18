@@ -1,6 +1,11 @@
 import { memo } from 'react'
 import type { ExposedVertex } from '../editor/vertexPlacement'
-import type { VertexKey } from '../editor/vertexPlacement'
+
+/** Composite identity for a vertex across a multi-cell Patch — Cell-local keys
+ *  can collide between Cells, so selection/hover are tracked by host Cell + key. */
+export function vertexUid(v: { hostCellId?: string; key: string }): string {
+  return `${v.hostCellId ?? ''}#${v.key}`
+}
 
 /**
  * Step 17.13c — interactive vertex layer for Design Phase + Place mode
@@ -24,10 +29,12 @@ import type { VertexKey } from '../editor/vertexPlacement'
  */
 interface Props {
   vertices: ExposedVertex[]
-  selectedKey: VertexKey | null
+  /** Composite uid (`vertexUid`) of the selected vertex, or null. */
+  selectedKey: string | null
   onSelect: (vertex: ExposedVertex | null, clickPoint: { x: number; y: number } | null) => void
-  hoveredKey: VertexKey | null
-  onHover: (key: VertexKey | null) => void
+  /** Composite uid (`vertexUid`) of the hovered vertex, or null. */
+  hoveredKey: string | null
+  onHover: (key: string | null) => void
 }
 
 const DOT_HALF = 5
@@ -42,8 +49,9 @@ export const EditorVertexPlacementLayer = memo(function EditorVertexPlacementLay
   return (
     <g id="editor-vertex-placement-layer">
       {vertices.map(v => {
-        const isSelected = v.key === selectedKey
-        const isHovered = v.key === hoveredKey
+        const uid = vertexUid(v)
+        const isSelected = uid === selectedKey
+        const isHovered = uid === hoveredKey
         const isBoundary = v.boundaryCornerIndex !== undefined
         const stroke = isSelected || isHovered ? 'var(--accent)' : 'var(--accent)'
         const fill = isSelected
@@ -55,7 +63,7 @@ export const EditorVertexPlacementLayer = memo(function EditorVertexPlacementLay
               : 'var(--bg)'
         const strokeOpacity = isSelected || isHovered ? 1 : 0.85
         return (
-          <g key={v.key}>
+          <g key={uid}>
             {/* Diamond glyph — rotated square outline, distinct from
                 Complete-mode round dots. */}
             <rect
@@ -89,7 +97,7 @@ export const EditorVertexPlacementLayer = memo(function EditorVertexPlacementLay
                 const pt = { x: v.p.x, y: v.p.y }
                 onSelect(v, pt)
               }}
-              onPointerEnter={() => onHover(v.key)}
+              onPointerEnter={() => onHover(uid)}
               onPointerLeave={() => onHover(null)}
             />
           </g>

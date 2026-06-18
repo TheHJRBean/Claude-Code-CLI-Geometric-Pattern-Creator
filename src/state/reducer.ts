@@ -434,12 +434,12 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       // corner) at the rotation the picker resolved from
       // `vertexPlacementOrientations`. Single-cell AND multi-cell: like
       // boundary-inward (17.12) the geometry + orbit are cell-local and
-      // cell-scoped, so routing through `updateActiveCell` places into the
-      // active Cell of a multi-cell Patch without any Patch-level transform.
+      // cell-scoped, so routing to the host Cell (`hostCellId`) places into the
+      // right Cell of a multi-cell Patch without any Patch-level transform.
       if (!state.editor) return state
-      const { vertexKey, sides, rotation, force } = action.payload
+      const { vertexKey, sides, rotation, force, hostCellId } = action.payload
       const patchEdgeLength = state.editor.edgeLength
-      return applyWrap(seedFigures(updateActiveCell(state, cell => {
+      return applyWrap(seedFigures(updateCell(state, hostCellId, cell => {
         // Size to the Cell's own Tiles, not `patch.edgeLength` — in a
         // multi-cell Patch the latter is the lattice constant after the
         // boundary-size slider, which would make placements far too large.

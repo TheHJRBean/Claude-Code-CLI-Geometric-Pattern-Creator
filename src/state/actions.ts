@@ -60,7 +60,7 @@ export type Action =
   // is the angle of the new Tile's edge 0→1 leaving the anchor (radians)
   // — picked from `vertexPlacementOrientations`. Symmetry-orbit aware:
   // propagates under the Cell's `symmetryMode` via `placeTilesOnVertexOrbit`.
-  | { type: 'EDITOR_PLACE_TILE_ON_VERTEX'; payload: { vertexKey: string; sides: number; rotation: number; force?: boolean } }
+  | { type: 'EDITOR_PLACE_TILE_ON_VERTEX'; payload: { vertexKey: string; sides: number; rotation: number; force?: boolean; hostCellId?: string } }
   // Toggle the auto-placed Seed Tile on/off for the active Cell. When on
   // (default), the Cell carries a Seed Tile at the centre. When off, the
   // Cell starts empty and the user builds from the boundary inward (or via

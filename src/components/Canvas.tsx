@@ -456,13 +456,16 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   )
 
   // ── Vertex placement (Step 17.13c) ───────────────────
-  // Single-cell only in v1 — multi-Cell composition support deferred (mirrors
-  // 17.12 boundary-inward). Active in Design Phase + Place mode. State machine:
+  // Active in Design Phase + Place mode, single-cell AND multi-cell alike —
+  // like boundary-section (17.12) it routes through the active Cell: vertices
+  // are computed in Cell-local coords and lifted into Patch-local via the
+  // active Cell's transform (`applyCellTransform(..., patchRot)`), and clicks
+  // place Tiles inside the active Cell via the reducer's `updateActiveCell`.
+  // State machine:
   //   selectedVertex !== null && pickedSides === null → page 1 (shape grid)
   //   selectedVertex !== null && pickedSides !== null → page 2 (orientations)
   const vertexPlacementActive = !!(
     editorActive && config.editor
-    && config.editor.cells.length === 1
     && activeCellForSections
     && editorMode === 'place'
     && !editorStrandMode

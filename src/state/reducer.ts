@@ -429,10 +429,11 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       // Step 17.13b — vertex-anchored placement. Anchors one corner of a
       // regular n-gon at an exposed Cell corner (or an inward-only Boundary
       // corner) at the rotation the picker resolved from
-      // `vertexPlacementOrientations`. Single-cell only in v1 to mirror
-      // boundary-inward (17.12) — multi-Cell composition support deferred.
+      // `vertexPlacementOrientations`. Single-cell AND multi-cell: like
+      // boundary-inward (17.12) the geometry + orbit are cell-local and
+      // cell-scoped, so routing through `updateActiveCell` places into the
+      // active Cell of a multi-cell Patch without any Patch-level transform.
       if (!state.editor) return state
-      if (state.editor.cells.length > 1) return state
       const { vertexKey, sides, rotation, force } = action.payload
       const patchEdgeLength = state.editor.edgeLength
       return applyWrap(seedFigures(updateActiveCell(state, cell => {

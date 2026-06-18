@@ -175,7 +175,7 @@ across modes for free; features hung on **mode-local wiring** drift.
 | Feature | Where it lives | Gap | Reason | Verdict |
 |---|---|---|---|---|
 | **Export** (SVG/PNG/Unwoven/Save-JSON) | Gallery `Sidebar` only (`Sidebar.tsx:857`) | Lab/Builder has no export | Gallery shipped first; never re-plumbed. ⚠ Lever A fast-path returns one fundamental domain → must use DOM export, not `segmentsRef` | **Close** — PLANNED, vehicle = save-preview page |
-| **Vertex placement (17.13)** | Builder single-cell only | multi-cell Configurations can't use it | v1 expedience; vertex geom needs `compositionCellBasis` transform + orbit validation. Gated `Canvas.tsx:465` + `reducer.ts:435` | **Close** — PLANNED |
+| **Vertex placement (17.13)** | Builder, single-cell + multi-cell | ~~multi-cell can't use it~~ **CLOSED 2026-06-18** | geometry/orbit were always Cell-local + Cell-scoped; only the two guards (`Canvas.tsx` + `reducer.ts`) blocked it — lifted, routes through active Cell like boundary-section | **Done** |
 | **Alternate orientation** | Builder | multi-cell fixed (`c56df88`); single-cell per-config audit pending | partial fix; single-cell `alternateBoundary` unaudited | **Close** — latent bug, RAW |
 | **Frame** | Gallery = clip-only shape; Builder = completion boundary (`editor.frame`) | two different behaviours under one noun | deliberate (framing grill 2026-05-30): Gallery is a quick-export picker, Builder Frame ties into Complete | **Keep** — watch terminology collision |
 | **n-ring Frame** | Builder single-cell sq/hex/tri only | multi-cell + octagon/dodecagon deferred | T-junctions break naïve edge-cancellation (`FramePanel.tsx:22`) | **Keep deferred** |

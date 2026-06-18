@@ -8,6 +8,10 @@ export interface SectionLike {
   sectionIndex: number
   p1: Vec2
   p2: Vec2
+  /** Owning Cell — set when sections are aggregated across a multi-cell Patch
+   * so a click round-trips the host Cell. Absent for single-cell / Frame
+   * sections. */
+  hostCellId?: string
 }
 
 /**
@@ -30,6 +34,7 @@ export interface SectionLike {
 export interface SectionKey {
   edgeIndex: number
   sectionIndex: number
+  hostCellId?: string
 }
 
 interface Props {
@@ -42,6 +47,7 @@ interface Props {
 
 function sameSection(a: SectionKey | null, s: SectionLike): boolean {
   return !!a && a.edgeIndex === s.edgeIndex && a.sectionIndex === s.sectionIndex
+    && (a.hostCellId ?? undefined) === (s.hostCellId ?? undefined)
 }
 
 // Memoised alongside the other editor overlay layers so panning a large Patch
@@ -55,8 +61,8 @@ export const EditorBoundaryInwardLayer = memo(function EditorBoundaryInwardLayer
         const isHovered = sameSection(hovered, s)
         const stroke = isSelected || isHovered ? 'var(--accent)' : 'transparent'
         const opacity = isSelected ? 1 : isHovered ? 0.85 : 0
-        const key = `${s.edgeIndex}#${s.sectionIndex}`
-        const sectionKey: SectionKey = { edgeIndex: s.edgeIndex, sectionIndex: s.sectionIndex }
+        const key = `${s.hostCellId ?? ''}#${s.edgeIndex}#${s.sectionIndex}`
+        const sectionKey: SectionKey = { edgeIndex: s.edgeIndex, sectionIndex: s.sectionIndex, hostCellId: s.hostCellId }
         return (
           <g key={key}>
             <line

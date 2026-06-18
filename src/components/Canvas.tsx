@@ -11,6 +11,7 @@ import { worldToScreen } from '../rendering/screenSpace'
 import { DecorationPaintLayer, type PaintPayload, type PaintTarget, type StrandPaintScope, type VoidPaintScope } from '../rendering/DecorationPaintLayer'
 import { RotationDial } from './RotationDial'
 import type { ExposedEdge } from '../editor/exposedEdges'
+import type { EditorCell } from '../types/editor'
 import { computeExposedEdges } from '../editor/exposedEdges'
 import { computeAllCycles, computeBoundaryCycle, type BoundaryVertex } from '../editor/boundary'
 import { EDITOR_EPS } from '../editor/exposedEdges'
@@ -25,7 +26,7 @@ import { OverlapConfirmModal } from './OverlapConfirmModal'
 import { EditorVertexLayer } from './EditorVertexLayer'
 import { EditorBoundaryInwardLayer, type SectionKey } from './EditorBoundaryInwardLayer'
 import { EditorVertexPlacementLayer } from './EditorVertexPlacementLayer'
-import { computeBoundarySections, viableSidesForBoundarySection } from '../editor/boundaryInward'
+import { computeBoundarySections, viableSidesForBoundarySection, type BoundarySection } from '../editor/boundaryInward'
 import {
   computeExposedVertices,
   placeRegularNGonOnVertex,
@@ -421,40 +422,59 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     return frameNodes.map((p, i) => ({ p, tileId: `frame/${i}`, vertexIndex: i }))
   }, [editorActive, editorMode, editorStrandMode, frameNodes])
 
-  // Step 17.12 — Boundary-section highlights, always rendered in Design
-  // Phase Place mode (no enabling toggle — boundary-section placement is a
-  // standard part of design functionality). Sections are computed in
-  // Cell-local coords (the Boundary is always centred at (0, 0) per
-  // `editorBoundaryVertices`) then lifted into Patch-local via the active
-  // Cell's transform. Works for single-cell and multi-cell Configurations
-  // alike — multi-cell routes through the active Cell of the Patch.
+  // Lookup of Cell by id — shared by the section + vertex overlays to
+  // transform each Cell's Cell-local geometry into Patch-local coords.
+  const cellById = useMemo(() => {
+    const m = new Map<string, EditorCell>()
+    if (config.editor) for (const c of config.editor.cells) m.set(c.id, c)
+    return m
+  }, [config.editor])
+  // Representative Cell (the internal `activeCellId`) — vertex placement still
+  // routes through it (converted to all-Cells next); also feeds `placementEdgeLength`.
   const activeCellForSections = editorActive && config.editor
     ? config.editor.cells.find(c => c.id === config.editor!.activeCellId) ?? null
     : null
+
+  // Step 17.12 — Boundary-section highlights, always rendered in Design Phase
+  // Place mode (no enabling toggle). Sections are computed per Cell in
+  // Cell-local coords (the Boundary is always centred at (0, 0) per
+  // `editorBoundaryVertices`), aggregated across EVERY Cell of the Patch (each
+  // tagged with its host Cell id), then lifted into Patch-local via that Cell's
+  // transform. All Cells are exposed at once — clicking a section auto-routes
+  // placement to its host Cell (no active-Cell selector).
   const sectionsActive = !!(
     editorActive && config.editor
-    && activeCellForSections
     && editorMode === 'place'
     && !editorStrandMode
   )
   const cellLocalSections = useMemo(() => {
-    if (!sectionsActive || !activeCellForSections) return []
-    return computeBoundarySections(activeCellForSections)
-  }, [sectionsActive, activeCellForSections])
+    if (!sectionsActive || !config.editor) return [] as Array<BoundarySection & { hostCellId: string }>
+    const out: Array<BoundarySection & { hostCellId: string }> = []
+    for (const cell of config.editor.cells) {
+      for (const s of computeBoundarySections(cell)) out.push({ ...s, hostCellId: cell.id })
+    }
+    return out
+  }, [sectionsActive, config.editor])
   const renderedSections = useMemo(() => {
-    if (!sectionsActive || !activeCellForSections) return cellLocalSections
-    return cellLocalSections.map(s => ({
-      ...s,
-      p1: applyCellTransform(s.p1, activeCellForSections, patchRot),
-      p2: applyCellTransform(s.p2, activeCellForSections, patchRot),
-      midpoint: applyCellTransform(s.midpoint, activeCellForSections, patchRot),
-    }))
-  }, [sectionsActive, activeCellForSections, cellLocalSections, patchRot])
+    return cellLocalSections.map(s => {
+      const cell = cellById.get(s.hostCellId)
+      if (!cell) return s
+      return {
+        ...s,
+        p1: applyCellTransform(s.p1, cell, patchRot),
+        p2: applyCellTransform(s.p2, cell, patchRot),
+        midpoint: applyCellTransform(s.midpoint, cell, patchRot),
+      }
+    })
+  }, [cellLocalSections, cellById, patchRot])
   const [hoveredSection, setHoveredSection] = useState<SectionKey | null>(null)
   useEffect(() => { if (!sectionsActive) setHoveredSection(null) }, [sectionsActive])
   const selectedSectionData = selectedSection && cellLocalSections.find(
-    s => s.edgeIndex === selectedSection.edgeIndex && s.sectionIndex === selectedSection.sectionIndex,
+    s => s.edgeIndex === selectedSection.edgeIndex
+      && s.sectionIndex === selectedSection.sectionIndex
+      && (selectedSection.hostCellId ?? null) === (s.hostCellId ?? null),
   )
+  const selectedSectionCell = selectedSectionData ? cellById.get(selectedSectionData.hostCellId) ?? null : null
 
   // ── Vertex placement (Step 17.13c) ───────────────────
   // Active in Design Phase + Place mode, single-cell AND multi-cell alike —
@@ -739,17 +759,21 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
 
   // Step 17.12c — boundary-section picker. Mirrors the edge picker: world →
   // screen via `worldToScreen`, viable sides via `viableSidesForBoundarySection`.
-  const sectionPickerWorldPos = selectedSectionData && activeCellForSections
-    ? applyCellTransform(selectedSectionData.midpoint, activeCellForSections, patchRot)
+  const sectionPickerWorldPos = selectedSectionData && selectedSectionCell
+    ? applyCellTransform(selectedSectionData.midpoint, selectedSectionCell, patchRot)
     : null
   const sectionPickerScreenPos = sectionPickerWorldPos && sectionsActive
     ? worldToScreen(sectionPickerWorldPos, viewTransform, size.width, size.height)
     : null
-  const sectionPickerViable = selectedSectionData && activeCellForSections && config.editor
-    ? viableSidesForBoundarySection(selectedSectionData, activeCellForSections, placementEdgeLength)
+  const sectionPickerViable = selectedSectionData && selectedSectionCell && config.editor
+    ? viableSidesForBoundarySection(
+        selectedSectionData,
+        selectedSectionCell,
+        cellPlacementEdgeLength(selectedSectionCell, config.editor.edgeLength),
+      )
     : []
   // Boundary-section placement always constructs, so forceable = complement.
-  const sectionPickerForceable = selectedSectionData && activeCellForSections && config.editor
+  const sectionPickerForceable = selectedSectionData && selectedSectionCell && config.editor
     ? PICKER_SIDES.filter(n => !sectionPickerViable.includes(n))
     : []
 

@@ -129,10 +129,22 @@ export function TessellationLabMode({
     setSelectedEdge(edge)
     if (edge) setSelectedSection(null)
   }, [config.editor, dispatch])
+  // Multi-cell: clicking a section on a non-active Cell auto-switches the
+  // active Cell first (pure pane swap) so the place flow targets the right
+  // Cell via the reducer's activeCell routing. Mirrors handleSelectEdge — all
+  // Cells' sections are exposed at once, each tagged with its host Cell.
   const handleSelectSection = useCallback((section: SectionKey | null) => {
+    if (
+      section?.hostCellId
+      && config.editor
+      && config.editor.cells.length > 1
+      && config.editor.activeCellId !== section.hostCellId
+    ) {
+      dispatch({ type: 'SET_ACTIVE_CELL', payload: { cellId: section.hostCellId } })
+    }
     setSelectedSection(section)
     if (section) setSelectedEdge(null)
-  }, [])
+  }, [config.editor, dispatch])
   // `force` (flexible-placement): the user accepted the picker's overlap
   // warning, so the reducer skips the viability gate and places anyway.
   const handlePlaceTile = (sides: number, force?: boolean) => {

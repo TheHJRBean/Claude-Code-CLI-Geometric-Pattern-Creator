@@ -568,15 +568,20 @@ export function Sidebar({
           <div style={{ marginBottom: 4 }} />
         </Section>
 
-        {/* Curves — global options that apply across all figures */}
-        <Section title="Curves" open={isOpen('curves')} onToggle={() => toggleSection('curves')}>
-              <Toggle
-                checked={config.smoothTransitions ?? false}
-                onChange={v => dispatch({ type: 'SET_SMOOTH_TRANSITIONS', payload: v })}
-                label="Smooth transitions"
-              />
-              <div style={{ marginBottom: 4 }} />
-        </Section>
+        {/* Curves — global options that apply across all figures. Only an
+            advanced concern (curve rendering), so it's hidden unless the
+            Figures panel's "Show advanced" is on, matching where the per-tile
+            curve recipe controls appear. */}
+        {showAdvanced && (
+          <Section title="Curves" open={isOpen('curves')} onToggle={() => toggleSection('curves')}>
+                <Toggle
+                  checked={config.smoothTransitions ?? false}
+                  onChange={v => dispatch({ type: 'SET_SMOOTH_TRANSITIONS', payload: v })}
+                  label="Smooth transitions"
+                />
+                <div style={{ marginBottom: 4 }} />
+          </Section>
+        )}
 
         {/* Figure routing — picks how degenerate pair-A meetings are handled
             on irregular polygons. Auto (default) routes through the polygon

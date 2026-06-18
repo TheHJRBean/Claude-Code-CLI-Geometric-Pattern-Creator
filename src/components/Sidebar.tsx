@@ -1,9 +1,12 @@
 import { useState } from 'react'
-import type { PatternConfig, StrandLineStyle } from '../types/pattern'
+import type { PatternConfig } from '../types/pattern'
 import type { Action } from '../state/actions'
 import { TILINGS, SYMMETRY_GROUPS } from '../tilings/index'
 import { tilingRepeatLength } from '../tilings/archimedean'
 import type { TileTypeInfo } from '../types/tiling'
+import { FieldLabel } from './ui/FieldLabel'
+import { Toggle } from './ui/Toggle'
+import { StrandStyleControls } from './ui/StrandStyleControls'
 import { FigureControls } from './strands/FigureControls'
 import { mainConfigLibrary } from '../state/mainConfigs'
 import { ConfigLibraryPanel } from './ConfigLibraryPanel'
@@ -179,63 +182,29 @@ function Section({ title, tooltip, open, onToggle, divider = true, style, childr
   )
 }
 
-function FieldLabel({ label, value, unit, tooltip }: { label: string; value?: string; unit?: string; tooltip?: string }) {
+/** Lightweight sub-group divider used inside a Section (secondary colour, so
+ *  it reads below the accent SectionTitle). */
+function SubHeading({ children, tooltip }: { children: React.ReactNode; tooltip?: string }) {
   return (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'baseline',
-      marginBottom: 7,
-      marginTop: 12,
-    }}>
-      <span
-        title={tooltip}
-        style={{
-          fontFamily: "'EB Garamond', Georgia, serif",
-          fontSize: 13.5,
-          color: 'var(--text-secondary)',
-          letterSpacing: '0.02em',
-          cursor: tooltip ? 'help' : 'default',
-          textDecoration: tooltip ? 'underline dotted var(--text-muted)' : 'none',
-          textUnderlineOffset: 3,
-        }}
-      >
-        {label}
+    <div
+      title={tooltip}
+      style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 20, marginBottom: 6 }}
+    >
+      <span style={{
+        fontFamily: 'var(--font-display)',
+        fontSize: 'var(--fs-micro)',
+        fontWeight: 600,
+        color: 'var(--text-secondary)',
+        letterSpacing: '0.16em',
+        textTransform: 'uppercase',
+        cursor: tooltip ? 'help' : 'default',
+        textDecoration: tooltip ? 'underline dotted var(--text-muted)' : 'none',
+        textUnderlineOffset: 3,
+      }}>
+        {children}
       </span>
-      {value !== undefined && (
-        <span style={{
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: 11,
-          color: 'var(--accent)',
-          letterSpacing: '0.04em',
-        }}>
-          {value}{unit}
-        </span>
-      )}
+      <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, var(--divider), transparent)' }} />
     </div>
-  )
-}
-
-function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
-  return (
-    <label style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: 12,
-      cursor: 'pointer',
-      fontFamily: "'EB Garamond', Georgia, serif",
-      fontSize: 13.5,
-      color: checked ? 'var(--text)' : 'var(--text-muted)',
-      transition: 'color 0.15s',
-    }}>
-      <input
-        type="checkbox"
-        className="pattern-checkbox"
-        checked={checked}
-        onChange={e => onChange(e.target.checked)}
-      />
-      {label}
-    </label>
   )
 }
 
@@ -467,8 +436,15 @@ export function Sidebar({
           </Section>
         )}
 
-        {/* Figures */}
-        <Section title="Figures" open={isOpen('figures')} onToggle={() => toggleSection('figures')}>
+        {/* Strands — per-Tile-type Figure recipes + global Strand styling.
+            Absorbs the former Figures / Strand-style / Figure-routing / Curves
+            sections into one parent with sub-groups. */}
+        <Section
+          title="Strands"
+          open={isOpen('strands')}
+          onToggle={() => toggleSection('strands')}
+          tooltip="Per-Tile-type Figure recipes plus global Strand styling. A Strand is a chain of Rays across polygons; most sliders adjust individual Rays and the Strand emerges from them."
+        >
           {tileTypes.map(tt => {
             const fig = config.figures[tt.id]
             const angle = fig?.contactAngle ?? 60
@@ -565,46 +541,32 @@ export function Sidebar({
           >
             Reset parameters
           </button>
-          <div style={{ marginBottom: 4 }} />
-        </Section>
 
-        {/* Curves — global options that apply across all figures. Only an
-            advanced concern (curve rendering), so it's hidden unless the
-            Figures panel's "Show advanced" is on, matching where the per-tile
-            curve recipe controls appear. */}
-        {showAdvanced && (
-          <Section title="Curves" open={isOpen('curves')} onToggle={() => toggleSection('curves')}>
-                <Toggle
-                  checked={config.smoothTransitions ?? false}
-                  onChange={v => dispatch({ type: 'SET_SMOOTH_TRANSITIONS', payload: v })}
-                  label="Smooth transitions"
-                />
-                <div style={{ marginBottom: 4 }} />
-          </Section>
-        )}
+          {/* Strand style — global stroke width / line style / lacing */}
+          <SubHeading tooltip="Stroke width, line style, and the over–under Lacing applied to every rendered Strand. Strand-level, not Ray-level.">
+            Strand style
+          </SubHeading>
+          <StrandStyleControls strand={config.strand} dispatch={dispatch} />
 
-        {/* Figure routing — picks how degenerate pair-A meetings are handled
-            on irregular polygons. Auto (default) routes through the polygon
-            centre on convex tiles; Edge runs the original boundary slide;
-            Centroid forces centroid V everywhere it's safe. */}
-        <Section
-          title="Figure Routing"
-          open={isOpen('figureRouting')}
-          onToggle={() => toggleSection('figureRouting')}
-          tooltip="On irregular tilings (kisrhombille, floret, deltoid, heptagonal-rosette) the natural ray meeting can fall outside the polygon. This picks how that case is handled. Auto keeps strands interior; Edge brings back the visible boundary slide."
-        >
+          {/* Figure routing (advanced) — how degenerate pair-A meetings on
+              irregular polygons are handled. */}
+          {showAdvanced && (
+            <>
+              <SubHeading tooltip="On irregular tilings (kisrhombille, floret, deltoid, heptagonal-rosette) the natural ray meeting can fall outside the polygon. This picks how that case is handled. Auto keeps strands interior; Edge brings back the visible boundary slide.">
+                Figure routing
+              </SubHeading>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginTop: 2 }}>
-                {(['auto', 'edge', 'centroid'] as const).map(mode => {
-                  const active = (config.figureRouting ?? 'auto') === mode
+                {(['auto', 'edge', 'centroid'] as const).map(routeMode => {
+                  const active = (config.figureRouting ?? 'auto') === routeMode
                   return (
                     <button
-                      key={mode}
+                      key={routeMode}
                       type="button"
-                      onClick={() => dispatch({ type: 'SET_FIGURE_ROUTING', payload: mode })}
+                      onClick={() => dispatch({ type: 'SET_FIGURE_ROUTING', payload: routeMode })}
                       style={{
                         padding: '5px 0',
-                        fontFamily: "'Cinzel', Georgia, serif",
-                        fontSize: 10,
+                        fontFamily: 'var(--font-display)',
+                        fontSize: 'var(--fs-micro)',
                         fontWeight: 600,
                         letterSpacing: '0.10em',
                         textTransform: 'uppercase',
@@ -615,81 +577,34 @@ export function Sidebar({
                         transition: 'all 0.15s',
                       }}
                       title={
-                        mode === 'auto'
+                        routeMode === 'auto'
                           ? 'Centroid V on convex polygons; original edge-slide on concave (default).'
-                          : mode === 'edge'
+                          : routeMode === 'edge'
                             ? 'Always emit the original edge-slide. Brings back the "running along the edge" look on irregular tilings.'
                             : 'Force centroid V on every convex polygon. Concave polygons still slide.'
                       }
                     >
-                      {mode}
+                      {routeMode}
                     </button>
                   )
                 })}
               </div>
-              <div style={{ marginBottom: 4 }} />
-        </Section>
+            </>
+          )}
 
-        {/* Strand thickness — stroke width applied to every rendered Strand. */}
-        <Section
-          title="Strand Thickness"
-          open={isOpen('lineThickness')}
-          onToggle={() => toggleSection('lineThickness')}
-          tooltip="Stroke width of rendered Strands. Strand-level (not Ray-level)."
-        >
-              <FieldLabel
-                label="Strand width"
-                value={config.strand.width.toFixed(1)}
-                unit=" px"
-                tooltip="Stroke width applied to every Strand in the rendered pattern."
+          {/* Curves (advanced) — global curve-rendering option */}
+          {showAdvanced && (
+            <>
+              <SubHeading>Curves</SubHeading>
+              <Toggle
+                checked={config.smoothTransitions ?? false}
+                onChange={v => dispatch({ type: 'SET_SMOOTH_TRANSITIONS', payload: v })}
+                label="Smooth transitions"
               />
-              <input
-                type="range"
-                className="pattern-slider"
-                min={1} max={20} step={0.5}
-                value={config.strand.width}
-                onChange={e => dispatch({ type: 'SET_STRAND_STYLE', payload: { width: Number(e.target.value) } })}
-              />
-              <FieldLabel
-                label="Strand style"
-                tooltip="How each Strand's stroke is drawn. Double/Triple are parallel lines (the middle is cut out, so fills show through); Dashed/Dotted scale with the Strand width."
-              />
-              <select
-                value={config.strand.lineStyle ?? 'solid'}
-                onChange={e => dispatch({ type: 'SET_STRAND_STYLE', payload: { lineStyle: e.target.value as StrandLineStyle } })}
-                className="pattern-select"
-              >
-                <option value="solid">Solid</option>
-                <option value="double">Double lines</option>
-                <option value="triple">Triple lines</option>
-                <option value="dashed">Dashed</option>
-                <option value="dotted">Dotted</option>
-              </select>
-              <div style={{ marginTop: 6 }}>
-                <Toggle
-                  checked={config.strand.weave ?? false}
-                  onChange={() => dispatch({ type: 'SET_STRAND_STYLE', payload: { weave: !(config.strand.weave ?? false) } })}
-                  label="Lacing (over–under weave)"
-                />
-              </div>
-              {(config.strand.weave ?? false) && (
-                <>
-                  <FieldLabel
-                    label="Weave gap"
-                    value={(config.strand.weaveGap ?? 2).toFixed(1)}
-                    unit=" px"
-                    tooltip="Breathing space on each side of the over Strand where the under Strand breaks."
-                  />
-                  <input
-                    type="range"
-                    className="pattern-slider"
-                    min={0} max={10} step={0.5}
-                    value={config.strand.weaveGap ?? 2}
-                    onChange={e => dispatch({ type: 'SET_STRAND_STYLE', payload: { weaveGap: Number(e.target.value) } })}
-                  />
-                </>
-              )}
-              <div style={{ marginBottom: 4 }} />
+            </>
+          )}
+
+          <div style={{ marginBottom: 4 }} />
         </Section>
 
         {/* Display */}

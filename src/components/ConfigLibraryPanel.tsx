@@ -3,6 +3,7 @@ import type { PatternConfig } from '../types/pattern'
 import type { ConfigLibrary, SavedConfig } from '../state/configLibrary'
 import { TILINGS } from '../tilings/index'
 import { TextPromptModal } from './TextPromptModal'
+import { FieldLabel } from './ui/FieldLabel'
 
 /**
  * Shared library panel — Save / Rename / Duplicate / Delete plus a saved-
@@ -222,26 +223,5 @@ export function ConfigLibraryPanel({
         onCancel={() => setTextModal(null)}
       />
     </>
-  )
-}
-
-function FieldLabel({ label }: { label: string }) {
-  return (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'baseline',
-      marginBottom: 7,
-      marginTop: 12,
-    }}>
-      <span style={{
-        fontFamily: "'EB Garamond', Georgia, serif",
-        fontSize: 13.5,
-        color: 'var(--text-secondary)',
-        letterSpacing: '0.02em',
-      }}>
-        {label}
-      </span>
-    </div>
   )
 }

@@ -2,6 +2,9 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import type { PatternConfig } from '../../types/pattern'
 import { detectCellTilingStatus } from '../../editor/nonTilingDetection'
 
+// Shared primitive — re-exported so existing `lab/` imports keep working.
+export { FieldLabel } from '../ui/FieldLabel'
+
 /**
  * Shared style for the Lab's segmented-control buttons — the accent-when-active
  * pill used by the phase switch, the Place/Complete tool toggle, and the
@@ -19,8 +22,8 @@ export function segmentedButtonStyle(
   return {
     flex: 1,
     padding: '5px 0',
-    fontFamily: "'Cinzel', Georgia, serif",
-    fontSize: 9,
+    fontFamily: 'var(--font-display)',
+    fontSize: 'var(--fs-micro)',
     fontWeight: 600,
     letterSpacing,
     textTransform: 'uppercase',
@@ -30,50 +33,6 @@ export function segmentedButtonStyle(
     color: active ? 'var(--accent)' : 'var(--text-muted)',
     ...(transition ? { transition: 'all 0.15s' } : null),
   }
-}
-
-/**
- * Export button for the Lab sidebar's Export section. Mirrors the Gallery
- * Sidebar's `ExportBtn` (primary = filled accent gradient, secondary =
- * accent-outlined) so the two surfaces read identically.
- */
-export function LabExportButton({ children, onClick, secondary = false }: {
-  children: ReactNode
-  onClick: () => void
-  secondary?: boolean
-}) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        background: secondary
-          ? 'transparent'
-          : 'linear-gradient(180deg, var(--btn-primary-from) 0%, var(--btn-primary-to) 100%)',
-        color: secondary ? 'var(--accent)' : 'var(--btn-primary-text)',
-        border: `1px solid ${secondary ? 'var(--border-accent)' : 'var(--btn-primary-border)'}`,
-        padding: '8px 10px',
-        fontFamily: "'Cinzel', Georgia, serif",
-        fontSize: 10,
-        fontWeight: 600,
-        letterSpacing: '0.12em',
-        textTransform: 'uppercase',
-        cursor: 'pointer',
-        transition: 'border-color 0.15s, opacity 0.15s',
-      }}
-      onMouseEnter={e => {
-        const el = e.currentTarget
-        if (secondary) el.style.borderColor = 'var(--accent-border)'
-        else el.style.opacity = '0.85'
-      }}
-      onMouseLeave={e => {
-        const el = e.currentTarget
-        if (secondary) el.style.borderColor = 'var(--border-accent)'
-        else el.style.opacity = '1'
-      }}
-    >
-      {children}
-    </button>
-  )
 }
 
 /**
@@ -210,36 +169,6 @@ export function MoonIcon() {
   )
 }
 
-export function ModeToggleButton({ mode, onToggleMode }: { mode: 'main' | 'lab'; onToggleMode: () => void }) {
-  const inMain = mode === 'main'
-  return (
-    <button
-      onClick={onToggleMode}
-      aria-label={inMain ? 'Open Lab' : 'Return to Gallery'}
-      title={inMain ? 'Open Lab — Exploratory Workspace' : 'Return to Gallery'}
-      style={{
-        position: 'absolute',
-        top: 14,
-        left: 12,
-        height: 26,
-        background: inMain ? 'transparent' : 'var(--accent-bg)',
-        color: 'var(--accent)',
-        border: `1px solid ${inMain ? 'var(--border-accent)' : 'var(--accent)'}`,
-        padding: '0 10px',
-        fontFamily: "'Cinzel', Georgia, serif",
-        fontSize: 9,
-        fontWeight: 600,
-        letterSpacing: '0.14em',
-        textTransform: 'uppercase',
-        cursor: 'pointer',
-        zIndex: 5,
-      }}
-    >
-      {inMain ? 'Lab' : '← Gallery'}
-    </button>
-  )
-}
-
 function SectionChevron({ open }: { open: boolean }) {
   return (
     <svg
@@ -271,8 +200,8 @@ export function SectionTitle({ children, open, onToggle, tooltip }: {
   const inner = (
     <>
       <span style={{
-        fontFamily: "'Cinzel', Georgia, serif",
-        fontSize: 10,
+        fontFamily: 'var(--font-display)',
+        fontSize: 'var(--fs-section)',
         fontWeight: 600,
         color: 'var(--accent)',
         letterSpacing: '0.20em',
@@ -324,43 +253,6 @@ export function SectionTitle({ children, open, onToggle, tooltip }: {
     >
       {inner}
     </button>
-  )
-}
-
-export function FieldLabel({ label, value, unit, tooltip }: { label: string; value?: string; unit?: string; tooltip?: string }) {
-  return (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'baseline',
-      marginBottom: 7,
-      marginTop: 12,
-    }}>
-      <span
-        title={tooltip}
-        style={{
-          fontFamily: "'EB Garamond', Georgia, serif",
-          fontSize: 13.5,
-          color: 'var(--text-secondary)',
-          letterSpacing: '0.02em',
-          cursor: tooltip ? 'help' : 'default',
-          textDecoration: tooltip ? 'underline dotted var(--text-muted)' : 'none',
-          textUnderlineOffset: 3,
-        }}
-      >
-        {label}
-      </span>
-      {value !== undefined && (
-        <span style={{
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: 11,
-          color: 'var(--accent)',
-          letterSpacing: '0.04em',
-        }}>
-          {value}{unit}
-        </span>
-      )}
-    </div>
   )
 }
 

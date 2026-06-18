@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Segment } from '../types/geometry'
-import type { PatternConfig, StrandLineStyle } from '../types/pattern'
+import type { PatternConfig } from '../types/pattern'
 import type { Action } from '../state/actions'
 import { TILINGS } from '../tilings/index'
 import type { TileTypeInfo } from '../types/tiling'
@@ -21,6 +21,7 @@ import { useEditorHistory } from '../editor/useEditorHistory'
 import { FigureControls } from './strands/FigureControls'
 import { pushRecentColour } from './ColourPicker'
 import { SectionTitle, FieldLabel } from './lab/labShared'
+import { StrandStyleControls } from './ui/StrandStyleControls'
 import { EditorDesignControls } from './lab/EditorDesignControls'
 import { exportSVG, exportPNG } from '../export/exportSVG'
 import { saveJSON, loadJSON } from '../export/exportJSON'
@@ -706,79 +707,13 @@ export function TessellationLabMode({
               Show strands
             </label>
 
-            {/* Lacing — the over/under weave (`strand.weave`), same render
-                path as the Gallery toggle. Only offered while Strands draw;
-                the Design-phase ghost split skips weaving regardless. */}
+            {/* Strand stroke controls (width / style / lacing) — shared with
+                the Gallery via StrandStyleControls. Only offered while Strands
+                draw; the Design-phase ghost split skips weaving regardless. */}
             {showStrands && (
-              <>
-                <div style={{ marginLeft: 26 }}>
-                  <FieldLabel
-                    label="Strand width"
-                    value={config.strand.width.toFixed(1)}
-                    unit=" px"
-                    tooltip="Stroke width applied to every Strand. Dashed/Dotted spacing scales with it too."
-                  />
-                  <input
-                    type="range"
-                    className="pattern-slider"
-                    min={1} max={20} step={0.5}
-                    value={config.strand.width}
-                    onChange={e => dispatch({ type: 'SET_STRAND_STYLE', payload: { width: Number(e.target.value) } })}
-                  />
-                  <FieldLabel
-                    label="Strand style"
-                    tooltip="How each Strand's stroke is drawn. Double/Triple are parallel lines (the middle is cut out, so Void fills show through); Dashed/Dotted scale with the Strand width."
-                  />
-                  <select
-                    value={config.strand.lineStyle ?? 'solid'}
-                    onChange={e => dispatch({ type: 'SET_STRAND_STYLE', payload: { lineStyle: e.target.value as StrandLineStyle } })}
-                    className="pattern-select"
-                  >
-                    <option value="solid">Solid</option>
-                    <option value="double">Double lines</option>
-                    <option value="triple">Triple lines</option>
-                    <option value="dashed">Dashed</option>
-                    <option value="dotted">Dotted</option>
-                  </select>
-                </div>
-                <label style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  marginTop: 10,
-                  marginLeft: 26,
-                  cursor: 'pointer',
-                  fontFamily: "'EB Garamond', Georgia, serif",
-                  fontSize: 13.5,
-                  color: (config.strand.weave ?? false) ? 'var(--text)' : 'var(--text-muted)',
-                  transition: 'color 0.15s',
-                }}>
-                  <input
-                    type="checkbox"
-                    className="pattern-checkbox"
-                    checked={config.strand.weave ?? false}
-                    onChange={() => dispatch({ type: 'SET_STRAND_STYLE', payload: { weave: !(config.strand.weave ?? false) } })}
-                  />
-                  Lacing (over–under weave)
-                </label>
-                {(config.strand.weave ?? false) && (
-                  <div style={{ marginLeft: 26 }}>
-                    <FieldLabel
-                      label="Weave gap"
-                      value={(config.strand.weaveGap ?? 2).toFixed(1)}
-                      unit=" px"
-                      tooltip="Breathing space on each side of the over Strand where the under Strand breaks."
-                    />
-                    <input
-                      type="range"
-                      className="pattern-slider"
-                      min={0} max={10} step={0.5}
-                      value={config.strand.weaveGap ?? 2}
-                      onChange={e => dispatch({ type: 'SET_STRAND_STYLE', payload: { weaveGap: Number(e.target.value) } })}
-                    />
-                  </div>
-                )}
-              </>
+              <div style={{ marginLeft: 26 }}>
+                <StrandStyleControls strand={config.strand} dispatch={dispatch} />
+              </div>
             )}
 
             <FieldLabel

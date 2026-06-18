@@ -1,9 +1,10 @@
+import { useState } from 'react'
 import type { PatternConfig } from '../../types/pattern'
 import type { Action } from '../../state/actions'
 import type { BoundaryShape, ConfigurationId, EditorCell, SymmetryMode } from '../../types/editor'
 import type { Vec2 } from '../../utils/math'
 import { BOUNDARY_SIZE_MAX_BY_SHAPE } from '../../editor/createDefault'
-import { FieldLabel, segmentedButtonStyle } from './labShared'
+import { FieldLabel, SectionTitle, segmentedButtonStyle } from './labShared'
 
 type BoundaryPickerKind =
   | { kind: 'shape'; shape: BoundaryShape }
@@ -217,6 +218,10 @@ export function DesignPanel({
   const multiCell = editor.cells.length > 1
   const primaryCell = editor.cells[0]
   const anyWrap = editor.cells.some(c => c.wrapBoundary)
+  // Per-Cell collapse state (multi-cell only) — keeps the panel manageable when
+  // a Configuration has several Cells. Default open; collapsing is opt-in.
+  const [collapsedCells, setCollapsedCells] = useState<Record<string, boolean>>({})
+  const toggleCell = (id: string) => setCollapsedCells(prev => ({ ...prev, [id]: !prev[id] }))
   return (
     <>
       <FieldLabel
@@ -294,29 +299,24 @@ export function DesignPanel({
       {/* Per-Cell controls. Single-cell: one unheaded group. Multi-cell: a
           headed group per Cell — all Cells editable at once, no selector. */}
       {multiCell ? (
-        editor.cells.map(cell => (
-          <div
-            key={cell.id}
-            style={{
-              marginTop: 14,
-              paddingTop: 10,
-              borderTop: '1px solid var(--border-subtle)',
-            }}
-          >
-            <div style={{
-              fontFamily: "'Cinzel', Georgia, serif",
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              color: 'var(--text)',
-              marginBottom: 6,
-            }}>
-              {cell.id.charAt(0).toUpperCase() + cell.id.slice(1)} Cell
+        editor.cells.map(cell => {
+          const open = !collapsedCells[cell.id]
+          return (
+            <div
+              key={cell.id}
+              style={{
+                marginTop: 14,
+                paddingTop: 4,
+                borderTop: '1px solid var(--border-subtle)',
+              }}
+            >
+              <SectionTitle open={open} onToggle={() => toggleCell(cell.id)}>
+                {cell.id.charAt(0).toUpperCase() + cell.id.slice(1)} Cell
+              </SectionTitle>
+              {open && <CellControls cell={cell} dispatch={dispatch} multiCell />}
             </div>
-            <CellControls cell={cell} dispatch={dispatch} multiCell />
-          </div>
-        ))
+          )
+        })
       ) : (
         <CellControls cell={primaryCell} dispatch={dispatch} multiCell={false} />
       )}

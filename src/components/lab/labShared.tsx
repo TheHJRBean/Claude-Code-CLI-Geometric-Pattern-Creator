@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import type { PatternConfig } from '../../types/pattern'
 import { detectCellTilingStatus } from '../../editor/nonTilingDetection'
 
@@ -73,6 +73,109 @@ export function LabExportButton({ children, onClick, secondary = false }: {
     >
       {children}
     </button>
+  )
+}
+
+/**
+ * Typeable numeric field with up/down nudge arrows — the precise-entry
+ * counterpart to a coarse slider. The text input keeps a local draft so
+ * partial entries ("1.", "") don't fight the controlled value; it commits on
+ * blur / Enter (clamped + rounded to `precision`), reverting an unparseable
+ * draft. ArrowUp/Down in the field and the ▲/▼ buttons step by `step`. Used by
+ * the Frame controls so size / aspect / angle can be typed or nudged exactly.
+ */
+export function NumberStepper({
+  value, onChange, min, max, step, precision = 0, suffix = '', ariaLabel, width = 56,
+}: {
+  value: number
+  onChange: (next: number) => void
+  min: number
+  max: number
+  step: number
+  precision?: number
+  suffix?: string
+  ariaLabel?: string
+  width?: number
+}) {
+  const clamp = (n: number) => Math.min(max, Math.max(min, n))
+  const round = (n: number) => { const f = 10 ** precision; return Math.round(n * f) / f }
+  const [draft, setDraft] = useState<string>(value.toFixed(precision))
+  // Re-sync the draft when the value changes from outside (slider, preset, reset).
+  useEffect(() => { setDraft(value.toFixed(precision)) }, [value, precision])
+  const commit = () => {
+    const n = parseFloat(draft)
+    if (Number.isFinite(n)) onChange(round(clamp(n)))
+    else setDraft(value.toFixed(precision))
+  }
+  const nudge = (dir: 1 | -1) => onChange(round(clamp(value + dir * step)))
+
+  const arrowBtn: CSSProperties = {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    width: 18, height: 11, padding: 0, lineHeight: 1, fontSize: 7,
+    cursor: 'pointer', color: 'var(--text-muted)',
+    background: 'transparent', border: '1px solid var(--border-subtle)',
+  }
+  return (
+    <div style={{ display: 'flex', alignItems: 'stretch', gap: 4 }}>
+      <input
+        type="text"
+        inputMode="decimal"
+        aria-label={ariaLabel}
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => {
+          if (e.key === 'Enter') { commit(); (e.target as HTMLInputElement).blur() }
+          else if (e.key === 'ArrowUp') { e.preventDefault(); nudge(1) }
+          else if (e.key === 'ArrowDown') { e.preventDefault(); nudge(-1) }
+        }}
+        style={{
+          width, padding: '3px 6px', textAlign: 'right',
+          fontFamily: "'EB Garamond', Georgia, serif", fontSize: 12,
+          color: 'var(--text)', background: 'transparent',
+          border: '1px solid var(--border-subtle)',
+        }}
+      />
+      {suffix && (
+        <span style={{ alignSelf: 'center', fontSize: 11, color: 'var(--text-muted)', fontFamily: "'EB Garamond', Georgia, serif" }}>{suffix}</span>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+        <button type="button" aria-label="Increase" onClick={() => nudge(1)} style={arrowBtn}>▲</button>
+        <button type="button" aria-label="Decrease" onClick={() => nudge(-1)} style={arrowBtn}>▼</button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Directional arrow pad for nudging a 2D position precisely. The four arrows
+ * step by `step` world units (up = −y, screen convention); the centre ⊙ resets
+ * to the origin via `onCenter`. Used by the Frame controls to move the Frame
+ * origin without dragging a slider.
+ */
+export function NudgePad({ onNudge, onCenter, step = 10 }: {
+  onNudge: (dx: number, dy: number) => void
+  onCenter?: () => void
+  step?: number
+}) {
+  const cell: CSSProperties = {
+    width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center',
+    cursor: 'pointer', color: 'var(--text-muted)', background: 'transparent',
+    border: '1px solid var(--border-subtle)', fontSize: 11, padding: 0,
+  }
+  const blank: CSSProperties = { width: 22, height: 22 }
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 22px)', gap: 2 }}>
+      <span style={blank} />
+      <button type="button" aria-label="Move up" onClick={() => onNudge(0, -step)} style={cell}>↑</button>
+      <span style={blank} />
+      <button type="button" aria-label="Move left" onClick={() => onNudge(-step, 0)} style={cell}>←</button>
+      <button type="button" aria-label="Reset position" title="Reset position" onClick={onCenter} style={{ ...cell, fontSize: 13 }}>⊙</button>
+      <button type="button" aria-label="Move right" onClick={() => onNudge(step, 0)} style={cell}>→</button>
+      <span style={blank} />
+      <button type="button" aria-label="Move down" onClick={() => onNudge(0, step)} style={cell}>↓</button>
+      <span style={blank} />
+    </div>
   )
 }
 

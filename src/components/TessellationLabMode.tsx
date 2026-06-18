@@ -20,8 +20,10 @@ import { activeCell } from '../editor/active'
 import { useEditorHistory } from '../editor/useEditorHistory'
 import { FigureControls } from './strands/FigureControls'
 import { pushRecentColour } from './ColourPicker'
-import { SunIcon, MoonIcon, ModeToggleButton, SectionTitle, FieldLabel } from './lab/labShared'
+import { SunIcon, MoonIcon, ModeToggleButton, SectionTitle, FieldLabel, LabExportButton } from './lab/labShared'
 import { EditorDesignControls } from './lab/EditorDesignControls'
+import { exportSVG, exportPNG } from '../export/exportSVG'
+import { saveJSON, loadJSON } from '../export/exportJSON'
 
 const labLibrary = createConfigLibrary('lab-tessellations-v1')
 
@@ -340,6 +342,27 @@ export function TessellationLabMode({
   const validity = multiMode && picks.length >= 3 && config.editor
     ? validateMultiPick(config.editor, picks)
     : null
+
+  // ── Export (Builder parity with Gallery) ───────────────
+  // Image export runs against the live DOM `<svg>` (svgRef), NOT segmentsRef:
+  // under the Lever A periodicity fast-path the Builder's `segments` is a
+  // single fundamental domain while the full field lives as `<use>` clones in
+  // the DOM. Save-JSON serialises the whole PatternConfig (incl. `editor`), so
+  // it's fast-path-safe. Unwoven-SVG is intentionally omitted here — it rebuilds
+  // from segmentsRef and would emit one unit cell (see Canvas.tsx caveat).
+  const handleExportSVG = () => { if (svgRef.current) exportSVG(svgRef.current) }
+  const handleExportPNG = () => { if (svgRef.current) void exportPNG(svgRef.current) }
+  const handleSaveJSON = () => saveJSON(config)
+  const handleLoadJSON = async () => {
+    try {
+      const loaded = await loadJSON()
+      dispatch({ type: 'LOAD_CONFIG', payload: loaded })
+    } catch (e) {
+      console.error(e)
+      const msg = e instanceof Error ? e.message : 'Could not load file.'
+      window.alert(`Could not load file: ${msg}`)
+    }
+  }
 
   return (
     <div className="app-layout">
@@ -770,6 +793,21 @@ export function TessellationLabMode({
               onChange={e => onSetOutlineWidth(Number(e.target.value))}
             />
             </>)}
+          </div>
+
+          {/* Export — Builder parity with the Gallery sidebar. SVG/PNG render
+              the live DOM `<svg>` (fast-path-safe); Save/Load JSON round-trip
+              the full PatternConfig incl. the `editor` patch. */}
+          <div style={{ paddingTop: 22, paddingBottom: 28 }}>
+            <SectionTitle open={isOpen('export')} onToggle={() => toggleSection('export')}>Export</SectionTitle>
+            {isOpen('export') && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <LabExportButton onClick={handleExportSVG}>SVG</LabExportButton>
+                <LabExportButton onClick={handleExportPNG}>PNG</LabExportButton>
+                <LabExportButton onClick={handleSaveJSON} secondary>Save JSON</LabExportButton>
+                <LabExportButton onClick={handleLoadJSON} secondary>Load JSON</LabExportButton>
+              </div>
+            )}
           </div>
         </div>
       </div>

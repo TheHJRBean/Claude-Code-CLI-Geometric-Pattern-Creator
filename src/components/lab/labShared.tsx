@@ -33,6 +33,50 @@ export function segmentedButtonStyle(
 }
 
 /**
+ * Export button for the Lab sidebar's Export section. Mirrors the Gallery
+ * Sidebar's `ExportBtn` (primary = filled accent gradient, secondary =
+ * accent-outlined) so the two surfaces read identically.
+ */
+export function LabExportButton({ children, onClick, secondary = false }: {
+  children: ReactNode
+  onClick: () => void
+  secondary?: boolean
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        background: secondary
+          ? 'transparent'
+          : 'linear-gradient(180deg, var(--btn-primary-from) 0%, var(--btn-primary-to) 100%)',
+        color: secondary ? 'var(--accent)' : 'var(--btn-primary-text)',
+        border: `1px solid ${secondary ? 'var(--border-accent)' : 'var(--btn-primary-border)'}`,
+        padding: '8px 10px',
+        fontFamily: "'Cinzel', Georgia, serif",
+        fontSize: 10,
+        fontWeight: 600,
+        letterSpacing: '0.12em',
+        textTransform: 'uppercase',
+        cursor: 'pointer',
+        transition: 'border-color 0.15s, opacity 0.15s',
+      }}
+      onMouseEnter={e => {
+        const el = e.currentTarget
+        if (secondary) el.style.borderColor = 'var(--accent-border)'
+        else el.style.opacity = '0.85'
+      }}
+      onMouseLeave={e => {
+        const el = e.currentTarget
+        if (secondary) el.style.borderColor = 'var(--border-accent)'
+        else el.style.opacity = '1'
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+/**
  * Shared presentational primitives for the Builder (Lab) sidebar — icons,
  * the mode toggle, collapsible section title, field label, and the
  * non-tiling warning. Extracted from `TessellationLabMode.tsx` so the Lab

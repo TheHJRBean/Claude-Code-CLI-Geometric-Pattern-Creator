@@ -282,7 +282,7 @@ export function DesignPanel({
             // the (fixed-size) Seed polygons can fit, making sibling Cells
             // overlap each other.
             min={100}
-            max={400}
+            max={800}
             step={1}
             value={editor.edgeLength}
             onChange={e => dispatch({ type: 'SET_CELL_BOUNDARY_SIZE', payload: Number(e.target.value) })}

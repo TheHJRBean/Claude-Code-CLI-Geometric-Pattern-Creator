@@ -10,7 +10,7 @@ import { Canvas, type SelectedEdge } from './Canvas'
 import type { PaintTarget, StrandPaintScope, VoidPaintScope } from '../rendering/DecorationPaintLayer'
 import type { SectionKey } from './EditorBoundaryInwardLayer'
 import { SandstoneEdge } from './SandstoneEdge'
-import { useTheme } from '../theme/ThemeContext'
+import { TopBar } from './TopBar'
 import { SAMPLE_EDITOR_CONFIG } from '../editor/sampleConfig'
 import { LAB_DEFAULT_CONFIG } from '../state/labDefaults'
 import type { Vec2 } from '../utils/math'
@@ -20,7 +20,7 @@ import { activeCell } from '../editor/active'
 import { useEditorHistory } from '../editor/useEditorHistory'
 import { FigureControls } from './strands/FigureControls'
 import { pushRecentColour } from './ColourPicker'
-import { SunIcon, MoonIcon, ModeToggleButton, SectionTitle, FieldLabel, LabExportButton } from './lab/labShared'
+import { SectionTitle, FieldLabel } from './lab/labShared'
 import { EditorDesignControls } from './lab/EditorDesignControls'
 import { exportSVG, exportPNG } from '../export/exportSVG'
 import { saveJSON, loadJSON } from '../export/exportJSON'
@@ -57,7 +57,6 @@ export function TessellationLabMode({
   outlineWidth,
   onSetOutlineWidth,
 }: Props) {
-  const { theme, toggleTheme } = useTheme()
   const svgRef = useRef<SVGSVGElement>(null)
   const segmentsRef = useRef<Segment[]>([])
   const [cpVisible, setCpVisible] = useState<Record<string, boolean>>({})
@@ -364,22 +363,27 @@ export function TessellationLabMode({
     }
   }
 
+  const labTitle = config.tiling.type === 'editor'
+    ? (config.editor?.configuration ?? 'Builder patch')
+    : (def?.label ?? 'Tessellation')
+
   return (
-    <div className="app-layout">
+    <div className="app-shell">
+      <TopBar
+        mode={mode}
+        onToggleMode={onToggleMode}
+        title={labTitle}
+        exportItems={[
+          { label: 'Export SVG', onClick: handleExportSVG },
+          { label: 'Export PNG', onClick: handleExportPNG },
+          { label: 'Save JSON', onClick: handleSaveJSON },
+          { label: 'Load JSON', onClick: handleLoadJSON },
+        ]}
+      />
+      <div className="app-layout">
       <div className="sidebar sidebar--open">
         {/* ── Header ──────────────────────────────────────── */}
         <div className="sidebar-header">
-          <ModeToggleButton mode={mode} onToggleMode={onToggleMode} />
-
-          <button
-            className="theme-toggle"
-            onClick={toggleTheme}
-            aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-            title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
-          >
-            {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
-          </button>
-
           <h1 style={{
             fontFamily: "'Cinzel', Georgia, serif",
             fontSize: 16,
@@ -387,7 +391,7 @@ export function TessellationLabMode({
             color: 'var(--text)',
             letterSpacing: '0.22em',
             textTransform: 'uppercase',
-            marginTop: 48,
+            marginTop: 2,
             marginBottom: 5,
           }}>
             Builder
@@ -795,20 +799,7 @@ export function TessellationLabMode({
             </>)}
           </div>
 
-          {/* Export — Builder parity with the Gallery sidebar. SVG/PNG render
-              the live DOM `<svg>` (fast-path-safe); Save/Load JSON round-trip
-              the full PatternConfig incl. the `editor` patch. */}
-          <div style={{ paddingTop: 22, paddingBottom: 28 }}>
-            <SectionTitle open={isOpen('export')} onToggle={() => toggleSection('export')}>Export</SectionTitle>
-            {isOpen('export') && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                <LabExportButton onClick={handleExportSVG}>SVG</LabExportButton>
-                <LabExportButton onClick={handleExportPNG}>PNG</LabExportButton>
-                <LabExportButton onClick={handleSaveJSON} secondary>Save JSON</LabExportButton>
-                <LabExportButton onClick={handleLoadJSON} secondary>Load JSON</LabExportButton>
-              </div>
-            )}
-          </div>
+          <div style={{ paddingBottom: 28 }} />
         </div>
       </div>
       <div className="sandstone-edge-wrapper" aria-hidden="true">
@@ -857,6 +848,7 @@ export function TessellationLabMode({
         editorNeighbourBoundaries={showNeighbourBoundaries}
         editorNeighbourStrands={showNeighbourStrands}
       />
+      </div>
     </div>
   )
 }

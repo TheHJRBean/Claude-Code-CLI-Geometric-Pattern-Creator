@@ -4,7 +4,6 @@ import type { Action } from '../state/actions'
 import { TILINGS, SYMMETRY_GROUPS } from '../tilings/index'
 import { tilingRepeatLength } from '../tilings/archimedean'
 import type { TileTypeInfo } from '../types/tiling'
-import { useTheme } from '../theme/ThemeContext'
 import { FigureControls } from './strands/FigureControls'
 import { mainConfigLibrary } from '../state/mainConfigs'
 import { ConfigLibraryPanel } from './ConfigLibraryPanel'
@@ -13,18 +12,12 @@ import { DEFAULT_FRAME_SIZE, frameUnitModel, frameUnitsToPx } from '../editor/fr
 
 interface Props {
   mode: 'main' | 'lab'
-  onToggleMode: () => void
   config: PatternConfig
   dispatch: React.Dispatch<Action>
   showTileLayer: boolean
   onToggleTileLayer: () => void
   showLines: boolean
   onToggleLines: () => void
-  onExportSVG: () => void
-  onExportPNG: () => void
-  onExportUnwovenSVG: () => void
-  onSaveJSON: () => void
-  onLoadJSON: () => void
   cpVisible: Record<string, boolean>
   onToggleCpVisible: (tileTypeId: string) => void
   onCurvePointActivity: (tileTypeId: string, index: number) => void
@@ -246,84 +239,15 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: 
   )
 }
 
-function ExportBtn({ children, onClick, wide = false, secondary = false }: {
-  children: React.ReactNode
-  onClick: () => void
-  wide?: boolean
-  secondary?: boolean
-}) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        background: secondary
-          ? 'transparent'
-          : 'linear-gradient(180deg, var(--btn-primary-from) 0%, var(--btn-primary-to) 100%)',
-        color: secondary ? 'var(--accent)' : 'var(--btn-primary-text)',
-        border: `1px solid ${secondary ? 'var(--border-accent)' : 'var(--btn-primary-border)'}`,
-        padding: '8px 10px',
-        fontFamily: "'Cinzel', Georgia, serif",
-        fontSize: 10,
-        fontWeight: 600,
-        letterSpacing: '0.12em',
-        textTransform: 'uppercase' as const,
-        cursor: 'pointer',
-        gridColumn: wide ? 'span 2' : undefined,
-        transition: 'border-color 0.15s, opacity 0.15s',
-      }}
-      onMouseEnter={e => {
-        const el = e.currentTarget
-        if (secondary) el.style.borderColor = 'var(--accent-border)'
-        else el.style.opacity = '0.85'
-      }}
-      onMouseLeave={e => {
-        const el = e.currentTarget
-        if (secondary) el.style.borderColor = 'var(--border-accent)'
-        else el.style.opacity = '1'
-      }}
-    >
-      {children}
-    </button>
-  )
-}
-
-/* ── Theme toggle icons ──────────────────────────────────── */
-
-function SunIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-      <circle cx="12" cy="12" r="5" />
-      <line x1="12" y1="1" x2="12" y2="3" />
-      <line x1="12" y1="21" x2="12" y2="23" />
-      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-      <line x1="1" y1="12" x2="3" y2="12" />
-      <line x1="21" y1="12" x2="23" y2="12" />
-      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-    </svg>
-  )
-}
-
-function MoonIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-    </svg>
-  )
-}
-
 /* ── Main Sidebar ────────────────────────────────────────── */
 
 export function Sidebar({
-  mode, onToggleMode,
+  mode,
   config, dispatch, showTileLayer, onToggleTileLayer, showLines, onToggleLines,
-  onExportSVG, onExportPNG, onExportUnwovenSVG, onSaveJSON, onLoadJSON,
   cpVisible, onToggleCpVisible, onCurvePointActivity,
   open, onClose,
   desktopCollapsed, onToggleDesktopCollapsed,
 }: Props) {
-  const { theme, toggleTheme } = useTheme()
   const def = TILINGS[config.tiling.type]
   const tileTypes: TileTypeInfo[] = def
     ? (def.tileTypes ?? [...new Set(def.vertexConfig)].sort((a, b) => a - b).map(s => ({
@@ -336,10 +260,6 @@ export function Sidebar({
   // or another saved entry); slider tweaks do not reset it so the user
   // can re-Save a modified version against the original name.
   const [activePatternId, setActivePatternId] = useState<string>('')
-  const handleLoadJSON = () => {
-    setActivePatternId('')
-    onLoadJSON()
-  }
 
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
     try {
@@ -418,42 +338,6 @@ export function Sidebar({
           </svg>
         </button>
 
-        {/* Theme toggle */}
-        <button
-          className="theme-toggle"
-          onClick={toggleTheme}
-          aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-          title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
-        >
-          {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
-        </button>
-
-        {/* Workspace toggle (Gallery ↔ Lab) — sits to the right of the collapse button (which is at left:12, w:30) */}
-        <button
-          onClick={onToggleMode}
-          aria-label={mode === 'main' ? 'Open Lab' : 'Return to Gallery'}
-          title={mode === 'main' ? 'Open Lab — Exploratory Workspace' : 'Return to Gallery'}
-          style={{
-            position: 'absolute',
-            top: 14,
-            left: 50,
-            height: 26,
-            background: mode === 'lab' ? 'var(--accent-bg)' : 'transparent',
-            color: 'var(--accent)',
-            border: `1px solid ${mode === 'lab' ? 'var(--accent)' : 'var(--border-accent)'}`,
-            padding: '0 10px',
-            fontFamily: "'Cinzel', Georgia, serif",
-            fontSize: 9,
-            fontWeight: 600,
-            letterSpacing: '0.14em',
-            textTransform: 'uppercase',
-            cursor: 'pointer',
-            zIndex: 5,
-          }}
-        >
-          {mode === 'main' ? 'Lab' : '← Gallery'}
-        </button>
-
         {/* Art Deco fan motif */}
         <div style={{ marginBottom: 10, marginTop: 2 }}>
           <svg viewBox="0 0 100 20" style={{ width: 100, height: 'auto', display: 'block', margin: '0 auto' }}>
@@ -477,24 +361,13 @@ export function Sidebar({
           </svg>
         </div>
 
-        <h1 style={{
-          fontFamily: "'Cinzel', Georgia, serif",
-          fontSize: 16,
-          fontWeight: 700,
-          color: 'var(--text)',
-          letterSpacing: '0.22em',
-          textTransform: 'uppercase',
-          marginBottom: 5,
-        }}>
-          Geometric Atlas
-        </h1>
-
         <p style={{
           fontFamily: "'EB Garamond', Georgia, serif",
           fontStyle: 'italic',
           fontSize: 12.5,
           color: 'var(--text-muted)',
           letterSpacing: '0.06em',
+          marginTop: 2,
           marginBottom: 12,
         }}>
           Islamic Patterns · PIC Method
@@ -835,7 +708,7 @@ export function Sidebar({
             as a raw section div on purpose: its trailing spacer renders OUTSIDE
             the collapse gate (unlike every other section), which `Section`
             can't express without changing that behaviour. */}
-        <div style={{ paddingTop: 4, paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
+        <div style={{ paddingTop: 4, paddingBottom: 28 }}>
           <LotusDivider />
           <SectionTitle open={isOpen('library')} onToggle={() => toggleSection('library')}>My Patterns</SectionTitle>
           {isOpen('library') && (
@@ -850,17 +723,6 @@ export function Sidebar({
           )}
           <div style={{ marginBottom: 4 }} />
         </div>
-
-        {/* Export */}
-        <Section title="Export" open={isOpen('export')} onToggle={() => toggleSection('export')} style={{ paddingBottom: 28, borderBottom: 'none' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <ExportBtn onClick={onExportSVG}>SVG</ExportBtn>
-              <ExportBtn onClick={onExportPNG}>PNG</ExportBtn>
-              <ExportBtn onClick={onExportUnwovenSVG}>Unwoven SVG</ExportBtn>
-              <ExportBtn onClick={onSaveJSON} secondary>Save JSON</ExportBtn>
-              <ExportBtn onClick={handleLoadJSON} secondary>Load JSON</ExportBtn>
-            </div>
-        </Section>
 
       </div>
 

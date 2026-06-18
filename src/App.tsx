@@ -2,6 +2,8 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { Canvas } from './components/Canvas'
 import { Sidebar } from './components/Sidebar'
 import { SandstoneEdge } from './components/SandstoneEdge'
+import { TopBar } from './components/TopBar'
+import { TILINGS } from './tilings/index'
 import { TessellationLabMode } from './components/TessellationLabMode'
 import { reducer, DEFAULT_CONFIG } from './state/reducer'
 import { LAB_DEFAULT_CONFIG, loadLabState, saveLabState } from './state/labDefaults'
@@ -102,8 +104,23 @@ export default function App() {
     }
   }
 
+  const galleryTitle = TILINGS[config.tiling.type]?.label ?? 'Pattern'
+
   return (
-    <div className={`app-layout ${desktopCollapsed ? 'app-layout--sidebar-collapsed' : ''}`}>
+    <div className="app-shell">
+      <TopBar
+        mode={mode}
+        onToggleMode={toggleMode}
+        title={galleryTitle}
+        exportItems={[
+          { label: 'Export SVG', onClick: handleExportSVG },
+          { label: 'Export PNG', onClick: handleExportPNG },
+          { label: 'Export Unwoven SVG', onClick: handleExportUnwovenSVG },
+          { label: 'Save JSON', onClick: handleSaveJSON },
+          { label: 'Load JSON', onClick: handleLoadJSON },
+        ]}
+      />
+      <div className={`app-layout ${desktopCollapsed ? 'app-layout--sidebar-collapsed' : ''}`}>
       {/* Mobile sidebar toggle */}
       <button
         className="sidebar-toggle"
@@ -138,7 +155,6 @@ export default function App() {
 
       <Sidebar
         mode={mode}
-        onToggleMode={toggleMode}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         desktopCollapsed={desktopCollapsed}
@@ -149,11 +165,6 @@ export default function App() {
         onToggleTileLayer={() => setShowTileLayer(s => !s)}
         showLines={showLines}
         onToggleLines={() => setShowLines(s => !s)}
-        onExportSVG={handleExportSVG}
-        onExportPNG={handleExportPNG}
-        onExportUnwovenSVG={handleExportUnwovenSVG}
-        onSaveJSON={handleSaveJSON}
-        onLoadJSON={handleLoadJSON}
         cpVisible={cpVisible}
         onToggleCpVisible={toggleCpVisible}
         onCurvePointActivity={setCpActiveIndex}
@@ -170,6 +181,7 @@ export default function App() {
         cpVisible={cpVisible}
         cpActive={cpActive}
       />
+      </div>
     </div>
   )
 }

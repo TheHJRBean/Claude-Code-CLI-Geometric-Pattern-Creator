@@ -2,6 +2,34 @@ import type { Segment } from '../types/geometry'
 import { buildStrands } from '../strand/buildStrands'
 import { downloadBlob } from './download'
 
+/**
+ * Resolve `var(--x)` references in serialized SVG markup against the live
+ * element's computed style. CSS custom properties live in the document
+ * stylesheet, not inline, so a cloned standalone SVG (and the isolated render
+ * the PNG path rasterizes) loses them — e.g. the Frame outline's
+ * `stroke="var(--accent)"` would export with no colour. Reading the resolved
+ * value from `sourceEl` (which is in the DOM, so the cascade applies) keeps
+ * those colours in the exported file.
+ */
+/** Pure var() substitution: replace each `var(--name[, fallback])` in `markup`
+ * using `resolve(name)` → resolved value, falling back to the inline fallback
+ * (or `none`) when unresolved. Split out from `inlineCssVariables` so it's
+ * testable without a DOM. */
+export function substituteCssVariables(markup: string, resolve: (name: string) => string): string {
+  return markup.replace(
+    /var\(\s*(--[\w-]+)\s*(?:,\s*([^)]*))?\)/g,
+    (_m, name: string, fallback?: string) => {
+      const value = resolve(name).trim()
+      return value || (fallback ? fallback.trim() : 'none')
+    },
+  )
+}
+
+function inlineCssVariables(markup: string, sourceEl: Element): string {
+  const computed = getComputedStyle(sourceEl)
+  return substituteCssVariables(markup, name => computed.getPropertyValue(name))
+}
+
 export function exportSVG(svgEl: SVGSVGElement) {
   const clone = svgEl.cloneNode(true) as SVGSVGElement
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
@@ -9,7 +37,7 @@ export function exportSVG(svgEl: SVGSVGElement) {
   const h = svgEl.clientHeight || 900
   clone.setAttribute('width', String(w))
   clone.setAttribute('height', String(h))
-  const str = new XMLSerializer().serializeToString(clone)
+  const str = inlineCssVariables(new XMLSerializer().serializeToString(clone), svgEl)
   const blob = new Blob([str], { type: 'image/svg+xml;charset=utf-8' })
   downloadBlob(blob, 'islamic-pattern.svg')
 }
@@ -53,7 +81,7 @@ export async function exportPNG(svgEl: SVGSVGElement, width = 2048, height = 204
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
   clone.setAttribute('width', String(width))
   clone.setAttribute('height', String(height))
-  const str = new XMLSerializer().serializeToString(clone)
+  const str = inlineCssVariables(new XMLSerializer().serializeToString(clone), svgEl)
   const blob = new Blob([str], { type: 'image/svg+xml' })
   const url = URL.createObjectURL(blob)
 

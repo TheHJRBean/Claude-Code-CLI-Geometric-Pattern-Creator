@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { unwovenSvgMarkup } from './exportSVG'
+import { unwovenSvgMarkup, substituteCssVariables } from './exportSVG'
 import type { Segment } from '../types/geometry'
 
 // Pin the pure "unwoven" SVG markup builder extracted from exportUnwovenSVG:
@@ -55,5 +55,32 @@ describe('unwovenSvgMarkup', () => {
     // diag from 30×40 → 50; ×0.001 → 0.0500.
     const out = unwovenSvgMarkup([seg({ x: 0, y: 0 }, { x: 5, y: 0 })], '', 30, 40)
     expect(out).toContain('stroke-width="0.0500"')
+  })
+})
+
+// substituteCssVariables keeps Frame strokes (and any `var(--x)` colour)
+// visible in exported standalone SVG/PNG, where the document's CSS custom
+// properties no longer apply.
+describe('substituteCssVariables', () => {
+  const resolve = (map: Record<string, string>) => (name: string) => map[name] ?? ''
+
+  it('resolves a var() against the resolver', () => {
+    const out = substituteCssVariables('<polygon stroke="var(--accent)" />', resolve({ '--accent': '#c0392b' }))
+    expect(out).toBe('<polygon stroke="#c0392b" />')
+  })
+
+  it('replaces every occurrence', () => {
+    const out = substituteCssVariables('stroke="var(--accent)" fill="var(--accent)"', resolve({ '--accent': '#abc123' }))
+    expect(out).toBe('stroke="#abc123" fill="#abc123"')
+  })
+
+  it('uses the fallback when the variable is undefined', () => {
+    const out = substituteCssVariables('stroke="var(--missing, #000)"', resolve({}))
+    expect(out).toBe('stroke="#000"')
+  })
+
+  it('emits "none" for an undefined variable with no fallback', () => {
+    const out = substituteCssVariables('stroke="var(--missing)"', resolve({}))
+    expect(out).toBe('stroke="none"')
   })
 })

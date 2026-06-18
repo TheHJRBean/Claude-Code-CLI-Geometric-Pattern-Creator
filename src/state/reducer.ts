@@ -29,7 +29,7 @@ import { boundarySymmetries, applySym } from '../editor/symmetry'
 import { autoCompleteCell, fitBoundarySize } from '../editor/autoComplete'
 import { computeBoundarySections, isBoundarySectionPlacementViable, placeRegularNGonOnBoundarySection, placeTilesOnBoundarySectionOrbit } from '../editor/boundaryInward'
 import { DEFAULT_EDITOR_FIGURE, seedFiguresForEditor } from '../editor/tileTypes'
-import { activeCell, allCells, withActiveCell } from '../editor/active'
+import { activeCell, allCells, cellPlacementEdgeLength, withActiveCell } from '../editor/active'
 import { clearMaskingRecords } from '../decoration/scopes'
 import {
   applyCellTransform,
@@ -437,6 +437,10 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       const { vertexKey, sides, rotation, force } = action.payload
       const patchEdgeLength = state.editor.edgeLength
       return applyWrap(seedFigures(updateActiveCell(state, cell => {
+        // Size to the Cell's own Tiles, not `patch.edgeLength` — in a
+        // multi-cell Patch the latter is the lattice constant after the
+        // boundary-size slider, which would make placements far too large.
+        const placeEdge = cellPlacementEdgeLength(cell, patchEdgeLength)
         const vertices = computeExposedVertices(cell)
         const vertex = vertices.find(v => v.key === vertexKey)
         if (!vertex) return cell
@@ -444,11 +448,11 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         const idPrefix = `placed-${cell.tiles.length}-${Date.now()}`
         if (mode === 'none') {
           // `force` (flexible-placement): user accepted the overlap warning.
-          if (!force && !isVertexPlacementViable(vertex, sides, rotation, patchEdgeLength, cell)) return cell
-          const tile = placeRegularNGonOnVertex(sides, patchEdgeLength, vertex, rotation, `${idPrefix}-0`)
+          if (!force && !isVertexPlacementViable(vertex, sides, rotation, placeEdge, cell)) return cell
+          const tile = placeRegularNGonOnVertex(sides, placeEdge, vertex, rotation, `${idPrefix}-0`)
           return { ...cell, tiles: [...cell.tiles, tile] }
         }
-        const placements = placeTilesOnVertexOrbit(cell, patchEdgeLength, vertex, sides, rotation, idPrefix, force)
+        const placements = placeTilesOnVertexOrbit(cell, placeEdge, vertex, sides, rotation, idPrefix, force)
         if (!placements) return cell
         return { ...cell, tiles: [...cell.tiles, ...placements] }
       })))

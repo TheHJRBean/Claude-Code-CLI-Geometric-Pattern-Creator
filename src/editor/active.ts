@@ -1,4 +1,4 @@
-import type { EditorCell, EditorPatch } from '../types/editor'
+import type { EditorCell, EditorPatch, EditorRegularTile } from '../types/editor'
 
 /**
  * Adapter helpers for selecting the active **Cell** inside a **Patch**.
@@ -36,6 +36,32 @@ export function withActiveCell(patch: EditorPatch, cell: EditorCell): EditorPatc
     ...patch,
     cells: patch.cells.map(c => c.id === patch.activeCellId ? cell : c),
   }
+}
+
+/**
+ * Edge length a new placement should use so it tessellates with the Cell's
+ * existing Tiles.
+ *
+ * In a **single-cell** Patch the Seed Tile is created at `patch.edgeLength`
+ * and the boundary-size slider only rescales `boundarySize`, so this just
+ * returns `patch.edgeLength` — no behaviour change.
+ *
+ * In a **multi-cell** Patch the boundary-size slider repurposes
+ * `patch.edgeLength` as the *lattice constant* (it grows the lattice while the
+ * Tiles stay fixed — see `SET_CELL_BOUNDARY_SIZE`). Sizing placements to
+ * `patch.edgeLength` there makes them the lattice size, far larger than the
+ * actual Tiles. So we size to the Cell's own Tiles: the Seed Tile's edge
+ * length (or any regular Tile's), falling back to `patch.edgeLength` only when
+ * the Cell has no regular Tile to match (e.g. a No-Seed empty Cell).
+ */
+export function cellPlacementEdgeLength(cell: EditorCell, patchEdgeLength: number): number {
+  const seed = cell.tiles.find(
+    (t): t is EditorRegularTile => t.kind === 'regular' && t.source === 'seed',
+  )
+  if (seed) return seed.edgeLength
+  const anyRegular = cell.tiles.find((t): t is EditorRegularTile => t.kind === 'regular')
+  if (anyRegular) return anyRegular.edgeLength
+  return patchEdgeLength
 }
 
 /**

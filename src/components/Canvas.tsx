@@ -18,6 +18,7 @@ import { applyStamp } from '../editor/lattice'
 import { patchRotation } from '../editor/compositionLattice'
 import { viableSidesForEdge, viableSidesForVertexOrbit, vertexOrientationsWithOrbit } from '../editor/orbit'
 import { applyCellTransform } from '../editor/patchSelectable'
+import { cellPlacementEdgeLength } from '../editor/active'
 import { EditorEdgeLayer } from './EditorEdgeLayer'
 import { EditorPickerOverlay } from './EditorPickerOverlay'
 import { OverlapConfirmModal } from './OverlapConfirmModal'
@@ -511,17 +512,25 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   const selectedVertexData = selectedVertexKey
     ? cellLocalVertices.find(v => v.key === selectedVertexKey) ?? null
     : null
+  // Edge length for the candidate Tile — sized to the active Cell's own Tiles,
+  // not `patch.edgeLength` (which is the lattice constant in a multi-cell
+  // Patch after the boundary-size slider). Must match the reducer
+  // (`cellPlacementEdgeLength`) so the picker badges + preview reflect what
+  // actually gets placed.
+  const vertexEdgeLength = activeCellForSections && config.editor
+    ? cellPlacementEdgeLength(activeCellForSections, config.editor.edgeLength)
+    : 0
   const vertexPickerViableSides = useMemo<number[]>(() => {
     if (!selectedVertexData || !activeCellForSections || !config.editor) return []
     // Orbit-aware: under symmetry a size is only "clean" if its full orbit
     // places without force. Mirrors the edge picker's viableSidesForEdge.
     return viableSidesForVertexOrbit(
       selectedVertexData,
-      config.editor.edgeLength,
+      vertexEdgeLength,
       activeCellForSections,
       PICKER_SIDES,
     )
-  }, [selectedVertexData, activeCellForSections, config.editor])
+  }, [selectedVertexData, activeCellForSections, config.editor, vertexEdgeLength])
   // Sizes that only produce overlapping orientations — placeable via the
   // skippable warning. The complement of clean within the angularly-placeable
   // set (sizes with no fitting sector at all stay disabled).
@@ -529,12 +538,12 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     if (!selectedVertexData || !activeCellForSections || !config.editor) return []
     const placeable = placeableSidesForVertex(
       selectedVertexData,
-      config.editor.edgeLength,
+      vertexEdgeLength,
       activeCellForSections,
       PICKER_SIDES,
     )
     return placeable.filter(n => !vertexPickerViableSides.includes(n))
-  }, [selectedVertexData, activeCellForSections, config.editor, vertexPickerViableSides])
+  }, [selectedVertexData, activeCellForSections, config.editor, vertexEdgeLength, vertexPickerViableSides])
   const vertexOrientations = useMemo(() => {
     if (!selectedVertexData || vertexPickedSides === null || !activeCellForSections || !config.editor) {
       return []
@@ -544,10 +553,10 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     return vertexOrientationsWithOrbit(
       selectedVertexData,
       vertexPickedSides,
-      config.editor.edgeLength,
+      vertexEdgeLength,
       activeCellForSections,
     )
-  }, [selectedVertexData, vertexPickedSides, activeCellForSections, config.editor])
+  }, [selectedVertexData, vertexPickedSides, activeCellForSections, config.editor, vertexEdgeLength])
   useEffect(() => {
     // Clamp orientation index if the available orientations shrank.
     if (vertexOrientationIdx >= vertexOrientations.length && vertexOrientations.length > 0) {
@@ -567,7 +576,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     if (!orientation) return null
     const tile = placeRegularNGonOnVertex(
       vertexPickedSides,
-      config.editor.edgeLength,
+      vertexEdgeLength,
       selectedVertexData,
       orientation.rotation,
       '__preview__',
@@ -577,7 +586,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       const w = applyCellTransform(v, activeCellForSections, patchRot)
       return `${w.x},${w.y}`
     }).join(' ')
-  }, [selectedVertexData, vertexPickedSides, vertexOrientations, vertexOrientationIdx, activeCellForSections, config.editor, patchRot])
+  }, [selectedVertexData, vertexPickedSides, vertexOrientations, vertexOrientationIdx, activeCellForSections, config.editor, patchRot, vertexEdgeLength])
 
   // Closing the picker without committing — also clears the page-2 state.
   // useCallback so the memoised EditorVertexPlacementLayer (whose onSelect

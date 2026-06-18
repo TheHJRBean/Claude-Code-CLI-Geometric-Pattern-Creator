@@ -55,4 +55,46 @@ describe('vertex placement — multi-cell Patches', () => {
     expect(sqAfter.tiles[0].kind).toBe('regular')
     expect(octAfter.tiles.length).toBe(octBefore)
   })
+
+  it('sizes the placed Tile to the Cell Seed, not the (enlarged) lattice edgeLength', () => {
+    // Simulate the real scenario: the boundary-size slider has been dragged, so
+    // `patch.edgeLength` is the lattice constant (200) while the Seed Tiles keep
+    // their original size (100). Vertex dots only appear in multi-cell once the
+    // lattice is enlarged enough to expose the Boundary corners.
+    const editor = createDefault488EditorConfig()
+    const SEED_EDGE = editor.cells.find(c => c.id === 'square')!.tiles[0]
+    expect(SEED_EDGE.kind).toBe('regular')
+    const seedEdgeLength = (SEED_EDGE as { edgeLength: number }).edgeLength // 100
+    editor.edgeLength = seedEdgeLength * 2 // 200 — lattice grew, Tiles fixed
+    editor.activeCellId = 'square'
+    editor.cells = editor.cells.map(c =>
+      c.id === 'square' ? { ...c, boundarySize: seedEdgeLength * 2 } : c,
+    )
+    const state = { tiling: { type: 'editor', scale: 1 }, editor, figures: {} } as unknown as PatternConfig
+
+    const squareCell = state.editor!.cells.find(c => c.id === 'square')!
+    // With the boundary enlarged, the Seed (edge 100) no longer reaches the
+    // Boundary corners — they're now exposed with the full inward wedge.
+    const verts = computeExposedVertices(squareCell)
+    let chosen: { key: string; rotation: number } | null = null
+    for (const v of verts) {
+      const clean = vertexPlacementOrientations(v, 3, seedEdgeLength, squareCell)
+        .find(o => !o.overlaps)
+      if (clean) {
+        chosen = { key: v.key, rotation: clean.rotation }
+        break
+      }
+    }
+    expect(chosen).not.toBeNull()
+
+    const next = reducer(state, {
+      type: 'EDITOR_PLACE_TILE_ON_VERTEX',
+      payload: { vertexKey: chosen!.key, sides: 3, rotation: chosen!.rotation },
+    })
+    const placed = next.editor!.cells.find(c => c.id === 'square')!.tiles
+      .find(t => t.source === 'placed')
+    expect(placed).toBeDefined()
+    // The fix: sized to the Seed (100), NOT the lattice edgeLength (200).
+    expect((placed as { edgeLength: number }).edgeLength).toBe(seedEdgeLength)
+  })
 })

@@ -5,6 +5,19 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-08 — DONE: centre completion node for no-Seed Cells (`f15f6fd`, pushed)
+
+**Goal (user's words):** "add a completion node to the centre of the cells when the seed tile is removed."
+
+**Shipped `f15f6fd`** (tsc clean, 575 vitest green, build clean, pushed to `main`): when a Cell's Seed Tile is removed (`cell.noSeed`), the Cell centre becomes a clickable Complete-mode completion node — a radial anchor to build wedge Tiles out to the Boundary corners. Three coordinated edits:
+- `editor/patchSelectable.ts` — `cellLocalSelectableVertices` pushes Cell-local `(0,0)` when `cell.noSeed`, so the reducer (`isPatchSelectableVertex` / `validateMultiPick`) accepts centre picks. **This is the half that makes the pick actually complete.**
+- `components/EditorVertexLayer.tsx` — new `centre` dot variant (accent disc + bg rim, `DOT_RADIUS+2`).
+- `components/Canvas.tsx` — `centreVertices` memo aggregates one node per no-Seed Cell, lifted Cell-local→Patch-local via `applyCellTransform`, passed to `EditorVertexLayer`. Multi-cell aware (node sits at each Cell's offset centre); both halves stay in sync via shared `applyCellTransform`.
+- Test: `editor/centreCompletionNode.test.ts` (2 tests) locks selectability scoped to `noSeed`.
+
+**Verified** (no browser in env): drove real render surface (`renderToStaticMarkup(EditorVertexLayer)` → centre `<circle r=7>` + `cursor:pointer` hit target) + real state surface (reducer: `SET_CELL_NO_SEED` → `EDITOR_COMPLETE_N_GAP` from centre+2 corners → 1 completed triangle Tile). **⏳ BROWSER-VERIFY OWED:** on-canvas click registering a pick + disc contrast against live bg (interactive click path unverified at pixel surface).
+
+---
 ### ▶ 2026-07-08 — THERMONUCLEAR REVIEW ROUND 2 DONE → BUG-FIX SESSION NEXT (ACTIVE THREAD)
 
 **Goal:** user ran a second max-effort whole-project review (diff `6fb30b7..HEAD` + roadmap-readiness altitude pass) and wants the next session to **fix a few bugs** from it.

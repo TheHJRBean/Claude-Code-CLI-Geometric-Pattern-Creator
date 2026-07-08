@@ -125,11 +125,19 @@ export function neighbourStampsNear(patch: EditorPatch, points: Vec2[]): Lattice
  */
 export function cellLocalSelectableVertices(cell: EditorCell): Vec2[] {
   const cycles = computeAllCycles(cell)
-  return [
+  const verts = [
     ...cycles.outer.map(v => v.p),
     ...cycles.pockets.flat().map(v => v.p),
     ...computeBoundaryCycle(cell).map(v => v.p),
   ]
+  // No-Seed Cells have no interior anchor — the only pickable targets are the
+  // Boundary corners around the rim. Expose the Cell centre (Cell-local origin,
+  // where `editorBoundaryVertices` centres every Boundary) as a completion node
+  // so the user can build wedge Tiles radially from the middle out to the
+  // Boundary corners (2026-07-08). Kept in sync with the Canvas `centre`
+  // overlay so the reducer accepts the same points the user can click.
+  if (cell.noSeed) verts.push({ x: 0, y: 0 })
+  return verts
 }
 
 /**

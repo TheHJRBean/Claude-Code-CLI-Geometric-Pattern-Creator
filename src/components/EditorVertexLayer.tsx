@@ -20,7 +20,7 @@ import { EDITOR_EPS } from '../editor/exposedEdges'
  * Dots use `vectorEffect="non-scaling-stroke"` so they stay the same size at
  * any zoom, mirroring the edge layer's behaviour.
  */
-type DotVariant = 'patch' | 'boundary' | 'pocket' | 'neighbour' | 'frame'
+type DotVariant = 'patch' | 'boundary' | 'pocket' | 'neighbour' | 'frame' | 'centre'
 
 interface Props {
   vertices: BoundaryVertex[]
@@ -29,6 +29,9 @@ interface Props {
   neighbourVertices?: BoundaryVertex[]
   /** Frame edge nodes — clickable completion targets when a Frame overlay is present. */
   frameVertices?: BoundaryVertex[]
+  /** Cell-centre completion nodes — only present for no-Seed Cells, giving a
+   *  radial anchor to build wedge Tiles out to the Boundary corners. */
+  centreVertices?: BoundaryVertex[]
   /** Step 17.11.3 — accumulated picks. Length 0 or 1 in chord mode; arbitrary in multi mode. */
   picks: Vec2[]
   /** Step 17.11.4 — `null` = no preview, `true|false` = valid/invalid tint. */
@@ -92,6 +95,10 @@ function styleFor(variant: DotVariant, isPicked: boolean): DotStyle {
       // sitting on the frame outline, set apart from the hollow patch dots and
       // the faint neighbour ghosts.
       return { radius: DOT_RADIUS + 1, fill: 'var(--accent)', stroke: 'var(--bg)', strokeWidth: 2 }
+    case 'centre':
+      // Larger solid accent disc with a bg rim — sits alone at the middle of an
+      // empty no-Seed Cell, so it should read as the obvious "start here" anchor.
+      return { radius: DOT_RADIUS + 2, fill: 'var(--accent)', stroke: 'var(--bg)', strokeWidth: 2.4 }
   }
 }
 
@@ -187,6 +194,7 @@ export const EditorVertexLayer = memo(function EditorVertexLayer({
   pocketVertices = [],
   neighbourVertices = [],
   frameVertices = [],
+  centreVertices = [],
   picks,
   previewValid = null,
   previewMessage = null,
@@ -263,6 +271,15 @@ export const EditorVertexLayer = memo(function EditorVertexLayer({
           key={`p-${v.tileId}#${v.vertexIndex}#${i}`}
           v={v}
           variant="patch"
+          picks={picks}
+          onPickVertex={onPickVertex}
+        />
+      ))}
+      {centreVertices.map((v, i) => (
+        <VertexDot
+          key={`c-${v.tileId}#${v.vertexIndex}#${i}`}
+          v={v}
+          variant="centre"
           picks={picks}
           onPickVertex={onPickVertex}
         />

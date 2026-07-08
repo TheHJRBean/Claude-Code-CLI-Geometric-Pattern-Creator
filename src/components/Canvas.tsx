@@ -435,6 +435,27 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     return out
   }, [editorActive, config.editor, editorMode, editorNeighbourPreview, editorStrandMode, neighbourStamps, patchRot])
 
+  // Cell-centre completion nodes — one per no-Seed Cell, exposed only in
+  // Complete mode. An empty Cell has no interior anchor (only Boundary corners
+  // around the rim), so the centre node gives the user a radial "start here"
+  // pick to build wedge Tiles from the middle out. Cell-local origin (0, 0) is
+  // where `editorBoundaryVertices` centres every Boundary; lift into Patch-local
+  // like every other pick target. Kept in sync with `cellLocalSelectableVertices`
+  // (patchSelectable.ts) so the reducer accepts exactly these points.
+  const centreVertices = useMemo<BoundaryVertex[]>(() => {
+    if (!editorActive || !config.editor || editorMode !== 'complete') return []
+    const out: BoundaryVertex[] = []
+    for (const cell of config.editor.cells) {
+      if (!cell.noSeed) continue
+      out.push({
+        p: applyCellTransform({ x: 0, y: 0 }, cell, patchRot),
+        tileId: `${cell.id}/centre`,
+        vertexIndex: 0,
+      })
+    }
+    return out
+  }, [editorActive, config.editor, editorMode, patchRot])
+
   // Frame nodes are clickable completion targets in Complete mode (the Frame
   // is a persistent overlay). Picking a frame node together with interior
   // vertices completes a tile out to the frame edge; the reducer stores such
@@ -682,6 +703,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
           pocketVertices={pocketVertices}
           neighbourVertices={neighbourVertices}
           frameVertices={frameVertices}
+          centreVertices={centreVertices}
           picks={picks ?? []}
           previewValid={previewValid}
           previewMessage={previewMessage}

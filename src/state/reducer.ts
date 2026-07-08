@@ -461,16 +461,15 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       })))
     }
     case 'SET_CELL_NO_SEED': {
-      // Toggle the Seed Tile on/off for the target Cell. Refuse if the Cell
-      // holds any non-Seed Tile — mirrors the existing Seed-sides lock
-      // pattern (see SET_CELL_SEED_SIDES). Turning on wipes the Seed Tile to
-      // empty `tiles: []`; turning off re-adds a Seed at the current
-      // `seedSides` + Patch `edgeLength`.
+      // Toggle the Seed Tile on/off for the target Cell. Always allowed (user
+      // decision 2026-07-08 — removing the Seed must never be locked): turning
+      // on wipes the Cell to empty `tiles: []`, discarding any placed/completed
+      // Tiles; turning off re-adds a Seed at the current `seedSides` + Patch
+      // `edgeLength`, replacing whatever the Cell held. Undoable
+      // (SET_CELL_NO_SEED is in DESIGN_MODE_ACTIONS).
       if (!state.editor) return state
       const { value: next, cellId } = action.payload
       const cell = (cellId && state.editor.cells.find(c => c.id === cellId)) || activeCell(state.editor)
-      const hasNonSeed = cell.tiles.some(t => t.source !== 'seed')
-      if (hasNonSeed) return state
       if (next === !!cell.noSeed) return state
       if (next) {
         return seedFigures(updateCell(state, cellId, c => ({ ...c, noSeed: true, tiles: [] })))

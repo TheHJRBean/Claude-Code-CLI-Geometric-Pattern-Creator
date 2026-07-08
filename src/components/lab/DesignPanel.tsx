@@ -150,25 +150,21 @@ function CellControls({
 
       {/* Step 17.12 — No Seed Tile. Per-Cell: when on, the Cell starts empty
           (no auto-placed Seed) — useful when authoring from the boundary inward
-          via the always-on section picker. Locked while the Cell holds any
-          non-Seed Tile (mirrors the Seed-sides lock); the reducer silently
-          refuses out-of-lock toggles. */}
+          via the always-on section picker. Always toggleable (user decision
+          2026-07-08): unlike the Seed-sides slider, removing the Seed is never
+          locked — toggling on wipes any placed/completed Tiles, toggling off
+          restores the Seed. The change is undoable. */}
       <div style={{ marginTop: 10 }}>
-        <label style={checkboxLabelStyle(!!cell.noSeed, {
-          cursor: originLocked ? 'not-allowed' : 'pointer',
-          opacity: originLocked ? 0.5 : 1,
-          transition: 'color 0.15s, opacity 0.15s',
-        })}>
+        <label style={checkboxLabelStyle(!!cell.noSeed, { cursor: 'pointer' })}>
           <input
             type="checkbox"
             checked={!!cell.noSeed}
-            disabled={originLocked}
             onChange={e => dispatch({ type: 'SET_CELL_NO_SEED', payload: { value: e.target.checked, cellId } })}
           />
           No Seed Tile
         </label>
         {originLocked && (
-          <div style={mutedNoteStyle}>Locked — clear the {multiCell ? 'cell' : 'patch'} to toggle the Seed Tile.</div>
+          <div style={mutedNoteStyle}>Toggling on will clear this {multiCell ? 'cell' : 'patch'}'s placed Tiles.</div>
         )}
       </div>
     </>

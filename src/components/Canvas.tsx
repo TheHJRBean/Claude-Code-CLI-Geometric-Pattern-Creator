@@ -10,6 +10,7 @@ import { PatternSVG } from '../rendering/PatternSVG'
 import { worldToScreen } from '../rendering/screenSpace'
 import { DecorationPaintLayer, type PaintPayload, type PaintTarget, type StrandPaintScope, type VoidPaintScope } from '../rendering/DecorationPaintLayer'
 import { RotationDial } from './RotationDial'
+import { ZoomControl } from './ZoomControl'
 import type { ExposedEdge } from '../editor/exposedEdges'
 import type { EditorCell } from '../types/editor'
 import { computeExposedEdges } from '../editor/exposedEdges'
@@ -259,6 +260,23 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   const onRotation = useCallback((degrees: number) => {
     setViewTransform(prev => ({ ...prev, rotation: degrees }))
   }, [setViewTransform])
+
+  // Manual zoom, anchored on the canvas centre so the view doesn't drift.
+  // Mirrors the wheel handler's math with the anchor fixed at (w/2, h/2).
+  const zoomBy = useCallback((factor: number) => {
+    const sx = size.width / 2
+    const sy = size.height / 2
+    setViewTransform(prev => {
+      const newZoom = prev.zoom * factor
+      const px = prev.x + sx / prev.zoom
+      const py = prev.y + sy / prev.zoom
+      return { ...prev, zoom: newZoom, x: px - sx / newZoom, y: py - sy / newZoom }
+    })
+  }, [setViewTransform, size.width, size.height])
+
+  const resetZoom = useCallback(() => {
+    zoomBy(INITIAL_ZOOM / viewTransform.zoom)
+  }, [zoomBy, viewTransform.zoom])
 
   // Keyboard shortcut: Home key to reset camera
   useEffect(() => {
@@ -956,6 +974,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       >
         Reset View
       </button>
+      <ZoomControl zoom={viewTransform.zoom} onZoom={zoomBy} onReset={resetZoom} />
       <RotationDial rotation={viewTransform.rotation} onChange={onRotation} />
       <PerfHud />
     </div>

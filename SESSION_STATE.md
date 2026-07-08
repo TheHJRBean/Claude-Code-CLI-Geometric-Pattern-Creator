@@ -5,7 +5,25 @@
 ## ▶ RESUME HERE
 
 ---
-### ▶ 2026-06-18 — UI/UX REVAMP "Option B — Workspace Shell" (ACTIVE THREAD this session)
+### ▶ 2026-07-08 — THERMONUCLEAR REVIEW ROUND 2 DONE → BUG-FIX SESSION NEXT (ACTIVE THREAD)
+
+**Goal:** user ran a second max-effort whole-project review (diff `6fb30b7..HEAD` + roadmap-readiness altitude pass) and wants the next session to **fix a few bugs** from it.
+
+**Done:** 15 findings reported (14 CONFIRMED / 1 PLAUSIBLE), **none fixed**. Canonical findings list + below-the-cut items: **`memory/project_thermonuclear_review_round2.md`** (read first). Baseline at review time: tsc clean, 573/573 tests green.
+
+**Next (recommended fix order, full sketches in the handoff doc):**
+1. `hostCellId` unification — thread through `EDITOR_PLACE_TILE_ON_EDGE`/`_ON_BOUNDARY_SECTION` → `updateCell`, delete the `SET_ACTIVE_CELL` auto-switch (fixes wrong-cell placement + the `usePattern.ts:277` PIC-re-run-on-select + collapses `updateActiveCell`/`updateCell`).
+2. `frameNRing.ts:242` — multi-cell n-ring hex third-axis pick is INVERTED (all 4 hex-basis Configurations stamp a wrong, lopsided ring; count+area tests are blind — add exact-coordinate assertions).
+3. `exportSVG.ts` — `var()` fallback regex truncates `rgba(...)` → malformed paint (black) in Lab exports.
+4. `SET_CELL_NO_SEED` off re-seeds at lattice constant + rotation 0 (mirror `SET_CELL_SEED_SIDES`'s preserve logic).
+5. `active.ts:64` empty-Cell fallback = lattice constant; 6. undo coalesce key lacks `cellId`; 7. NumberStepper draft resync + Enter double-commit; 8. `updateCell` stale-cellId fail-closed.
+
+**Decisions / notes:** Load-JSON `activePatternId` finding = the already-KNOWN minor regression below (2026-06-18 entry) — stays deprioritised. Roadmap findings (rosette loader star-gate `configValidation.ts:50`, Pass-4 Inspector blockers, Configuration registry, PatternConfig versioning) are design work — the "3rd-column-ready grid" claim in the 2026-06-18 entry below is **wrong** (`.app-layout` is a plain 2-child flex row; shell is duplicated per mode). Handoff doc (session-temp, may not survive reboot): `/tmp/claude-1000/-home-harry-Projects-Geometric-Atlas/81b89c51-88c6-4b0c-ae18-75bf80339c8d/scratchpad/HANDOFF-bugfix-session.md` — the memory file carries everything essential if it's gone.
+
+**Blockers:** none. Semble MCP was unavailable last session (grep fallback; tell the user if still down).
+
+---
+### ▶ 2026-06-18 — UI/UX REVAMP "Option B — Workspace Shell" (previous thread)
 
 > This is the most recent work. It is **independent** of the rosette-grill thread below (which is still pending and untouched). Canonical plan + full detail live in memory: **`memory/project_ui_revamp_option_b.md`** (read it first on resume).
 

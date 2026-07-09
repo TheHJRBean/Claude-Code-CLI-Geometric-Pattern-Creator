@@ -18,8 +18,8 @@
 **Status:** branch `feat/export-subsystem` off `main` @ `cdc07f1`, pushed.
 - ✅ **Slice 1** (`c3311cf`) — overlay stripping. `data-export="exclude"` on ghostPolygons/boundaryOutlines/frameNodes/editorOverlay in PatternSVG; `stripExportExclusions` string helper in exportSVG.ts applied in exportSVG+exportPNG; +7 tests (603 total). ⏳ browser-verify a Design-phase Lab SVG export is clean.
 - ✅ **Slice 2** (`134d189`) — shared `src/export/exportActions.ts::buildExportMenuItems`; App + TessellationLabMode both call it; Unwoven = explicit `includeUnwoven` flag (Gallery on, Lab off). Drift gone.
-- ⏭ **Slice 3 (NEXT)** — print-size PNG (`exportPNG` already takes w/h; hardcoded 2048²) + background (hardcoded `#f5f0e8`, should track `config.strand.background` / offer transparent). **Has product choices — confirm with user before building** (which sizes, transparent vs filled, square vs viewBox aspect).
-- ⏭ Deferred: Unwoven in Lab (Lever-A field re-derivation), unit-vs-field toggle, Decoration/Frame fidelity browser-verify.
+- ✅ **Slice 3** (`d45bf62`) — PNG resolution submenu (1024/2048/4096/8192, height follows live SVG aspect so no square letterbox) + "Transparent background" toggle. `exportPNG` now takes `PngExportOptions {width,height,background}`; `background:null` = alpha. TopBar export menu → typed union (`action|submenu|toggle`) + inline sub-panel/checkbox CSS. +4 tests (607 total). **User decisions:** submenu (not flat sizes); sandy `#f5f0e8` stays default, transparent is a toggle. **FUTURE:** a Decoration background-colour option should replace the hardcoded sandy default (`DEFAULT_PNG_BACKGROUND` in exportSVG.ts). ⏳ browser-verify submenu/toggle interaction + a 4096 transparent PNG.
+- ⏭ Deferred: Unwoven in Lab (Lever-A field re-derivation), unit-vs-field toggle, Decoration/Frame fidelity browser-verify, SVG-export background (currently rides the cloned inline `style`).
 
 ---
 ### ▶ 2026-07-09 — DONE: thermonuclear round-2 bug fixes 1–8 ALL SHIPPED (pushed to `main`)

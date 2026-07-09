@@ -15,7 +15,11 @@
 3. **Print-size PNG option** (`exportPNG` hardcoded 2048²) + **theme/transparent background** (hardcoded `#f5f0e8`).
 4. Deferred: Unwoven-SVG in Lab (needs DOM field re-derivation, Lever-A-blocked), unit-vs-field toggle, Decoration/Frame fidelity browser-verify.
 
-**Status:** branch cut from `main` @ `cdc07f1`. Slice 1 underway.
+**Status:** branch `feat/export-subsystem` off `main` @ `cdc07f1`, pushed.
+- ✅ **Slice 1** (`c3311cf`) — overlay stripping. `data-export="exclude"` on ghostPolygons/boundaryOutlines/frameNodes/editorOverlay in PatternSVG; `stripExportExclusions` string helper in exportSVG.ts applied in exportSVG+exportPNG; +7 tests (603 total). ⏳ browser-verify a Design-phase Lab SVG export is clean.
+- ✅ **Slice 2** (`134d189`) — shared `src/export/exportActions.ts::buildExportMenuItems`; App + TessellationLabMode both call it; Unwoven = explicit `includeUnwoven` flag (Gallery on, Lab off). Drift gone.
+- ⏭ **Slice 3 (NEXT)** — print-size PNG (`exportPNG` already takes w/h; hardcoded 2048²) + background (hardcoded `#f5f0e8`, should track `config.strand.background` / offer transparent). **Has product choices — confirm with user before building** (which sizes, transparent vs filled, square vs viewBox aspect).
+- ⏭ Deferred: Unwoven in Lab (Lever-A field re-derivation), unit-vs-field toggle, Decoration/Frame fidelity browser-verify.
 
 ---
 ### ▶ 2026-07-09 — DONE: thermonuclear round-2 bug fixes 1–8 ALL SHIPPED (pushed to `main`)

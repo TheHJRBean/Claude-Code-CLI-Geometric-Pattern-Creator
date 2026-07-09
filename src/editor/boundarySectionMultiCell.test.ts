@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { createDefault488EditorConfig } from './createDefault'
 import { computeBoundarySections } from './boundaryInward'
+import { computeExposedEdges } from './exposedEdges'
 import { reducer } from '../state/reducer'
 import type { PatternConfig } from '../types/pattern'
 
@@ -41,5 +42,57 @@ describe('boundary-section placement — multi-cell sizing', () => {
       .find(t => t.source === 'placed')
     expect(placed).toBeDefined()
     expect((placed as { edgeLength: number }).edgeLength).toBe(seedEdgeLength)
+  })
+
+  it('routes the placement to hostCellId even after another Cell was edited', () => {
+    // Regression (thermonuclear round 2, 2026-07-08): the section flow used to
+    // resolve its target Cell from `activeCellId` at commit time, so a per-Cell
+    // control edit while the picker was open repointed the placement into the
+    // wrong Cell. The action now carries the picked section's hostCellId.
+    const editor = createDefault488EditorConfig()
+    const state = { tiling: { type: 'editor', scale: 1 }, editor, figures: {} } as unknown as PatternConfig
+    // A per-Cell control edit re-aims activeCellId at the octagon…
+    const edited = reducer(state, { type: 'SET_CELL_SEED_SIDES', payload: { sides: 8, cellId: 'octagon' } })
+    expect(edited.editor!.activeCellId).toBe('octagon')
+    // …but a pending section pick on the square must still land in the square.
+    const squareCell = edited.editor!.cells.find(c => c.id === 'square')!
+    const section = computeBoundarySections(squareCell)[0]
+    const next = reducer(edited, {
+      type: 'EDITOR_PLACE_TILE_ON_BOUNDARY_SECTION',
+      payload: {
+        edgeIndex: section.edgeIndex,
+        sectionIndex: section.sectionIndex,
+        sides: 3,
+        force: true,
+        hostCellId: 'square',
+      },
+    })
+    const placedIn = (id: string) =>
+      next.editor!.cells.find(c => c.id === id)!.tiles.filter(t => t.source === 'placed')
+    expect(placedIn('square').length).toBeGreaterThan(0)
+    expect(placedIn('octagon').length).toBe(0)
+  })
+
+  it('routes edge placement to hostCellId the same way', () => {
+    const editor = createDefault488EditorConfig()
+    const state = { tiling: { type: 'editor', scale: 1 }, editor, figures: {} } as unknown as PatternConfig
+    const edited = reducer(state, { type: 'SET_CELL_SEED_SIDES', payload: { sides: 8, cellId: 'octagon' } })
+    const squareCell = edited.editor!.cells.find(c => c.id === 'square')!
+    const edge = computeExposedEdges(squareCell, edited.editor!.edgeLength)[0]
+    expect(edge).toBeDefined()
+    const next = reducer(edited, {
+      type: 'EDITOR_PLACE_TILE_ON_EDGE',
+      payload: {
+        tileId: edge.tileId,
+        edgeIndex: edge.edgeIndex,
+        sides: 3,
+        force: true,
+        hostCellId: 'square',
+      },
+    })
+    const placedIn = (id: string) =>
+      next.editor!.cells.find(c => c.id === id)!.tiles.filter(t => t.source === 'placed')
+    expect(placedIn('square').length).toBeGreaterThan(0)
+    expect(placedIn('octagon').length).toBe(0)
   })
 })

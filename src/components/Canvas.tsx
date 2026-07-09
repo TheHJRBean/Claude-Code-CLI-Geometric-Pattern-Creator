@@ -689,8 +689,8 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // lattice preview only, and Strand controls in the side panel drive what
   // changes. Multi-Cell Design Phase keeps the picker live: edges are
   // computed in each Cell's local coords and parallel-transformed via the
-  // Cell's transform for rendering, so clicks place Tiles inside the active
-  // Cell via the reducer's updateActiveCell routing. Useful once the
+  // Cell's transform for rendering, so clicks place Tiles inside their host
+  // Cell via the action's hostCellId routing. Useful once the
   // lattice-edge slider has been dragged past the seeded edge — at the seed,
   // the Seed Tile fills the Boundary exactly so any placement would land
   // outside the Cell.

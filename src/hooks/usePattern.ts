@@ -274,7 +274,11 @@ export function usePattern(
     const baseSegments = runPIC(basePolys, config)
     return { patch, multiCell, cell, basePolys, baseOutlines, baseSegments }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ed?.cells, ed?.activeCellId, ed?.edgeLength, ed?.configuration, ed?.alternateOrientation, config.figures, config.figureRouting])
+    // `activeCellId` is deliberately NOT a dep: with the SET_ACTIVE_CELL pane
+    // swap removed it only ever changes alongside `cells` (updateCell re-aims
+    // it as it mutates), and re-keying on it made every selection click re-run
+    // the full PIC.
+  }, [ed?.cells, ed?.edgeLength, ed?.configuration, ed?.alternateOrientation, config.figures, config.figureRouting])
 
   // A representative Void in the fundamental domain, enriched with its
   // centroid (= Lattice-orbit offset, since reps live in the origin stamp's

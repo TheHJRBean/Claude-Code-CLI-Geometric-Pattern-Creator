@@ -29,7 +29,7 @@ import { boundarySymmetries, applySym } from '../editor/symmetry'
 import { autoCompleteCell, fitBoundarySize } from '../editor/autoComplete'
 import { computeBoundarySections, isBoundarySectionPlacementViable, placeRegularNGonOnBoundarySection, placeTilesOnBoundarySectionOrbit } from '../editor/boundaryInward'
 import { DEFAULT_EDITOR_FIGURE, seedFiguresForEditor } from '../editor/tileTypes'
-import { activeCell, allCells, cellPlacementEdgeLength, withActiveCell } from '../editor/active'
+import { activeCell, allCells, cellPlacementEdgeLength } from '../editor/active'
 import { clearMaskingRecords } from '../decoration/scopes'
 import {
   applyCellTransform,
@@ -267,7 +267,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       // Single-cell: Tiles are preserved across boundary-shape changes
       // (single-edge placements remain valid under any Boundary). The Cell's
       // boundarySize snaps to the new shape's default.
-      return applyWrap(seedFigures(updateActiveCell(state, cell => ({
+      return applyWrap(seedFigures(updateCell(state, undefined, cell => ({
         ...cell,
         shape: action.payload,
         boundarySize: DEFAULT_BOUNDARY_SIZE_BY_SHAPE[action.payload],
@@ -306,7 +306,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
           editor: { ...state.editor, cells, edgeLength: next },
         }
       }
-      return updateActiveCell(state, cell => ({
+      return updateCell(state, undefined, cell => ({
         ...cell,
         boundarySize: next,
         wrapBoundary: false,
@@ -365,9 +365,9 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     }
     case 'EDITOR_PLACE_TILE_ON_EDGE': {
       if (!state.editor) return state
-      const { tileId, edgeIndex, sides, force } = action.payload
+      const { tileId, edgeIndex, sides, force, hostCellId } = action.payload
       const patchEdgeLength = state.editor.edgeLength
-      return applyWrap(seedFigures(updateActiveCell(state, cell => {
+      return applyWrap(seedFigures(updateCell(state, hostCellId, cell => {
         const edges = computeExposedEdges(cell, patchEdgeLength)
         const edge = edges.find(e => e.tileId === tileId && e.edgeIndex === edgeIndex)
         if (!edge) return cell
@@ -392,8 +392,8 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     }
     case 'EDITOR_PLACE_TILE_ON_BOUNDARY_SECTION': {
       // Step 17.12 — boundary-inward placement. Standard part of Design Phase,
-      // works on the active Cell of a single-cell Patch OR a multi-cell
-      // Configuration (the active-Cell pane swap picks which Cell is edited).
+      // works on any Cell of a single-cell Patch OR a multi-cell Configuration
+      // (`hostCellId` routes to the Cell the picked section belongs to).
       //
       // The placed Tile is sized to the Patch's shared seed/lattice edge length
       // so every placement method (vertex / edge / section) stays one uniform
@@ -401,32 +401,28 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       // `patch.edgeLength` — that earlier "first tile dictates edge length"
       // reset is what made later vertex/edge placements drift from the seed.
       if (!state.editor) return state
-      const { edgeIndex, sectionIndex, sides, force } = action.payload
-      const patch = state.editor
-      const cell = activeCell(patch)
-      // Size to the Cell's own Tiles, not `patch.edgeLength` — in a multi-cell
-      // Patch the latter is the lattice constant after the boundary-size slider,
-      // which would make placements far too large (mirrors vertex placement).
-      const patchEdgeLength = cellPlacementEdgeLength(cell, patch.edgeLength)
-      const sections = computeBoundarySections(cell)
-      const section = sections.find(s => s.edgeIndex === edgeIndex && s.sectionIndex === sectionIndex)
-      if (!section) return state
-      const mode = cell.symmetryMode ?? 'none'
-      const idPrefix = `placed-${cell.tiles.length}-${Date.now()}`
-      let nextTiles: EditorTile[]
-      if (mode === 'none') {
-        // `force` (flexible-placement): user accepted the overlap warning.
-        if (!force && !isBoundarySectionPlacementViable(sides, section, cell, patchEdgeLength)) return state
-        const tile = placeRegularNGonOnBoundarySection(sides, section, `${idPrefix}-0`, patchEdgeLength)
-        nextTiles = [...cell.tiles, tile]
-      } else {
+      const { edgeIndex, sectionIndex, sides, force, hostCellId } = action.payload
+      const latticeEdgeLength = state.editor.edgeLength
+      return applyWrap(seedFigures(updateCell(state, hostCellId, cell => {
+        // Size to the Cell's own Tiles, not `patch.edgeLength` — in a multi-cell
+        // Patch the latter is the lattice constant after the boundary-size slider,
+        // which would make placements far too large (mirrors vertex placement).
+        const patchEdgeLength = cellPlacementEdgeLength(cell, latticeEdgeLength)
+        const sections = computeBoundarySections(cell)
+        const section = sections.find(s => s.edgeIndex === edgeIndex && s.sectionIndex === sectionIndex)
+        if (!section) return cell
+        const mode = cell.symmetryMode ?? 'none'
+        const idPrefix = `placed-${cell.tiles.length}-${Date.now()}`
+        if (mode === 'none') {
+          // `force` (flexible-placement): user accepted the overlap warning.
+          if (!force && !isBoundarySectionPlacementViable(sides, section, cell, patchEdgeLength)) return cell
+          const tile = placeRegularNGonOnBoundarySection(sides, section, `${idPrefix}-0`, patchEdgeLength)
+          return { ...cell, tiles: [...cell.tiles, tile] }
+        }
         const placements = placeTilesOnBoundarySectionOrbit(cell, section, sides, idPrefix, patchEdgeLength, force)
-        if (!placements) return state
-        nextTiles = [...cell.tiles, ...placements]
-      }
-      const nextCell: EditorCell = { ...cell, tiles: nextTiles }
-      const nextEditor = { ...withActiveCell(patch, nextCell), version: patch.version }
-      return applyWrap(seedFigures({ ...state, editor: nextEditor }))
+        if (!placements) return cell
+        return { ...cell, tiles: [...cell.tiles, ...placements] }
+      })))
     }
     case 'EDITOR_PLACE_TILE_ON_VERTEX': {
       // Step 17.13b — vertex-anchored placement. Anchors one corner of a
@@ -484,7 +480,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     case 'EDITOR_DELETE_TILE': {
       if (!state.editor) return state
       const { tileId } = action.payload
-      return applyWrap(updateActiveCell(state, cell => {
+      return applyWrap(updateCell(state, undefined, cell => {
         const target = cell.tiles.find(t => t.id === tileId)
         // The auto-placed Seed Tile can't be deleted — it anchors the Cell.
         if (!target || target.source === 'seed') return cell
@@ -581,7 +577,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     }
     case 'EDITOR_RUN_AUTO_COMPLETE': {
       if (!state.editor) return state
-      return applyWrap(seedFigures(updateActiveCell(state, cell => {
+      return applyWrap(seedFigures(updateCell(state, undefined, cell => {
         const { tiles } = autoCompleteCell(cell)
         // Idempotent on already-convex Cells: reference-equal tiles → no
         // state churn, no figure re-seed.
@@ -639,19 +635,6 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         editor: next,
       })
     }
-    case 'SET_ACTIVE_CELL': {
-      if (!state.editor) return state
-      const { cellId } = action.payload
-      if (!state.editor.cells.some(c => c.id === cellId)) return state
-      // Pure UI pane swap — excluded from the undo stack (see
-      // history.ts DESIGN_MODE_ACTIONS). If the new active Cell has wrap on,
-      // refit so the lattice tracks the user's selection.
-      const swapped: PatternConfig = {
-        ...state,
-        editor: { ...state.editor, activeCellId: cellId },
-      }
-      return applyWrap(swapped)
-    }
     case 'EDITOR_RESTORE_SNAPSHOT': {
       // Step 17.9 — undo/redo. Snapshot already has its own per-Cell
       // boundarySizes, so we don't run applyWrap (the snapshot represents
@@ -675,25 +658,10 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
 }
 
 /**
- * Immutable update: replace the active Cell via `fn(currentCell)`. If `fn`
- * returns the same Cell (reference equality), state is unchanged. Otherwise
- * returns a fresh `PatternConfig` with the updated Cell in place.
- */
-function updateActiveCell(
-  state: PatternConfig,
-  fn: (cell: EditorCell) => EditorCell,
-): PatternConfig {
-  if (!state.editor) return state
-  const current = activeCell(state.editor)
-  const next = fn(current)
-  if (next === current) return state
-  return { ...state, editor: { ...withActiveCell(state.editor, next), version: state.editor.version } }
-}
-
-/**
- * Update a specific Cell by id (the panel now shows a per-Cell control group,
- * so per-Cell mutations carry an explicit `cellId`). Falls back to the active
- * Cell when `cellId` is absent — single-cell Patches and back-compat callers.
+ * Update a specific Cell by id (the panel shows a per-Cell control group and
+ * placement selections carry their host Cell, so per-Cell mutations carry an
+ * explicit `cellId`/`hostCellId`). Falls back to the active Cell when `cellId`
+ * is absent — single-cell Patches and back-compat callers.
  *
  * Also focuses the mutated Cell as `activeCellId`. There is no user-facing
  * active-Cell selector any more, but `activeCellId` survives as an internal
@@ -860,7 +828,7 @@ function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[], force
     working = { ...working, tiles: [...working.tiles, tile] }
   }
   if (placements.length === 0) return state
-  return applyWrap(seedFigures(updateActiveCell(state, _ => working)))
+  return applyWrap(seedFigures(updateCell(state, undefined, _ => working)))
 }
 
 /**
@@ -911,7 +879,7 @@ function applyWrap(state: PatternConfig): PatternConfig {
     }
   }
   if (fit === cell.boundarySize) return state
-  return updateActiveCell(state, c => ({ ...c, boundarySize: fit }))
+  return updateCell(state, undefined, c => ({ ...c, boundarySize: fit }))
 }
 
 export { DEFAULT_CONFIG }

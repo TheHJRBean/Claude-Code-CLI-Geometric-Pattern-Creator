@@ -113,51 +113,32 @@ export function TessellationLabMode({
       setSelectedSection(null)
     }
   }, [config.tiling.type, config.editor])
-  // Multi-cell: clicking an edge that belongs to a non-active Cell
-  // auto-switches the active Cell first (pure pane swap, not undoable) so the
-  // existing place / delete flow targets the right Cell via the reducer's
-  // updateActiveCell routing. Single-cell: just sets the selection.
+  // Selections are pure local UI state — the placement actions carry the
+  // selection's `hostCellId`, so no active-Cell switch is needed on select
+  // (the old SET_ACTIVE_CELL auto-switch re-ran the whole editorBase PIC
+  // memo on every click and raced per-Cell control edits — a control edit
+  // could repoint `activeCellId` while a picker was open, landing the Tile
+  // in the wrong Cell).
   // useCallback so the memoised EditorEdgeLayer / EditorBoundaryInwardLayer
   // bail on pan/zoom frames instead of re-rendering (Finding 1, 2026-06-05).
   const handleSelectEdge = useCallback((edge: SelectedEdge | null) => {
-    if (
-      edge?.hostCellId
-      && config.editor
-      && config.editor.cells.length > 1
-      && config.editor.activeCellId !== edge.hostCellId
-    ) {
-      dispatch({ type: 'SET_ACTIVE_CELL', payload: { cellId: edge.hostCellId } })
-    }
     setSelectedEdge(edge)
     if (edge) setSelectedSection(null)
-  }, [config.editor, dispatch])
-  // Multi-cell: clicking a section on a non-active Cell auto-switches the
-  // active Cell first (pure pane swap) so the place flow targets the right
-  // Cell via the reducer's activeCell routing. Mirrors handleSelectEdge — all
-  // Cells' sections are exposed at once, each tagged with its host Cell.
+  }, [])
   const handleSelectSection = useCallback((section: SectionKey | null) => {
-    if (
-      section?.hostCellId
-      && config.editor
-      && config.editor.cells.length > 1
-      && config.editor.activeCellId !== section.hostCellId
-    ) {
-      dispatch({ type: 'SET_ACTIVE_CELL', payload: { cellId: section.hostCellId } })
-    }
     setSelectedSection(section)
     if (section) setSelectedEdge(null)
-  }, [config.editor, dispatch])
+  }, [])
   // `force` (flexible-placement): the user accepted the picker's overlap
   // warning, so the reducer skips the viability gate and places anyway.
   const handlePlaceTile = (sides: number, force?: boolean) => {
     if (!selectedEdge) return
-    // EDITOR_PLACE_TILE_ON_EDGE routes through the active Cell, so by this
-    // point the host Cell must be the active one (handleSelectEdge guarantees).
     dispatch({ type: 'EDITOR_PLACE_TILE_ON_EDGE', payload: {
       tileId: selectedEdge.tileId,
       edgeIndex: selectedEdge.edgeIndex,
       sides,
       force,
+      hostCellId: selectedEdge.hostCellId,
     } })
   }
   const handlePlaceTileOnBoundarySection = (sides: number, force?: boolean) => {
@@ -167,6 +148,7 @@ export function TessellationLabMode({
       sectionIndex: selectedSection.sectionIndex,
       sides,
       force,
+      hostCellId: selectedSection.hostCellId,
     } })
   }
   // Step 17.13c — vertex placement. Canvas owns the (selectedVertex,

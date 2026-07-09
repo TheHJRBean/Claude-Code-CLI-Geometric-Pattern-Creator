@@ -47,13 +47,16 @@ export type Action =
   // `force` (2026-06-01 flexible-placement) commits the placement even when it
   // would overlap an existing Tile (or, under symmetry, an orbit sibling) —
   // the user accepted a skippable overlap warning in the picker.
-  | { type: 'EDITOR_PLACE_TILE_ON_EDGE'; payload: { tileId: string; edgeIndex: number; sides: number; force?: boolean } }
+  // `hostCellId` routes the placement to the Cell the selected edge belongs
+  // to (multi-cell Patches expose every Cell's edges at once); absent ⇒ the
+  // active Cell (single-cell / back-compat).
+  | { type: 'EDITOR_PLACE_TILE_ON_EDGE'; payload: { tileId: string; edgeIndex: number; sides: number; force?: boolean; hostCellId?: string } }
   // Step 17.12b — Boundary-inward placement. Drops a regular n-gon flush
   // against the picked Boundary section; the new Tile's edge length becomes
   // the Patch's `edgeLength` on the FIRST boundary placement (so the lattice
   // tracks the boundary-anchored Tile). Single-cell only in v1 (per locked
   // decision b). Always-available in Design Phase — no enabling flag.
-  | { type: 'EDITOR_PLACE_TILE_ON_BOUNDARY_SECTION'; payload: { edgeIndex: number; sectionIndex: number; sides: number; force?: boolean } }
+  | { type: 'EDITOR_PLACE_TILE_ON_BOUNDARY_SECTION'; payload: { edgeIndex: number; sectionIndex: number; sides: number; force?: boolean; hostCellId?: string } }
   // Step 17.13b — Vertex placement. Anchors a regular n-gon at an exposed
   // Cell corner (or an inward-only Boundary corner). `vertexKey` is the
   // stable rounded-coord identifier produced by `vertexKeyOf`; `rotation`
@@ -102,6 +105,3 @@ export type Action =
   | { type: 'SET_DECORATION_VOID_FILL'; payload: { scope: GroupingScope; key: string; colour: string; clicked?: ClickedTargetKeys } }
   | { type: 'SET_DECORATION_STRAND_COLOR'; payload: { scope: GroupingScope; key: string; colour: string | null; clicked?: ClickedTargetKeys } }
   | { type: 'CLEAR_DECORATION' }
-  // Switch which Cell the user is editing in Design Phase (multi-Cell only).
-  // Pure pane swap — does NOT push a history snapshot.
-  | { type: 'SET_ACTIVE_CELL'; payload: { cellId: string } }

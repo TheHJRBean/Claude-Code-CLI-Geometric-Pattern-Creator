@@ -58,6 +58,16 @@ describe('SET_CELL_NO_SEED off — restored Seed convention', () => {
   })
 })
 
+describe('updateCell — stale cellId fails closed', () => {
+  it('ignores a mutation targeting a Cell id that no longer exists', () => {
+    const state = asState(createDefault488EditorConfig())
+    const next = reducer(state, { type: 'SET_CELL_SEED_SIDES', payload: { sides: 3, cellId: 'no-such-cell' } })
+    // Must NOT fall back to mutating the active Cell. (applyWrap/seedFigures
+    // wrappers may rewrap the object, so compare structurally.)
+    expect(next.editor).toEqual(state.editor)
+  })
+})
+
 describe('cellPlacementEdgeLength — empty No-Seed Cell fallback', () => {
   it('reads the sibling Cells\' Tile scale, not the lattice constant', () => {
     const editor = createDefault488EditorConfig()

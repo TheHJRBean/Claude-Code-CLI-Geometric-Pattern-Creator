@@ -689,9 +689,17 @@ function updateCell(
   fn: (cell: EditorCell) => EditorCell,
 ): PatternConfig {
   if (!state.editor) return state
-  const current = cellId
-    ? state.editor.cells.find(c => c.id === cellId) ?? activeCell(state.editor)
-    : activeCell(state.editor)
+  let current: EditorCell
+  if (cellId) {
+    const found = state.editor.cells.find(c => c.id === cellId)
+    // Fail closed on a stale/unknown id: mutating the active Cell instead
+    // would land the edit in a Cell the user never targeted (e.g. an action
+    // carrying a Cell id from a Patch that was since replaced).
+    if (!found) return state
+    current = found
+  } else {
+    current = activeCell(state.editor)
+  }
   const next = fn(current)
   if (next === current) return state
   return {

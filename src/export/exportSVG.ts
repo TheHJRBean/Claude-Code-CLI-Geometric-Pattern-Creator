@@ -16,13 +16,54 @@ import { downloadBlob } from './download'
  * (or `none`) when unresolved. Split out from `inlineCssVariables` so it's
  * testable without a DOM. */
 export function substituteCssVariables(markup: string, resolve: (name: string) => string): string {
-  return markup.replace(
-    /var\(\s*(--[\w-]+)\s*(?:,\s*([^)]*))?\)/g,
-    (_m, name: string, fallback?: string) => {
+  // A regex can't delimit the fallback: `var(--x, rgba(1,2,3,.5))` needs the
+  // var()'s OWN closing paren, not the first one, or the fallback truncates
+  // and a stray `)` corrupts the paint. Scan with a paren depth counter.
+  let out = ''
+  let i = 0
+  for (;;) {
+    const start = markup.indexOf('var(', i)
+    if (start === -1) {
+      out += markup.slice(i)
+      return out
+    }
+    out += markup.slice(i, start)
+    let depth = 1
+    let j = start + 4
+    while (j < markup.length && depth > 0) {
+      const ch = markup[j]
+      if (ch === '(') depth++
+      else if (ch === ')') depth--
+      j++
+    }
+    if (depth > 0) {
+      // Unbalanced — not a well-formed var(); emit the rest verbatim.
+      out += markup.slice(start)
+      return out
+    }
+    const inner = markup.slice(start + 4, j - 1)
+    // First top-level comma splits name from fallback (the fallback may
+    // itself hold commas inside rgba()/var()).
+    let comma = -1
+    let d = 0
+    for (let k = 0; k < inner.length; k++) {
+      const ch = inner[k]
+      if (ch === '(') d++
+      else if (ch === ')') d--
+      else if (ch === ',' && d === 0) { comma = k; break }
+    }
+    const name = (comma === -1 ? inner : inner.slice(0, comma)).trim()
+    const fallback = comma === -1 ? '' : inner.slice(comma + 1).trim()
+    if (!name.startsWith('--')) {
+      // Not a custom-property reference — leave untouched.
+      out += markup.slice(start, j)
+    } else {
       const value = resolve(name).trim()
-      return value || (fallback ? fallback.trim() : 'none')
-    },
-  )
+      // Fallbacks may nest their own var() — substitute recursively.
+      out += value || (fallback ? substituteCssVariables(fallback, resolve) : 'none')
+    }
+    i = j
+  }
 }
 
 function inlineCssVariables(markup: string, sourceEl: Element): string {

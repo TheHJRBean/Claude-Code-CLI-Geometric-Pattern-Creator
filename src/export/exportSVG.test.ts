@@ -83,4 +83,35 @@ describe('substituteCssVariables', () => {
     const out = substituteCssVariables('stroke="var(--missing)"', resolve({}))
     expect(out).toBe('stroke="none"')
   })
+
+  // Regression (thermonuclear round 2, 2026-07-08): the old regex stopped the
+  // fallback at the FIRST `)`, truncating rgba(...) fallbacks and leaving a
+  // stray paren — malformed paint (black markers) in Lab exports.
+  it('keeps an rgba() fallback intact when the variable resolves', () => {
+    const out = substituteCssVariables('stroke="var(--x, rgba(1,2,3,0.5))"', resolve({ '--x': '#123456' }))
+    expect(out).toBe('stroke="#123456"')
+  })
+
+  it('keeps an rgba() fallback intact when the variable is undefined', () => {
+    const out = substituteCssVariables('stroke="var(--x, rgba(1,2,3,0.5))"', resolve({}))
+    expect(out).toBe('stroke="rgba(1,2,3,0.5)"')
+  })
+
+  it('resolves a nested var() fallback', () => {
+    const out = substituteCssVariables('stroke="var(--x, var(--y, #fff))"', resolve({ '--y': '#0f0' }))
+    expect(out).toBe('stroke="#0f0"')
+  })
+
+  it('handles multiple vars with function fallbacks in one string', () => {
+    const out = substituteCssVariables(
+      'stroke="var(--a, rgb(1,2,3))" fill="var(--b, rgba(4,5,6,0.7))"',
+      resolve({ '--a': 'red' }),
+    )
+    expect(out).toBe('stroke="red" fill="rgba(4,5,6,0.7)"')
+  })
+
+  it('leaves non-custom-property parens untouched', () => {
+    const out = substituteCssVariables('transform="rotate(45)" stroke="var(--x)"', resolve({ '--x': 'red' }))
+    expect(out).toBe('transform="rotate(45)" stroke="red"')
+  })
 })

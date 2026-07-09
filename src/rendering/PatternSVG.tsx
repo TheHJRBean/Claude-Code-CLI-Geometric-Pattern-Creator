@@ -163,7 +163,7 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
           </defs>
         )}
         {ghostPolygons && ghostPolygons.length > 0 && (
-          <g opacity={0.18} pointerEvents="none">
+          <g opacity={0.18} pointerEvents="none" data-export="exclude">
             <TileLayer polygons={ghostPolygons} visible={showTileLayer} outlineWidth={outlineWidth} />
           </g>
         )}
@@ -225,13 +225,19 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
             )
           ) : (
             <>
-              {boundaryOutlines && boundaryOutlines.map((outline, i) => {
-                // Seed outlines (first `seedOutlineCount` entries when defined) get
-                // the prominent solid style so the active Patch reads as the focal
-                // area. Ghost outlines (the rest) stay in the original dimmed dash.
-                const isSeed = seedOutlineCount === undefined || i < seedOutlineCount
-                return <BoundaryOutline key={i} vertices={outline} variant={isSeed ? 'seed' : 'ghost'} />
-              })}
+              {boundaryOutlines && boundaryOutlines.length > 0 && (
+                // Cell-Boundary guide outlines are authoring scaffolding, not
+                // artwork — excluded from exports.
+                <g data-export="exclude">
+                  {boundaryOutlines.map((outline, i) => {
+                    // Seed outlines (first `seedOutlineCount` entries when defined) get
+                    // the prominent solid style so the active Patch reads as the focal
+                    // area. Ghost outlines (the rest) stay in the original dimmed dash.
+                    const isSeed = seedOutlineCount === undefined || i < seedOutlineCount
+                    return <BoundaryOutline key={i} vertices={outline} variant={isSeed ? 'seed' : 'ghost'} />
+                  })}
+                </g>
+              )}
               <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
               {voidFills && <VoidFillLayer fills={voidFills} />}
               {showLines && <StrandLayer segments={segments} config={config} ghostPolygonIds={ghostPolygonIds} strandRecords={strandRecords} orbitStamps={orbitStamps} cellFrames={cellFrames} />}
@@ -262,18 +268,23 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
             />
           )
         )}
-        {hasFrame && frameNodes && frameNodes.map((p, i) => (
-          // Frame nodes — kept a constant ~3.5px on screen by dividing by zoom.
-          <circle
-            key={i}
-            cx={p.x}
-            cy={p.y}
-            r={3.5 / zoom}
-            fill="var(--accent)"
-            fillOpacity={0.9}
-            pointerEvents="none"
-          />
-        ))}
+        {hasFrame && frameNodes && frameNodes.length > 0 && (
+          // Frame pick-node dots — Design-phase Complete targets, not artwork.
+          <g data-export="exclude">
+            {frameNodes.map((p, i) => (
+              // Frame nodes — kept a constant ~3.5px on screen by dividing by zoom.
+              <circle
+                key={i}
+                cx={p.x}
+                cy={p.y}
+                r={3.5 / zoom}
+                fill="var(--accent)"
+                fillOpacity={0.9}
+                pointerEvents="none"
+              />
+            ))}
+          </g>
+        )}
         {/* 17.11 — editorOverlay must be the topmost interactive layer so
             vertex dots at neighbour-stamp coordinates aren't blocked by
             strand strokes painted above. ControlPointLayer is already
@@ -283,9 +294,11 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
             also removes pointer hit-testing, so hover highlights AND the
             bucket cursor stop at the frame edge (hit-targets extracted from
             the unfiltered field would otherwise highlight outside it). */}
-        {clipActive && clipEditorOverlayToFrame
-          ? <g clipPath={`url(#${frameClipId})`}>{editorOverlay}</g>
-          : editorOverlay}
+        {editorOverlay && (
+          clipActive && clipEditorOverlayToFrame
+            ? <g data-export="exclude" clipPath={`url(#${frameClipId})`}>{editorOverlay}</g>
+            : <g data-export="exclude">{editorOverlay}</g>
+        )}
       </g>
     </svg>
   )

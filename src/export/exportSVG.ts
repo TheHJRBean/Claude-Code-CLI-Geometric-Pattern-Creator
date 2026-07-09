@@ -71,6 +71,74 @@ function inlineCssVariables(markup: string, sourceEl: Element): string {
   return substituteCssVariables(markup, name => computed.getPropertyValue(name))
 }
 
+/**
+ * Remove every element (and its subtree) carrying `data-export="exclude"` from
+ * serialized SVG markup. Non-artwork layers — Builder vertex/edge/section dots,
+ * Frame pick-node dots, neighbour ghosts, Cell-Boundary guide outlines,
+ * Decoration paint hit-targets — are tagged with that attribute in
+ * `PatternSVG`; a raw DOM clone would otherwise bake them into the exported
+ * file (worst in the Design phase, where the overlay dots are live).
+ *
+ * Pure string transform (no DOM) so it's testable in the node test env, like
+ * `substituteCssVariables`. Every exclusion wrapper is a `<g>`, so this scans
+ * for the marker, walks back to its enclosing tag, and removes that tag through
+ * its balanced close — counting nested same-name tags so an inner `<g>` inside
+ * an excluded group doesn't close it early.
+ */
+export function stripExportExclusions(markup: string): string {
+  const MARKER = 'data-export="exclude"'
+  let out = markup
+  for (;;) {
+    const attrIdx = out.indexOf(MARKER)
+    if (attrIdx === -1) return out
+
+    const tagStart = out.lastIndexOf('<', attrIdx)
+    const openEnd = out.indexOf('>', attrIdx)
+    // Malformed (marker not inside a well-formed opening tag) — bail rather
+    // than loop forever.
+    if (tagStart === -1 || openEnd === -1 || openEnd < attrIdx) return out
+
+    // Parse the tag name so nesting is matched against the right element.
+    const nameMatch = /^<\s*([a-zA-Z][\w:-]*)/.exec(out.slice(tagStart))
+    if (!nameMatch) return out
+    const tag = nameMatch[1]
+
+    // Self-closing `<g ... />` — drop just the tag.
+    if (out[openEnd - 1] === '/') {
+      out = out.slice(0, tagStart) + out.slice(openEnd + 1)
+      continue
+    }
+
+    const openTok = '<' + tag
+    const closeTok = '</' + tag
+    let depth = 1
+    let i = openEnd + 1
+    let cut = -1
+    while (i < out.length && depth > 0) {
+      const nextOpen = out.indexOf(openTok, i)
+      const nextClose = out.indexOf(closeTok, i)
+      if (nextClose === -1) return out // unbalanced — leave markup as-is
+      const isTagBoundary = (idx: number, tok: string) => {
+        const c = out[idx + tok.length]
+        return c === ' ' || c === '>' || c === '/' || c === '\n' || c === '\t' || c === '\r'
+      }
+      if (nextOpen !== -1 && nextOpen < nextClose && isTagBoundary(nextOpen, openTok)) {
+        depth++
+        i = nextOpen + openTok.length
+      } else {
+        depth--
+        i = nextClose + closeTok.length
+        if (depth === 0) {
+          const closeEnd = out.indexOf('>', i)
+          cut = closeEnd === -1 ? out.length : closeEnd + 1
+        }
+      }
+    }
+    if (cut === -1) return out
+    out = out.slice(0, tagStart) + out.slice(cut)
+  }
+}
+
 export function exportSVG(svgEl: SVGSVGElement) {
   const clone = svgEl.cloneNode(true) as SVGSVGElement
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
@@ -78,7 +146,7 @@ export function exportSVG(svgEl: SVGSVGElement) {
   const h = svgEl.clientHeight || 900
   clone.setAttribute('width', String(w))
   clone.setAttribute('height', String(h))
-  const str = inlineCssVariables(new XMLSerializer().serializeToString(clone), svgEl)
+  const str = inlineCssVariables(stripExportExclusions(new XMLSerializer().serializeToString(clone)), svgEl)
   const blob = new Blob([str], { type: 'image/svg+xml;charset=utf-8' })
   downloadBlob(blob, 'islamic-pattern.svg')
 }
@@ -117,12 +185,26 @@ export function exportUnwovenSVG(segments: Segment[], viewBox: string, width: nu
   downloadBlob(blob, 'islamic-pattern-unwoven.svg')
 }
 
-export async function exportPNG(svgEl: SVGSVGElement, width = 2048, height = 2048) {
+/** Default raster fill — the app's sandy paper tone. A future Decoration
+ *  background-colour option will replace this default. */
+export const DEFAULT_PNG_BACKGROUND = '#f5f0e8'
+
+export interface PngExportOptions {
+  width?: number
+  height?: number
+  /** Fill colour behind the pattern; `null` exports on transparent alpha. */
+  background?: string | null
+}
+
+export async function exportPNG(
+  svgEl: SVGSVGElement,
+  { width = 2048, height = 2048, background = DEFAULT_PNG_BACKGROUND }: PngExportOptions = {},
+) {
   const clone = svgEl.cloneNode(true) as SVGSVGElement
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
   clone.setAttribute('width', String(width))
   clone.setAttribute('height', String(height))
-  const str = inlineCssVariables(new XMLSerializer().serializeToString(clone), svgEl)
+  const str = inlineCssVariables(stripExportExclusions(new XMLSerializer().serializeToString(clone)), svgEl)
   const blob = new Blob([str], { type: 'image/svg+xml' })
   const url = URL.createObjectURL(blob)
 
@@ -140,9 +222,12 @@ export async function exportPNG(svgEl: SVGSVGElement, width = 2048, height = 204
   canvas.width = width
   canvas.height = height
   const ctx = canvas.getContext('2d')!
-  ctx.fillStyle = '#f5f0e8'
-  ctx.fillRect(0, 0, width, height)
-  ctx.drawImage(img, 0, 0)
+  // Skip the fill for a transparent export — a fresh canvas is already clear.
+  if (background) {
+    ctx.fillStyle = background
+    ctx.fillRect(0, 0, width, height)
+  }
+  ctx.drawImage(img, 0, 0, width, height)
 
   canvas.toBlob(b => {
     if (b) downloadBlob(b, 'islamic-pattern.png')

@@ -5,6 +5,23 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-09 — IN PROGRESS: export subsystem "full implementation" (branch `feat/export-subsystem`)
+
+**Goal:** deliver the roadmap "program-wide export" item. Canonical scope + 2026-07-09 code audit live in `memory/project_lab_export_idea.md` (read first).
+
+**Plan (slices, in order):**
+1. **Overlay stripping (THE bug — in progress).** `exportSVG`/`exportPNG` clone the whole live `<svg>`; nothing strips the non-artwork layers, so Design-phase Lab exports bake in vertex/edge/section dots, Frame pick-node dots, neighbour ghosts, and Cell-Boundary guide outlines. Fix: tag those groups in `PatternSVG.tsx` with `data-export="exclude"`; add a pure string helper `stripExportExclusions(markup)` (node-testable, mirrors the `substituteCssVariables` scanner) applied in `exportSVG.ts` before download. Keep `FrameBorder` (decorative, artwork). Layers to tag: ghostPolygons `<g>` (PatternSVG:165), boundaryOutlines map (228), frameNodes map (265), editorOverlay wrap (286). Deferred within slice: ControlPointLayer (editing handles, gated by `cpVisible`, low-risk) — note only.
+2. **Shared export module.** Extract one path both modes call (App.tsx + TessellationLabMode.tsx duplicate near-identical handlers; Gallery has Unwoven, Lab doesn't → drift). Kills the parity gap.
+3. **Print-size PNG option** (`exportPNG` hardcoded 2048²) + **theme/transparent background** (hardcoded `#f5f0e8`).
+4. Deferred: Unwoven-SVG in Lab (needs DOM field re-derivation, Lever-A-blocked), unit-vs-field toggle, Decoration/Frame fidelity browser-verify.
+
+**Status:** branch `feat/export-subsystem` off `main` @ `cdc07f1`, pushed.
+- ✅ **Slice 1** (`c3311cf`) — overlay stripping. `data-export="exclude"` on ghostPolygons/boundaryOutlines/frameNodes/editorOverlay in PatternSVG; `stripExportExclusions` string helper in exportSVG.ts applied in exportSVG+exportPNG; +7 tests (603 total). ⏳ browser-verify a Design-phase Lab SVG export is clean.
+- ✅ **Slice 2** (`134d189`) — shared `src/export/exportActions.ts::buildExportMenuItems`; App + TessellationLabMode both call it; Unwoven = explicit `includeUnwoven` flag (Gallery on, Lab off). Drift gone.
+- ✅ **Slice 3** (`d45bf62`) — PNG resolution submenu (1024/2048/4096/8192, height follows live SVG aspect so no square letterbox) + "Transparent background" toggle. `exportPNG` now takes `PngExportOptions {width,height,background}`; `background:null` = alpha. TopBar export menu → typed union (`action|submenu|toggle`) + inline sub-panel/checkbox CSS. +4 tests (607 total). **User decisions:** submenu (not flat sizes); sandy `#f5f0e8` stays default, transparent is a toggle. **FUTURE:** a Decoration background-colour option should replace the hardcoded sandy default (`DEFAULT_PNG_BACKGROUND` in exportSVG.ts). ⏳ browser-verify submenu/toggle interaction + a 4096 transparent PNG.
+- ⏭ Deferred: Unwoven in Lab (Lever-A field re-derivation), unit-vs-field toggle, Decoration/Frame fidelity browser-verify, SVG-export background (currently rides the cloned inline `style`).
+
+---
 ### ▶ 2026-07-09 — DONE: thermonuclear round-2 bug fixes 1–8 ALL SHIPPED (pushed to `main`)
 
 **Goal:** implement the actions from the round-2 code review (fix order in the 2026-07-08 entry below / `memory/project_thermonuclear_review_round2.md`).

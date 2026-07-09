@@ -7,8 +7,7 @@ import { TILINGS } from './tilings/index'
 import { TessellationLabMode } from './components/TessellationLabMode'
 import { reducer, DEFAULT_CONFIG } from './state/reducer'
 import { LAB_DEFAULT_CONFIG, loadLabState, saveLabState } from './state/labDefaults'
-import { exportSVG, exportPNG, exportUnwovenSVG } from './export/exportSVG'
-import { saveJSON, loadJSON } from './export/exportJSON'
+import { buildExportMenuItems } from './export/exportActions'
 import type { Segment } from './types/geometry'
 
 type AppMode = 'main' | 'lab'
@@ -50,6 +49,7 @@ export default function App() {
   const [cpActive, setCpActive] = useState<Record<string, number>>({})
   const svgRef = useRef<SVGSVGElement>(null)
   const segmentsRef = useRef<Segment[]>([])
+  const [pngTransparent, setPngTransparent] = useState(false)
 
   const toggleDesktopCollapsed = useCallback(() => {
     setDesktopCollapsed(prev => {
@@ -82,27 +82,15 @@ export default function App() {
     )
   }
 
-  const handleExportSVG = () => { if (svgRef.current) exportSVG(svgRef.current) }
-  const handleExportPNG = () => { if (svgRef.current) exportPNG(svgRef.current) }
-  const handleExportUnwovenSVG = () => {
-    if (!svgRef.current) return
-    const el = svgRef.current
-    const viewBox = el.getAttribute('viewBox') || '0 0 100 100'
-    const w = el.clientWidth || 1200
-    const h = el.clientHeight || 900
-    exportUnwovenSVG(segmentsRef.current, viewBox, w, h)
-  }
-  const handleSaveJSON = () => saveJSON(config)
-  const handleLoadJSON = async () => {
-    try {
-      const loaded = await loadJSON()
-      dispatch({ type: 'LOAD_CONFIG', payload: loaded })
-    } catch (e) {
-      console.error(e)
-      const msg = e instanceof Error ? e.message : 'Could not load file.'
-      window.alert(`Could not load file: ${msg}`)
-    }
-  }
+  const exportItems = buildExportMenuItems({
+    svgRef,
+    segmentsRef,
+    config,
+    onLoad: loaded => dispatch({ type: 'LOAD_CONFIG', payload: loaded }),
+    pngTransparent,
+    onTogglePngTransparent: () => setPngTransparent(t => !t),
+    includeUnwoven: true,
+  })
 
   const galleryTitle = TILINGS[config.tiling.type]?.label ?? 'Pattern'
 
@@ -112,13 +100,7 @@ export default function App() {
         mode={mode}
         onToggleMode={toggleMode}
         title={galleryTitle}
-        exportItems={[
-          { label: 'Export SVG', onClick: handleExportSVG },
-          { label: 'Export PNG', onClick: handleExportPNG },
-          { label: 'Export Unwoven SVG', onClick: handleExportUnwovenSVG },
-          { label: 'Save JSON', onClick: handleSaveJSON },
-          { label: 'Load JSON', onClick: handleLoadJSON },
-        ]}
+        exportItems={exportItems}
       />
       <div className={`app-layout ${desktopCollapsed ? 'app-layout--sidebar-collapsed' : ''}`}>
       {/* Mobile sidebar toggle */}

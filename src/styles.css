@@ -308,6 +308,43 @@
   outline-offset: -2px;
 }
 
+/* Submenu parent row + inline expanded sub-panel (PNG resolutions). */
+.export-menu__item--parent,
+.export-menu__item--toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.export-menu__caret {
+  font-size: 0.85em;
+  opacity: 0.7;
+}
+
+.export-menu__subpanel {
+  padding-left: var(--sp-1);
+  margin-left: 6px;
+  border-left: 1px solid var(--border-accent);
+}
+
+.export-menu__subitem {
+  letter-spacing: 0.06em;
+}
+
+/* Transparent-background checkbox row: the leading ✓ slot keeps a stable
+   gutter whether checked or not. */
+.export-menu__item--toggle {
+  justify-content: flex-start;
+}
+
+.export-menu__check {
+  display: inline-block;
+  width: 1em;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
 /* ── App Layout ──────────────────────────────────────────── */
 .app-layout {
   display: flex;

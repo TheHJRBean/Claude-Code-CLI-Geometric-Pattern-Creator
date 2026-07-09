@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTheme } from '../theme/ThemeContext'
 import { SunIcon, MoonIcon } from './lab/labShared'
+import type { ExportMenuItem } from '../export/exportActions'
 
 /** Small octa-star brand mark — mirrors the Sidebar's OctaStar motif. */
 function BrandMark() {
@@ -26,17 +27,12 @@ function DownloadIcon() {
   )
 }
 
-export interface ExportItem {
-  label: string
-  onClick: () => void
-}
-
 interface TopBarProps {
   mode: 'main' | 'lab'
   onToggleMode: () => void
   /** Contextual descriptor of the current pattern/tessellation. */
   title?: string
-  exportItems: ExportItem[]
+  exportItems: ExportMenuItem[]
 }
 
 /**
@@ -49,14 +45,18 @@ interface TopBarProps {
 export function TopBar({ mode, onToggleMode, title, exportItems }: TopBarProps) {
   const { theme, toggleTheme } = useTheme()
   const [menuOpen, setMenuOpen] = useState(false)
+  // Which submenu (by label) is expanded inline; only one at a time.
+  const [openSub, setOpenSub] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  const closeMenu = () => { setMenuOpen(false); setOpenSub(null) }
 
   useEffect(() => {
     if (!menuOpen) return
     const onDown = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) closeMenu()
     }
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpen(false) }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeMenu() }
     document.addEventListener('mousedown', onDown)
     document.addEventListener('keydown', onKey)
     return () => {
@@ -119,16 +119,63 @@ export function TopBar({ mode, onToggleMode, title, exportItems }: TopBarProps) 
             </button>
             {menuOpen && (
               <div className="export-menu__panel" role="menu">
-                {exportItems.map(it => (
-                  <button
-                    key={it.label}
-                    role="menuitem"
-                    className="export-menu__item"
-                    onClick={() => { setMenuOpen(false); it.onClick() }}
-                  >
-                    {it.label}
-                  </button>
-                ))}
+                {exportItems.map(it => {
+                  if (it.kind === 'toggle') {
+                    return (
+                      <button
+                        key={it.label}
+                        role="menuitemcheckbox"
+                        aria-checked={it.checked}
+                        className="export-menu__item export-menu__item--toggle"
+                        onClick={it.onToggle}
+                      >
+                        <span className="export-menu__check" aria-hidden="true">{it.checked ? '✓' : ''}</span>
+                        {it.label}
+                      </button>
+                    )
+                  }
+                  if (it.kind === 'submenu') {
+                    const expanded = openSub === it.label
+                    return (
+                      <div key={it.label} className="export-menu__group">
+                        <button
+                          role="menuitem"
+                          aria-haspopup="menu"
+                          aria-expanded={expanded}
+                          className="export-menu__item export-menu__item--parent"
+                          onClick={() => setOpenSub(expanded ? null : it.label)}
+                        >
+                          {it.label}
+                          <span className="export-menu__caret" aria-hidden="true">{expanded ? '▾' : '▸'}</span>
+                        </button>
+                        {expanded && (
+                          <div className="export-menu__subpanel" role="menu">
+                            {it.items.map(sub => (
+                              <button
+                                key={sub.label}
+                                role="menuitem"
+                                className="export-menu__item export-menu__subitem"
+                                onClick={() => { closeMenu(); sub.onClick() }}
+                              >
+                                {sub.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  }
+                  return (
+                    <button
+                      key={it.label}
+                      role="menuitem"
+                      className="export-menu__item"
+                      onClick={() => { closeMenu(); it.onClick() }}
+                    >
+                      {it.label}
+                    </button>
+                  )
+                })}
               </div>
             )}
           </div>

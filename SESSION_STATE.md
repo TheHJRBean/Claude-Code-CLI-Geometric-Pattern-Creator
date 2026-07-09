@@ -5,6 +5,25 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-09 — DONE: thermonuclear round-2 bug fixes 1–8 ALL SHIPPED (pushed to `main`)
+
+**Goal:** implement the actions from the round-2 code review (fix order in the 2026-07-08 entry below / `memory/project_thermonuclear_review_round2.md`).
+
+**All 8 recommended fixes landed**, each its own commit, tsc + **596 vitest** + build green at every step:
+1. `43b7439` — **hostCellId unification.** Edge + boundary-section placement actions carry `hostCellId` → `updateCell`; `SET_ACTIVE_CELL` action/reducer-case/dispatches DELETED; `ed?.activeCellId` dropped from the `editorBase` memo deps (no more full-PIC re-run per selection click); `updateActiveCell` collapsed into `updateCell`. +2 reducer regression tests (wrong-cell repro).
+2. `b0389c5` — **frameNRing hex third-axis inversion.** `thirdIsSum` now picks `a+b` when `u+v` is the LONG diagonal (derivation in code comment). +1 exact-coordinate test across all 4 hex configs, proven to fail 4/4 against the old code.
+3. `159059e` — **exportSVG var() substitution** rewritten as a paren-balanced scanner (rgba() fallbacks intact, nested var() fallbacks resolve). +5 tests.
+4. + 5. `b288246` — **SET_CELL_NO_SEED off re-seed** now boundary-matching rotation + Tile-scale size; **`cellPlacementEdgeLength`** takes `siblingCells?` and reads an empty No-Seed Cell's scale off sibling Cells before the lattice constant (reducer + Canvas picker call sites updated). +4 tests (`src/state/noSeedReseed.test.ts`).
+6. `6a22576` — **undo coalesce key** includes payload `cellId`/`hostCellId` (pure `historyCoalesceKey` in `editor/history.ts`). +5 tests.
+7. `f80f88f` — **NumberStepper**: commit() always re-formats the draft; Enter just blurs (single commit path).
+8. `2515973` — **updateCell fails closed** on a stale `cellId` (+1 test).
+Plus `42c0e49` — CLAUDE.md updated (hostCellId routing, tests exist), dead `withActiveCell` removed.
+
+**Not done (deliberately):** Load-JSON `activePatternId` (user-deprioritised, see 2026-06-18 KNOWN MINOR REGRESSION); the 4 roadmap-readiness findings (design work — rosette loader star-gate, Pass-4 Inspector blockers, Configuration registry, PatternConfig versioning); below-the-cut items in the memory file.
+
+**⏳ BROWSER-VERIFY OWED (no browser in env):** (a) multi-cell n-ring Frame on a hex Configuration (3.6.3.6, rings=1 — ring should now be symmetric, previously lopsided); (b) Lab SVG/PNG export with Frame strokes / rgba fallbacks (no black markers); (c) place a Tile on Cell B's edge/section right after editing Cell A's controls (lands in B); (d) No-Seed toggle off on a multi-cell Cell after dragging the boundary-size slider (seed restores at Tile scale + boundary rotation); (e) stepper Enter/out-of-range behaviour.
+
+---
 ### ▶ 2026-07-08 — DONE: centre completion node for no-Seed Cells (`f15f6fd`, pushed)
 
 **Goal (user's words):** "add a completion node to the centre of the cells when the seed tile is removed."

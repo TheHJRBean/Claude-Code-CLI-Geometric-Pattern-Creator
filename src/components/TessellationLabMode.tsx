@@ -23,8 +23,7 @@ import { pushRecentColour } from './ColourPicker'
 import { SectionTitle, FieldLabel } from './lab/labShared'
 import { StrandStyleControls } from './ui/StrandStyleControls'
 import { EditorDesignControls } from './lab/EditorDesignControls'
-import { exportSVG, exportPNG } from '../export/exportSVG'
-import { saveJSON, loadJSON } from '../export/exportJSON'
+import { buildExportMenuItems } from '../export/exportActions'
 
 const labLibrary = createConfigLibrary('lab-tessellations-v1')
 
@@ -326,25 +325,16 @@ export function TessellationLabMode({
     : null
 
   // ── Export (Builder parity with Gallery) ───────────────
-  // Image export runs against the live DOM `<svg>` (svgRef), NOT segmentsRef:
-  // under the Lever A periodicity fast-path the Builder's `segments` is a
-  // single fundamental domain while the full field lives as `<use>` clones in
-  // the DOM. Save-JSON serialises the whole PatternConfig (incl. `editor`), so
-  // it's fast-path-safe. Unwoven-SVG is intentionally omitted here — it rebuilds
-  // from segmentsRef and would emit one unit cell (see Canvas.tsx caveat).
-  const handleExportSVG = () => { if (svgRef.current) exportSVG(svgRef.current) }
-  const handleExportPNG = () => { if (svgRef.current) void exportPNG(svgRef.current) }
-  const handleSaveJSON = () => saveJSON(config)
-  const handleLoadJSON = async () => {
-    try {
-      const loaded = await loadJSON()
-      dispatch({ type: 'LOAD_CONFIG', payload: loaded })
-    } catch (e) {
-      console.error(e)
-      const msg = e instanceof Error ? e.message : 'Could not load file.'
-      window.alert(`Could not load file: ${msg}`)
-    }
-  }
+  // Shared path (buildExportMenuItems). Unwoven-SVG is off here: it rebuilds
+  // from segmentsRef, one fundamental domain under the Lever A fast-path (would
+  // emit a single unit cell — see Canvas.tsx caveat). Image export runs against
+  // the live `<svg>`; Save-JSON round-trips the whole PatternConfig.
+  const exportItems = buildExportMenuItems({
+    svgRef,
+    segmentsRef,
+    config,
+    onLoad: loaded => dispatch({ type: 'LOAD_CONFIG', payload: loaded }),
+  })
 
   const labTitle = config.tiling.type === 'editor'
     ? (config.editor?.configuration ?? 'Builder patch')
@@ -356,12 +346,7 @@ export function TessellationLabMode({
         mode={mode}
         onToggleMode={onToggleMode}
         title={labTitle}
-        exportItems={[
-          { label: 'Export SVG', onClick: handleExportSVG },
-          { label: 'Export PNG', onClick: handleExportPNG },
-          { label: 'Save JSON', onClick: handleSaveJSON },
-          { label: 'Load JSON', onClick: handleLoadJSON },
-        ]}
+        exportItems={exportItems}
       />
       <div className="app-layout">
       <div className="sidebar sidebar--open">

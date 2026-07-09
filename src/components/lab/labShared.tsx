@@ -64,8 +64,16 @@ export function NumberStepper({
   useEffect(() => { setDraft(value.toFixed(precision)) }, [value, precision])
   const commit = () => {
     const n = parseFloat(draft)
-    if (Number.isFinite(n)) onChange(round(clamp(n)))
-    else setDraft(value.toFixed(precision))
+    if (Number.isFinite(n)) {
+      const next = round(clamp(n))
+      onChange(next)
+      // Re-format the draft unconditionally: when the clamp lands back on the
+      // unchanged `value` (e.g. "9999" typed at the max), the resync effect
+      // never fires (same value) and the out-of-range text would stick.
+      setDraft(next.toFixed(precision))
+    } else {
+      setDraft(value.toFixed(precision))
+    }
   }
   const nudge = (dir: 1 | -1) => onChange(round(clamp(value + dir * step)))
 
@@ -86,7 +94,9 @@ export function NumberStepper({
         onChange={e => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={e => {
-          if (e.key === 'Enter') { commit(); (e.target as HTMLInputElement).blur() }
+          // Enter just blurs — onBlur is the single commit path (calling
+          // commit() here too dispatched the change twice).
+          if (e.key === 'Enter') { (e.target as HTMLInputElement).blur() }
           else if (e.key === 'ArrowUp') { e.preventDefault(); nudge(1) }
           else if (e.key === 'ArrowDown') { e.preventDefault(); nudge(-1) }
         }}

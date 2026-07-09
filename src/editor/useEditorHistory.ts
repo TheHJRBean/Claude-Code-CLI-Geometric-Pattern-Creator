@@ -5,6 +5,7 @@ import {
   DESIGN_MODE_ACTIONS,
   HISTORY_COALESCE_MS,
   HISTORY_DEPTH,
+  historyCoalesceKey,
 } from './history'
 
 /**
@@ -31,7 +32,7 @@ export function useEditorHistory(
 
   const past = useRef<(EditorConfig | null)[]>([])
   const future = useRef<(EditorConfig | null)[]>([])
-  const lastAction = useRef<{ type: string; t: number } | null>(null)
+  const lastAction = useRef<{ key: string; t: number } | null>(null)
 
   // `tick` forces a re-render when stacks mutate so canUndo / canRedo update.
   const [, setTick] = useState(0)
@@ -50,8 +51,12 @@ export function useEditorHistory(
     if (DESIGN_MODE_ACTIONS.has(action.type)) {
       const now = performance.now()
       const last = lastAction.current
+      // Coalesce on type + target Cell (see historyCoalesceKey): a slider
+      // drag on Cell A must not merge with the same control dragged on
+      // Cell B right after, or undo silently skips the first edit.
+      const key = historyCoalesceKey(action)
       const coalesce = !!last
-        && last.type === action.type
+        && last.key === key
         && now - last.t < HISTORY_COALESCE_MS
       if (!coalesce) {
         past.current.push(editorRef.current)
@@ -59,7 +64,7 @@ export function useEditorHistory(
         future.current = []
         bump()
       }
-      lastAction.current = { type: action.type, t: now }
+      lastAction.current = { key, t: now }
     }
     baseDispatch(action)
   }, [baseDispatch, bump])

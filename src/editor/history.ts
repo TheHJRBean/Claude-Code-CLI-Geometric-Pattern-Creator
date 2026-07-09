@@ -37,6 +37,18 @@ export const HISTORY_DEPTH = 50
 export const HISTORY_COALESCE_MS = 500
 
 /**
+ * Identity used for coalescing: action type + target Cell. The Design panel
+ * shows every Cell's controls at once, so the same control can be edited on
+ * Cell A then Cell B inside the coalesce window — type alone would merge
+ * those into one undo step and undo would silently skip the first edit.
+ * Actions without a Cell target coalesce on type as before.
+ */
+export function historyCoalesceKey(action: { type: string; payload?: unknown }): string {
+  const payload = action.payload as { cellId?: string; hostCellId?: string } | undefined
+  return `${action.type}@${payload?.cellId ?? payload?.hostCellId ?? ''}`
+}
+
+/**
  * Action types that snapshot to the Design-Phase undo stack. Any other
  * Builder or non-Builder action passes through without history impact.
  *

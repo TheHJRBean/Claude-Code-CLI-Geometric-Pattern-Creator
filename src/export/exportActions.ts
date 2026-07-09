@@ -1,13 +1,25 @@
 import type { RefObject } from 'react'
 import type { Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
-import { exportSVG, exportPNG, exportUnwovenSVG } from './exportSVG'
+import { exportSVG, exportPNG, exportUnwovenSVG, DEFAULT_PNG_BACKGROUND } from './exportSVG'
 import { saveJSON, loadJSON } from './exportJSON'
 
-export interface ExportMenuItem {
+/** A leaf action in the export menu. */
+export interface ExportAction {
   label: string
   onClick: () => void
 }
+
+/** One entry in the export menu: a plain action, a nested submenu (PNG
+ *  resolutions), or a checkbox toggle (transparent background). */
+export type ExportMenuItem =
+  | ({ kind: 'action' } & ExportAction)
+  | { kind: 'submenu'; label: string; items: ExportAction[] }
+  | { kind: 'toggle'; label: string; checked: boolean; onToggle: () => void }
+
+/** PNG raster widths offered in the resolution submenu (px on the long-edge /
+ *  width; height follows the live SVG's aspect ratio). */
+export const PNG_SIZES = [1024, 2048, 4096, 8192] as const
 
 export interface ExportActionsArgs {
   /** Live DOM `<svg>` — image export MUST run against it, not `segmentsRef`:
@@ -18,6 +30,10 @@ export interface ExportActionsArgs {
   config: PatternConfig
   /** Receives a validated PatternConfig from Load JSON (caller dispatches). */
   onLoad: (config: PatternConfig) => void
+  /** PNG on transparent alpha instead of the sandy default. Caller owns the
+   *  toggle state so it persists while the menu is open. */
+  pngTransparent: boolean
+  onTogglePngTransparent: () => void
   /** Include "Export Unwoven SVG". Off in the Lab/Builder: it rebuilds from
    *  `segmentsRef`, which is one fundamental domain under Lever A, so it would
    *  emit a single unit cell. Gallery opts in. */
@@ -35,13 +51,26 @@ export function buildExportMenuItems({
   segmentsRef,
   config,
   onLoad,
+  pngTransparent,
+  onTogglePngTransparent,
   includeUnwoven = false,
 }: ExportActionsArgs): ExportMenuItem[] {
   const handleExportSVG = () => {
     if (svgRef.current) exportSVG(svgRef.current)
   }
-  const handleExportPNG = () => {
-    if (svgRef.current) void exportPNG(svgRef.current)
+  const exportPngAt = (width: number) => {
+    const el = svgRef.current
+    if (!el) return
+    // Height follows the on-screen aspect ratio so the raster isn't
+    // letterboxed/stretched into a square.
+    const cw = el.clientWidth || 1200
+    const ch = el.clientHeight || 900
+    const height = Math.max(1, Math.round(width * (ch / cw)))
+    void exportPNG(el, {
+      width,
+      height,
+      background: pngTransparent ? null : DEFAULT_PNG_BACKGROUND,
+    })
   }
   const handleExportUnwovenSVG = () => {
     const el = svgRef.current
@@ -63,13 +92,18 @@ export function buildExportMenuItems({
   }
 
   const items: ExportMenuItem[] = [
-    { label: 'Export SVG', onClick: handleExportSVG },
-    { label: 'Export PNG', onClick: handleExportPNG },
+    { kind: 'action', label: 'Export SVG', onClick: handleExportSVG },
+    {
+      kind: 'submenu',
+      label: 'Export PNG',
+      items: PNG_SIZES.map(px => ({ label: `${px} px`, onClick: () => exportPngAt(px) })),
+    },
+    { kind: 'toggle', label: 'Transparent background', checked: pngTransparent, onToggle: onTogglePngTransparent },
   ]
   if (includeUnwoven) {
-    items.push({ label: 'Export Unwoven SVG', onClick: handleExportUnwovenSVG })
+    items.push({ kind: 'action', label: 'Export Unwoven SVG', onClick: handleExportUnwovenSVG })
   }
-  items.push({ label: 'Save JSON', onClick: handleSaveJSON })
-  items.push({ label: 'Load JSON', onClick: handleLoadJSON })
+  items.push({ kind: 'action', label: 'Save JSON', onClick: handleSaveJSON })
+  items.push({ kind: 'action', label: 'Load JSON', onClick: handleLoadJSON })
   return items
 }

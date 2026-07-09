@@ -185,7 +185,21 @@ export function exportUnwovenSVG(segments: Segment[], viewBox: string, width: nu
   downloadBlob(blob, 'islamic-pattern-unwoven.svg')
 }
 
-export async function exportPNG(svgEl: SVGSVGElement, width = 2048, height = 2048) {
+/** Default raster fill — the app's sandy paper tone. A future Decoration
+ *  background-colour option will replace this default. */
+export const DEFAULT_PNG_BACKGROUND = '#f5f0e8'
+
+export interface PngExportOptions {
+  width?: number
+  height?: number
+  /** Fill colour behind the pattern; `null` exports on transparent alpha. */
+  background?: string | null
+}
+
+export async function exportPNG(
+  svgEl: SVGSVGElement,
+  { width = 2048, height = 2048, background = DEFAULT_PNG_BACKGROUND }: PngExportOptions = {},
+) {
   const clone = svgEl.cloneNode(true) as SVGSVGElement
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
   clone.setAttribute('width', String(width))
@@ -208,9 +222,12 @@ export async function exportPNG(svgEl: SVGSVGElement, width = 2048, height = 204
   canvas.width = width
   canvas.height = height
   const ctx = canvas.getContext('2d')!
-  ctx.fillStyle = '#f5f0e8'
-  ctx.fillRect(0, 0, width, height)
-  ctx.drawImage(img, 0, 0)
+  // Skip the fill for a transparent export — a fresh canvas is already clear.
+  if (background) {
+    ctx.fillStyle = background
+    ctx.fillRect(0, 0, width, height)
+  }
+  ctx.drawImage(img, 0, 0, width, height)
 
   canvas.toBlob(b => {
     if (b) downloadBlob(b, 'islamic-pattern.png')

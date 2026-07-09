@@ -49,6 +49,7 @@ export default function App() {
   const [cpActive, setCpActive] = useState<Record<string, number>>({})
   const svgRef = useRef<SVGSVGElement>(null)
   const segmentsRef = useRef<Segment[]>([])
+  const [pngTransparent, setPngTransparent] = useState(false)
 
   const toggleDesktopCollapsed = useCallback(() => {
     setDesktopCollapsed(prev => {
@@ -86,6 +87,8 @@ export default function App() {
     segmentsRef,
     config,
     onLoad: loaded => dispatch({ type: 'LOAD_CONFIG', payload: loaded }),
+    pngTransparent,
+    onTogglePngTransparent: () => setPngTransparent(t => !t),
     includeUnwoven: true,
   })
 

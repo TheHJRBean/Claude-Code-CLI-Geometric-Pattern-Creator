@@ -59,6 +59,7 @@ export function TessellationLabMode({
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null)
   const segmentsRef = useRef<Segment[]>([])
+  const [pngTransparent, setPngTransparent] = useState(false)
   const [cpVisible, setCpVisible] = useState<Record<string, boolean>>({})
   const [cpActive, setCpActive] = useState<Record<string, number>>({})
   const toggleCpVisible = useCallback((tileTypeId: string) => {
@@ -334,6 +335,8 @@ export function TessellationLabMode({
     segmentsRef,
     config,
     onLoad: loaded => dispatch({ type: 'LOAD_CONFIG', payload: loaded }),
+    pngTransparent,
+    onTogglePngTransparent: () => setPngTransparent(t => !t),
   })
 
   const labTitle = config.tiling.type === 'editor'

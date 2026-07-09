@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { unwovenSvgMarkup, substituteCssVariables } from './exportSVG'
+import { unwovenSvgMarkup, substituteCssVariables, stripExportExclusions } from './exportSVG'
 import type { Segment } from '../types/geometry'
 
 // Pin the pure "unwoven" SVG markup builder extracted from exportUnwovenSVG:
@@ -113,5 +113,50 @@ describe('substituteCssVariables', () => {
   it('leaves non-custom-property parens untouched', () => {
     const out = substituteCssVariables('transform="rotate(45)" stroke="var(--x)"', resolve({ '--x': 'red' }))
     expect(out).toBe('transform="rotate(45)" stroke="red"')
+  })
+})
+
+describe('stripExportExclusions', () => {
+  it('removes a marked group and its whole subtree', () => {
+    const out = stripExportExclusions(
+      '<svg><g data-export="exclude"><circle cx="1"/></g><path d="M0 0"/></svg>',
+    )
+    expect(out).toBe('<svg><path d="M0 0"/></svg>')
+  })
+
+  it('keeps artwork when there is nothing to exclude', () => {
+    const markup = '<svg><g opacity="0.5"><path d="M0 0"/></g></svg>'
+    expect(stripExportExclusions(markup)).toBe(markup)
+  })
+
+  it('matches nesting so an inner <g> does not close the excluded group early', () => {
+    const out = stripExportExclusions(
+      '<svg><g data-export="exclude"><g><circle/></g><rect/></g><path/></svg>',
+    )
+    expect(out).toBe('<svg><path/></svg>')
+  })
+
+  it('removes multiple marked groups', () => {
+    const out = stripExportExclusions(
+      '<svg><g data-export="exclude"><a/></g><path/><g data-export="exclude"><b/></g></svg>',
+    )
+    expect(out).toBe('<svg><path/></svg>')
+  })
+
+  it('keeps a marked group\'s siblings intact', () => {
+    const out = stripExportExclusions(
+      '<svg><g id="art"><path/></g><g data-export="exclude" clipPath="url(#f)"><circle/></g></svg>',
+    )
+    expect(out).toBe('<svg><g id="art"><path/></g></svg>')
+  })
+
+  it('handles a self-closing marked element', () => {
+    const out = stripExportExclusions('<svg><g data-export="exclude"/><path/></svg>')
+    expect(out).toBe('<svg><path/></svg>')
+  })
+
+  it('leaves markup untouched when the marked group is unbalanced', () => {
+    const markup = '<svg><g data-export="exclude"><circle/></svg>'
+    expect(stripExportExclusions(markup)).toBe(markup)
   })
 })

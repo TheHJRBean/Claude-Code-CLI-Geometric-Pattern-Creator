@@ -5,6 +5,19 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-09 — IN PROGRESS: export subsystem "full implementation" (branch `feat/export-subsystem`)
+
+**Goal:** deliver the roadmap "program-wide export" item. Canonical scope + 2026-07-09 code audit live in `memory/project_lab_export_idea.md` (read first).
+
+**Plan (slices, in order):**
+1. **Overlay stripping (THE bug — in progress).** `exportSVG`/`exportPNG` clone the whole live `<svg>`; nothing strips the non-artwork layers, so Design-phase Lab exports bake in vertex/edge/section dots, Frame pick-node dots, neighbour ghosts, and Cell-Boundary guide outlines. Fix: tag those groups in `PatternSVG.tsx` with `data-export="exclude"`; add a pure string helper `stripExportExclusions(markup)` (node-testable, mirrors the `substituteCssVariables` scanner) applied in `exportSVG.ts` before download. Keep `FrameBorder` (decorative, artwork). Layers to tag: ghostPolygons `<g>` (PatternSVG:165), boundaryOutlines map (228), frameNodes map (265), editorOverlay wrap (286). Deferred within slice: ControlPointLayer (editing handles, gated by `cpVisible`, low-risk) — note only.
+2. **Shared export module.** Extract one path both modes call (App.tsx + TessellationLabMode.tsx duplicate near-identical handlers; Gallery has Unwoven, Lab doesn't → drift). Kills the parity gap.
+3. **Print-size PNG option** (`exportPNG` hardcoded 2048²) + **theme/transparent background** (hardcoded `#f5f0e8`).
+4. Deferred: Unwoven-SVG in Lab (needs DOM field re-derivation, Lever-A-blocked), unit-vs-field toggle, Decoration/Frame fidelity browser-verify.
+
+**Status:** branch cut from `main` @ `cdc07f1`. Slice 1 underway.
+
+---
 ### ▶ 2026-07-09 — DONE: thermonuclear round-2 bug fixes 1–8 ALL SHIPPED (pushed to `main`)
 
 **Goal:** implement the actions from the round-2 code review (fix order in the 2026-07-08 entry below / `memory/project_thermonuclear_review_round2.md`).

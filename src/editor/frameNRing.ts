@@ -229,8 +229,10 @@ export function nRingOutline(cell: EditorCell, rings: number, rotation = 0): Vec
  * Ring metric follows the lattice geometry: an orthogonal basis (4.8.8's square
  * lattice) uses the Chebyshev box, matching the single-cell square ring; a
  * non-orthogonal basis (every hex-lattice Configuration) uses the hex-distance
- * ring, with the third axis chosen as whichever of `u±v` is the shorter
- * diagonal so the 6 nearest neighbours are unit-distance.
+ * ring. The metric's third coordinate must be the one whose diagonal is the
+ * LONG one, so it counts that diagonal as distance 2 and leaves the 6 nearest
+ * neighbours (±u, ±v, ±the short diagonal) at unit distance — e.g. a 60°-apart
+ * basis has `u−v` short, neighbours ±u/±v/±(u−v), metric `max(|a|,|b|,|a+b|)`.
  */
 export function compositionNRingStamps(patch: EditorPatch, rings: number): LatticeStamp[] {
   const { u, v } = compositionCellBasis(patch)
@@ -239,7 +241,9 @@ export function compositionNRingStamps(patch: EditorPatch, rings: number): Latti
   const vLen = Math.hypot(v.x, v.y)
   const dot = u.x * v.x + u.y * v.y
   const orthogonal = Math.abs(dot) < 1e-6 * uLen * vLen
-  const thirdIsSum = Math.hypot(u.x + v.x, u.y + v.y) <= Math.hypot(u.x - v.x, u.y - v.y)
+  // Third axis = a+b exactly when u+v is the LONG diagonal (then |a+b| ranks
+  // ±(u+v) at distance 2 and the short diagonal ±(u−v) stays at 1).
+  const thirdIsSum = Math.hypot(u.x + v.x, u.y + v.y) >= Math.hypot(u.x - v.x, u.y - v.y)
   const inRing = orthogonal
     ? (a: number, b: number) => Math.max(Math.abs(a), Math.abs(b)) <= N
     : (a: number, b: number) => Math.max(Math.abs(a), Math.abs(b), Math.abs(thirdIsSum ? a + b : a - b)) <= N

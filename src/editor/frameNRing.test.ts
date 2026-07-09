@@ -3,7 +3,7 @@ import type { Vec2 } from '../utils/math'
 import type { CellShape, EditorCell } from '../types/editor'
 import { editorBoundaryVertices } from './buildEditorPolygons'
 import { nRingCellStamps, nRingOutline, unionOutline, compositionNRingStamps, compositionNRingOutline } from './frameNRing'
-import { compositionBoundaryOutlines } from './compositionLattice'
+import { compositionBoundaryOutlines, compositionCellBasis } from './compositionLattice'
 import {
   createDefault488EditorConfig,
   createDefault31212EditorConfig,
@@ -124,6 +124,32 @@ describe('compositionNRingStamps', () => {
     expect(compositionNRingStamps(p, 0).length).toBe(1)
     expect(compositionNRingStamps(p, 1).length).toBe(7)
     expect(compositionNRingStamps(p, 2).length).toBe(19)
+  })
+
+  // Regression (thermonuclear round 2, 2026-07-08): the third-axis pick was
+  // inverted — ring 1 stamped the two LONG-diagonal Patches (√3× farther)
+  // instead of the two short-diagonal true neighbours. Count and area are
+  // blind to that reflection, so assert exact coordinates.
+  it.each(hexConfigs)('%s ring 1 holds the short diagonal, not the long one', (_name, make) => {
+    const p = make()
+    const { u, v } = compositionCellBasis(p)
+    const stamps = compositionNRingStamps(p, 1)
+    const has = (a: number, b: number) => stamps.some(s =>
+      Math.abs(s.translation.x - (a * u.x + b * v.x)) < 1e-6
+      && Math.abs(s.translation.y - (a * u.y + b * v.y)) < 1e-6)
+    const sumIsShort = Math.hypot(u.x + v.x, u.y + v.y) < Math.hypot(u.x - v.x, u.y - v.y)
+    const short: [number, number] = sumIsShort ? [1, 1] : [1, -1]
+    const long: [number, number] = sumIsShort ? [1, -1] : [1, 1]
+    expect(has(short[0], short[1])).toBe(true)
+    expect(has(-short[0], -short[1])).toBe(true)
+    expect(has(long[0], long[1])).toBe(false)
+    expect(has(-long[0], -long[1])).toBe(false)
+    // Every ring-1 neighbour sits exactly one lattice constant away.
+    const uLen = Math.hypot(u.x, u.y)
+    for (const s of stamps) {
+      const d = Math.hypot(s.translation.x, s.translation.y)
+      if (d > 1e-6) expect(d).toBeLessThanOrEqual(uLen * 1.001)
+    }
   })
 })
 

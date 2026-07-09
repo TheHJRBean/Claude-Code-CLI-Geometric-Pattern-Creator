@@ -51,16 +51,29 @@ export function withActiveCell(patch: EditorPatch, cell: EditorCell): EditorPatc
  * Tiles stay fixed — see `SET_CELL_BOUNDARY_SIZE`). Sizing placements to
  * `patch.edgeLength` there makes them the lattice size, far larger than the
  * actual Tiles. So we size to the Cell's own Tiles: the Seed Tile's edge
- * length (or any regular Tile's), falling back to `patch.edgeLength` only when
- * the Cell has no regular Tile to match (e.g. a No-Seed empty Cell).
+ * length (or any regular Tile's). For an EMPTY Cell (No-Seed flow) pass
+ * `siblingCells` — the other Cells' Tiles keep the Patch's true Tile scale,
+ * whereas `patch.edgeLength` is the drifted lattice constant (the oversize
+ * bug the b3a4c09/a171058 convention fixed, reintroduced for that one flow).
+ * `patch.edgeLength` remains the last resort (single-cell, or all-empty).
  */
-export function cellPlacementEdgeLength(cell: EditorCell, patchEdgeLength: number): number {
-  const seed = cell.tiles.find(
-    (t): t is EditorRegularTile => t.kind === 'regular' && t.source === 'seed',
-  )
-  if (seed) return seed.edgeLength
-  const anyRegular = cell.tiles.find((t): t is EditorRegularTile => t.kind === 'regular')
-  if (anyRegular) return anyRegular.edgeLength
+export function cellPlacementEdgeLength(
+  cell: EditorCell,
+  patchEdgeLength: number,
+  siblingCells?: EditorCell[],
+): number {
+  const regularOf = (c: EditorCell) =>
+    c.tiles.find((t): t is EditorRegularTile => t.kind === 'regular' && t.source === 'seed')
+      ?? c.tiles.find((t): t is EditorRegularTile => t.kind === 'regular')
+  const own = regularOf(cell)
+  if (own) return own.edgeLength
+  if (siblingCells) {
+    for (const c of siblingCells) {
+      if (c.id === cell.id) continue
+      const sibling = regularOf(c)
+      if (sibling) return sibling.edgeLength
+    }
+  }
   return patchEdgeLength
 }
 

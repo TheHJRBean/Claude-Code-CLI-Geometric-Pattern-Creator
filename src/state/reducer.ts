@@ -16,6 +16,7 @@ import {
   DEFAULT_BOUNDARY_SIZE_BY_SHAPE,
 } from '../editor/createDefault'
 import { computeExposedEdges } from '../editor/exposedEdges'
+import { BOUNDARY_ROTATION, BOUNDARY_SIDES } from '../editor/buildEditorPolygons'
 import { isPlacementViable, placeRegularNGonOnEdge } from '../editor/placement'
 import { orbitTileIds, placeTilesOnOrbit, placeTilesOnVertexOrbit } from '../editor/orbit'
 import {
@@ -407,7 +408,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         // Size to the Cell's own Tiles, not `patch.edgeLength` — in a multi-cell
         // Patch the latter is the lattice constant after the boundary-size slider,
         // which would make placements far too large (mirrors vertex placement).
-        const patchEdgeLength = cellPlacementEdgeLength(cell, latticeEdgeLength)
+        const patchEdgeLength = cellPlacementEdgeLength(cell, latticeEdgeLength, state.editor!.cells)
         const sections = computeBoundarySections(cell)
         const section = sections.find(s => s.edgeIndex === edgeIndex && s.sectionIndex === sectionIndex)
         if (!section) return cell
@@ -439,7 +440,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         // Size to the Cell's own Tiles, not `patch.edgeLength` — in a
         // multi-cell Patch the latter is the lattice constant after the
         // boundary-size slider, which would make placements far too large.
-        const placeEdge = cellPlacementEdgeLength(cell, patchEdgeLength)
+        const placeEdge = cellPlacementEdgeLength(cell, patchEdgeLength, state.editor!.cells)
         const vertices = computeExposedVertices(cell)
         const vertex = vertices.find(v => v.key === vertexKey)
         if (!vertex) return cell
@@ -470,12 +471,25 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       if (next) {
         return seedFigures(updateCell(state, cellId, c => ({ ...c, noSeed: true, tiles: [] })))
       }
-      const edgeLength = state.editor.edgeLength
-      return seedFigures(updateCell(state, cellId, c => ({
-        ...c,
-        noSeed: false,
-        tiles: [createSeedTile(c.seedSides, edgeLength)],
-      })))
+      const patch = state.editor
+      return seedFigures(updateCell(state, cellId, c => {
+        // Restore a Seed consistent with the Cell's construction. Sizing:
+        // the Cell is empty, so read the Patch's true Tile scale off the
+        // sibling Cells (the b3a4c09/a171058 convention) — `patch.edgeLength`
+        // is the lattice constant, which the boundary-size slider grows away
+        // from the Tiles. Rotation: multi-cell Cells carry boundary-matching
+        // Seeds (Strands emerge cleanly from the Cell edges), so when the
+        // seed shape matches the Boundary use its canonical rotation;
+        // single-cell Seeds are created at rotation 0.
+        const edgeLength = cellPlacementEdgeLength(c, patch.edgeLength, patch.cells)
+        const seed = createSeedTile(c.seedSides, edgeLength)
+        const boundaryMatching = patch.cells.length > 1 && c.seedSides === BOUNDARY_SIDES[c.shape]
+        return {
+          ...c,
+          noSeed: false,
+          tiles: [boundaryMatching ? { ...seed, rotation: BOUNDARY_ROTATION[c.shape] } : seed],
+        }
+      }))
     }
     case 'EDITOR_DELETE_TILE': {
       if (!state.editor) return state

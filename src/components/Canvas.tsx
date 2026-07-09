@@ -592,7 +592,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // (`cellPlacementEdgeLength`) so the picker badges + preview reflect what
   // actually gets placed.
   const placementEdgeLength = selectedVertexCell && config.editor
-    ? cellPlacementEdgeLength(selectedVertexCell, config.editor.edgeLength)
+    ? cellPlacementEdgeLength(selectedVertexCell, config.editor.edgeLength, config.editor.cells)
     : 0
   const vertexPickerViableSides = useMemo<number[]>(() => {
     if (!selectedVertexData || !selectedVertexCell || !config.editor) return []
@@ -824,7 +824,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     ? viableSidesForBoundarySection(
         selectedSectionData,
         selectedSectionCell,
-        cellPlacementEdgeLength(selectedSectionCell, config.editor.edgeLength),
+        cellPlacementEdgeLength(selectedSectionCell, config.editor.edgeLength, config.editor.cells),
       )
     : []
   // Boundary-section placement always constructs, so forceable = complement.

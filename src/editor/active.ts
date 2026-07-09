@@ -28,17 +28,6 @@ export function allCells(patch: EditorPatch): EditorCell[] {
 }
 
 /**
- * Immutable update: replace the Patch's active Cell with `cell`. Returns a
- * fresh Patch with the rest of the cells array preserved.
- */
-export function withActiveCell(patch: EditorPatch, cell: EditorCell): EditorPatch {
-  return {
-    ...patch,
-    cells: patch.cells.map(c => c.id === patch.activeCellId ? cell : c),
-  }
-}
-
-/**
  * Edge length a new placement should use so it tessellates with the Cell's
  * existing Tiles.
  *

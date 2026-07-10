@@ -5,6 +5,11 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-10 — DONE: browser-tab favicon (on `main`)
+
+Added `public/favicon.svg` — an 8-pointed Islamic star (*khatam*) line-figure in theme gold (`#c9943a`) on the dark base (`#08080f`), with a small centre ring. Linked from `index.html` via `<link rel="icon" type="image/svg+xml">`. Self-contained; shows on next dev reload. No app-UI change (favicon is browser-chrome only).
+
+---
 ### ▶ 2026-07-09 — IN PROGRESS: export subsystem "full implementation" (branch `feat/export-subsystem`)
 
 **Goal:** deliver the roadmap "program-wide export" item. Canonical scope + 2026-07-09 code audit live in `memory/project_lab_export_idea.md` (read first).

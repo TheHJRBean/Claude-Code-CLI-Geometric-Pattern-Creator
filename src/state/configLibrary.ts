@@ -70,6 +70,53 @@ export interface ConfigLibrary {
   get(id: string): SavedConfig | null
 }
 
+/** A legacy library key to fold into a merged library, with an optional
+ *  suffix appended to entry names that collide with already-merged ones
+ *  (e.g. ' (Gallery)'). */
+export interface LegacyLibrarySource {
+  key: string
+  nameSuffix?: string
+}
+
+/**
+ * One-time physical merge of legacy libraries into `targetKey` (ADR-0006).
+ * No-op when the target key already exists — its presence is the "migration
+ * ran" marker — so the merge is idempotent. Legacy keys are read via the
+ * ordinary validated `list()` path (corrupt entries skipped, not carried) and
+ * are left untouched as a backup until the BFS sunset. Colliding ids are
+ * regenerated; colliding names get the source's suffix (then a counter).
+ * A profile with no legacy entries writes nothing — the first `save()`
+ * creates the key.
+ */
+export function migrateLegacyLibraries(targetKey: string, sources: LegacyLibrarySource[]): void {
+  try {
+    if (localStorage.getItem(targetKey) !== null) return
+    const merged: SavedConfig[] = []
+    const ids = new Set<string>()
+    const names = new Set<string>()
+    for (const source of sources) {
+      for (const e of createConfigLibrary(source.key).list()) {
+        const entry = { ...e }
+        if (ids.has(entry.id)) entry.id = uuid()
+        if (names.has(entry.name)) {
+          const base = `${entry.name}${source.nameSuffix ?? ''}`
+          let candidate = base
+          for (let n = 2; names.has(candidate); n++) candidate = `${base} (${n})`
+          entry.name = candidate
+        }
+        ids.add(entry.id)
+        names.add(entry.name)
+        merged.push(entry)
+      }
+    }
+    if (merged.length === 0) return
+    const payload: PersistedShape = { version: 1, entries: merged }
+    localStorage.setItem(targetKey, JSON.stringify(payload))
+  } catch (err) {
+    console.warn('Library migration failed; legacy keys untouched', err)
+  }
+}
+
 export function createConfigLibrary(storageKey: string): ConfigLibrary {
   function list(): SavedConfig[] {
     try {

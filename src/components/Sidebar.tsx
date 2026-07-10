@@ -8,7 +8,7 @@ import { FieldLabel } from './ui/FieldLabel'
 import { Toggle } from './ui/Toggle'
 import { StrandStyleControls } from './ui/StrandStyleControls'
 import { FigureControls } from './strands/FigureControls'
-import { mainConfigLibrary } from '../state/mainConfigs'
+import { patternLibrary } from '../state/patternLibrary'
 import { ConfigLibraryPanel } from './ConfigLibraryPanel'
 import type { FrameConfig, FrameShape } from '../types/editor'
 import { DEFAULT_FRAME_SIZE, frameUnitModel, frameUnitsToPx } from '../editor/frame'
@@ -633,7 +633,7 @@ export function Sidebar({
           <SectionTitle open={isOpen('library')} onToggle={() => toggleSection('library')}>My Patterns</SectionTitle>
           {isOpen('library') && (
             <ConfigLibraryPanel
-              library={mainConfigLibrary}
+              library={patternLibrary}
               currentConfig={config}
               onLoad={c => dispatch({ type: 'LOAD_CONFIG', payload: c })}
               nounSingular="pattern"

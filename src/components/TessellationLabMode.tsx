@@ -4,7 +4,7 @@ import type { PatternConfig } from '../types/pattern'
 import type { Action } from '../state/actions'
 import { TILINGS } from '../tilings/index'
 import type { TileTypeInfo } from '../types/tiling'
-import { createConfigLibrary } from '../state/configLibrary'
+import { patternLibrary } from '../state/patternLibrary'
 import { ConfigLibraryPanel } from './ConfigLibraryPanel'
 import { Canvas, type SelectedEdge } from './Canvas'
 import type { PaintTarget, StrandPaintScope, VoidPaintScope } from '../rendering/DecorationPaintLayer'
@@ -25,7 +25,6 @@ import { StrandStyleControls } from './ui/StrandStyleControls'
 import { EditorDesignControls } from './lab/EditorDesignControls'
 import { buildExportMenuItems } from '../export/exportActions'
 
-const labLibrary = createConfigLibrary('lab-tessellations-v1')
 
 /**
  * Tessellation Lab — workspace for prototyping tessellations and (next phase)
@@ -517,7 +516,7 @@ export function TessellationLabMode({
             <SectionTitle open={isOpen('library')} onToggle={() => toggleSection('library')}>My Tessellations</SectionTitle>
             {isOpen('library') && (
               <ConfigLibraryPanel
-                library={labLibrary}
+                library={patternLibrary}
                 currentConfig={config}
                 onLoad={c => dispatch({ type: 'LOAD_CONFIG', payload: c })}
                 nounSingular="tessellation"

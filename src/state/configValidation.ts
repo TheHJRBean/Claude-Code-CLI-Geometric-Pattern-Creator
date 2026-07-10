@@ -5,7 +5,7 @@ import { MIN_FRAME_SIZE, MAX_FRAME_SIZE, DEFAULT_FRAME_SIZE } from '../editor/fr
 
 /**
  * Step 17.8 — load-time validation for `PatternConfig`. Used by `loadJSON`
- * (file import) and `listSavedTessellations` (localStorage) so malformed or
+ * (file import) and the config library (localStorage) so malformed or
  * future-shape input rejects with a clear error rather than crashing the
  * render pipeline.
  *

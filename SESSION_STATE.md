@@ -5,6 +5,13 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-10 — DONE: GitHub Issues configured as agent issue tracker (on `main`)
+
+Installed the mattpocock/skills engineering workflow globally (`~/.claude/skills/`; guide at `~/.claude/SKILLS-WORKFLOW.md`) and ran its setup for this repo (`ef318ad`): `docs/agents/issue-tracker.md` (gh CLI conventions + wayfinder operations), `docs/agents/domain.md` (single-context: root `CONTEXT.md` + `docs/adr/`), `## Agent skills` block in `CLAUDE.md`, `ready-for-agent` label created on GitHub. Flow for new work: `/grill-with-docs` → `/to-spec` → `/to-tickets` → `/implement` (one ticket per session); `/wayfinder` for big foggy efforts. **Note:** repo is public → issues are publicly visible.
+
+**Next:** nothing mid-flight from today. Candidates: work the export-subsystem deferred items (below) through the new flow, or `/wayfinder` a bigger roadmap item.
+
+---
 ### ▶ 2026-07-10 — DONE: browser-tab favicon (on `main`)
 
 Added `public/favicon.svg` — an 8-pointed Islamic star (*khatam*) line-figure in theme gold (`#c9943a`) on the dark base (`#08080f`), with a small centre ring. Linked from `index.html` via `<link rel="icon" type="image/svg+xml">`. Self-contained; shows on next dev reload. No app-UI change (favicon is browser-chrome only).

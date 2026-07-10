@@ -8,6 +8,7 @@ A React + TypeScript app that generates traditional Islamic geometric patterns v
 
 **Gallery**:
 The default app workspace — a curated picker for predefined **Compositions** built on Archimedean tilings (square, hex, 4.8.8, etc.). The user picks a Composition, tunes its parameters, and exports. The user toggles between Gallery and **Lab** at the top level.
+> **Convergence decided (2026-07-10, ADR-0006):** the Gallery becomes a saved-patterns *browser* and presets move into the Lab as editable Patches. This entry (and **Lab**, and the parity matrix below) will be rewritten when the flip ships.
 _Avoid_: main, home, default mode, classic mode
 
 **Lab**:

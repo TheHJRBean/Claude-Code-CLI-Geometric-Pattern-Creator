@@ -5,6 +5,13 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-10 — DONE: ADR spec conformance — reconciled ADR-0004 with the Framing demotion (on `main`)
+
+Audited the domain spec against the root structure contracts (`ADR-FORMAT.md` + `docs/agents/domain.md`). Result: structurally conformant — single root `CONTEXT.md` + `docs/adr/` (single-context), ADRs sequential `0001`–`0005` with correct `# Title` + prose shape. One content drift fixed: ADR-0004 still called Framing a **Phase** with no amendment, contradicting `CONTEXT.md`/`CLAUDE.md`/ADR-0003's amendment (Framing → persistent **Frame overlay**). Appended a 2026-06-01 amendment to ADR-0004 (`5466fae`) reconciling the Phase language while preserving the structural-only Frame/Decoration split — did **not** rewrite the historical decision.
+
+**Next:** nothing mid-flight. Optional loose end: ADR-0003's *title* still reads `…→ Framing → Decoration` (immutable historical record, corrected by its own amendment) — could add a `Status:` frontmatter line if title-scan drift bothers you, otherwise leave.
+
+---
 ### ▶ 2026-07-10 — DONE: GitHub Issues configured as agent issue tracker (on `main`)
 
 Installed the mattpocock/skills engineering workflow globally (`~/.claude/skills/`; guide at `~/.claude/SKILLS-WORKFLOW.md`) and ran its setup for this repo (`ef318ad`): `docs/agents/issue-tracker.md` (gh CLI conventions + wayfinder operations), `docs/agents/domain.md` (single-context: root `CONTEXT.md` + `docs/adr/`), `## Agent skills` block in `CLAUDE.md`, `ready-for-agent` label created on GitHub. Flow for new work: `/grill-with-docs` → `/to-spec` → `/to-tickets` → `/implement` (one ticket per session); `/wayfinder` for big foggy efforts. **Note:** repo is public → issues are publicly visible.

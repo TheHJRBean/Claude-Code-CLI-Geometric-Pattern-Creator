@@ -5,6 +5,19 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-10 — ✅ #5 CLOSED: Presets shelf in the Lab library (on `main`)
+
+**Ticket #5 (Presets shelf) DONE.** New pure module `src/editor/presetShelf.ts` + card UI `src/components/PresetShelfPanel.tsx` + TessellationLabMode wiring. The Lab sidebar gains a **Presets** section directly above My Tessellations: one read-only card per Gallery preset (no rename/delete — the shelf holds no mutable state, `buildPresetConfig` mints a fresh working config per click). Tier 1 loads a fresh `convertPresetToEditorConfig` conversion (editable Patch, `presetId` provenance); tier 2 (unconverted Archimedean) + tier 3 (rosette-patch) load the legacy Gallery config and are badged **View only** — badge = `!isConvertiblePreset`, so tier-2 sheds it automatically as #8 conversion rows land.
+
+**Guard + note:** unsaved-changes guard = `dirtyRef` on the Lab dispatch wrapper (`actionResetsDirty`: LOAD_CONFIG/EDITOR_NEW/EDITOR_CLEAR clean; library Save cleans via new `ConfigLibraryPanel.onSaved` prop; everything else dirty) → `window.confirm` before a shelf load replaces dirty work. One-time structural-edit note (Q5): first place/delete/Complete/boundary-resize (`isStructuralEditAction` — θ/figure/strand/decoration silent) on a config with `editor.presetId` shows a fixed non-blocking banner; persisted at **show** time (localStorage `preset-structural-note-shown-v1`) so it appears once ever; "Got it" dismisses.
+
+**Tests +16 (669→685 green; tsc + build green):** `presetShelf.test.ts` — shelf covers all TILINGS + tier assignment + view-only = non-convertible set; tier-1 load editable w/ provenance + migrator round-trip; fresh-conversion independence (no shared objects with catalogue or prior loads); view-only legacy load; structural/silent classification; note gating; dirty transitions; save-through-library keeps `presetId` + `sourceCategory: 'editor'`.
+
+**⏳ browser-verify:** shelf renders/loads, confirm fires over dirty work, banner shows once on first structural edit of a converted preset.
+
+**NEXT:** frontier = **#6 (Gallery browser, needs #3 ✓ + #4 ✓)**; then #7 (the flip, needs #5 ✓ + #6) / #8 (tier-2 chunks, needs #4 ✓ + #5 ✓). One ticket per session (`gh issue view 6`).
+
+---
 ### ▶ 2026-07-10 — ✅ #4 CLOSED: convergence conversion core (on `main`)
 
 **Ticket #4 (conversion core + frame migration + flagship fingerprints) DONE.** New `src/editor/presetConversion.ts`: pure `convertPresetToEditorConfig` over a hand-authored tier-1 table — 5 shipped multi-cell seeds + boundary-matching single-cell square/hexagon/triangle (`createBoundaryMatchingCell` now exported from `createDefault.ts`), whole Patch rescaled to the source `tiling.scale` so world size + the migrated Frame stay right. Tunings carried (figures/strand/θ/routing/smooth); Gallery `config.frame` → `editor.frame` with `boundaryTreatment: 'clip'` pinned (Q8a), top-level `frame` dropped. `presetId?: string` added to `EditorPatch` + preserved in `migrateV3`. Tier-2/3 (`3.3.4.3.4` etc., Laves/Taprats, rosettes) cleanly return null via `isConvertiblePreset`.

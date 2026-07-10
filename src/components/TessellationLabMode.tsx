@@ -6,6 +6,13 @@ import { TILINGS } from '../tilings/index'
 import type { TileTypeInfo } from '../types/tiling'
 import { patternLibrary } from '../state/patternLibrary'
 import { ConfigLibraryPanel } from './ConfigLibraryPanel'
+import { PresetShelfPanel } from './PresetShelfPanel'
+import {
+  actionResetsDirty,
+  buildPresetConfig,
+  shouldShowStructuralEditNote,
+  type PresetShelfEntry,
+} from '../editor/presetShelf'
 import { Canvas, type SelectedEdge } from './Canvas'
 import type { PaintTarget, StrandPaintScope, VoidPaintScope } from '../rendering/DecorationPaintLayer'
 import type { SectionKey } from './EditorBoundaryInwardLayer'
@@ -72,10 +79,33 @@ export function TessellationLabMode({
   // Step 17.9 — wrap dispatch so Design-Phase Builder mutations push undo
   // snapshots. All Lab-side dispatches must use this `dispatch`; bypassing
   // it skips history. `LOAD_CONFIG` clears the stack inside the hook (Q12).
-  const { dispatch, undo, redo, canUndo, canRedo } = useEditorHistory(
+  const { dispatch: historyDispatch, undo, redo, canUndo, canRedo } = useEditorHistory(
     config.editor,
     rawDispatch,
   )
+
+  // ── Presets shelf (ADR-0006 slice 4) ───────────────────
+  // Unsaved-changes guard: any config mutation since the last load / save /
+  // new marks the working copy dirty; loading a preset over dirty work asks
+  // first. A ref (not state) — read only at click time, never rendered.
+  const dirtyRef = useRef(false)
+  // One-time structural-edit note for converted presets (Q5). Persisted at
+  // show time so it appears once ever; dismissing just hides the banner.
+  const STRUCTURAL_NOTE_KEY = 'preset-structural-note-shown-v1'
+  const structuralNoteShownRef = useRef<boolean>((() => {
+    try { return localStorage.getItem(STRUCTURAL_NOTE_KEY) === 'true' } catch { return true }
+  })())
+  const [structuralNoteVisible, setStructuralNoteVisible] = useState(false)
+  const presetId = config.editor?.presetId
+  const dispatch = useCallback((action: Action) => {
+    dirtyRef.current = !actionResetsDirty(action)
+    if (shouldShowStructuralEditNote(action, presetId, structuralNoteShownRef.current)) {
+      structuralNoteShownRef.current = true
+      try { localStorage.setItem(STRUCTURAL_NOTE_KEY, 'true') } catch { /* ignore */ }
+      setStructuralNoteVisible(true)
+    }
+    historyDispatch(action)
+  }, [historyDispatch, presetId])
 
   // Cmd/Ctrl+Z and Cmd/Ctrl+Shift+Z (or Ctrl+Y) drive undo / redo. Listener
   // is mounted only while Lab is active since the component unmounts on
@@ -282,6 +312,21 @@ export function TessellationLabMode({
   // Active-entry selection lives here so external buttons (Clear / New /
   // Sample) can reset it via the controlled prop on `ConfigLibraryPanel`.
   const [activeSavedId, setActiveSavedId] = useState<string>('')
+
+  // Shelf click → fresh working copy (never the catalogue object itself).
+  // Tier-1 loads a fresh conversion; view-only tiers load the legacy config.
+  const handleLoadPreset = (entry: PresetShelfEntry) => {
+    if (dirtyRef.current) {
+      const ok = window.confirm(
+        `Load "${entry.label}"? Your current work has unsaved changes and will be replaced.`,
+      )
+      if (!ok) return
+    }
+    const preset = buildPresetConfig(entry.id)
+    if (!preset) return
+    setActiveSavedId('')
+    dispatch({ type: 'LOAD_CONFIG', payload: preset })
+  }
 
   // ── Section collapse (matches Gallery pattern) ─────────
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
@@ -511,6 +556,16 @@ export function TessellationLabMode({
             ))}
           </div>
 
+          {/* Presets shelf (ADR-0006 slice 4) — read-only template cards.
+              Clicking loads a fresh conversion (tier-1) or the legacy render
+              config (view-only tiers) as the working config. */}
+          <div style={{ paddingTop: 22 }}>
+            <SectionTitle open={isOpen('presets')} onToggle={() => toggleSection('presets')} tooltip="Template catalogue. Loading a preset opens a fresh editable copy (or a view-only legacy render where conversion isn't available yet); save your edits to My Tessellations.">Presets</SectionTitle>
+            {isOpen('presets') && (
+              <PresetShelfPanel onLoadPreset={handleLoadPreset} />
+            )}
+          </div>
+
           {/* Library — Save / Rename / Duplicate / Delete + saved entries dropdown */}
           <div style={{ paddingTop: 22 }}>
             <SectionTitle open={isOpen('library')} onToggle={() => toggleSection('library')}>My Tessellations</SectionTitle>
@@ -519,6 +574,7 @@ export function TessellationLabMode({
                 library={patternLibrary}
                 currentConfig={config}
                 onLoad={c => dispatch({ type: 'LOAD_CONFIG', payload: c })}
+                onSaved={() => { dirtyRef.current = false }}
                 nounSingular="tessellation"
                 activeId={activeSavedId}
                 onActiveIdChange={setActiveSavedId}
@@ -753,6 +809,60 @@ export function TessellationLabMode({
         editorNeighbourStrands={showNeighbourStrands}
       />
       </div>
+      {/* One-time structural-edit note (Q5) — first place / delete / Complete
+          / boundary resize on a converted preset. Informational banner only:
+          the edit has already been applied, nothing is blocked. */}
+      {structuralNoteVisible && (
+        <div
+          role="status"
+          style={{
+            position: 'fixed',
+            top: 64,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 40,
+            maxWidth: 420,
+            padding: '12px 16px',
+            background: 'var(--bg, #f5f0e8)',
+            border: '1px solid var(--border-subtle)',
+            boxShadow: '0 2px 12px rgba(0,0,0,0.18)',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 12,
+          }}
+        >
+          <p style={{
+            margin: 0,
+            fontFamily: "'EB Garamond', Georgia, serif",
+            fontSize: 12.5,
+            color: 'var(--text)',
+            lineHeight: 1.5,
+          }}>
+            You're restructuring a converted preset. Placing, deleting,
+            completing, or resizing the boundary can break the tessellation —
+            the non-tiling tag will flag it if that happens. Edits are never
+            blocked; this note won't appear again.
+          </p>
+          <button
+            onClick={() => setStructuralNoteVisible(false)}
+            style={{
+              flexShrink: 0,
+              padding: '3px 8px',
+              fontFamily: "'Cinzel', Georgia, serif",
+              fontSize: 9,
+              fontWeight: 600,
+              letterSpacing: '0.10em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+              border: '1px solid var(--border-subtle)',
+              background: 'transparent',
+              color: 'var(--text-muted)',
+            }}
+          >
+            Got it
+          </button>
+        </div>
+      )}
     </div>
   )
 }

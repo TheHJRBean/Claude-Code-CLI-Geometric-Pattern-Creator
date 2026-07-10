@@ -19,6 +19,8 @@ interface Props {
   library: ConfigLibrary
   currentConfig: PatternConfig
   onLoad: (config: PatternConfig) => void
+  /** Fired after a successful Save — lets the caller clear its dirty flag. */
+  onSaved?: () => void
   /** Singular noun for prompts and button labels — "tessellation" or "pattern". */
   nounSingular: string
   /** Label shown above the saved-entries dropdown. */
@@ -32,6 +34,7 @@ export function ConfigLibraryPanel({
   library,
   currentConfig,
   onLoad,
+  onSaved,
   nounSingular,
   dropdownLabel = 'Saved',
   activeId,
@@ -93,6 +96,7 @@ export function ConfigLibraryPanel({
         }
         refresh()
         if (result.entry) onActiveIdChange(result.entry.id)
+        onSaved?.()
       },
     })
   }

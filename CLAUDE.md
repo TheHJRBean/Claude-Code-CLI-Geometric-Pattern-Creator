@@ -129,3 +129,13 @@ Authoritative design context lives in `TESSELLATION_REVAMP_PLAN.md` (Step 17 sec
 ## Commit Status Tag
 
 After each commit, mention the short commit hash and message in your chat response (e.g. `a1b2c3d: Fix header layout`). This is for the developer's awareness in the conversation — do NOT render it in the application UI.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in this repo's GitHub Issues, operated via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` glossary + `docs/adr/` at the repo root. See `docs/agents/domain.md`.

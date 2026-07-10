@@ -17,7 +17,13 @@
 12. **Conversion**: `src/editor/presetConversion.ts`, hand-authored preset→`createDefault*`-seed table, tunings carried over, tolerance fingerprint suite for flagships.
 13. **Slices** (one PR each): docs → library merge → conversion core → Presets shelf → Gallery browser → the flip → tier-2 chunks; **process = /to-spec → /to-tickets (GitHub Issues, one per slice) → /implement one per session**. Legacy sunset unscheduled.
 
-**NEXT:** user confirms shared understanding → slice 1: write ADR-0006 (+ ADR-0005 amendment + CONTEXT pointer), then spec → tickets. Repo is public; issues visible.
+**SPEC + TICKETS + FIRST SLICES DONE (2026-07-10, user go-ahead):**
+- **Spec = issue #1** (ready-for-agent). **Tickets #2–#8** = slices 1–7, native blocking edges + sub-issues of #1. Frontier order: #2/#3/#4 unblocked → #5 (needs #4) → #6 (needs #3+#4) → #7 (needs #5+#6) → #8 (needs #4+#5).
+- ✅ **#2 CLOSED** (`1dbd467`) — ADR-0006 + ADR-0005 amendment + CONTEXT.md forward pointer.
+- ✅ **#3 CLOSED** (`37ec617`) — `migrateLegacyLibraries` in configLibrary.ts (idempotent via `pattern-library-v1` presence; id regen + name-suffix/counter; corrupt rows skipped; legacy keys untouched) + `patternLibrary.ts` lazy-migrating binding; Sidebar + TessellationLabMode repointed; dead `mainConfigs.ts`/`customTessellations.ts` deleted. +7 tests (`libraryMigration.test.ts`), **614 vitest** + tsc + build green. ⏳ browser-verify: existing saves from BOTH old libraries appear in both panels after reload.
+- **Note:** to-spec/to-tickets checkpoint questions (seams, granularity) were skipped per user instruction — flag at review.
+
+**NEXT:** user review of spec/tickets/#2/#3 → then frontier = **#4 (conversion core)**, one ticket per session (`gh issue view 4`).
 
 ---
 ### ▶ 2026-07-10 — superseded (grill now complete, see above): mid-grill handoff Q1–Q6

@@ -752,6 +752,17 @@ Ranked by visual impact ÷ implementation cost. Merged from the original
 6. **Frieze mode (1D friezes for Egyptian / Art Deco borders).** New
    `category: 'frieze'` with one parametric tile + one translation axis.
    Unlocks all Egyptian register-band motifs.
+6a. *(added 2026-07-10)* **David's Star preset** over the shipped
+   3.6.3.6 (§10.2) — pure Figure/preset work, zero geometry.
+6b. *(added 2026-07-10)* **Kepler's Star (b = 67.5°)** — square +
+   isosceles triangles + regular octagons via one Taprats block
+   (§10.2, §11 A1). The flagship new star tiling: all-convex,
+   PIC-safe, visually adjacent to the Islamic 8-point families.
+6c. *(added 2026-07-10)* **Missing Laves duals** — prismatic
+   pentagonal + triakis triangular (§11 A5); completes the Laves set
+   using the exact 2026-05-19 recipe.
+6d. *(added 2026-07-10)* **Archimedes' Star** (§10.2) — one Taprats
+   block; only caveat is the collinear-vertex hexagon encoding probe.
 
 ### Tier 2 — Medium effort, big design-space expansion
 
@@ -767,6 +778,18 @@ Ranked by visual impact ÷ implementation cost. Merged from the original
     `category: 'two-square'`.
 11. **15-family pentagonal tiling generator.** Data-heavy but engine-light;
     new `category: 'pentagonal'` with per-type descriptor table.
+11a. *(added 2026-07-10)* **Night Sky + Snow Star** semiregular star
+    tilings (§10.3) — 8-point/4-point and 6-point/3-point star Taprats
+    blocks; isosceles proportions to derive from the tip-at-midpoint
+    rule.
+11b. *(added 2026-07-10)* **Select 2-uniform tilings as fixed Taprats
+    blocks** without waiting for the BFS orbit generalisation (§11 A6):
+    (3.4.3.12; 3.12²) first — it is Kaplan-demonstrated as a PIC
+    substrate — then Kepler Kk #15 and #17.
+11c. *(added 2026-07-10)* **Star-and-cross star-polygon tiling
+    `(8.4*π/4)²` via convex decomposition** (§10.4, §11 A8) — an
+    interim, generic-PIC version of the star-polygon families ahead of
+    the rosette-pathway fold.
 
 ### Tier 3 — Substitution-tiling engine (one engine, many payoffs)
 
@@ -798,6 +821,12 @@ A single new `category: 'substitution'` source covers:
     Unlocks Celtic knotwork output as a side effect.
 20. **Spiral tilings (Voderberg, Hirschhorn).** Niche but visually
     striking; one prototile + spiral placement function.
+20a. *(added 2026-07-10)* **True star-polygon-tile figures + Hankin
+    primitives** (§10.4, §10.6, §11 D) — the 22 uniform star-polygon
+    tilings with star-outline constructed figures, the Altair tiling,
+    and the 11+13-pointed-star Hankin combination. Gated on the
+    rosette-pathway architectural fold
+    (`project_star_tilings_gallery_idea.md`).
 
 ### Suggested first three Gallery additions (after Tier 1 #2 ships)
 
@@ -894,6 +923,332 @@ without needing an explicit reflex-vertex test.
 
 ---
 
+## 10. Star tilings — deep dive (2026-07-10)
+
+Primary sources: Fisher & Mellor 2012, *Using tiling theory to generate
+angle weaves with beads*, J. Math. Arts 6(4):141–158
+(DOI [10.1080/17513472.2012.736935](https://doi.org/10.1080/17513472.2012.736935);
+full text read from the
+[author preprint PDF](https://beadinfinitum.com/TilingTheoryStarWeavesG18X.pdf));
+Grünbaum & Shephard, *Tilings and Patterns* (1987) — star-polygon
+tilings summarised via
+[Wikipedia: Uniform tiling](https://en.wikipedia.org/wiki/Uniform_tiling);
+Kaplan 2005, *Islamic Star Patterns from Polygons in Contact*
+([PDF](https://cs.uwaterloo.ca/~csk/publications/Papers/kaplan_2005.pdf),
+full text read 2026-07-10). Geometry marked **[derived]** below was
+worked out for this doc from the paper's construction, not stated in the
+source — re-verify against the paper's Figure 8 during implementation.
+
+### 10.1 The Fisher–Mellor star-of-triangles construction (exact)
+
+Definitions (paper §2.3, quoted near-verbatim):
+
+- A **star with n ≥ 3 points** is a set of n triangles meeting corner to
+  corner so that their **bases form an interior polygon with n sides**,
+  all triangles pointing outwards. The n **points** are the n apexes.
+- A star is **regular** if all triangles are equilateral and congruent
+  and the interior polygon is regular; **semiregular** if the interior
+  polygon is regular and the triangles are isosceles (not necessarily
+  equilateral or congruent) with bases on the interior polygon.
+- **Star tiling of a tiling T**: place a star at each vertex of T such
+  that (a) the star's point count equals the **valence** of that vertex,
+  (b) the star's centre sits **on the vertex**, and (c) the star's points
+  land on the **midpoints of the edges** of T incident to that vertex.
+  Any normal polygonal tiling admits this; a given T has many star
+  tilings depending on the interior-polygon size (the free parameter).
+- The star tiling's tiles are: interior polygons (one per T-vertex),
+  point triangles (two per T-edge, apex-to-apex at the edge midpoint),
+  and the **gap polygons** left over (one per tile of T).
+- **n-star generalisation** (paper §6): put **two** (or n) star points
+  along each interior-polygon edge instead of one — a 2-star tiling of
+  6³ has 12-pointed stars joined along two points per neighbour. This is
+  the star-tiling analogue of Bonner's **two-point family** (§3.3) and
+  of Kaplan's δ-split contact positions (§10.6).
+
+Theorems (angle-weave duality — maps onto PIC as *stars-on-vertices ↔
+figures-on-edges*):
+
+- **Theorem 1.** The vertex-only weave of the star tiling of T has the
+  same bead pattern as the **edge-and-cover weave of T**, plus extra
+  thread connecting the cover beads at the vertices of T.
+- **Theorem 2.** The across-edge weave of T equals the vertex-only star
+  weave of **T\*** (the dual tiling).
+- **Theorem 3.** The n-across-edge weave of T equals the vertex-only
+  **n-star** weave of T\*.
+
+PIC reading: a bead at a star-tiling vertex corresponds to a contact
+point on a base-tiling edge, so **default contact angles for a star
+tiling should mirror the θ we'd choose for the base tiling's edge
+figures** — Theorem 1 is the licence for reusing the base tiling's θ
+presets.
+
+### 10.2 The three regular star tilings — implementable specs
+
+All three use regular stars (equilateral triangles + regular interior
+polygon). Base-tiling edge length L throughout; the tip-at-edge-midpoint
+condition (distance L/2 from the vertex) fixes every dimension.
+
+**David's Star** — star tiling of 3⁶ (valence 6 → hexagrams).
+
+- Interior hexagon side s with hexagram tip radius s√3 = L/2 →
+  **s = L/(2√3) ≈ 0.2887 L** [derived].
+- The paper states this tiling **is (3.6.3.6)** — each trihexagonal
+  hexagon plus its 6 surrounding triangles reads as a hexagram. So
+  David's Star is *not a new tiling for us*: it is a **Figure/decoration
+  preset over the shipped 3.6.3.6** that emphasises the hexagram outline
+  (the star reading partitions the edges into two classes: star-outline
+  edges vs edges interior to stars — the paper's Figure 19 colours
+  exactly these to get the David's Star look). Zero geometry work; the
+  deliverable is a named preset (strand emphasis / two edge classes),
+  which today approximates to a 3.6.3.6 preset with θ chosen so hexagon
+  figures form hexagrams (θ = 60° puts 6-gon rays along the hexagram
+  directions).
+
+**Kepler's Star** — star tiling of 4⁴ (valence 4 → 4-pointed stars).
+Named for Kepler because the drawing resembles his published 2-uniform
+tiling (3.4.3.12; 3.12²) from *Harmonices Mundi* (1619).
+
+- Full parametric family **[derived]**, base-angle parameter b = the
+  isosceles point-triangle's base angle (regular star ⇔ b = 60°):
+  - Interior square side **s = L/(1 + tan b)**, rotated 45° to the
+    lattice (edges facing the 4 lattice directions); point apexes at
+    (±L/2, 0), (0, ±L/2) relative to the vertex.
+  - Point-triangle flank length **ℓ = s/(2 cos b)**.
+  - Gap tile: an **equilateral octagon** centred on each 4⁴ cell centre,
+    all 8 edges of length ℓ, interior angles alternating **2b** (at star
+    tips) and **270° − 2b** (at interior-square corners). Every vertex
+    of the star tiling has valence 4.
+  - b = 60° (Fisher–Mellor's regular star): s = L/(1+√3) ≈ 0.366 L,
+    octagon angles 120°/150° — the paper's version ("the octagons are
+    not regular").
+  - **b = 67.5° makes the gap octagon regular** (both angle families hit
+    135°): s = L/(1 + tan 67.5°) ≈ 0.2929 L, tiles = square (s) +
+    isosceles 67.5°-67.5°-45° triangles + **regular octagons** (side
+    ≈ 1.307 s). Note 67.5° is exactly the project's classic 4.8.8
+    contact angle — this variant is the natural "Islamic" Kepler's Star
+    and sits visually adjacent to the 8-pointed-star families [derived;
+    not in the paper].
+  - The tiling is edge-to-edge for every b (square↔triangle-base,
+    octagon↔triangle-flank).
+- All tiles convex → **PIC-safe**; the octagon is irregular for b ≠
+  67.5° (mild edge-slide territory, already handled by the 2026-05
+  edge-slide fix).
+
+**Archimedes' Star** — star tiling of 6³ (valence 3 → 3-pointed stars).
+
+- Interior triangle side s with tip radius 2s/√3 = L/2 →
+  **s = √3 L/4 ≈ 0.433 L** [derived].
+- Paper: "closely resembles (3.6.3.6), except with an additional
+  triangle inscribed inside each triangle of (3.6.3.6)". Verified by
+  derivation: the result **is 3.6.3.6 at edge √3L/2 with every triangle
+  medially subdivided into 4 equilateral triangles** (central inverted
+  triangle = star interior; 3 corner triangles = the star points of the
+  three stars whose tips meet at that triangle's corners). Gap tiles =
+  the regular 3.6.3.6 hexagons, unchanged [derived: the would-be 12-gon
+  gap has straight angles at 6 of its vertices — 60+60+60 tiles leave
+  exactly 180° — so it degenerates to the regular hexagon].
+- ⚠ **Non-edge-to-edge**: each hexagon edge (√3L/2) faces **two**
+  triangle edges (√3L/4). Straight-through PIC would place the hexagon's
+  contact point at its full-edge midpoint, mismatching the two
+  triangles' midpoints. Fix at encoding time: emit the hexagon as a
+  **12-gon with collinear vertex pairs** (split each edge at its
+  midpoint) so per-edge contact midpoints align across the border. Needs
+  a quick check that nothing in the pipeline chokes on collinear
+  boundary vertices.
+
+### 10.3 Semiregular star tilings over the Laves duals
+
+Any tiling with **regular vertices** (equal angles between consecutive
+edges — true of all 11 Laves tilings) induces a semiregular star tiling
+(paper §2.3). Named instances in the paper:
+
+| Name | Base (Laves dual of) | Stars | Notes |
+|------|----------------------|-------|-------|
+| **Snow Star** | rhombille (dual 3.6.3.6) | regular 3-point + 6-point | base = "Tumbling Blocks" 60° rhombi; two star species |
+| **Night Sky** | tetrakis square (dual 4.8²) | semiregular 4-point + 8-point | **8-pointed stars** — the most Islamic-looking of the set; vertex-only variant = "Picnic Weave" |
+| *(unnamed)* | triakis triangular (dual 3.12²) | 3-point + 12-point | paper Figure 26; 12-pointed stars |
+
+All three bases already ship (rhombille, tetrakis-square via Taprats;
+triakis triangular is a missing Laves entry — see §11). The star tilings
+are new polygon sets: interior polygons + isosceles point triangles +
+gap polygons, all placeable as Taprats data blocks on the base tiling's
+translation lattice. Exact isosceles proportions per valence follow from
+the tip-at-midpoint rule; the edges incident to a regular vertex are
+perpendicular bisectors of the interior polygon's edges (paper §2.3), so
+the interior n-gon is oriented with edges normal to the base edges.
+
+### 10.4 Tilings whose *tiles* are star polygons (Grünbaum & Shephard)
+
+Distinct from §10.1 (where the "star" is an assembly of triangle tiles):
+here the non-convex star polygon is itself one tile. G&S (1987) treat
+these in the star-tilings/hollow-tilings material and enumerate **25
+uniform tilings = 11 convex + 14 "hollow"** using star polygons and
+generalised vertex figures ([Wikipedia: List of Euclidean uniform
+tilings](https://en.wikipedia.org/wiki/List_of_Euclidean_uniform_tilings));
+the hollow list is flagged as possibly incomplete. Separately,
+[Wikipedia: Uniform tiling](https://en.wikipedia.org/wiki/Uniform_tiling)
+tabulates **22 uniform tilings using ordinary (filled) star-polygon
+tiles**, in isotoxal n\*α notation (n-pointed star with adjustable point
+angle α):
+
+- **4 families with a free angle α**: `3.6*α.6**α`, `4.4*α.4**α`,
+  `6.3*α.3**α`, `3.3*α.3.3**α`. The free α is directly analogous to our
+  `contactAngle` — one slider per family.
+- **18 with fixed angles**, including (Islamic-relevant picks):
+  `(8.4*π/4)²` — octagons + 4-pointed stars = the classic
+  **star-and-cross / khatem ground**; `12.12.4*π/3` — dodecagons +
+  4-stars; `(12.3*π/6)²` — dodecagons + 3-stars; `(6.6*π/3)²` —
+  hexagons + hexagrams; `4.6.4*π/6.6`, `3.6.6*π/3.6`, `9.3.9.3*π/9`,
+  `18.18.3*2π/9`, `5.5.4*π/10.5.4*π/10` (pentagon-rich), and eight more
+  (full list in the Wikipedia table).
+
+**Key implementation insight**: every isotoxal star tile n\*α decomposes
+into a convex interior n-gon + n isosceles triangles — i.e. **any
+star-polygon tiling can be re-encoded as an all-convex tiling** in
+exactly the Fisher–Mellor sense, then fed to PIC. Alternatively (and
+better visually) the star tile is the natural unit for a **bespoke
+constructed figure** via the rosette pathway — the star outline *is* the
+strand. So star-polygon tilings are the cleanest concrete target for the
+rosette-pathway architectural fold
+(`project_star_tilings_gallery_idea.md`): convex-decomposition gives an
+immediate generic-PIC version; constructed figures give the fully
+controlled version later.
+
+### 10.5 Kepler's *Harmonices Mundi* (1619) tilings
+
+- Kepler's **Aa** diagram: pentagons + pentagrams + decagons + "fused
+  double decagons". Proven continuable to a full plane tiling; Kepler
+  conjectured every extension introduces new features (proto-aperiodic —
+  the ancestor of Penrose P1, which uses the same tile family). Sources:
+  [Imperfect Congruence — pentagon tilings](https://gruze.org/tilings/pentagon_tilings),
+  [Wikipedia: Penrose tiling](https://en.wikipedia.org/wiki/Penrose_tiling)
+  (history section). For us this is a **rosette-pathway / substitution
+  candidate**, not a periodic entry.
+- Kepler also published periodic star-polygon and 2-uniform patterns —
+  the 2-uniform **(3.4.3.12; 3.12²)** honoured by the Kepler's Star name
+  (Fisher & Mellor §2.3) and the "Kk" tiling already noted at §6.1 #15.
+  (3.4.3.12; 3.12²) appears as a PIC substrate in Kaplan 2005's Figure 3
+  — see §10.6 — which makes it the most PIC-credentialed 2-uniform
+  target we have.
+
+### 10.6 Kaplan 2005 (PIC paper) — full-text anchors for this doc
+
+Read in full 2026-07-10. Facts relevant to tiling selection:
+
+- **Substrates demonstrated** (Fig. 3): 4.8² (θ = 22.5°/45°/67.5°),
+  4.6.12 (45°/60°/75°), the 2-uniform **(3.4.3.12; 3.12²)**
+  (35°/60°/75°), and the **"Altair" tiling** — a tiling by *nearly*
+  regular polygons reproduced from Grünbaum & Shephard p. 64 (related
+  design in Bourgoin Plate 163). Inference "performs perfectly on
+  regular polygons"; on irregular tiles it "sometimes produces motifs
+  with unmatched rays" — Kaplan's own statement of the degeneracy our
+  edge-slide fixes chase.
+- **Two-point patterns**: a second parameter δ splits each contact
+  point in two (δ ∈ (0, shortest-edge length]); Bonner's two-point
+  family. Typical θ = 45°, forming squares around edge midpoints. This
+  confirms §3.3's proposed data-model change is one scalar per Figure.
+- **Second-pass inference**: large regular polygons (dodecagons) left
+  hollow by pass 1 get a second inward inference pass — relevant to our
+  12-gon-heavy candidates.
+- **Rosette transform**: a tiling→tiling operator explaining "Najm
+  tilings" (regular polygons touching) vs **"Hankin tilings"** (large
+  regular polygons separated by rings of irregular pentagons — exactly
+  our `*-rosette` entries). Some Hankin tilings are **primitive** (not a
+  rosette transform of anything): the Altair tiling, and Bonner's
+  **11-and-13-pointed-star design**, where the irregular ring tiles
+  absorb the incompatible angles of 11- and 13-gons. Direct precedent
+  for an `11.13-rosette` style Gallery entry.
+- **Known limits**: the dodecagon-triangle "extended rosette" pattern
+  (his Fig. 14) needs multiple contact angles per pattern or non-greedy
+  inference — out of reach of plain PIC; matches our rosette-pathway
+  fold rationale.
+- His representation of a periodic tiling = two translation vectors +
+  untransformed polygons + per-polygon transform lists — identical in
+  shape to our `tapratsTiling.ts` blocks (as expected; same lineage).
+
+### 10.7 Implementability verdict (star tilings)
+
+| Entry | Verdict | Pathway | Risk |
+|-------|---------|---------|------|
+| David's Star | ✅ trivial | preset over shipped 3.6.3.6 (two edge classes / θ = 60°) | none |
+| Kepler's Star (b = 67.5°, regular octagons) | ✅ easy | Taprats block on the 4⁴ lattice (t1=(L,0), t2=(0,L); square + 4 triangles + octagon per cell) | none — all tiles convex, octagon regular |
+| Kepler's Star (b free) | ✅ easy–medium | same block, b as a per-tiling parameter (would be our first parametric Taprats entry) | irregular octagon → mild edge-slide exposure |
+| Archimedes' Star | ✅ easy | Taprats block on hex lattice; encode hexagons as 12-gons with collinear vertex pairs | collinear-vertex tolerance needs one probe |
+| Night Sky | ✅ medium | Taprats block on tetrakis-square lattice (4-star + 8-star + gaps) | isosceles proportions to derive from tip rule |
+| Snow Star | ✅ medium | Taprats block on rhombille lattice (3-star + 6-star + gaps) | as above |
+| Star of triakis (3.12²-dual) | ✅ medium | Taprats block (needs triakis triangular itself first, see §11) | as above |
+| 2-star tilings (12-point stars over 6³ etc.) | ⚠ medium | Taprats block; pairs naturally with the two-point Figure work | more tiles per cell |
+| Star-polygon-as-tile tilings (§10.4) | ⚠ split | convex-decomposition → Taprats now; star-outline figures → rosette-pathway later | decomposition changes the strand topology vs a true star tile |
+
+---
+
+## 11. Candidate catalogue by implementation pathway (2026-07-10)
+
+Consolidates §§3–7 + §10 into pathway buckets against the 2026-07 engine
+(BFS `archimedean` + Taprats `rosette-patch`; no k-uniform, substitution,
+or constructed-figure engine).
+
+### A. Taprats data block — no engine work (proven pathway, cf. the six Laves entries of 2026-05-19)
+
+1. **Kepler's Star, b = 67.5°** (§10.2) — square + isosceles triangles +
+   regular octagon on the square lattice. Highest star-tiling priority.
+2. **Archimedes' Star** (§10.2) — 3.6.3.6 with medially-subdivided
+   triangles (collinear-vertex encoding note).
+3. **Night Sky** (§10.3) — 8-pointed + 4-pointed stars; most Islamic of
+   the Fisher–Mellor set.
+4. **Snow Star** (§10.3) — 6-point + 3-point regular stars on rhombille.
+5. **Missing Laves duals** — the shipped set (§0) has 6 of 8 non-regular
+   Laves; still absent: **prismatic pentagonal** (dual 3³.4²) and
+   **triakis triangular** (dual 3.12²). Same recipe as the 2026-05-19
+   batch; triakis also unblocks its star tiling.
+6. **Individual 2-uniform tilings as fixed Taprats blocks** — any of the
+   20 (§6.1) can be hand-encoded without the BFS orbit generalisation
+   (translation cell + transforms). Priority picks: **(3.4.3.12; 3.12²)**
+   (Kaplan-demonstrated PIC substrate, Kepler-published), **#15 Kepler
+   "Kk" (3.4.6.4; 3.4².6)**, **#17 (3.4.6.4; 4.6.12)**, and the chiral
+   pair **#4/#5 (3⁶; 3⁴.6)**.
+7. **Pythagorean two-square tiling** (§6.4) — one block per chosen ratio
+   (or a parametric block, cf. Kepler's Star b).
+8. **Star-polygon tilings via convex decomposition** (§10.4) —
+   `(8.4*π/4)²` star-and-cross first (octagon + interior square +
+   triangles), then `12.12.4*π/3` and `(6.6*π/3)²`.
+
+### B. Figure-layer work only — no new tilings
+
+9. **David's Star preset** over 3.6.3.6 (§10.2) — plus the general
+   Bonner-preset library (§8 Tier 1 #5).
+10. **Two-point δ parameter** on `FigureConfig` (§3.3, confirmed by
+    Kaplan's δ, §10.6) — star-and-cross across every shipped tiling.
+11. **Second-pass inward inference** for big regular polygons (§10.6) —
+    fills hollow 12-gon/16-gon centres; complements the rosette pathway.
+12. **Truchet figures** (§6.7).
+
+### C. BFS generator extension (orbit-aware `neighborSides`)
+
+13. **The 20 2-uniform tilings wholesale**, then 3-uniform+ (§3.1, §6.1)
+    — supersedes the per-tiling blocks of A6 if/when Step 15 unparks;
+    Medeiros e Sá 2018 seed-vertex encoding is the right data model.
+
+### D. Rosette-pathway-gated (constructed figures; the architectural fold in `project_star_tilings_gallery_idea.md`)
+
+14. **True star-polygon tiles with star-outline figures** (§10.4) — the
+    22 uniform star tilings incl. the four α-parametric families.
+15. **Girih tile set with authored decoration lines** (§4.4, §8 Tier 2 #8).
+16. **Bonner Fourfold A / Fourfold B / Sevenfold systems** (§3.4).
+17. **Hankin "primitive" tilings**: Altair; **11+13-pointed-star**
+    combination (§10.6) — irregular ring tiles absorbing incompatible
+    angles; extends our existing `hendecagonal-rosette` line.
+18. **Kaplan Fig.-14-class extended rosettes** (multiple contact angles
+    per pattern) — hardest; needs Najm-style explicit rosette
+    parameterisation, i.e. the full fold.
+
+### E. New engines (unchanged from §8 Tiers 3–4)
+
+19. Substitution suite (Penrose P3, Ammann–Beenker, Socolar/Stampfli,
+    pinwheel, **Kepler Aa**/P1-family) and the Hat/Spectre monotile.
+
+---
+
 ## Open follow-ups
 
 - Exact substitution diagrams for Ammann–Beenker (Wikipedia describes
@@ -968,7 +1323,12 @@ without needing an explicit reflex-vertex test.
 - [Wikipedia — Pythagorean tiling](https://en.wikipedia.org/wiki/Pythagorean_tiling)
 - [Wikipedia — Voderberg tiling](https://en.wikipedia.org/wiki/Voderberg_tiling)
 - [Medeiros e Sá, de Figueiredo, Soto Sánchez — *Synthesizing Periodic Tilings of Regular Polygons*, SIBGRAPI 2018](https://doi.org/10.1109/sibgrapi.2018.00009) — basic-directions / seed-vertex encoding; roots of unity for n ∈ {1,2,3,4,6,8,12}
-- [Fisher & Mellor — *Using tiling theory to generate angle weaves with beads*, J. Math. Arts 2012](https://doi.org/10.1080/17513472.2012.736935) — star tilings (David / Kepler / Archimedes); vertex-weave ↔ edge-weave duality
+- [Fisher & Mellor — *Using tiling theory to generate angle weaves with beads*, J. Math. Arts 2012](https://doi.org/10.1080/17513472.2012.736935) — star tilings (David / Kepler / Archimedes); vertex-weave ↔ edge-weave duality; [author preprint PDF](https://beadinfinitum.com/TilingTheoryStarWeavesG18X.pdf) (full text read 2026-07-10); [LMU Digital Commons record](https://digitalcommons.lmu.edu/math_fac/185/)
+- [Wikipedia — Uniform tiling (star-polygon tilings table: 4 α-parametric + 18 fixed)](https://en.wikipedia.org/wiki/Uniform_tiling)
+- [Wikipedia — List of Euclidean uniform tilings (11 convex + 14 hollow, Grünbaum & Shephard 1987)](https://en.wikipedia.org/wiki/List_of_Euclidean_uniform_tilings)
+- [Grünbaum & Shephard — *Tilings and Patterns*, W.H. Freeman 1987 (Google Books)](https://books.google.com/books/about/Tilings_and_Patterns.html?id=0x0vDAAAQBAJ)
+- [Imperfect Congruence — Kepler's pentagon tilings incl. the Aa diagram](https://gruze.org/tilings/pentagon_tilings)
+- [*De tessere quinquangula: five hundred years of pentagonal tilings from Dürer to Mackay via Kepler, Escher, and Penrose*, Structural Chemistry 2025](https://link.springer.com/article/10.1007/s11224-025-02652-x)
 
 ### Decorative / Truchet / non-Islamic traditions
 
@@ -1189,3 +1549,28 @@ without needing an explicit reflex-vertex test.
       save (per-shape counts at flush vs off-flush) and caught a θ=30
       probe artifact (hexagon n=6 sits on the 180/n degenerate angle). One-
       shot `scripts/*.mts` run with `npx tsx`, deleted after.
+- **2026-07-10** — **Star-tilings deep dive + pathway catalogue** (new
+  §10 + §11; tier list updated in place with 6a–6d / 11a–11c / 20a).
+  Read Fisher & Mellor 2012 in full (author preprint) — exact
+  star-of-triangles construction, regular/semiregular stars, Theorems
+  1–3 duality, and all named star tilings (David's / Kepler's /
+  Archimedes' / Snow Star / Night Sky / triakis star / n-star). Key
+  results: **David's Star ≡ shipped 3.6.3.6** (Figure preset only);
+  **Kepler's Star fully parameterised** here (s = L/(1+tan b), gap
+  octagon angles 2b and 270°−2b) with the derived finding that
+  **b = 67.5° makes the gap octagon regular** — the natural Islamic
+  variant, on the project's own classic contact angle; **Archimedes'
+  Star = 3.6.3.6 with medially-subdivided triangles**, non-edge-to-edge
+  (collinear-vertex encoding needed). Also read Kaplan 2005 in full:
+  substrates 4.8² / 4.6.12 / (3.4.3.12; 3.12²) / Altair, two-point δ
+  parameter, rosette transform + Najm-vs-Hankin distinction, primitive
+  Hankin tilings (11+13-star), and his Fig.-14 limits — all anchored in
+  §10.6. Grünbaum–Shephard star-polygon inventory (25 = 11 convex + 14
+  hollow; 22 filled star-polygon uniform tilings, 4 α-parametric)
+  catalogued in §10.4 with the convex-decomposition insight (star tile
+  = interior n-gon + n triangles → PIC-safe encoding today,
+  star-outline constructed figures under the rosette fold later).
+  Identified 2 still-missing Laves duals (prismatic pentagonal, triakis
+  triangular). §11 groups every open candidate by pathway: A Taprats
+  block (no engine work) / B Figure-layer only / C BFS orbit extension
+  / D rosette-pathway-gated / E new engines.

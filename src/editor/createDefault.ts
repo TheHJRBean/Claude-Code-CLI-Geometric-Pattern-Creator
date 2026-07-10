@@ -104,7 +104,7 @@ export function createDefaultEditorConfig(overrides: DefaultEditorOverrides = {}
  * boundary-matching polygon so PIC sees the Cell's outline as the polygon
  * and Strands emerge from its edges, reproducing the canonical pattern.
  */
-function createBoundaryMatchingCell(
+export function createBoundaryMatchingCell(
   id: string,
   shape: CellShape,
   center: { x: number; y: number },

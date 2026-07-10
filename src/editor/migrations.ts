@@ -344,6 +344,7 @@ function migrateV3(r: Record<string, unknown>): EditorConfig | null {
     edgeLength: r.edgeLength,
   }
   if (isConfigurationId(r.configuration)) out.configuration = r.configuration
+  if (typeof r.presetId === 'string' && r.presetId.length > 0) out.presetId = r.presetId
   const ac = migrateAutoComplete(r.autoComplete)
   if (ac) out.autoComplete = ac
   const frame = migrateFrame(r.frame)

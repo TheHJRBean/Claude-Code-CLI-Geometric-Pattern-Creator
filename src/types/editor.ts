@@ -340,6 +340,14 @@ export interface EditorPatch {
    * absent ⇒ no decoration. Builder-only. */
   decoration?: DecorationConfig
   /**
+   * Gallery↔Lab convergence (ADR-0006) — provenance marker for Patches
+   * produced by preset conversion (`editor/presetConversion.ts`). Carries the
+   * source preset's tiling id (e.g. `"4.8.8"`, `"hexagonal"`). Drives the
+   * one-time "editing a copy of a preset" note and the Presets-shelf
+   * provenance badge. Absent on user-authored Patches.
+   */
+  presetId?: string
+  /**
    * Multi-cell "Alternate orientation": when true, the whole Patch is rotated
    * *rigidly* by a Configuration-specific angle (`compositionAlternateAngle`) —
    * every Cell, the lattice basis, the boundary outlines, and the Design-Phase

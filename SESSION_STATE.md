@@ -5,6 +5,17 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-10 — ✅ #4 CLOSED: convergence conversion core (on `main`)
+
+**Ticket #4 (conversion core + frame migration + flagship fingerprints) DONE.** New `src/editor/presetConversion.ts`: pure `convertPresetToEditorConfig` over a hand-authored tier-1 table — 5 shipped multi-cell seeds + boundary-matching single-cell square/hexagon/triangle (`createBoundaryMatchingCell` now exported from `createDefault.ts`), whole Patch rescaled to the source `tiling.scale` so world size + the migrated Frame stay right. Tunings carried (figures/strand/θ/routing/smooth); Gallery `config.frame` → `editor.frame` with `boundaryTreatment: 'clip'` pinned (Q8a), top-level `frame` dropped. `presetId?: string` added to `EditorPatch` + preserved in `migrateV3`. Tier-2/3 (`3.3.4.3.4` etc., Laves/Taprats, rosettes) cleanly return null via `isConvertiblePreset`.
+
+**Tests +55 (614→669 green; tsc + build green):** `presetConversion.test.ts` (seam: validity via migrator round-trip, tunings, frame, provenance, scale, non-convertibles, no input mutation) + `presetConversion.fingerprint.test.ts` (8 flagships × 3 checks: per-tile-type emission vs BFS — exact on even-sided regulars, ≤3% probed triangle tie noise; Sutherland–Hodgman window coverage — probed exactly 1.000 on both pipelines everywhere; count+Σlen density ≤5.1% probed → 7% gate). Tolerances calibrated empirically via a temp probe test (deleted).
+
+**Key finding for later slices:** conversion is provably faithful — coverage exact on all 8 flagships; only triangles carry per-copy PIC tie-breaking noise (known PIC trait, not a conversion artifact).
+
+**NEXT:** frontier per blocking edges = **#5 (Lab Presets shelf, needs #4 ✓)** and **#6 (Gallery browser, needs #3 ✓ + #4 ✓)** — one ticket per session (`gh issue view 5` / `6`).
+
+---
 ### ▶ 2026-07-10 — GRILL COMPLETE: Gallery↔Lab convergence — Q7–Q13 decided (ACTIVE THREAD)
 
 **All 13 grill questions are now decided.** Full decision text lives in `memory/project_gallery_lab_convergence_idea.md` (canonical — read it first). Q7–Q13 headlines, all my recommendations accepted except Q8b:

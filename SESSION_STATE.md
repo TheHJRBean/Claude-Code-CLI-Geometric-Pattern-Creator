@@ -5,6 +5,36 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-10 — IN PROGRESS: Gallery↔Lab convergence + star-tilings COMBINED EPIC — mid-grill handoff (ACTIVE THREAD)
+
+**Goal:** one epic, two halves. (1) **Gallery↔Lab convergence** — presets become fully editable/decoratable Builder Patches inside the Lab; Gallery is repurposed as a **saved-patterns browser**. (2) **Star-tilings / expanded preset wave** — add as many new tilings as possible (research DONE, see below). Canonical memos (read BOTH first on resume): `memory/project_gallery_lab_convergence_idea.md` (grill decisions Q1–Q6) + `memory/project_star_tilings_gallery_idea.md` (research verdicts + rosette fold + sequencing).
+
+**Sequencing (decided):** research ✅ → **convergence design/build FIRST** → rosette-figure architecture + preset wave into the unified surface. Exception: 1–2 easy BFS-compatible tilings may ship early as a smoke test.
+
+**Research pass DONE (`289c16a`, pushed):** §10–11 + tier list in `RESEARCH-TILING-CONFIGURATIONS.md`. Headlines: **Kepler's Star = flagship** (b=67.5° ⇒ gap octagon REGULAR; all-convex, PIC-safe, one Taprats block); David's Star IS 3.6.3.6 (Figure preset only, free); Archimedes' Star = 3.6.3.6 w/ triangles subdivided ×4 (needs hexagons-as-12-gons w/ collinear vertices, one tolerance probe); Pathway A no-engine-work candidates: Night Sky, Snow Star, 2 missing Laves duals, 2-uniform (3.4.3.12; 3.12²), star-and-cross. Pathway D (rosette-gated): 22 uniform star-polygon tilings, Girih, Bonner, Hankin.
+
+**Grill (grilling skill, with docs) — Q1–Q6 DECIDED** (full text in the convergence memo):
+1. **Full conversion (b)** — presets = real `EditorPatch`es under a **Presets** section, load as if user-made; warnings not structural prevention.
+2. **Tiered rollout** — tier 1 (5 shipped Configurations + sq/hex/tri) + tier 2 (remaining Archimedean, new ConfigurationIds/bases/seeds) convert in v1; tier 3 (irregular Laves/Taprats) read-only until an irregular-tile Patch encoder lands (shared work with star wave).
+3. **Gallery = pure browser** — merged library view, thumbnail grid (absorbs the save-preview-page idea), detail view w/ pan/zoom + **"Edit in Lab"** button; tuning sidebar removed.
+4. **BFS/Taprats = legacy path with sunset** — serves tier-3 + old saves; conversion only user-initiated (Edit in Lab, one-way, original kept); snapshot-compare flagships.
+5. **Passive warnings only** — `presetId` provenance + one-time dismissible note on first structural edit + existing 17.10 non-tiling tag; no hard blocks.
+6. **Presets = template shelf** next to My Tessellations (read-only cards; click → fresh conversion as working config w/ unsaved-guard; tier-3 badged "view only").
+
+**NEXT — REMAINING GRILL QUESTIONS (resume the grill here, one at a time, recommendation each):**
+7. **Docs/ADR conformance** — ADR-0005 says "Decoration is Builder-only; the Gallery is not decorated" (amend, or moot under full conversion? The *viewer* now displays decorated saves); CONTEXT.md **Gallery**/**Lab** definitions need rewriting (Gallery is no longer "curated picker"); likely a new **ADR-0006 (convergence)**. Also revisit the CONTEXT.md "Feature parity" matrix (the Frame row's "Keep" verdict changes).
+8. **Gallery-only feature migration** — the clip-only **Gallery Frame** (memory `project_gallery_frame.md`, SCOPE LOCKED): dies with the tuning sidebar, survives in the viewer, or superseded by Builder Frame post-conversion? **Unwoven-SVG export** is Gallery-only (Lever-A-blocked in Lab) — where does it live when Gallery stops being an authoring surface?
+9. **AppMode naming** — `'main' | 'lab'` in App.tsx; does the top-bar switcher stay Gallery|Lab with the new meanings? localStorage `app-mode` migration?
+10. **Library merge details** — merge `main-configs-v1` + `lab-tessellations-v1` into one key (migration) vs merged *view* only; fate of `sourceCategory` when everything becomes editor-sourced.
+11. **Thumbnail generation** — clean overlay-free renders for the browser grid: live mini-`PatternSVG` per card vs cached raster at save time (the `data-export="exclude"` + `exportPNG` machinery on branch `feat/export-subsystem` is reusable). Perf on a big library.
+12. **Conversion mechanics** — where `presetToEditorConfig` lives; tier-1 mappings hand-authored per preset vs derived; snapshot-compare harness for flagship presets.
+13. **Implementation slicing + branch plan** — slice into PR-sized steps (likely: browser skeleton → tier-1 conversions → presets shelf → tier-2 → Gallery sidebar removal → legacy sunset). Consider `/to-spec` → `/to-tickets` via the GitHub-Issues flow (`docs/agents/issue-tracker.md`) once the grill closes.
+
+**Decisions / non-obvious:** user explicitly overrode my (c) "preset-field mode" recommendation at Q1 — wants REAL editability; clutter managed by UI separation, breakage by warnings. Session also: both memos promoted to PLANNED + combined into one epic; new idea captured then absorbed (`project_gallery_lab_convergence_idea.md`); new feedback memory `feedback_concise_answers.md` (lead with the answer, no surveys).
+
+**Blockers:** none. Working tree was clean at handoff; only repo change this session was `289c16a` (research doc, background agent, pushed).
+
+---
 ### ▶ 2026-07-10 — DONE: ADR spec conformance — reconciled ADR-0004 with the Framing demotion (on `main`)
 
 Audited the domain spec against the root structure contracts (`ADR-FORMAT.md` + `docs/agents/domain.md`). Result: structurally conformant — single root `CONTEXT.md` + `docs/adr/` (single-context), ADRs sequential `0001`–`0005` with correct `# Title` + prose shape. One content drift fixed: ADR-0004 still called Framing a **Phase** with no amendment, contradicting `CONTEXT.md`/`CLAUDE.md`/ADR-0003's amendment (Framing → persistent **Frame overlay**). Appended a 2026-06-01 amendment to ADR-0004 (`5466fae`) reconciling the Phase language while preserving the structural-only Frame/Decoration split — did **not** rewrite the historical decision.

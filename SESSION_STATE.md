@@ -5,7 +5,22 @@
 ## ▶ RESUME HERE
 
 ---
-### ▶ 2026-07-10 — IN PROGRESS: Gallery↔Lab convergence + star-tilings COMBINED EPIC — mid-grill handoff (ACTIVE THREAD)
+### ▶ 2026-07-10 — GRILL COMPLETE: Gallery↔Lab convergence — Q7–Q13 decided (ACTIVE THREAD)
+
+**All 13 grill questions are now decided.** Full decision text lives in `memory/project_gallery_lab_convergence_idea.md` (canonical — read it first). Q7–Q13 headlines, all my recommendations accepted except Q8b:
+7. **Docs split timing** — ADR-0006 + ADR-0005 amendment at grill close; CONTEXT.md Gallery/Lab rewrite + parity-matrix retirement ride the flip slice (forward pointer in the interim).
+8a. **Gallery Frame superseded + migrated** — authoring dies with the sidebar; viewer renders legacy `config.frame`; Edit-in-Lab converts it → `editor.frame` Shape Frame.
+8b. **Unwoven-SVG ARCHIVED** (user override) + principle: **Lab export menu identical across ALL config sources** — no per-path asymmetries.
+9. Labels stay Gallery|Lab; internal `'main'`/localStorage untouched; **default workspace flips to Lab**.
+10. **Physical library merge** → new `pattern-library-v1` key (old keys kept as backup); `sourceCategory` kept as legacy-path badge.
+11. **Thumbnails: save-time raster** (~384px via exportPNG/strip machinery) + lazy backfill, **IndexedDB** `pattern-thumbs`.
+12. **Conversion**: `src/editor/presetConversion.ts`, hand-authored preset→`createDefault*`-seed table, tunings carried over, tolerance fingerprint suite for flagships.
+13. **Slices** (one PR each): docs → library merge → conversion core → Presets shelf → Gallery browser → the flip → tier-2 chunks; **process = /to-spec → /to-tickets (GitHub Issues, one per slice) → /implement one per session**. Legacy sunset unscheduled.
+
+**NEXT:** user confirms shared understanding → slice 1: write ADR-0006 (+ ADR-0005 amendment + CONTEXT pointer), then spec → tickets. Repo is public; issues visible.
+
+---
+### ▶ 2026-07-10 — superseded (grill now complete, see above): mid-grill handoff Q1–Q6
 
 **Goal:** one epic, two halves. (1) **Gallery↔Lab convergence** — presets become fully editable/decoratable Builder Patches inside the Lab; Gallery is repurposed as a **saved-patterns browser**. (2) **Star-tilings / expanded preset wave** — add as many new tilings as possible (research DONE, see below). Canonical memos (read BOTH first on resume): `memory/project_gallery_lab_convergence_idea.md` (grill decisions Q1–Q6) + `memory/project_star_tilings_gallery_idea.md` (research verdicts + rosette fold + sequencing).
 

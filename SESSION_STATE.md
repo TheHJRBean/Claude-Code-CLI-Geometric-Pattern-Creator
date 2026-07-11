@@ -17,7 +17,9 @@
 
 **Green:** tsc + **699 vitest** + build. Net −998 lines. SSR smoke updated to cover both post-flip paths (fresh→Lab, persisted `'main'`→Gallery). ⏳ **browser-verify (headless can't drive):** fresh profile lands in Lab; empty Gallery shows pointer+CTA; persisted `'main'` still lands in Gallery; Lab export menu has no Unwoven.
 
-**NEXT:** merge #6 (PR #9) then #7 (PR #10) — retarget #10 base `feat/gallery-browser-6`→`main` after #9 merges. Frontier after = **#8 (tier-2 Configurations, Fable)**, last convergence slice. One ticket per session.
+**BONUS — #6 thumbnail bug FIXED + ✅ browser-verified (this session):** user reported an all-placeholder Gallery grid. Console diag proved the offscreen render *succeeds* (188KB data URL) — the thumbnail was rendered then discarded. Root cause = classic React-18 **StrictMode `mountedRef` anti-pattern** in `useThumbnails.ts`: the flag was only cleared on cleanup, never re-set true on the setup→cleanup→setup re-mount, so it stuck `false` all session → `put` dropped every URL + the single-flight pump halted after save #1. Fix `8140706`: set `mountedRef.current = true` in the effect setup. Plus `1e8f161` hardening (content-aware settle + 8s render timeout so a stuck raster can't wedge the queue; failure-only `[thumbnail]` warns). **Dev-only bug** (prod build unaffected → why all tests stayed green); not unit-testable here (no jsdom). User confirmed "looks good".
+
+**NEXT:** merge #6 (PR #9) then #7 (PR #10) — retarget #10 base `feat/gallery-browser-6`→`main` after #9 merges (thumbnail fix rides on #10). Frontier after = **#8 (tier-2 Configurations, Fable)**, last convergence slice. One ticket per session.
 
 ---
 ### ▶ 2026-07-11 — 🔵 #6 IN REVIEW: Gallery saved-patterns browser (PR #9, branch `feat/gallery-browser-6`)

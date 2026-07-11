@@ -434,6 +434,102 @@ export function createDefault33434EditorConfig(): EditorConfig {
   }
 }
 
+/**
+ * Build a fresh **3.3.3.3.6 Configuration** Patch (snub hexagonal / snub
+ * trihexagonal: one hexagon + eight triangles). **Chiral** — this seed fixes
+ * one enantiomorph; the mirror tiling is a different (unshipped) seed. Each
+ * hexagon edge is triangle-shared (6 edge triangles, apexes outward at the
+ * hexagon's vertex directions); two further "pocket" triangles per domain
+ * touch hexagons only at vertices and close the 3.3.3.3.6 vertex figure.
+ *
+ * Hexagon Cell sits at the Patch origin (canonical pointy-top orientation).
+ * Edge-triangle centroids sit at distance 2√3L/3 in the six edge-midpoint
+ * directions 60k° (same local geometry as Kagome's edge triangles). The two
+ * pocket triangles sit at (√3L/6, 3L/2) — base joining the hexagon's top
+ * vertex (0, L) to the neighbour-hexagon vertex (0, 2L), apex +x — and at
+ * (−2√3L/3, L) — the 60°-rotation mate, apex −x. Translation lattice is
+ * hexagonal with |u| = L√7: u = (√3L, 2L), v = rotate(u, 60°) = (−√3L/2, 5L/2).
+ */
+export function createDefault33336EditorConfig(): EditorConfig {
+  const edgeLength = DEFAULT_EDGE_LENGTH
+  // Edge-triangle centroid distance: hex apothem + triangle apothem-to-base
+  // = √3L/2 + √3L/6 = 2√3L/3 (identical to Kagome).
+  const triDist = (2 * edgeLength * Math.sqrt(3)) / 3
+  const s3 = Math.sqrt(3)
+  const cells: EditorCell[] = [
+    createBoundaryMatchingCell('hexagon', 'hexagon', { x: 0, y: 0 }, 0, edgeLength),
+    // Six edge triangles, apex outward. Orientation alternates between the
+    // two triangle classes: edge directions 0/120/240 → rot π/2 (apex ∈
+    // {0°,120°,240°}), edge directions 60/180/300 → rot π/6.
+    createBoundaryMatchingCell(
+      'triangle-e',
+      'triangle',
+      { x: triDist, y: 0 },
+      Math.PI / 2,
+      edgeLength,
+    ),
+    createBoundaryMatchingCell(
+      'triangle-ne',
+      'triangle',
+      { x: (edgeLength * s3) / 3, y: edgeLength },
+      Math.PI / 6,
+      edgeLength,
+    ),
+    createBoundaryMatchingCell(
+      'triangle-nw',
+      'triangle',
+      { x: -(edgeLength * s3) / 3, y: edgeLength },
+      Math.PI / 2,
+      edgeLength,
+    ),
+    createBoundaryMatchingCell(
+      'triangle-w',
+      'triangle',
+      { x: -triDist, y: 0 },
+      Math.PI / 6,
+      edgeLength,
+    ),
+    createBoundaryMatchingCell(
+      'triangle-sw',
+      'triangle',
+      { x: -(edgeLength * s3) / 3, y: -edgeLength },
+      Math.PI / 2,
+      edgeLength,
+    ),
+    createBoundaryMatchingCell(
+      'triangle-se',
+      'triangle',
+      { x: (edgeLength * s3) / 3, y: -edgeLength },
+      Math.PI / 6,
+      edgeLength,
+    ),
+    // Pocket triangles — no hexagon-shared edge. pocket-n: vertices
+    // (0,L)·(0,2L)·(√3L/2, 3L/2), apex +x. pocket-nw: its 60°-rotation mate
+    // about the origin, vertices (−√3L/2, L/2)·(−√3L, L)·(−√3L/2, 3L/2).
+    createBoundaryMatchingCell(
+      'triangle-pocket-n',
+      'triangle',
+      { x: (edgeLength * s3) / 6, y: (3 * edgeLength) / 2 },
+      Math.PI / 2,
+      edgeLength,
+    ),
+    createBoundaryMatchingCell(
+      'triangle-pocket-nw',
+      'triangle',
+      { x: -triDist, y: edgeLength },
+      Math.PI / 6,
+      edgeLength,
+    ),
+  ]
+  return {
+    version: 3,
+    cells,
+    activeCellId: 'hexagon',
+    edgeLength,
+    configuration: '3.3.3.3.6',
+  }
+}
+
 export function createDefault4612EditorConfig(): EditorConfig {
   const edgeLength = DEFAULT_EDGE_LENGTH
   const hexDist = edgeLength * (1 + Math.sqrt(3))

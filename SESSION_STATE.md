@@ -5,6 +5,23 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-11 — ✅ #8 chunk 3 (FINAL) BUILT: 3.3.3.3.6 snub hexagonal (issue #16, branch `feat/33336-snub-hexagonal`, PR open) + branch cleanup
+
+**Session start housekeeping:** PR #15 (snub square) squash-merged to main (`9e153f1`), #14 closed. All 5 stale remote branches deleted (`feat/convergence-flip-7`, `feat/gallery-browser-6`, `feat/tier2-elongated-triangular-8` — squash-merged; `feat/art-deco-egypt-theme-revamp`, `feature/art-deco-egypt-ui` — verified content superseded on main: rejection label `f65633c`, Zone.Identifier ignore, diagnose scripts all present). Repo now has ONLY `main` + this session's branch.
+
+**Final tier-2 chunk of tracker #8.** Sub-issue **#16** created + linked under #8. The `3.3.3.3.6` (snub hexagonal) preset is now a fully editable Configuration — **tier 2 is empty; every Archimedean preset converts.**
+
+- `ConfigurationId` + migration allow-list + reducer `SET_BUILDER_CONFIGURATION` arm + DesignPanel `BOUNDARY_OPTIONS` entry.
+- `createDefault33336EditorConfig` (createDefault.ts): 1 hexagon + 8 triangles, **CHIRAL** (one enantiomorph seeded; the pocket-triangle rot60-vs-rot(−60) placement is the chirality witness). Hexagon at origin rot 0 (pointy-top); 6 edge triangles at centroid distance `2√3L/3` in directions 60k° (Kagome-identical local geometry; rot π/2 for dirs 0/120/240, π/6 for 60/180/300); 2 pocket triangles — pocket-n vertices `(0,L)·(0,2L)·(√3L/2,3L/2)` rot π/2 at `(√3L/6, 3L/2)`, pocket-nw = its rot60 mate at `(−2√3L/3, L)` rot π/6. **Derivation trap:** the naive second pocket candidate next to pocket-n is actually a NEIGHBOUR hexagon's edge triangle (same translation class as tri-180) — the true second pocket class is the 60°-rotation orbit mate.
+- `compositionCellBasis`: hex lattice `u=(√3L, 2L)`, `v=rot60(u)`, `|u|=L√7` (the snub vector 2a+b, tilt ≈19.1°), `|u×v|=7√3L²/2` ✓. `compositionAlternateAngle` → π/6 (hex half-step).
+- Conversion-table row in `presetConversion.ts` → shelf tier 1. Tier-2 exemplar tests updated: presetShelf now asserts **tier 2 empty** + all Archimedean tier 1; galleryBrowser.logic swaps exemplar to `rhombille`; NON_CONVERTIBLE drops `3.3.3.3.6`.
+- Tests +11 → **728 vitest**: fingerprint flagship row (scale 60 — passes within EXISTING tolerances, nothing loosened) + `createDefault33336.test.ts` (7 exact-geometry tests: edge lengths, 6 distinct hexagon-edge bases, pocket single-vertex contact, pocket-n exact vertices + rot60-mate chirality witness, 8 pairwise translation-inequivalent triangles via fractional lattice coords, basis algebra + area, v-translate of tri-se closes the top-vertex 3.3.3.3.6 figure).
+
+**Green:** tsc + 728 vitest + build. ⏳ browser-verify: pick 3.3.3.3.6 in Builder Design panel (snub hex renders, Strands cross hexagon↔triangle edges), shelf card editable (no badge, tier 2 gone), alternate orientation rotates the field π/6. Plus accumulated verifies from #14 (snub square) and earlier.
+
+**NEXT (cold start):** merge the PR + close #16 → **#8 and #1 (convergence epic) can CLOSE** (all tiers resolved: tier 1 = everything Archimedean, tier 3 = rosette/Laves awaits the irregular-tile Patch encoder). Then the **star-tilings wave** begins (`memory/project_star_tilings_gallery_idea.md` — Kepler's Star flagship, rosette-figure architecture fold).
+
+---
 ### ▶ 2026-07-11 — ✅ #8 chunk 2 BUILT: 3.3.4.3.4 snub square (issue #14, branch `feat/33434-snub-square`, PR open)
 
 **Second tier-2 chunk of tracker #8.** Sub-issue **#14** created + linked under #8. The `3.3.4.3.4` (snub square) preset is now a fully editable Configuration:

@@ -369,14 +369,13 @@ export function TessellationLabMode({
     ? validateMultiPick(config.editor, picks)
     : null
 
-  // ── Export (Builder parity with Gallery) ───────────────
-  // Shared path (buildExportMenuItems). Unwoven-SVG is off here: it rebuilds
-  // from segmentsRef, one fundamental domain under the Lever A fast-path (would
-  // emit a single unit cell — see Canvas.tsx caveat). Image export runs against
-  // the live `<svg>`; Save-JSON round-trips the whole PatternConfig.
+  // ── Export ─────────────────────────────────────────────
+  // The single shared menu (buildExportMenuItems) — identical for every config
+  // source now that the Gallery tuning sidebar is gone (ADR-0006 flip). Image
+  // export runs against the live `<svg>`; Save-JSON round-trips the whole
+  // PatternConfig.
   const exportItems = buildExportMenuItems({
     svgRef,
-    segmentsRef,
     config,
     onLoad: loaded => dispatch({ type: 'LOAD_CONFIG', payload: loaded }),
     pngTransparent,

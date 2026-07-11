@@ -16,16 +16,16 @@ import { editAvailabilityFor, toCardModel } from './galleryBrowser.logic'
  *
  * "Edit in Lab" hands the config up to `onEditInLab`, which loads editor saves
  * directly and converts tier-1 legacy saves one-way (the saved copy is kept —
- * see `resolveEditInLab`). The tuning sidebar stays reachable via `onOpenTuner`
- * for this ticket; it's removed in the flip (#7).
+ * see `resolveEditInLab`). Authoring lives entirely in the Lab now (ADR-0006
+ * flip): `onGoToLab` switches workspaces so an empty Gallery has a way forward.
  */
 interface Props {
   library: ConfigLibrary
   onEditInLab: (config: PatternConfig) => void
-  onOpenTuner: () => void
+  onGoToLab: () => void
 }
 
-export function GalleryBrowser({ library, onEditInLab, onOpenTuner }: Props) {
+export function GalleryBrowser({ library, onEditInLab, onGoToLab }: Props) {
   const [entries, setEntries] = useState<SavedConfig[]>(() => library.list())
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -93,7 +93,7 @@ export function GalleryBrowser({ library, onEditInLab, onOpenTuner }: Props) {
               : `${entries.length} saved ${entries.length === 1 ? 'pattern' : 'patterns'}`}
           </p>
         </div>
-        <button className="gallery-browser__new" onClick={onOpenTuner}>New pattern</button>
+        <button className="gallery-browser__new" onClick={onGoToLab}>New in Lab</button>
       </div>
 
       {error && <p className="gallery-browser__error">{error}</p>}
@@ -101,7 +101,8 @@ export function GalleryBrowser({ library, onEditInLab, onOpenTuner }: Props) {
       {entries.length === 0 ? (
         <div className="gallery-browser__empty">
           <p>Nothing saved yet.</p>
-          <p>Build a pattern in the <strong>Lab</strong>, or tune a preset with <button className="gallery-browser__link" onClick={onOpenTuner}>New pattern</button>, then save it to see it here.</p>
+          <p>Start in the <strong>Lab</strong> — build or tune a pattern there, then save it to see it here.</p>
+          <button className="gallery-browser__empty-cta" onClick={onGoToLab}>Open the Lab</button>
         </div>
       ) : (
         <div className="gallery-grid">

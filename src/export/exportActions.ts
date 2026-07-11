@@ -1,7 +1,6 @@
 import type { RefObject } from 'react'
-import type { Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
-import { exportSVG, exportPNG, exportUnwovenSVG, DEFAULT_PNG_BACKGROUND } from './exportSVG'
+import { exportSVG, exportPNG, DEFAULT_PNG_BACKGROUND } from './exportSVG'
 import { saveJSON, loadJSON } from './exportJSON'
 
 /** A leaf action in the export menu. */
@@ -22,11 +21,10 @@ export type ExportMenuItem =
 export const PNG_SIZES = [1024, 2048, 4096, 8192] as const
 
 export interface ExportActionsArgs {
-  /** Live DOM `<svg>` — image export MUST run against it, not `segmentsRef`:
-   *  under the Lever A periodicity fast-path `segments` is a single fundamental
+  /** Live DOM `<svg>` — image export MUST run against it: under the Lever A
+   *  periodicity fast-path the in-memory `segments` are a single fundamental
    *  domain while the full field lives as `<use>` clones in the DOM. */
   svgRef: RefObject<SVGSVGElement | null>
-  segmentsRef: RefObject<Segment[]>
   config: PatternConfig
   /** Receives a validated PatternConfig from Load JSON (caller dispatches). */
   onLoad: (config: PatternConfig) => void
@@ -34,26 +32,22 @@ export interface ExportActionsArgs {
    *  toggle state so it persists while the menu is open. */
   pngTransparent: boolean
   onTogglePngTransparent: () => void
-  /** Include "Export Unwoven SVG". Off in the Lab/Builder: it rebuilds from
-   *  `segmentsRef`, which is one fundamental domain under Lever A, so it would
-   *  emit a single unit cell. Gallery opts in. */
-  includeUnwoven?: boolean
 }
 
 /**
- * The single source of truth for the export menu, shared by Gallery and
- * Lab/Builder so the two can't drift (they previously duplicated near-identical
- * handlers and the Lab silently lacked Unwoven-SVG). Image exports run against
- * the live `<svg>`; Save/Load round-trip the whole `PatternConfig`.
+ * The single source of truth for the export menu — one identical menu for every
+ * config source (converted presets, user Patches, legacy renders), so the paths
+ * can't drift. Image exports run against the live `<svg>`; Save/Load round-trip
+ * the whole `PatternConfig`. Unwoven-SVG was archived in the convergence flip
+ * (ADR-0006 Q8b) — it rebuilt from the in-memory segments, one unit cell under
+ * Lever A; it returns Lab-wide via the export epic if ever revived.
  */
 export function buildExportMenuItems({
   svgRef,
-  segmentsRef,
   config,
   onLoad,
   pngTransparent,
   onTogglePngTransparent,
-  includeUnwoven = false,
 }: ExportActionsArgs): ExportMenuItem[] {
   const handleExportSVG = () => {
     if (svgRef.current) exportSVG(svgRef.current)
@@ -71,14 +65,6 @@ export function buildExportMenuItems({
       height,
       background: pngTransparent ? null : DEFAULT_PNG_BACKGROUND,
     })
-  }
-  const handleExportUnwovenSVG = () => {
-    const el = svgRef.current
-    if (!el) return
-    const viewBox = el.getAttribute('viewBox') || '0 0 100 100'
-    const w = el.clientWidth || 1200
-    const h = el.clientHeight || 900
-    exportUnwovenSVG(segmentsRef.current ?? [], viewBox, w, h)
   }
   const handleSaveJSON = () => saveJSON(config)
   const handleLoadJSON = async () => {
@@ -100,9 +86,6 @@ export function buildExportMenuItems({
     },
     { kind: 'toggle', label: 'Transparent background', checked: pngTransparent, onToggle: onTogglePngTransparent },
   ]
-  if (includeUnwoven) {
-    items.push({ kind: 'action', label: 'Export Unwoven SVG', onClick: handleExportUnwovenSVG })
-  }
   items.push({ kind: 'action', label: 'Save JSON', onClick: handleSaveJSON })
   items.push({ kind: 'action', label: 'Load JSON', onClick: handleLoadJSON })
   return items

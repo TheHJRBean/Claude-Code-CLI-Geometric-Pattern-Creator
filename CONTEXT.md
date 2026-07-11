@@ -7,12 +7,11 @@ A React + TypeScript app that generates traditional Islamic geometric patterns v
 ### App — workspaces
 
 **Gallery**:
-The default app workspace — a curated picker for predefined **Compositions** built on Archimedean tilings (square, hex, 4.8.8, etc.). The user picks a Composition, tunes its parameters, and exports. The user toggles between Gallery and **Lab** at the top level.
-> **Convergence decided (2026-07-10, ADR-0006):** the Gallery becomes a saved-patterns *browser* and presets move into the Lab as editable Patches. This entry (and **Lab**, and the parity matrix below) will be rewritten when the flip ships.
-_Avoid_: main, home, default mode, classic mode
+The saved-patterns **browser** (ADR-0006, convergence flip) — a read-only showcase over the merged library (`pattern-library-v1`), *not* an authoring surface. A thumbnail grid of clean overlay-free renders; click a card for a pan/zoom detail view (the finished artifact — editor saves show decorated + framed, legacy saves render their BFS/Taprats path with their Gallery Frame and carry a `sourceCategory` badge). Per-card **rename / duplicate / delete / export-JSON**; **"Edit in Lab"** hands a save into the Lab to author (editor saves verbatim, tier-1 legacy presets convert one-way). There is **no tuning sidebar** — the former parameter/figure/frame controls live in the Lab. An empty Gallery points the user to the Lab. The user toggles between Gallery and **Lab** at the top level; internal `AppMode` value `'main'` + the `app-mode` localStorage key are unchanged (Q9).
+_Avoid_: main, home, default mode, classic mode; "picker" / "tuner" (the Gallery no longer tunes — it browses)
 
 **Lab**:
-The entire workflow space outside Gallery where building / experimentation happens. Currently contains the **Builder**; structured to host more exploratory tools in future. Has the subtitle "Exploratory Workspace".
+The **default** authoring workspace (a fresh profile opens here; a returning user's persisted choice is respected) — the workflow space where building / experimentation happens. Contains the **Builder**; **presets** load here as editable **Patches** via the Presets shelf (ADR-0006). Structured to host more exploratory tools in future. Has the subtitle "Exploratory Workspace".
 _Avoid_: editor (reserved for the code namespace `src/editor/`), tessellation lab (when used as the umbrella; "Tessellation Lab" still names the current Builder screen header until refactor lands)
 
 ### Lab — tools and modes
@@ -165,26 +164,30 @@ _Avoid_: origin (reserved for the geometric `(0,0)` point), provenance
 - A **Figure** is driven by a per-tile-type **Figure recipe** (`FigureConfig`)
 - **Lacing** is the over/under interlace effect on Strands (shipped 2026-06-10 as the `strand.weave` Strand-style toggle, Taprats-guided)
 
-## Feature parity across modes (Gallery vs Builder)
+## Feature parity across modes
 
-Several features exist in one mode/scope but not another. This matrix records
-each gap, **why** it diverged, and whether the split is deliberate (keep) or an
-accidental gap to close. Audited 2026-06-18. The throughline: features hung on
-**shared primitives** (e.g. `strand.weave` on `StrandStyle`) stay consistent
-across modes for free; features hung on **mode-local wiring** drift.
+**Retired by the convergence flip (ADR-0006).** The old "Gallery vs Builder"
+parity matrix framed the two as parallel *authoring* modes; convergence dissolves
+that framing — the **Gallery** is now a read-only browser and all authoring is
+Builder-only, so most former gaps are moot. Resolved rows (dropped): **Export**
+is one uniform menu across every config source (Unwoven-SVG archived — Q8b);
+Gallery/Builder **Vertex placement**, **Multi-cell editing model**, and **n-ring
+Frame** all closed 2026-06-18. The `Sidebar` that hosted the Gallery's tuning
+controls is deleted.
 
-| Feature | Where it lives | Gap | Reason | Verdict |
-|---|---|---|---|---|
-| **Export** (SVG/PNG/Unwoven/Save-JSON) | Gallery `Sidebar` + Builder sidebar Export section | ~~Lab/Builder had no export~~ **MOSTLY CLOSED 2026-06-18** (`9ad2ac8`): SVG/PNG/Save/Load-JSON in the Lab; **Unwoven-SVG still Gallery-only** (rebuilds from `segmentsRef` → one unit cell under Lever A) | image export uses the live DOM `<svg>` (fast-path-safe); JSON round-trips the full `PatternConfig`. CSS `var()` colours now inlined on export so Frame strokes survive (`a257248`) | **Close** — Unwoven needs full-field re-derivation |
-| **Vertex placement (17.13)** | Builder, single-cell + multi-cell | ~~multi-cell can't use it~~ **CLOSED 2026-06-18** | geometry/orbit were always Cell-local + Cell-scoped; the two guards (`Canvas.tsx` + `reducer.ts`) were lifted; placement routes to the clicked Cell via `hostCellId` | **Done** |
-| **Multi-cell editing model** | Builder Design Phase | ~~one active Cell at a time (dropdown selector)~~ **REMOVED 2026-06-18** | the active-Cell dropdown was unintuitive — now every Cell's edge/section/vertex overlays are live at once + a per-Cell control group each; clicks route to the owning Cell; `activeCellId` is internal-only | **Done** |
-| **Alternate orientation** | Builder | multi-cell fixed (`c56df88`); single-cell per-config audit pending | partial fix; single-cell `alternateBoundary` unaudited | **Close** — latent bug, RAW |
-| **Frame** | Gallery = clip-only shape; Builder = completion boundary (`editor.frame`) | two different behaviours under one noun | deliberate (framing grill 2026-05-30): Gallery is a quick-export picker, Builder Frame ties into Complete | **Keep** — watch terminology collision |
-| **n-ring Frame** | Builder single-cell sq/hex/tri + all multi-cell Configurations | ~~multi-cell deferred~~ **CLOSED 2026-06-18** (`compositionNRingOutline`); only single-cell octagon/dodecagon stay out (no lattice) | the multi-cell unit cell tiles by translation, so the ring stamps every Cell's Boundary over `compositionCellBasis` + unions — same edge-cancellation, multi-polygon unit cell | **Done** |
-| **Decoration Phase** | Builder only (`editor.decoration`) | Gallery not decorated | ADR-0005: Gallery has no Patch/Cell identity to bind scope records to (`types/editor.ts:293`) | **Keep** |
-| **Lacing / weave** | both (global `StrandStyle.weave`) | — none — | hung on a shared primitive | **Keep** (the model pattern) |
-| **Perf fast-path (Lever A)** | single-cell, rotation-0, no vertex-lines/frame/lattice | multi-cell Composition stays compute-bound | exactness gate — `<use>` tiling is only seamless under pure-translation symmetry (`usePattern.ts:160`) | **Keep**, generalise later |
-| **Octagon / dodecagon Cells** | multi-cell Configurations only | not assignable as a single-cell shape | a lone octagon/dodecagon doesn't tile the plane (`migrations.ts:44`) | **Keep** |
+What remains are **deliberate distinctions** (not gaps to close) plus one live
+Builder-internal bug. The throughline still holds: features hung on **shared
+primitives** stay consistent for free; features hung on **mode-local wiring**
+drift.
+
+| Feature | State | Reason | Verdict |
+|---|---|---|---|
+| **Decoration** | authored in the Builder (`editor.decoration`); the Gallery **renders** decorated saves but can't edit them | ADR-0005: no Patch/Cell identity in a bare viewer to bind scope records to (`types/editor.ts:293`) | **Keep** |
+| **Frame** | Gallery viewer renders a legacy save's clip-only `config.frame`; the Builder authors `editor.frame`; "Edit in Lab" migrates one to the other (Q8a) | two representations of one noun, bridged by conversion, not a live divergence | **Keep** — watch terminology collision |
+| **Lacing / weave** | both surfaces, via the shared `StrandStyle.weave` primitive | hung on a shared primitive — the model to imitate | **Keep** (exemplar) |
+| **Perf fast-path (Lever A)** | single-cell, rotation-0, no vertex-lines/frame/lattice; multi-cell Composition stays compute-bound | exactness gate — `<use>` tiling is only seamless under pure-translation symmetry (`usePattern.ts:160`) | **Keep**, generalise later |
+| **Octagon / dodecagon Cells** | assignable only inside a multi-cell Configuration, never as a single-cell shape | a lone octagon/dodecagon doesn't tile the plane (`migrations.ts:44`) | **Keep** |
+| **Alternate orientation** | multi-cell fixed (`c56df88`); single-cell per-config audit pending | partial fix; single-cell `alternateBoundary` unaudited | **Close** — latent bug, RAW |
 
 ## Example dialogue
 

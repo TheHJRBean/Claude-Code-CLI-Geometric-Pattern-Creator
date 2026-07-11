@@ -5,6 +5,23 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-11 — 🔵 #7 IN REVIEW: the flip (PR #10, branch `feat/convergence-flip-7`, stacked on #6)
+
+**Ticket #7 (Convergence 6/7 — the flip) built.** The Gallery is now purely the saved-patterns browser; all authoring is Builder/Lab-only.
+
+- **Sidebar removed.** App.tsx's `galleryView` tune sub-view + all its wiring (gallery reducer, in-mode `Canvas`, mobile/desktop sidebar chrome) deleted; the orphaned `Sidebar.tsx` (−672 lines) + its dead CSS deleted. Gallery render collapses to `TopBar + GalleryBrowser`.
+- **Default → Lab.** Fresh profile opens in the Lab (`localStorage 'app-mode'` absent → `'lab'`); persisted `'main'` respected. Internal value + key unchanged (Q9).
+- **Empty-state pointer.** GalleryBrowser: `onOpenTuner`→`onGoToLab`; empty state "Nothing saved yet — start in the Lab" + *Open the Lab* CTA; header *New pattern*→*New in Lab*.
+- **Unwoven archived (Q8b).** Removed from `buildExportMenuItems` (dropped `includeUnwoven` + `segmentsRef` args); one uniform export menu everywhere. `exportUnwovenSVG`+builder kept, annotated archived. Lab call site updated.
+- **Docs.** CONTEXT.md Gallery/Lab entries rewritten (browser vs authoring); parity matrix retired to a "resolved by convergence" note + only the genuinely-live deliberate distinctions (Decoration, Frame data-split, weave exemplar, Lever A, octagon/dodecagon) + the open Alternate-orientation bug.
+
+**Green:** tsc + **699 vitest** + build. Net −998 lines. SSR smoke updated to cover both post-flip paths (fresh→Lab, persisted `'main'`→Gallery). ⏳ **browser-verify (headless can't drive):** fresh profile lands in Lab; empty Gallery shows pointer+CTA; persisted `'main'` still lands in Gallery; Lab export menu has no Unwoven.
+
+**BONUS — #6 thumbnail bug FIXED + ✅ browser-verified (this session):** user reported an all-placeholder Gallery grid. Console diag proved the offscreen render *succeeds* (188KB data URL) — the thumbnail was rendered then discarded. Root cause = classic React-18 **StrictMode `mountedRef` anti-pattern** in `useThumbnails.ts`: the flag was only cleared on cleanup, never re-set true on the setup→cleanup→setup re-mount, so it stuck `false` all session → `put` dropped every URL + the single-flight pump halted after save #1. Fix `8140706`: set `mountedRef.current = true` in the effect setup. Plus `1e8f161` hardening (content-aware settle + 8s render timeout so a stuck raster can't wedge the queue; failure-only `[thumbnail]` warns). **Dev-only bug** (prod build unaffected → why all tests stayed green); not unit-testable here (no jsdom). User confirmed "looks good".
+
+**NEXT:** merge #6 (PR #9) then #7 (PR #10) — retarget #10 base `feat/gallery-browser-6`→`main` after #9 merges (thumbnail fix rides on #10). Frontier after = **#8 (tier-2 Configurations, Fable)**, last convergence slice. One ticket per session.
+
+---
 ### ▶ 2026-07-11 — 🔵 #6 IN REVIEW: Gallery saved-patterns browser (PR #9, branch `feat/gallery-browser-6`)
 
 **Ticket #6 (Gallery browser skeleton) built — awaiting review/merge + browser-verify.** Gallery is repurposed as a saved-patterns **browser** over `pattern-library-v1`.

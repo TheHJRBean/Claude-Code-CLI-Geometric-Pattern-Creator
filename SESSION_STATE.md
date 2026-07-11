@@ -5,6 +5,15 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-11 — 🏁 CONVERGENCE EPIC CLOSED: #1 + #8 + #16 all shut, browser-verified, everything on `main`
+
+**SESSION CLOSED at the epic's finish line.** PR #17 (snub hexagonal) squash-merged to main (`3c208e7`) after user browser-verify ✅. Issues #16, #8 (tier-2 tracker), #1 (convergence spec) all CLOSED. Repo has only `main` — every feature branch merged + deleted. Convergence memory retired per hygiene rules (decisions live in ADR-0006 + spec #1).
+
+**The Gallery↔Lab convergence epic is fully delivered:** Gallery = saved-patterns browser; Lab = the authoring surface; all 11 Archimedean presets (tier 1, tier 2 now empty) are fully editable Builder Patches with faithful fingerprint-verified conversion. Tier 3 (rosette/Laves) stays view-only pending the irregular-tile Patch encoder.
+
+**NEXT (cold start):** frontier = the **star-tilings wave** (`memory/project_star_tilings_gallery_idea.md` + `RESEARCH-TILING-CONFIGURATIONS.md` §10–11): Kepler's Star flagship + rosette-figure architecture fold (the Taprats pathway replacing the `figureRouting` stopgap, also owns the PIC branch-ladder reframe). Big architectural session — start with the prepared grill (`GRILL_PREP_ROSETTE_FOLD.md`). Model: Fable.
+
+---
 ### ▶ 2026-07-11 — ✅ #8 chunk 3 (FINAL) BUILT: 3.3.3.3.6 snub hexagonal (issue #16, branch `feat/33336-snub-hexagonal`, PR open) + branch cleanup
 
 **Session start housekeeping:** PR #15 (snub square) squash-merged to main (`9e153f1`), #14 closed. All 5 stale remote branches deleted (`feat/convergence-flip-7`, `feat/gallery-browser-6`, `feat/tier2-elongated-triangular-8` — squash-merged; `feat/art-deco-egypt-theme-revamp`, `feature/art-deco-egypt-ui` — verified content superseded on main: rejection label `f65633c`, Zone.Identifier ignore, diagnose scripts all present). Repo now has ONLY `main` + this session's branch.

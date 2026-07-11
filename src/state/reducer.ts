@@ -8,6 +8,7 @@ import { DEFAULT_CONFIG } from './defaults'
 import {
   createDefault31212EditorConfig,
   createDefault33344EditorConfig,
+  createDefault33434EditorConfig,
   createDefault3464EditorConfig,
   createDefault3636EditorConfig,
   createDefault4612EditorConfig,
@@ -642,6 +643,9 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
           break
         case '3.3.3.4.4':
           next = createDefault33344EditorConfig()
+          break
+        case '3.3.4.3.4':
+          next = createDefault33434EditorConfig()
           break
         default:
           // payload === null → leave Configuration, fresh single-cell Patch.

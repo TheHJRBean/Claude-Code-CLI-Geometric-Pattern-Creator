@@ -32,7 +32,7 @@ describe('buildPresetShelf', () => {
   })
 
   it('marks the convertible tier-1 presets editable', () => {
-    for (const id of ['square', 'hexagonal', 'triangular', '4.8.8', '3.12.12', '4.6.12', '3.6.3.6', '3.4.6.4', '3.3.3.4.4']) {
+    for (const id of ['square', 'hexagonal', 'triangular', '4.8.8', '3.12.12', '4.6.12', '3.6.3.6', '3.4.6.4', '3.3.3.4.4', '3.3.4.3.4']) {
       const entry = shelf.find(e => e.id === id)
       expect(entry, id).toBeDefined()
       expect(entry!.tier, id).toBe(1)
@@ -41,9 +41,9 @@ describe('buildPresetShelf', () => {
   })
 
   it('badges non-convertible Archimedean presets as tier-2 view-only', () => {
-    const snubSquare = shelf.find(e => e.id === '3.3.4.3.4')!
-    expect(snubSquare.tier).toBe(2)
-    expect(snubSquare.viewOnly).toBe(true)
+    const snubHex = shelf.find(e => e.id === '3.3.3.3.6')!
+    expect(snubHex.tier).toBe(2)
+    expect(snubHex.viewOnly).toBe(true)
   })
 
   it('badges rosette-patch presets as tier-3 view-only', () => {

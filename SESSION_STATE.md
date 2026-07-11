@@ -5,6 +5,19 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-11 — 🔵 #6 IN REVIEW: Gallery saved-patterns browser (PR #9, branch `feat/gallery-browser-6`)
+
+**Ticket #6 (Gallery browser skeleton) built — awaiting review/merge + browser-verify.** Gallery is repurposed as a saved-patterns **browser** over `pattern-library-v1`.
+
+**New files** (`src/components/gallery/`): `galleryBrowser.logic.ts` (pure — `toCardModel` / `badgeForSave` / `editAvailabilityFor` / `resolveEditInLab` / `nextBackfillId`) + `.test.ts` + `.render.test.ts` (SSR seeded-library card render); `useThumbnails.ts` (self-pumping single-flight backfill, failure-skip); `PatternCard.tsx`, `PatternDetailView.tsx`, `GalleryBrowser.tsx`. Plus `src/state/thumbnailStore.ts` (thin IndexedDB, fail-soft, dataURL values keyed by save id), `src/rendering/faithfulRender.ts` (`faithfulRenderFlags` shared by detail + thumb), `src/rendering/renderThumbnail.tsx` (offscreen `Canvas` mount → rasterise), `rasterizeSvgToDataUrl`/`rasterizeSvgToCanvas` factored out of `exportPNG`.
+
+**Key decisions:** (1) **Reuse `Canvas` as the single faithful renderer** for BOTH the detail view and the offscreen thumbnail → thumbnail == detail == truth, zero drift. Editor saves render Composition + Decoration(if any) + Frame(if any); legacy saves render BFS path (Canvas clips its own Gallery Frame). Read-only = pass no select/place/paint callbacks. (2) **Edit-in-Lab** (App `handleEditInLab`): editor→load verbatim; tier-1 legacy→`convertPresetToEditorConfig` one-way (original kept); tier-2/3→button disabled. (3) **Coexistence:** Gallery `galleryView` state defaults to `'browse'`; the legacy tuning Sidebar+Canvas stays reachable via "New pattern"/"← My Patterns" (removed in #7). Ticket #6 says sidebar stays; note spec #1 Q3 said "removed" — ticket wins for this slice.
+
+**Green:** tsc + **699 vitest** (+14) + build. Dev server boots, all modules transform. ⏳ **browser-verify (can't drive headless here):** thumbnails rasterise + survive reload; wipe thumb store → re-backfill not errors; detail pan/zoom; Edit-in-Lab for an editor save + a converted legacy save; badge on legacy cards.
+
+**NEXT:** merge PR #9 + close #6 → frontier = **#7 (the flip: sidebar removal, default→Lab, uniform export menu, CONTEXT rewrite; needs #5 ✓ + #6)** and **#8 (tier-2, Fable; needs #4 ✓ + #5 ✓)**. One ticket per session.
+
+---
 ### ▶ 2026-07-10 — ✅ #5 CLOSED: Presets shelf in the Lab library (on `main`)
 
 **Ticket #5 (Presets shelf) DONE.** New pure module `src/editor/presetShelf.ts` + card UI `src/components/PresetShelfPanel.tsx` + TessellationLabMode wiring. The Lab sidebar gains a **Presets** section directly above My Tessellations: one read-only card per Gallery preset (no rename/delete — the shelf holds no mutable state, `buildPresetConfig` mints a fresh working config per click). Tier 1 loads a fresh `convertPresetToEditorConfig` conversion (editable Patch, `presetId` provenance); tier 2 (unconverted Archimedean) + tier 3 (rosette-patch) load the legacy Gallery config and are badged **View only** — badge = `!isConvertiblePreset`, so tier-2 sheds it automatically as #8 conversion rows land.

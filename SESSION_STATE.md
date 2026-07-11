@@ -5,7 +5,22 @@
 ## ▶ RESUME HERE
 
 ---
-### ▶ 2026-07-11 — 🔵 #7 IN REVIEW: the flip (PR #10, branch `feat/convergence-flip-7`, stacked on #6)
+### ▶ 2026-07-11 — 🔵 #8 chunk 1 BUILT: 3.3.3.4.4 elongated triangular (issue #11, branch `feat/tier2-elongated-triangular-8`)
+
+**First tier-2 chunk of tracker #8** (branched off `main` — independent of the in-review #6/#7 PRs). Sub-issue **#11** created + linked under #8 + claimed. The `3.3.3.4.4` preset is now a fully editable Configuration:
+
+- `ConfigurationId` + migration allow-list + reducer `SET_BUILDER_CONFIGURATION` arm + DesignPanel `BOUNDARY_OPTIONS` entry.
+- `createDefault33344EditorConfig` (createDefault.ts): square Cell at origin rot 0; triangle-up at `(0, L/2+√3L/6)` rot π/3; triangle-down at `(L/2, L/2+√3L/3)` rot 0 — boundary-matching, shared edges coincide exactly (verified against `BOUNDARY_ROTATION` triangle −π/2 convention).
+- `compositionCellBasis`: oblique `u=(L,0)`, `v=(L/2, L(2+√3)/2)` (|u×v| = domain area ✓). `compositionAlternateAngle` → π/2 (rows→columns). frameNRing metric needed **no change** (non-orthogonal basis → hex metric; thirdIsSum correctly picks u+v as long diagonal).
+- Conversion-table row in `presetConversion.ts` → Presets shelf tier 1 + view-only badge shed automatically. Test tier lists updated (presetConversion + presetShelf).
+- Tests +8: fingerprint flagship row (scale 60 — coverage/emission/density vs BFS pass within EXISTING tolerances, none loosened) + `createDefault33344.test.ts` (4 exact-geometry tests: edge lengths, shared-edge coincidence ×2, basis algebra + row offset).
+
+**Green:** tsc + **693 vitest** + build. ⏳ browser-verify: pick 3.3.3.4.4 in Builder Design panel (strip tiling renders, Strands flow across square↔triangle edges); shelf card editable (no badge); alternate orientation flips rows→columns.
+
+**MERGE-ALL UPDATE (same day):** #6 merged via PR #9; #7 merged via PR #13 (PR #10 was auto-closed by GitHub when #9's branch deletion removed its base — #13 is the identical branch reconciled with main). This chunk = PR #12. Remaining #8 chunks (one per session, sub-issue each): **3.3.4.3.4 snub square** (2 squares + 4 triangles per translation domain), then **3.3.3.3.6 snub hexagonal** (chiral; 1 hexagon + 8 triangles). Both Fable.
+
+---
+### ▶ 2026-07-11 — ✅ #7 MERGED: the flip (PR #13, formerly PR #10)
 
 **Ticket #7 (Convergence 6/7 — the flip) built.** The Gallery is now purely the saved-patterns browser; all authoring is Builder/Lab-only.
 
@@ -22,7 +37,7 @@
 **NEXT:** merge #6 (PR #9) then #7 (PR #10) — retarget #10 base `feat/gallery-browser-6`→`main` after #9 merges (thumbnail fix rides on #10). Frontier after = **#8 (tier-2 Configurations, Fable)**, last convergence slice. One ticket per session.
 
 ---
-### ▶ 2026-07-11 — 🔵 #6 IN REVIEW: Gallery saved-patterns browser (PR #9, branch `feat/gallery-browser-6`)
+### ▶ 2026-07-11 — ✅ #6 MERGED: Gallery saved-patterns browser (PR #9)
 
 **Ticket #6 (Gallery browser skeleton) built — awaiting review/merge + browser-verify.** Gallery is repurposed as a saved-patterns **browser** over `pattern-library-v1`.
 

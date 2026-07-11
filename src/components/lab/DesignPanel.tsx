@@ -19,6 +19,7 @@ const BOUNDARY_OPTIONS: { value: BoundaryPickerKind; label: string }[] = [
   { value: { kind: 'configuration', id: '4.6.12' }, label: '4.6.12' },
   { value: { kind: 'configuration', id: '3.6.3.6' }, label: '3.6.3.6' },
   { value: { kind: 'configuration', id: '3.4.6.4' }, label: '3.4.6.4' },
+  { value: { kind: 'configuration', id: '3.3.3.4.4' }, label: '3.3.3.4.4' },
 ]
 
 // Repeated "small uppercase hint" style used by the lock / wrap notes.

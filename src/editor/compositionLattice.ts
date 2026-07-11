@@ -63,6 +63,10 @@ export function compositionAlternateAngle(configuration: EditorPatch['configurat
     case '3.6.3.6':
     case '3.4.6.4':
       return Math.PI / 6
+    case '3.3.3.4.4':
+      // Row-based tiling: π/2 turns the horizontal square rows into columns —
+      // the one genuinely different-looking rigid orientation.
+      return Math.PI / 2
     default:
       return 0
   }
@@ -157,6 +161,16 @@ function unrotatedCompositionCellBasis(patch: EditorPatch): { u: Vec2; v: Vec2 }
       return {
         u: { x: period, y: 0 },
         v: { x: period / 2, y: (period * Math.sqrt(3)) / 2 },
+      }
+    }
+    case '3.3.3.4.4': {
+      // Elongated triangular: oblique lattice. u = one square edge along the
+      // row; v jumps over the triangle strip to the next square row, which is
+      // offset by L/2. Each lattice cell holds 1 square + 2 triangles
+      // (|u×v| = L²(2+√3)/2 = L² + 2·(√3/4)L²).
+      return {
+        u: { x: L, y: 0 },
+        v: { x: L / 2, y: (L * (2 + Math.sqrt(3))) / 2 },
       }
     }
     default:

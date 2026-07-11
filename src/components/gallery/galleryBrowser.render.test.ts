@@ -54,7 +54,7 @@ describe('GalleryBrowser render', () => {
       createElement(GalleryBrowser, {
         library: patternLibrary,
         onEditInLab: () => {},
-        onOpenTuner: () => {},
+        onGoToLab: () => {},
       }),
     )
 

@@ -22,14 +22,15 @@ const store = new Map<string, string>()
 )
 
 describe('app render smoke (SSR)', () => {
-  it('renders App without throwing (gallery mode, defaults)', async () => {
+  it('renders App without throwing (fresh profile → Lab default, ADR-0006 flip)', async () => {
+    store.delete('app-mode')
     const { default: App } = await import('./App')
     const { ThemeProvider } = await import('./theme/ThemeContext')
     renderToString(createElement(ThemeProvider, null, createElement(App)))
   })
 
-  it('renders App without throwing (lab mode)', async () => {
-    store.set('app-mode', 'lab')
+  it('renders App without throwing (persisted Gallery choice → browser)', async () => {
+    store.set('app-mode', 'main')
     const { default: App } = await import('./App')
     const { ThemeProvider } = await import('./theme/ThemeContext')
     renderToString(createElement(ThemeProvider, null, createElement(App)))

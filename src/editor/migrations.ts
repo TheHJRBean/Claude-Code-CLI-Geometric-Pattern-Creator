@@ -46,7 +46,7 @@ const SINGLE_CELL_SHAPES = new Set<CellShape>(['triangle', 'square', 'hexagon'])
 const ANY_CELL_SHAPES = new Set<CellShape>(['triangle', 'square', 'hexagon', 'octagon', 'dodecagon'])
 /** Configuration ids supported. */
 const CONFIGURATION_IDS = new Set<ConfigurationId>([
-  '4.8.8', '3.12.12', '4.6.12', '3.6.3.6', '3.4.6.4',
+  '4.8.8', '3.12.12', '4.6.12', '3.6.3.6', '3.4.6.4', '3.3.3.4.4',
 ])
 
 function isVec2(v: unknown): v is { x: number; y: number } {

@@ -330,6 +330,47 @@ export function createDefault3636EditorConfig(): EditorConfig {
   }
 }
 
+/**
+ * Build a fresh **3.3.3.4.4 Configuration** Patch (elongated triangular:
+ * square + two triangles). Rows of axis-aligned squares alternate with strips
+ * of up/down triangles; successive square rows shift by L/2, so the
+ * translation lattice is oblique: `u = (L, 0)`, `v = (L/2, L(2+√3)/2)`.
+ *
+ * Square Cell sits at the Patch origin (axis-aligned). The up-triangle Cell
+ * sits on the square's top edge (base shared, apex +y); the down-triangle
+ * Cell fills between two up-triangles (apex −y touching the square row's top
+ * edge at (L/2, L/2)). Centroid heights: base + h/3 for the up triangle,
+ * base + 2h/3 for the down triangle, with h = √3L/2.
+ */
+export function createDefault33344EditorConfig(): EditorConfig {
+  const edgeLength = DEFAULT_EDGE_LENGTH
+  const h = (edgeLength * Math.sqrt(3)) / 2
+  const cells: EditorCell[] = [
+    createBoundaryMatchingCell('square', 'square', { x: 0, y: 0 }, 0, edgeLength),
+    createBoundaryMatchingCell(
+      'triangle-up',
+      'triangle',
+      { x: 0, y: edgeLength / 2 + h / 3 },
+      Math.PI / 3,
+      edgeLength,
+    ),
+    createBoundaryMatchingCell(
+      'triangle-down',
+      'triangle',
+      { x: edgeLength / 2, y: edgeLength / 2 + (2 * h) / 3 },
+      0,
+      edgeLength,
+    ),
+  ]
+  return {
+    version: 3,
+    cells,
+    activeCellId: 'square',
+    edgeLength,
+    configuration: '3.3.3.4.4',
+  }
+}
+
 export function createDefault4612EditorConfig(): EditorConfig {
   const edgeLength = DEFAULT_EDGE_LENGTH
   const hexDist = edgeLength * (1 + Math.sqrt(3))

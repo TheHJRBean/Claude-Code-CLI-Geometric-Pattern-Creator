@@ -5,6 +5,21 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-11 — 🔵 #8 chunk 1 BUILT: 3.3.3.4.4 elongated triangular (issue #11, branch `feat/tier2-elongated-triangular-8`)
+
+**First tier-2 chunk of tracker #8** (branched off `main` — independent of the in-review #6/#7 PRs). Sub-issue **#11** created + linked under #8 + claimed. The `3.3.3.4.4` preset is now a fully editable Configuration:
+
+- `ConfigurationId` + migration allow-list + reducer `SET_BUILDER_CONFIGURATION` arm + DesignPanel `BOUNDARY_OPTIONS` entry.
+- `createDefault33344EditorConfig` (createDefault.ts): square Cell at origin rot 0; triangle-up at `(0, L/2+√3L/6)` rot π/3; triangle-down at `(L/2, L/2+√3L/3)` rot 0 — boundary-matching, shared edges coincide exactly (verified against `BOUNDARY_ROTATION` triangle −π/2 convention).
+- `compositionCellBasis`: oblique `u=(L,0)`, `v=(L/2, L(2+√3)/2)` (|u×v| = domain area ✓). `compositionAlternateAngle` → π/2 (rows→columns). frameNRing metric needed **no change** (non-orthogonal basis → hex metric; thirdIsSum correctly picks u+v as long diagonal).
+- Conversion-table row in `presetConversion.ts` → Presets shelf tier 1 + view-only badge shed automatically. Test tier lists updated (presetConversion + presetShelf).
+- Tests +8: fingerprint flagship row (scale 60 — coverage/emission/density vs BFS pass within EXISTING tolerances, none loosened) + `createDefault33344.test.ts` (4 exact-geometry tests: edge lengths, shared-edge coincidence ×2, basis algebra + row offset).
+
+**Green:** tsc + **693 vitest** + build. ⏳ browser-verify: pick 3.3.3.4.4 in Builder Design panel (strip tiling renders, Strands flow across square↔triangle edges); shelf card editable (no badge); alternate orientation flips rows→columns.
+
+**NEXT:** merge queue = PR #9 (#6) → PR #10 (#7, retarget to main) → this chunk's PR. Remaining #8 chunks (one per session, sub-issue each): **3.3.4.3.4 snub square** (2 squares + 4 triangles per translation domain), then **3.3.3.3.6 snub hexagonal** (chiral; 1 hexagon + 8 triangles). Both Fable.
+
+---
 ### ▶ 2026-07-10 — ✅ #5 CLOSED: Presets shelf in the Lab library (on `main`)
 
 **Ticket #5 (Presets shelf) DONE.** New pure module `src/editor/presetShelf.ts` + card UI `src/components/PresetShelfPanel.tsx` + TessellationLabMode wiring. The Lab sidebar gains a **Presets** section directly above My Tessellations: one read-only card per Gallery preset (no rename/delete — the shelf holds no mutable state, `buildPresetConfig` mints a fresh working config per click). Tier 1 loads a fresh `convertPresetToEditorConfig` conversion (editable Patch, `presetId` provenance); tier 2 (unconverted Archimedean) + tier 3 (rosette-patch) load the legacy Gallery config and are badged **View only** — badge = `!isConvertiblePreset`, so tier-2 sheds it automatically as #8 conversion rows land.

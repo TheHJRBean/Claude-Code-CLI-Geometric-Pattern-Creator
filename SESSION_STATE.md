@@ -5,7 +5,11 @@
 ## ▶ RESUME HERE
 
 ---
-### ▶ 2026-07-11 — 🔵 #8 chunk 1 BUILT: 3.3.3.4.4 elongated triangular (issue #11, branch `feat/tier2-elongated-triangular-8`)
+### ▶ 2026-07-11 — ✅ #8 chunk 1 MERGED: 3.3.3.4.4 elongated triangular (issue #11, PR #12, on `main` @ `5a22078`)
+
+**SESSION CLOSED at a clean milestone — everything merged, tree clean.** All three PRs squash-merged to main this session: PR #9 (#6 Gallery browser) → PR #13 (#7 the flip; replaced auto-closed PR #10) → PR #12 (this chunk). Issues #6/#7/#11 closed. Post-merge suite verified stable: 707 vitest green ×4 runs + tsc + build (one 4-failure run was contention flake, did not reproduce).
+
+**NEXT (cold start):** frontier = **#8 chunk 2: 3.3.4.3.4 snub square** (create sub-issue under #8, branch off main; 2 squares + 4 triangles per translation domain — square lattice basis, cells at alternating rotations). Then chunk 3: **3.3.3.3.6 snub hexagonal** (chiral; 1 hexagon + 8 triangles). Both Fable, one per session. ⏳ **Browser-verify owed** (accumulated): fresh profile→Lab; empty Gallery pointer+CTA; persisted 'main'→Gallery; thumbnails rasterise+survive reload; Edit-in-Lab (editor save + converted legacy); Lab export menu has no Unwoven; 3.3.3.4.4 in Design panel (strips render, Strands cross square↔triangle edges), shelf card editable, alternate orientation rows→columns.
 
 **First tier-2 chunk of tracker #8** (branched off `main` — independent of the in-review #6/#7 PRs). Sub-issue **#11** created + linked under #8 + claimed. The `3.3.3.4.4` preset is now a fully editable Configuration:
 

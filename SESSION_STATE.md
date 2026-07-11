@@ -5,6 +5,22 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-11 (later) — ROADMAP SYNC: idea memories de-staled vs post-convergence code; "minimal build" bucket is empty
+
+**No code changed** — memory-hygiene / roadmap-sync session only (all edits under `~/.claude/.../memory/`, outside the repo; project tree clean, nothing to push).
+
+**What happened:** `/roadmap review` → the `project_*_idea.md` memories had drifted behind the convergence epic. Corrections applied:
+- `save_preview_page`: RAW → **DELIVERED** (absorbed into the Gallery browser — `components/gallery/PatternDetailView.tsx` + `rendering/faithfulRender.ts` ARE the clean read-only render + export home this idea asked for).
+- `lab_export`: "not yet merged" → **DELIVERED & merged** (`38fd51f` + flip `4e8dac2` #13). Tail refined: #6 Decoration/Frame fidelity now covered by the detail-view export path (browser-confirm only, not a gap); #5 unit-vs-field confirmed **fast-path-only** (single-cell periodic `#composition-fragment`; multi-cell/framed have no clean unit handle) — genuinely deferred, not the trivial toggle the memo implied.
+- `editor_symmetry_enforcement`: RAW → **ENGINE DELIVERED** (DesignPanel Symmetry picker none/full/rotation/vertical/horizontal already propagates placements to the orbit via `SET_EDITOR_SYMMETRY_MODE`); only the option-(b) refuse-guard remains, and it cuts against the flexible-placement pivot → **recommend shelve**.
+- Deleted `project_multicell_vertex_placement_idea.md` (was DELIVERED, verify-only tail) + its MEMORY.md line.
+- Dated re-verify stamps: framing multi-pick **still open** (no fix since 06-12; needs user's saved JSON + browser); alternate-orientation **single-cell still untouched** (every fix in history was multi-cell).
+
+**Roadmap tally:** Delivered 5 · Planned 1 (star-tilings) · Raw 5 (aesthetic-rating, construction-lines, decoration-stamps, nested-layers, pattern-morph) · Partial 1 (alternate single-cell).
+
+**NEXT (cold start) — frontier UNCHANGED = the star-tilings wave** (grill-first via `GRILL_PREP_ROSETTE_FOLD.md` + `memory/project_star_tilings_gallery_idea.md`, Fable). Key finding for planning: there is **no "near-zero-decision minimal" build left** — every remaining roadmap item needs a decision, a `/grill-with-docs`, the user's saved JSON, or is the star-tilings epic itself. Cleanest self-contained build if the user wants one = **alternate-orientation single-cell** (Opus debug; user eyeballs the result).
+
+---
 ### ▶ 2026-07-11 — 🏁 CONVERGENCE EPIC CLOSED: #1 + #8 + #16 all shut, browser-verified, everything on `main`
 
 **SESSION CLOSED at the epic's finish line.** PR #17 (snub hexagonal) squash-merged to main (`3c208e7`) after user browser-verify ✅. Issues #16, #8 (tier-2 tracker), #1 (convergence spec) all CLOSED. Repo has only `main` — every feature branch merged + deleted. Convergence memory retired per hygiene rules (decisions live in ADR-0006 + spec #1).

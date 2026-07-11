@@ -67,6 +67,10 @@ export function compositionAlternateAngle(configuration: EditorPatch['configurat
       // Row-based tiling: π/2 turns the horizontal square rows into columns —
       // the one genuinely different-looking rigid orientation.
       return Math.PI / 2
+    case '3.3.4.3.4':
+      // Square lattice (tilted 15° to the squares) → half-step π/4, matching
+      // 4.8.8's square-lattice semantics.
+      return Math.PI / 4
     default:
       return 0
   }
@@ -171,6 +175,16 @@ function unrotatedCompositionCellBasis(patch: EditorPatch): { u: Vec2; v: Vec2 }
       return {
         u: { x: L, y: 0 },
         v: { x: L / 2, y: (L * (2 + Math.sqrt(3))) / 2 },
+      }
+    }
+    case '3.3.4.3.4': {
+      // Snub square: square lattice of period L√(2+√3), tilted 15° to the
+      // axis-aligned square Cell (u maps the left triangle onto the triangle
+      // right of square-b; v = rotate(u, π/2) by the tiling's 4-fold
+      // symmetry). |u×v| = L²(2+√3) = 2 squares + 4 triangles.
+      return {
+        u: { x: (L * (2 + Math.sqrt(3))) / 2, y: L / 2 },
+        v: { x: -L / 2, y: (L * (2 + Math.sqrt(3))) / 2 },
       }
     }
     default:

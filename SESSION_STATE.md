@@ -5,6 +5,21 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-11 — ✅ #8 chunk 2 BUILT: 3.3.4.3.4 snub square (issue #14, branch `feat/33434-snub-square`, PR open)
+
+**Second tier-2 chunk of tracker #8.** Sub-issue **#14** created + linked under #8. The `3.3.4.3.4` (snub square) preset is now a fully editable Configuration:
+
+- `ConfigurationId` + migration allow-list + reducer `SET_BUILDER_CONFIGURATION` arm + DesignPanel `BOUNDARY_OPTIONS` entry.
+- `createDefault33434EditorConfig` (createDefault.ts): 2 squares + 4 triangles. square-a at origin rot 0; square-b at `(L(1+√3)/4, L(3+√3)/4)` rot π/6 (closes the 3.3.4.3.4 vertex figure across the up-triangle's right edge — the up-triangle's LEFT edge is the tri-tri edge, chirality matters); triangles on square-a's four edges (up rot π/3, right rot π/2, down rot 0, left rot −π/2) at centroid distance `L(3+√3)/6`. The 4 apex directions = the 4 translation classes.
+- `compositionCellBasis`: square lattice **tilted 15°** to the axis-aligned square — `u=(L(2+√3)/2, L/2)`, `v=rot90(u)`, `|u|=L√(2+√3)`, `|u×v|=L²(2+√3)` ✓. `compositionAlternateAngle` → π/4 (square-lattice half-step, same as 4.8.8).
+- Conversion-table row in `presetConversion.ts` → shelf tier 1, view-only badge shed. Stale tier-2 exemplar `3.3.4.3.4` swapped to `3.3.3.3.6` in presetConversion/presetShelf/galleryBrowser.logic tests.
+- Tests +10 → **717 vitest**: fingerprint flagship row (scale 60 — coverage probed exactly 1.000; **squares match EXACTLY** 8 segs/poly + identical mean length; triangle mean-len gate loosened 2%→3% for probed 2.1% tie noise from the 4 triangle orientations — known PIC per-copy tie-breaking, not a conversion artifact) + `createDefault33434.test.ts` (6 exact-geometry tests: edge lengths, per-triangle shared base, square-b vertex-figure closure, 4 distinct apex directions, basis algebra + 15° tilt + area, u-translate left-triangle → closure triangle). Note: exact-vertex keys need negative-zero squashing (`-0.000000` ≠ `0.000000` under toFixed).
+
+**Green:** tsc + 717 vitest + build. ⏳ browser-verify: pick 3.3.4.3.4 in Builder Design panel (snub square renders, Strands cross square↔triangle edges), shelf card editable (no badge), alternate orientation rotates the field π/4.
+
+**NEXT (cold start):** merge the PR + close #14 → final #8 chunk = **3.3.3.3.6 snub hexagonal** (chiral; 1 hexagon + 8 triangles per translation domain; hex lattice). Fable. Then #8 + #1 close and the star-tilings wave begins.
+
+---
 ### ▶ 2026-07-11 — ✅ #8 chunk 1 MERGED: 3.3.3.4.4 elongated triangular (issue #11, PR #12, on `main` @ `5a22078`)
 
 **SESSION CLOSED at a clean milestone — everything merged, tree clean.** All three PRs squash-merged to main this session: PR #9 (#6 Gallery browser) → PR #13 (#7 the flip; replaced auto-closed PR #10) → PR #12 (this chunk). Issues #6/#7/#11 closed. Post-merge suite verified stable: 707 vitest green ×4 runs + tsc + build (one 4-failure run was contention flake, did not reproduce).

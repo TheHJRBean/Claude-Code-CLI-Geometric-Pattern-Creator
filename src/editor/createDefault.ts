@@ -371,6 +371,69 @@ export function createDefault33344EditorConfig(): EditorConfig {
   }
 }
 
+/**
+ * Build a fresh **3.3.4.3.4 Configuration** Patch (snub square: two squares +
+ * four triangles). Every square edge is triangle-shared; each triangle has
+ * two square-shared edges and one triangle-shared edge. Squares come in two
+ * orientations 30° apart; the translation lattice is square but tilted 15°
+ * to the squares: `u = (L(2+√3)/2, L/2)`, `v = rotate(u, π/2)`.
+ *
+ * Square-a Cell sits at the Patch origin axis-aligned; the four triangle
+ * Cells sit on its four edges (apex out, centroids at distance L(3+√3)/6 —
+ * one per translation-equivalence class since translations preserve apex
+ * direction). Square-b closes the vertex figure across the up-triangle's
+ * right edge, at `(L(1+√3)/4, L(3+√3)/4)` rotated π/6.
+ */
+export function createDefault33434EditorConfig(): EditorConfig {
+  const edgeLength = DEFAULT_EDGE_LENGTH
+  const triDist = (edgeLength * (3 + Math.sqrt(3))) / 6
+  const cells: EditorCell[] = [
+    createBoundaryMatchingCell('square-a', 'square', { x: 0, y: 0 }, 0, edgeLength),
+    createBoundaryMatchingCell(
+      'square-b',
+      'square',
+      { x: (edgeLength * (1 + Math.sqrt(3))) / 4, y: (edgeLength * (3 + Math.sqrt(3))) / 4 },
+      Math.PI / 6,
+      edgeLength,
+    ),
+    createBoundaryMatchingCell(
+      'triangle-up',
+      'triangle',
+      { x: 0, y: triDist },
+      Math.PI / 3,
+      edgeLength,
+    ),
+    createBoundaryMatchingCell(
+      'triangle-right',
+      'triangle',
+      { x: triDist, y: 0 },
+      Math.PI / 2,
+      edgeLength,
+    ),
+    createBoundaryMatchingCell(
+      'triangle-down',
+      'triangle',
+      { x: 0, y: -triDist },
+      0,
+      edgeLength,
+    ),
+    createBoundaryMatchingCell(
+      'triangle-left',
+      'triangle',
+      { x: -triDist, y: 0 },
+      -Math.PI / 2,
+      edgeLength,
+    ),
+  ]
+  return {
+    version: 3,
+    cells,
+    activeCellId: 'square-a',
+    edgeLength,
+    configuration: '3.3.4.3.4',
+  }
+}
+
 export function createDefault4612EditorConfig(): EditorConfig {
   const edgeLength = DEFAULT_EDGE_LENGTH
   const hexDist = edgeLength * (1 + Math.sqrt(3))

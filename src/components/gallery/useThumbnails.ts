@@ -29,7 +29,14 @@ export function useThumbnails(saves: SavedConfig[]): {
   const mountedRef = useRef(true)
   const pumpRef = useRef<() => void>(() => {})
 
-  useEffect(() => () => { mountedRef.current = false }, [])
+  // Set true on (re)mount, false on unmount. The setup MUST assign `true` — under
+  // React StrictMode (dev) the effect runs setup→cleanup→setup, so a version that
+  // only cleared the flag on cleanup left it stuck `false` for the whole session,
+  // which made `put` discard every rendered thumbnail and stalled the pump.
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
 
   const put = useCallback((id: string, url: string) => {
     if (!mountedRef.current) return

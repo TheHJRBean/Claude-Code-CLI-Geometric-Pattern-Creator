@@ -3,8 +3,9 @@ import type { Action } from '../../state/actions'
 import type { FrameConfig, FrameType, FrameShape } from '../../types/editor'
 import { DEFAULT_FRAME_SIZE, MIN_FRAME_SIZE, MAX_FRAME_SIZE, SQRT2 } from '../../editor/frame'
 import { DEFAULT_FRAME_RINGS, MIN_FRAME_RINGS, MAX_FRAME_RINGS } from '../../editor/frameNRing'
+import { useState } from 'react'
 import { activeCell } from '../../editor/active'
-import { FieldLabel, NumberStepper, NudgePad } from './labShared'
+import { FieldLabel, NumberStepper, NudgePad, SectionTitle } from './labShared'
 
 /** Frame origin nudge range (matches the X/Y slider extents). */
 const FRAME_ORIGIN_RANGE = 800
@@ -52,12 +53,32 @@ export function FramePanel({
     if (!editor.frame) return
     dispatch({ type: 'SET_FRAME', payload: { ...editor.frame, ...partial, completedTiles: [] } })
   }
+  // Collapse the whole panel once a Frame exists, so its tall control stack can
+  // be tucked away without removing the Frame. The chevron only appears once a
+  // Frame is opened (`hasFrame`); with no Frame the body is just the two create
+  // buttons, so a persisted `collapsed` stays dormant rather than hiding them
+  // behind a chevron that isn't rendered. Persisted so the choice survives
+  // leaving/re-entering the Lab (mirrors the sidebar section-collapse memory).
+  const hasFrame = !!editor.frame
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem('lab-frame-collapsed') === '1' } catch { return false }
+  })
+  const toggleCollapsed = () => setCollapsed(prev => {
+    const next = !prev
+    try { localStorage.setItem('lab-frame-collapsed', next ? '1' : '0') } catch { /* ignore */ }
+    return next
+  })
+  const isCollapsed = hasFrame && collapsed
   return (
     <div style={{ marginTop: 0, marginBottom: 14 }}>
-      <FieldLabel
-        label="Frame"
+      <SectionTitle
+        open={!isCollapsed}
+        onToggle={hasFrame ? toggleCollapsed : undefined}
         tooltip="A persistent bounded region the pattern clips to. In Complete mode, the frame's edge nodes are clickable targets so you can complete tiles out to the edge. Shape = parametric outline; n-Ring = whole-patch shells (clip-only)."
-      />
+      >
+        Frame
+      </SectionTitle>
+      {!isCollapsed && (<>
       <div style={{
         padding: '8px 10px',
         marginBottom: 10,
@@ -408,6 +429,7 @@ export function FramePanel({
           </button>
         </>
       )}
+      </>)}
     </div>
   )
 }

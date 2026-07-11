@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { buildExportMenuItems, PNG_SIZES, type ExportActionsArgs } from './exportActions'
 import type { PatternConfig } from '../types/pattern'
-import type { Segment } from '../types/geometry'
 
 // buildExportMenuItems is pure until a handler fires (handlers touch the DOM),
 // so the returned menu structure is testable in the node env.
@@ -9,7 +8,6 @@ import type { Segment } from '../types/geometry'
 function args(overrides: Partial<ExportActionsArgs> = {}): ExportActionsArgs {
   return {
     svgRef: { current: null },
-    segmentsRef: { current: [] as Segment[] },
     config: {} as PatternConfig,
     onLoad: () => {},
     pngTransparent: false,
@@ -21,9 +19,8 @@ function args(overrides: Partial<ExportActionsArgs> = {}): ExportActionsArgs {
 const labels = (items: ReturnType<typeof buildExportMenuItems>) => items.map(i => i.label)
 
 describe('buildExportMenuItems', () => {
-  it('omits Unwoven-SVG by default (Lab), includes it when opted in (Gallery)', () => {
+  it('is one uniform menu with no Unwoven-SVG (archived in the flip, ADR-0006 Q8b)', () => {
     expect(labels(buildExportMenuItems(args()))).not.toContain('Export Unwoven SVG')
-    expect(labels(buildExportMenuItems(args({ includeUnwoven: true })))).toContain('Export Unwoven SVG')
   })
 
   it('exposes PNG as a submenu with one item per PNG_SIZES entry', () => {

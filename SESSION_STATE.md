@@ -17,7 +17,37 @@
 
 **Green:** tsc + **693 vitest** + build. ⏳ browser-verify: pick 3.3.3.4.4 in Builder Design panel (strip tiling renders, Strands flow across square↔triangle edges); shelf card editable (no badge); alternate orientation flips rows→columns.
 
-**NEXT:** merge queue = PR #9 (#6) → PR #10 (#7, retarget to main) → this chunk's PR. Remaining #8 chunks (one per session, sub-issue each): **3.3.4.3.4 snub square** (2 squares + 4 triangles per translation domain), then **3.3.3.3.6 snub hexagonal** (chiral; 1 hexagon + 8 triangles). Both Fable.
+**MERGE-ALL UPDATE (same day):** #6 merged via PR #9; #7 merged via PR #13 (PR #10 was auto-closed by GitHub when #9's branch deletion removed its base — #13 is the identical branch reconciled with main). This chunk = PR #12. Remaining #8 chunks (one per session, sub-issue each): **3.3.4.3.4 snub square** (2 squares + 4 triangles per translation domain), then **3.3.3.3.6 snub hexagonal** (chiral; 1 hexagon + 8 triangles). Both Fable.
+
+---
+### ▶ 2026-07-11 — ✅ #7 MERGED: the flip (PR #13, formerly PR #10)
+
+**Ticket #7 (Convergence 6/7 — the flip) built.** The Gallery is now purely the saved-patterns browser; all authoring is Builder/Lab-only.
+
+- **Sidebar removed.** App.tsx's `galleryView` tune sub-view + all its wiring (gallery reducer, in-mode `Canvas`, mobile/desktop sidebar chrome) deleted; the orphaned `Sidebar.tsx` (−672 lines) + its dead CSS deleted. Gallery render collapses to `TopBar + GalleryBrowser`.
+- **Default → Lab.** Fresh profile opens in the Lab (`localStorage 'app-mode'` absent → `'lab'`); persisted `'main'` respected. Internal value + key unchanged (Q9).
+- **Empty-state pointer.** GalleryBrowser: `onOpenTuner`→`onGoToLab`; empty state "Nothing saved yet — start in the Lab" + *Open the Lab* CTA; header *New pattern*→*New in Lab*.
+- **Unwoven archived (Q8b).** Removed from `buildExportMenuItems` (dropped `includeUnwoven` + `segmentsRef` args); one uniform export menu everywhere. `exportUnwovenSVG`+builder kept, annotated archived. Lab call site updated.
+- **Docs.** CONTEXT.md Gallery/Lab entries rewritten (browser vs authoring); parity matrix retired to a "resolved by convergence" note + only the genuinely-live deliberate distinctions (Decoration, Frame data-split, weave exemplar, Lever A, octagon/dodecagon) + the open Alternate-orientation bug.
+
+**Green:** tsc + **699 vitest** + build. Net −998 lines. SSR smoke updated to cover both post-flip paths (fresh→Lab, persisted `'main'`→Gallery). ⏳ **browser-verify (headless can't drive):** fresh profile lands in Lab; empty Gallery shows pointer+CTA; persisted `'main'` still lands in Gallery; Lab export menu has no Unwoven.
+
+**BONUS — #6 thumbnail bug FIXED + ✅ browser-verified (this session):** user reported an all-placeholder Gallery grid. Console diag proved the offscreen render *succeeds* (188KB data URL) — the thumbnail was rendered then discarded. Root cause = classic React-18 **StrictMode `mountedRef` anti-pattern** in `useThumbnails.ts`: the flag was only cleared on cleanup, never re-set true on the setup→cleanup→setup re-mount, so it stuck `false` all session → `put` dropped every URL + the single-flight pump halted after save #1. Fix `8140706`: set `mountedRef.current = true` in the effect setup. Plus `1e8f161` hardening (content-aware settle + 8s render timeout so a stuck raster can't wedge the queue; failure-only `[thumbnail]` warns). **Dev-only bug** (prod build unaffected → why all tests stayed green); not unit-testable here (no jsdom). User confirmed "looks good".
+
+**NEXT:** merge #6 (PR #9) then #7 (PR #10) — retarget #10 base `feat/gallery-browser-6`→`main` after #9 merges (thumbnail fix rides on #10). Frontier after = **#8 (tier-2 Configurations, Fable)**, last convergence slice. One ticket per session.
+
+---
+### ▶ 2026-07-11 — ✅ #6 MERGED: Gallery saved-patterns browser (PR #9)
+
+**Ticket #6 (Gallery browser skeleton) built — awaiting review/merge + browser-verify.** Gallery is repurposed as a saved-patterns **browser** over `pattern-library-v1`.
+
+**New files** (`src/components/gallery/`): `galleryBrowser.logic.ts` (pure — `toCardModel` / `badgeForSave` / `editAvailabilityFor` / `resolveEditInLab` / `nextBackfillId`) + `.test.ts` + `.render.test.ts` (SSR seeded-library card render); `useThumbnails.ts` (self-pumping single-flight backfill, failure-skip); `PatternCard.tsx`, `PatternDetailView.tsx`, `GalleryBrowser.tsx`. Plus `src/state/thumbnailStore.ts` (thin IndexedDB, fail-soft, dataURL values keyed by save id), `src/rendering/faithfulRender.ts` (`faithfulRenderFlags` shared by detail + thumb), `src/rendering/renderThumbnail.tsx` (offscreen `Canvas` mount → rasterise), `rasterizeSvgToDataUrl`/`rasterizeSvgToCanvas` factored out of `exportPNG`.
+
+**Key decisions:** (1) **Reuse `Canvas` as the single faithful renderer** for BOTH the detail view and the offscreen thumbnail → thumbnail == detail == truth, zero drift. Editor saves render Composition + Decoration(if any) + Frame(if any); legacy saves render BFS path (Canvas clips its own Gallery Frame). Read-only = pass no select/place/paint callbacks. (2) **Edit-in-Lab** (App `handleEditInLab`): editor→load verbatim; tier-1 legacy→`convertPresetToEditorConfig` one-way (original kept); tier-2/3→button disabled. (3) **Coexistence:** Gallery `galleryView` state defaults to `'browse'`; the legacy tuning Sidebar+Canvas stays reachable via "New pattern"/"← My Patterns" (removed in #7). Ticket #6 says sidebar stays; note spec #1 Q3 said "removed" — ticket wins for this slice.
+
+**Green:** tsc + **699 vitest** (+14) + build. Dev server boots, all modules transform. ⏳ **browser-verify (can't drive headless here):** thumbnails rasterise + survive reload; wipe thumb store → re-backfill not errors; detail pan/zoom; Edit-in-Lab for an editor save + a converted legacy save; badge on legacy cards.
+
+**NEXT:** merge PR #9 + close #6 → frontier = **#7 (the flip: sidebar removal, default→Lab, uniform export menu, CONTEXT rewrite; needs #5 ✓ + #6)** and **#8 (tier-2, Fable; needs #4 ✓ + #5 ✓)**. One ticket per session.
 
 ---
 ### ▶ 2026-07-10 — ✅ #5 CLOSED: Presets shelf in the Lab library (on `main`)

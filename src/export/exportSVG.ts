@@ -196,10 +196,16 @@ export interface PngExportOptions {
   background?: string | null
 }
 
-export async function exportPNG(
+/**
+ * Rasterise a live `<svg>` onto a 2D canvas at the given size, with the same
+ * overlay-stripping + CSS-var inlining the file exports use. Shared by
+ * `exportPNG` (which downloads it) and the thumbnail renderer (which reads a
+ * data URL back off it). Returns null if the SVG can't be loaded as an image.
+ */
+export async function rasterizeSvgToCanvas(
   svgEl: SVGSVGElement,
   { width = 2048, height = 2048, background = DEFAULT_PNG_BACKGROUND }: PngExportOptions = {},
-) {
+): Promise<HTMLCanvasElement | null> {
   const clone = svgEl.cloneNode(true) as SVGSVGElement
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
   clone.setAttribute('width', String(width))
@@ -211,24 +217,52 @@ export async function exportPNG(
   const img = new Image()
   img.width = width
   img.height = height
-  await new Promise<void>((resolve, reject) => {
-    img.onload = () => resolve()
-    img.onerror = reject
-    img.src = url
-  })
+  try {
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve()
+      img.onerror = reject
+      img.src = url
+    })
+  } catch {
+    URL.revokeObjectURL(url)
+    return null
+  }
   URL.revokeObjectURL(url)
 
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
-  const ctx = canvas.getContext('2d')!
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
   // Skip the fill for a transparent export — a fresh canvas is already clear.
   if (background) {
     ctx.fillStyle = background
     ctx.fillRect(0, 0, width, height)
   }
   ctx.drawImage(img, 0, 0, width, height)
+  return canvas
+}
 
+/** Rasterise a live `<svg>` to a PNG data URL (used for browser thumbnails). */
+export async function rasterizeSvgToDataUrl(
+  svgEl: SVGSVGElement,
+  opts: PngExportOptions = {},
+): Promise<string | null> {
+  const canvas = await rasterizeSvgToCanvas(svgEl, opts)
+  if (!canvas) return null
+  try {
+    return canvas.toDataURL('image/png')
+  } catch {
+    return null
+  }
+}
+
+export async function exportPNG(
+  svgEl: SVGSVGElement,
+  opts: PngExportOptions = {},
+) {
+  const canvas = await rasterizeSvgToCanvas(svgEl, opts)
+  if (!canvas) return
   canvas.toBlob(b => {
     if (b) downloadBlob(b, 'islamic-pattern.png')
   }, 'image/png')

@@ -7,6 +7,7 @@ import { TILINGS } from '../tilings/index'
 import { DEFAULT_CONFIG } from './defaults'
 import {
   createDefault31212EditorConfig,
+  createDefault33336EditorConfig,
   createDefault33344EditorConfig,
   createDefault33434EditorConfig,
   createDefault3464EditorConfig,
@@ -646,6 +647,9 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
           break
         case '3.3.4.3.4':
           next = createDefault33434EditorConfig()
+          break
+        case '3.3.3.3.6':
+          next = createDefault33336EditorConfig()
           break
         default:
           // payload === null → leave Configuration, fresh single-cell Patch.

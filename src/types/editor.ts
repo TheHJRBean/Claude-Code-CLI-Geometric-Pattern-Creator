@@ -119,7 +119,7 @@ export type SymmetryMode = 'full' | 'rotation' | 'vertical' | 'horizontal' | 'no
  * Identifier for a multi-cell **Configuration** (CONTEXT.md). Extend when
  * adding more. Single-cell Patches don't carry one.
  */
-export type ConfigurationId = '4.8.8' | '3.12.12' | '4.6.12' | '3.6.3.6' | '3.4.6.4' | '3.3.3.4.4' | '3.3.4.3.4'
+export type ConfigurationId = '4.8.8' | '3.12.12' | '4.6.12' | '3.6.3.6' | '3.4.6.4' | '3.3.3.4.4' | '3.3.4.3.4' | '3.3.3.3.6'
 
 /**
  * A single Cell within a Patch. Carries its own Boundary shape, size,

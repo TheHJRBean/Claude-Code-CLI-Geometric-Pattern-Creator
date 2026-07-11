@@ -14,8 +14,8 @@ import {
 // carried over and provenance stamped; everything else must be cleanly
 // identified as non-convertible.
 
-const TIER1 = ['square', 'hexagonal', 'triangular', '4.8.8', '3.12.12', '4.6.12', '3.6.3.6', '3.4.6.4', '3.3.3.4.4', '3.3.4.3.4']
-const NON_CONVERTIBLE = ['cairo-pentagonal', 'rhombille', 'decagonal-rosette', '3.3.3.3.6', 'no-such-tiling']
+const TIER1 = ['square', 'hexagonal', 'triangular', '4.8.8', '3.12.12', '4.6.12', '3.6.3.6', '3.4.6.4', '3.3.3.4.4', '3.3.4.3.4', '3.3.3.3.6']
+const NON_CONVERTIBLE = ['cairo-pentagonal', 'rhombille', 'decagonal-rosette', 'no-such-tiling']
 
 function presetConfig(type: string, scale = 100): PatternConfig {
   return {
@@ -52,7 +52,7 @@ describe('convertPresetToEditorConfig — tier-1 table', () => {
   })
 
   it('multi-cell presets keep their Configuration id', () => {
-    for (const type of ['4.8.8', '3.12.12', '4.6.12', '3.6.3.6', '3.4.6.4', '3.3.3.4.4', '3.3.4.3.4'] as const) {
+    for (const type of ['4.8.8', '3.12.12', '4.6.12', '3.6.3.6', '3.4.6.4', '3.3.3.4.4', '3.3.4.3.4', '3.3.3.3.6'] as const) {
       const out = convertPresetToEditorConfig(presetConfig(type))!
       expect(out.editor!.configuration).toBe(type)
     }

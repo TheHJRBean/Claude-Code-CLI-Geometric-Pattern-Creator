@@ -50,7 +50,7 @@ describe('editAvailabilityFor', () => {
     expect(editAvailabilityFor(cfg('4.8.8'))).toBe('convert')
   })
   it('tier-2/3 legacy renders are unavailable', () => {
-    expect(editAvailabilityFor(cfg('3.3.3.3.6'))).toBe('unavailable')
+    expect(editAvailabilityFor(cfg('rhombille'))).toBe('unavailable')
   })
 })
 
@@ -70,7 +70,7 @@ describe('resolveEditInLab', () => {
     expect(JSON.stringify(c)).toBe(before)
   })
   it('returns null for a non-convertible legacy render', () => {
-    expect(resolveEditInLab(cfg('3.3.3.3.6'))).toBeNull()
+    expect(resolveEditInLab(cfg('rhombille'))).toBeNull()
   })
 })
 

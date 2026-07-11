@@ -48,6 +48,7 @@ const FLAGSHIPS: Array<{ type: string; scale: number }> = [
   { type: '3.4.6.4', scale: 60 },
   { type: '3.3.3.4.4', scale: 60 },
   { type: '3.3.4.3.4', scale: 60 },
+  { type: '3.3.3.3.6', scale: 60 },
 ]
 
 function presetConfig(type: string, scale: number): PatternConfig {

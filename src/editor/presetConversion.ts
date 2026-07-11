@@ -4,6 +4,7 @@ import {
   createBoundaryMatchingCell,
   createDefault488EditorConfig,
   createDefault31212EditorConfig,
+  createDefault33336EditorConfig,
   createDefault33344EditorConfig,
   createDefault33434EditorConfig,
   createDefault4612EditorConfig,
@@ -21,9 +22,9 @@ import {
  * `tileTypeId` on both pipelines), contact angle, strand style — and the
  * Gallery Frame migrates to an equivalent Builder Shape Frame (Q8a).
  *
- * Tier-2 presets (remaining Archimedean: snub hexagonal;
- * elongated triangular landed with #11, snub square with #14) grow this table row by row as their
- * Configurations are authored. Tier-3 presets (irregular Laves / Taprats / rosette patches)
+ * Tier 2 is now empty — every Archimedean preset converts (elongated
+ * triangular landed with #11, snub square with #14, snub hexagonal with #16).
+ * Tier-3 presets (irregular Laves / Taprats / rosette patches)
  * are **not convertible** until an irregular-tile Patch encoder lands
  * (star-tilings epic) — `isConvertiblePreset` returns false and
  * `convertPresetToEditorConfig` returns null for them.
@@ -63,6 +64,7 @@ const TIER1_SEEDS: Record<string, () => EditorConfig> = {
   '3.4.6.4': createDefault3464EditorConfig,
   '3.3.3.4.4': createDefault33344EditorConfig,
   '3.3.4.3.4': createDefault33434EditorConfig,
+  '3.3.3.3.6': createDefault33336EditorConfig,
 }
 
 /** Preset tiling ids convertible today (the tier-1 table's rows). */

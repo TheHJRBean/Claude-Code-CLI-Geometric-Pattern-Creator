@@ -71,6 +71,10 @@ export function compositionAlternateAngle(configuration: EditorPatch['configurat
       // Square lattice (tilted 15° to the squares) → half-step π/4, matching
       // 4.8.8's square-lattice semantics.
       return Math.PI / 4
+    case '3.3.3.3.6':
+      // Hex lattice (tilted ≈19.1° to the hexagon) → half-step π/6, matching
+      // the other hex-lattice Configurations.
+      return Math.PI / 6
     default:
       return 0
   }
@@ -185,6 +189,18 @@ function unrotatedCompositionCellBasis(patch: EditorPatch): { u: Vec2; v: Vec2 }
       return {
         u: { x: (L * (2 + Math.sqrt(3))) / 2, y: L / 2 },
         v: { x: -L / 2, y: (L * (2 + Math.sqrt(3))) / 2 },
+      }
+    }
+    case '3.3.3.3.6': {
+      // Snub hexagonal: hex lattice of hexagons with |u| = L√7 — the snub
+      // vector 2a+b of the unit hex lattice, tilted arctan(√3/5) ≈ 19.1° off
+      // the seed's own axes (chirality shows up as this tilt's sign).
+      // u carries the origin hexagon onto the neighbour whose left edge is
+      // shared by the seed's pocket-nw mate; v = rotate(u, 60°).
+      // |u×v| = 7√3L²/2 = 1 hexagon + 8 triangles.
+      return {
+        u: { x: L * Math.sqrt(3), y: 2 * L },
+        v: { x: -(L * Math.sqrt(3)) / 2, y: (5 * L) / 2 },
       }
     }
     default:

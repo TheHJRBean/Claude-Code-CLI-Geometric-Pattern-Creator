@@ -13,6 +13,17 @@ Issues and PRDs for this repo live as GitHub issues. Use the `gh` CLI for all op
 
 Infer the repo from `git remote -v` — `gh` does this automatically when run inside a clone.
 
+## Model recommendation (required in every ticket)
+
+Every implementation ticket must carry a `## Model` section recommending the cheapest adequate model, so the user can pick the session's model before starting. Rubric:
+
+- **Fable** — novel geometry/PIC work, architecture design, grills, hard debugging.
+- **Opus** — moderate-complexity geometry, gnarly debugging with good context.
+- **Sonnet** — well-specced UI, wiring, plumbing over existing primitives, tests.
+- **Haiku** — trivial/mechanical edits, verification passes.
+
+If a ticket splits into parts of different difficulty, recommend per part. If the scope is too vague to judge, say so and recommend a model for the next step (usually a grill or enumeration pass) only. When implementing, surface the ticket's recommendation at the start of the session before doing any work.
+
 ## Pull requests as a triage surface
 
 **PRs as a request surface: no.** _(Set to `yes` if this repo treats external PRs as feature requests; `/triage` reads this flag.)_

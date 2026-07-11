@@ -179,7 +179,13 @@ ${pathEls}
 }
 
 /** Export clean editable SVG — one <path> per Strand with nodes at every vertex.
- *  Thin strokes for Inkscape editing. */
+ *  Thin strokes for Inkscape editing.
+ *
+ *  ARCHIVED (ADR-0006 Q8b, convergence flip): no longer wired to any export
+ *  menu. It rebuilt from the in-memory segments, which are a single fundamental
+ *  domain under the Lever A fast-path, so it emitted one unit cell rather than
+ *  the full field. Kept (with `unwovenSvgMarkup` + its test) so it can return
+ *  Lab-wide via the export epic's full-field re-derivation. */
 export function exportUnwovenSVG(segments: Segment[], viewBox: string, width: number, height: number) {
   const blob = new Blob([unwovenSvgMarkup(segments, viewBox, width, height)], { type: 'image/svg+xml;charset=utf-8' })
   downloadBlob(blob, 'islamic-pattern-unwoven.svg')

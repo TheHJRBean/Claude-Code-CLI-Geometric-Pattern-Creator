@@ -8,7 +8,11 @@ import { TessellationLabMode } from './components/TessellationLabMode'
 import { reducer, DEFAULT_CONFIG } from './state/reducer'
 import { LAB_DEFAULT_CONFIG, loadLabState, saveLabState } from './state/labDefaults'
 import { buildExportMenuItems } from './export/exportActions'
+import { GalleryBrowser } from './components/gallery/GalleryBrowser'
+import { resolveEditInLab } from './components/gallery/galleryBrowser.logic'
+import { patternLibrary } from './state/patternLibrary'
 import type { Segment } from './types/geometry'
+import type { PatternConfig } from './types/pattern'
 
 type AppMode = 'main' | 'lab'
 
@@ -23,6 +27,10 @@ export default function App() {
       return next
     })
   }, [])
+  // Gallery sub-view: the saved-patterns browser (default) vs the legacy tuning
+  // sidebar. The tuning view stays reachable this ticket; it's removed in the
+  // flip (#7).
+  const [galleryView, setGalleryView] = useState<'browse' | 'tune'>('browse')
 
   const [config, dispatch] = useReducer(reducer, DEFAULT_CONFIG)
   // Lab state lives at App level so it persists across mode toggles, and
@@ -39,6 +47,19 @@ export default function App() {
       outlineWidth: labOutlineWidth,
     })
   }, [labConfig, labShowStrands, labOutlineWidth])
+
+  // "Edit in Lab" from the Gallery browser: load the (converted) config into
+  // the Lab reducer and switch workspaces. Editor saves load verbatim; tier-1
+  // legacy presets convert one-way (the saved copy is untouched — see
+  // resolveEditInLab). Non-convertible legacy saves never reach here (the
+  // detail view's button is disabled), so a null result is a safe no-op.
+  const handleEditInLab = useCallback((cfg: PatternConfig) => {
+    const resolved = resolveEditInLab(cfg)
+    if (!resolved) return
+    labDispatch({ type: 'LOAD_CONFIG', payload: resolved.config })
+    setMode('lab')
+    try { localStorage.setItem('app-mode', 'lab') } catch { /* ignore */ }
+  }, [labDispatch])
   const [showTileLayer, setShowTileLayer] = useState(false)
   const [showLines, setShowLines] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -82,6 +103,23 @@ export default function App() {
     )
   }
 
+  // Gallery = the saved-patterns browser by default (ADR-0006). The legacy
+  // tuning sidebar stays reachable via "New pattern" until the flip (#7).
+  if (galleryView === 'browse') {
+    return (
+      <div className="app-shell">
+        <TopBar mode={mode} onToggleMode={toggleMode} title="Gallery" exportItems={[]} />
+        <div className="app-layout">
+          <GalleryBrowser
+            library={patternLibrary}
+            onEditInLab={handleEditInLab}
+            onOpenTuner={() => setGalleryView('tune')}
+          />
+        </div>
+      </div>
+    )
+  }
+
   const exportItems = buildExportMenuItems({
     svgRef,
     segmentsRef,
@@ -102,6 +140,9 @@ export default function App() {
         title={galleryTitle}
         exportItems={exportItems}
       />
+      <button className="gallery-tune-back" onClick={() => setGalleryView('browse')} title="Back to saved patterns">
+        ← My Patterns
+      </button>
       <div className={`app-layout ${desktopCollapsed ? 'app-layout--sidebar-collapsed' : ''}`}>
       {/* Mobile sidebar toggle */}
       <button

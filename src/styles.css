@@ -1017,3 +1017,89 @@
   min-height: 0;
   display: flex;
 }
+
+/* ── Generator (ADR-0007) ─────────────────────────────────── */
+.generator-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg-base);
+}
+.generator-view__bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  flex-shrink: 0;
+}
+.generator-view__count {
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.generator-view__spacer { flex: 1; }
+.generator-view__canvas {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.generator-dock {
+  position: absolute;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-accent);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  z-index: 10;
+}
+.generator-dock__btn {
+  min-width: 36px;
+  padding: 8px 10px;
+  font-family: var(--font-display);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.generator-dock__btn:hover { color: var(--text-on-accent); background: var(--accent); border-color: var(--accent); }
+.generator-dock__btn--skip,
+.generator-dock__btn--flag {
+  font-family: var(--font-display);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 8px 12px;
+}
+.generator-dock__btn--flag:hover { background: #a85050; border-color: #a85050; }
+
+.generator-flash {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  color: var(--text);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-accent);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  z-index: 10;
+  pointer-events: none;
+}

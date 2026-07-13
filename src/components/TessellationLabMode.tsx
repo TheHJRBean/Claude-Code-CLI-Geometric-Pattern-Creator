@@ -31,6 +31,7 @@ import { SectionTitle, FieldLabel } from './lab/labShared'
 import { StrandStyleControls } from './ui/StrandStyleControls'
 import { EditorDesignControls } from './lab/EditorDesignControls'
 import { buildExportMenuItems } from '../export/exportActions'
+import type { AppMode } from '../types/appMode'
 
 
 /**
@@ -43,8 +44,8 @@ import { buildExportMenuItems } from '../export/exportActions'
  */
 
 interface Props {
-  mode: 'main' | 'lab'
-  onToggleMode: () => void
+  mode: AppMode
+  onSelectMode: (mode: AppMode) => void
   config: PatternConfig
   dispatch: React.Dispatch<Action>
   showStrands: boolean
@@ -55,7 +56,7 @@ interface Props {
 
 export function TessellationLabMode({
   mode,
-  onToggleMode,
+  onSelectMode,
   config,
   dispatch: rawDispatch,
   showStrands,
@@ -390,7 +391,7 @@ export function TessellationLabMode({
     <div className="app-shell">
       <TopBar
         mode={mode}
-        onToggleMode={onToggleMode}
+        onSelectMode={onSelectMode}
         title={labTitle}
         exportItems={exportItems}
       />

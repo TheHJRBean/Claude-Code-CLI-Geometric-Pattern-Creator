@@ -35,4 +35,11 @@ describe('app render smoke (SSR)', () => {
     const { ThemeProvider } = await import('./theme/ThemeContext')
     renderToString(createElement(ThemeProvider, null, createElement(App)))
   })
+
+  it('renders App without throwing (persisted Generator choice, ADR-0007)', async () => {
+    store.set('app-mode', 'generator')
+    const { default: App } = await import('./App')
+    const { ThemeProvider } = await import('./theme/ThemeContext')
+    renderToString(createElement(ThemeProvider, null, createElement(App)))
+  })
 })

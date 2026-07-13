@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTheme } from '../theme/ThemeContext'
 import { SunIcon, MoonIcon } from './lab/labShared'
 import type { ExportMenuItem } from '../export/exportActions'
+import type { AppMode } from '../types/appMode'
 
 /** Small octa-star brand mark — mirrors the Sidebar's OctaStar motif. */
 function BrandMark() {
@@ -28,21 +29,21 @@ function DownloadIcon() {
 }
 
 interface TopBarProps {
-  mode: 'main' | 'lab'
-  onToggleMode: () => void
+  mode: AppMode
+  onSelectMode: (mode: AppMode) => void
   /** Contextual descriptor of the current pattern/tessellation. */
   title?: string
   exportItems: ExportMenuItem[]
 }
 
 /**
- * Persistent top bar shared by both workspaces (rendered per-mode so each keeps
- * its own export handlers + dispatch). Owns global chrome: brand, the
- * Gallery|Lab segmented switcher, the active-pattern descriptor, the theme
- * toggle, and the Export menu — replacing the chrome previously crammed into
- * each sidebar header.
+ * Persistent top bar shared by all three workspaces (rendered per-mode so each
+ * keeps its own export handlers + dispatch). Owns global chrome: brand, the
+ * Gallery|Lab|Generator segmented switcher, the active-pattern descriptor, the
+ * theme toggle, and the Export menu — replacing the chrome previously crammed
+ * into each sidebar header.
  */
-export function TopBar({ mode, onToggleMode, title, exportItems }: TopBarProps) {
+export function TopBar({ mode, onSelectMode, title, exportItems }: TopBarProps) {
   const { theme, toggleTheme } = useTheme()
   const [menuOpen, setMenuOpen] = useState(false)
   // Which submenu (by label) is expanded inline; only one at a time.
@@ -77,7 +78,7 @@ export function TopBar({ mode, onToggleMode, title, exportItems }: TopBarProps) 
           role="tab"
           aria-selected={mode === 'main'}
           className={`workspace-switcher__btn ${mode === 'main' ? 'workspace-switcher__btn--active' : ''}`}
-          onClick={() => { if (mode !== 'main') onToggleMode() }}
+          onClick={() => { if (mode !== 'main') onSelectMode('main') }}
         >
           Gallery
         </button>
@@ -85,9 +86,17 @@ export function TopBar({ mode, onToggleMode, title, exportItems }: TopBarProps) 
           role="tab"
           aria-selected={mode === 'lab'}
           className={`workspace-switcher__btn ${mode === 'lab' ? 'workspace-switcher__btn--active' : ''}`}
-          onClick={() => { if (mode !== 'lab') onToggleMode() }}
+          onClick={() => { if (mode !== 'lab') onSelectMode('lab') }}
         >
           Lab
+        </button>
+        <button
+          role="tab"
+          aria-selected={mode === 'generator'}
+          className={`workspace-switcher__btn ${mode === 'generator' ? 'workspace-switcher__btn--active' : ''}`}
+          onClick={() => { if (mode !== 'generator') onSelectMode('generator') }}
+        >
+          Generator
         </button>
       </div>
 

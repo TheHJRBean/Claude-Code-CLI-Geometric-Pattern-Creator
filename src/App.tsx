@@ -1,37 +1,35 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { TopBar } from './components/TopBar'
 import { TessellationLabMode } from './components/TessellationLabMode'
+import { GeneratorMode } from './components/GeneratorMode'
 import { reducer } from './state/reducer'
 import { LAB_DEFAULT_CONFIG, loadLabState, saveLabState } from './state/labDefaults'
 import { GalleryBrowser } from './components/gallery/GalleryBrowser'
 import { resolveEditInLab } from './components/gallery/galleryBrowser.logic'
 import { patternLibrary } from './state/patternLibrary'
 import type { PatternConfig } from './types/pattern'
-
-type AppMode = 'main' | 'lab'
+import type { AppMode } from './types/appMode'
 
 export default function App() {
   // Post-convergence (ADR-0006) the Lab is where patterns are authored, so a
   // fresh profile opens there; the Gallery is the saved-patterns browser. A
-  // returning user's persisted choice — including an explicit 'main' — is
-  // respected. Internal value + localStorage key are unchanged (Q9).
+  // returning user's persisted choice — including an explicit 'main' or
+  // 'generator' — is respected. Internal value + localStorage key are
+  // unchanged (Q9).
   const [mode, setMode] = useState<AppMode>(() => {
-    try { return localStorage.getItem('app-mode') === 'main' ? 'main' : 'lab' } catch { return 'lab' }
+    try {
+      const saved = localStorage.getItem('app-mode')
+      return saved === 'main' || saved === 'generator' ? saved : 'lab'
+    } catch { return 'lab' }
   })
   const persistMode = (next: AppMode) => {
     try { localStorage.setItem('app-mode', next) } catch { /* ignore */ }
   }
-  const toggleMode = useCallback(() => {
-    setMode(prev => {
-      const next: AppMode = prev === 'main' ? 'lab' : 'main'
-      persistMode(next)
-      return next
-    })
+  const selectMode = useCallback((next: AppMode) => {
+    setMode(next)
+    persistMode(next)
   }, [])
-  const goToLab = useCallback(() => {
-    setMode('lab')
-    persistMode('lab')
-  }, [])
+  const goToLab = useCallback(() => selectMode('lab'), [selectMode])
 
   // Lab state lives at App level so it persists across mode toggles, and
   // is restored from localStorage so it persists across page reloads.
@@ -64,7 +62,7 @@ export default function App() {
     return (
       <TessellationLabMode
         mode={mode}
-        onToggleMode={toggleMode}
+        onSelectMode={selectMode}
         config={labConfig}
         dispatch={labDispatch}
         showStrands={labShowStrands}
@@ -75,11 +73,22 @@ export default function App() {
     )
   }
 
+  if (mode === 'generator') {
+    return (
+      <div className="app-shell">
+        <TopBar mode={mode} onSelectMode={selectMode} title="Generator" exportItems={[]} />
+        <div className="app-layout">
+          <GeneratorMode onOpenInLab={handleEditInLab} />
+        </div>
+      </div>
+    )
+  }
+
   // Gallery = the saved-patterns browser (ADR-0006). The tuning sidebar is gone
   // — authoring lives in the Lab; the empty state points there.
   return (
     <div className="app-shell">
-      <TopBar mode={mode} onToggleMode={toggleMode} title="Gallery" exportItems={[]} />
+      <TopBar mode={mode} onSelectMode={selectMode} title="Gallery" exportItems={[]} />
       <div className="app-layout">
         <GalleryBrowser
           library={patternLibrary}

@@ -5,6 +5,19 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-13 (rosette epic start) — ✅ STEP 0 SPIKE PASSED: bisector-anchored figure construction validated
+
+**Goal:** start the rosette-patch epic (`ROSETTE_PATCH_PLAN.md`). Session = plan review against code (all assumptions verified, 2 amendments) + the Step 0 throwaway geometry spike (Fable, per plan's model rec).
+
+**Done:**
+- **Plan verified + amended in place**: (1) concave validator corrected — deltoidal-trihexagonal is a convex kite; real reflex reproducers are nonagonal-rosette 5-gon + decagonal-rosette bowtie; (2) Step 0's construction concretised as the bisector-anchored rule.
+- **Spike PASSED** — full findings + the validated algorithm (v3, λ=0: min-offset bisector tip, ray-param pair-B gate, centre cap, reflex tips pinned at notch) written into `ROSETTE_PATCH_PLAN.md` § "Step 0 findings". Kepler baseline segment-exact; grand matrix 106/108 clean; sole residual = decagonal `6.3` hexagon @ θ≥67.5 (Step 3 tuning item).
+- **Visual before/after artifact** (15 cases, old runPIC vs new construction): https://claude.ai/code/artifact/1a7f53ae-b3dc-4b5d-be16-96a6233ce803 — ⏳ user eyeball owed.
+- Spike scratch file deleted per plan (no `src/` changes); suite green 737/737.
+
+**NEXT (cold start):** user eyeballs the artifact → then Step 1 (David's Star registry alias, Sonnet-fine) and/or Step 2 (Kepler's Star preset) — both decoupled quick wins — then Step 3 `src/pic/rosettePatch.ts` (Fable) implementing the construction verbatim from the plan's findings section.
+
+---
 ### ▶ 2026-07-13 (later) — ✅ Generator v1 BUILT + SHIPPED: #18 + #19 closed, scoring amended to 0–10 slider
 
 **Goal:** implement the Generator epic specced earlier the same day (previous entry below). Two tickets back-to-back: #18 (Fable) then #19 (Sonnet, model switched mid-session per the ticket's own rec) then a same-day user-requested amendment.

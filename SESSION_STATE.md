@@ -16,7 +16,9 @@
 
 **Green:** tsc clean, **876 vitest** (67 files); `runPIC.characterization.test.ts` + `tapratsTiling.test.ts` untouched per ticket constraint.
 
-**NEXT (cold start):** **#23** (Step 4 — wire `runRosettePIC` into `usePattern` ~line 896-906 for `rosette-patch` category, retire the 6 old rosette goldens with dated comment, add dispatch-branch coverage, smoke-test every rosette tiling via `run`; Sonnet per plan) → #24 (figureRouting removal, audit first) → #25 (optional Archimedes' spike). Still owed: user eyeball of the Step 0 artifact (https://claude.ai/code/artifact/1a7f53ae-b3dc-4b5d-be16-96a6233ce803) + browser passes accumulated from earlier sessions.
+**Post-ship (same session):** published a fresh before/after artifact rendered from the SHIPPED code (12 cases, old runPIC vs new runRosettePIC on identical fields, incl. all 6 old degenerate goldens + Kepler baseline): **https://claude.ai/code/artifact/c1d90ab6-bce4-4217-8d97-887e43ceb41b** — this supersedes the Step 0 spike artifact for eyeball purposes. Confirmed to user: Step 4 model = **Sonnet**.
+
+**NEXT (cold start):** **#23** (Step 4 — wire `runRosettePIC` into `usePattern` ~line 896-906 for `rosette-patch` category, retire the 6 old rosette goldens with dated comment, add dispatch-branch coverage, smoke-test every rosette tiling via `run`; Sonnet per plan) → #24 (figureRouting removal, audit first) → #25 (optional Archimedes' spike). Still owed: user eyeball of the before/after artifact above + browser passes accumulated from earlier sessions.
 
 ---
 ### ▶ 2026-07-13 (later still) — ✅ Rosette epic Steps 1–2 SHIPPED: David's Star + Kepler's Star presets (`f42dce7`), tickets #20/#21 closed

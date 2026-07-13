@@ -5,6 +5,20 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-13 (later) — ✅ Generator v1 BUILT + SHIPPED: #18 + #19 closed, scoring amended to 0–10 slider
+
+**Goal:** implement the Generator epic specced earlier the same day (previous entry below). Two tickets back-to-back: #18 (Fable) then #19 (Sonnet, model switched mid-session per the ticket's own rec) then a same-day user-requested amendment.
+
+**Done, in commit order, all pushed to `main`:**
+- **`04f7b3d`** — **#18 CLOSED.** `src/generator/randomPattern.ts`: pure `sampleRandomPattern(seed)`, mulberry32 PRNG, uniform pick over all 21 shipped Gallery tilings, `SAMPLER_TUNING` constants block (θ/lineLength/edge-vertex toggles/curves/smoothTransitions/strand width-lineStyle-weave/scale) per ADR-0007, `GENERATOR_VERSION 1`. Colour/Frame frozen, `figureRouting: 'auto'`. +6 tests (determinism, range/constraint invariants over 200 seeds, full-tiling coverage, 30-seed smoke render through the real pipeline).
+- **`3627235`** — **#19 CLOSED.** Third `AppMode` (`src/types/appMode.ts`, `'main'|'lab'|'generator'`); TopBar's switcher is now a 3-way segmented control (`onToggleMode`→`onSelectMode(mode)`, App.tsx + TessellationLabMode.tsx updated). `src/components/GeneratorMode.tsx`: full-bleed rating view reusing the existing `Canvas`+`faithfulRenderFlags` (no new renderer). `src/generator/datasetStore.ts`: own IndexedDB db (`geometric-atlas-generator`), fail-soft like `thumbnailStore.ts`. `src/generator/datasetExport.ts`: pure JSONL builder + download. Keep actions: Save to library (`patternLibrary.save`), Open in Lab (`resolveEditInLab`, same hand-off as Gallery). SSR smoke test extended to cover persisted `'generator'` mode.
+- **`7148ba9` + `b99161e`** — **user-requested amendment** (right after #19 shipped): scoring changed from the specced 1–5 keypress to a **0–10 drag-to-release slider** (reuses `.pattern-slider`; drag live-updates a readout, releasing the pointer — or an arrow/Home/End/PageUp/PageDown keyup once focused — commits + auto-advances). Space still skips (no record), F still flags. `scoreSchemaVersion` bumped **1→2** (scale change). ADR-0007 got a new `## Amendment (2026-07-13)` section; CONTEXT.md's Generator entry updated (dropped "(planned)", 1–5→0–10 wording). Asked a clarifying question first (drag-and-release vs. keyboard 0–9 vs. explicit-submit) since it touched a "locked" ADR decision — user picked drag-and-release.
+
+**Green at every step:** tsc clean, full vitest suite (737 tests, +14 from session start), production build clean. **⏳ BROWSER-VERIFY OWED — no browser-automation tool was available this session** (checked ToolSearch for Playwright/Puppeteer/Chrome-DevTools MCP and a local headless Chrome binary; none present). Nothing in Generator has been clicked/dragged in an actual browser: worth checking (a) the 3-way TopBar switcher, (b) keyboard Space/F while the slider has focus, (c) drag-release actually commits + advances, (d) Save-to-library modal doesn't get keys stolen by the global listener, (e) Open-in-Lab disabled state on a non-convertible (rosette-patch) sample, (f) Export dataset JSONL download.
+
+**NEXT (cold start):** let ratings accumulate — no more Generator work is scheduled; the ML/suggest-mode ticket opens unticketed once ~300–500 samples are rated (`memory/project_aesthetic_rating_dataset_idea.md`). If the user wants a different track instead, the **star-tilings wave** remains the other open frontier (`memory/project_star_tilings_gallery_idea.md` + `GRILL_PREP_ROSETTE_FOLD.md`, Fable, big architectural session — unchanged since 2026-07-11).
+
+---
 ### ▶ 2026-07-13 — GRILL COMPLETE: Generator mode (aesthetic rating + taste dataset) — SPECCED, tickets #18/#19
 
 **Goal:** dive into the aesthetic-rating/ML idea (`memory/project_aesthetic_rating_dataset_idea.md`). Session = 9-question grill-with-docs → spec → tickets → wrapup. **No app code changed** — docs + tickets only.

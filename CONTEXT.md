@@ -14,6 +14,10 @@ _Avoid_: main, home, default mode, classic mode; "picker" / "tuner" (the Gallery
 The **default** authoring workspace (a fresh profile opens here; a returning user's persisted choice is respected) — the workflow space where building / experimentation happens. Contains the **Builder**; **presets** load here as editable **Patches** via the Presets shelf (ADR-0006). Structured to host more exploratory tools in future. Has the subtitle "Exploratory Workspace".
 _Avoid_: editor (reserved for the code namespace `src/editor/`), tessellation lab (when used as the umbrella; "Tessellation Lab" still names the current Builder screen header until refactor lands)
 
+**Generator** _(planned, ADR-0007)_:
+The third top-level mode alongside Gallery and Lab — a random-pattern slot machine and taste-dataset collector. Samples a random look over a shipped preset substrate, shows one finished pattern at a time, and records a single 1–5 rating per sample (keyboard-driven, auto-advance) into a durable dataset (IndexedDB + JSONL export) for a future ML taste model. Offers **Save to library** and **Open in Lab** on the current sample. Colour and Frame are frozen in v1 (later "presentation loops" rate them independently on fixed geometry).
+_Avoid_: Studio, Rate mode, randomizer; "suggest mode" (that's the future ML arc, not v1)
+
 ### Lab — tools and modes
 
 **Builder** _(UI label)_:

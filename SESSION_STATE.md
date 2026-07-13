@@ -5,6 +5,19 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-13 — GRILL COMPLETE: Generator mode (aesthetic rating + taste dataset) — SPECCED, tickets #18/#19
+
+**Goal:** dive into the aesthetic-rating/ML idea (`memory/project_aesthetic_rating_dataset_idea.md`). Session = 9-question grill-with-docs → spec → tickets → wrapup. **No app code changed** — docs + tickets only.
+
+**Done:**
+- **ADR-0007** (`docs/adr/0007-generator-mode-taste-dataset.md`) — canonical spec. Headlines: **Generator = third top-level mode** (user override of my Lab-hosted rec); v1 = generate→rate→persist→export, **ML hard out of scope** (opens at ~300–500 rated samples); sampler = preset substrate + random look only (no Patch authoring, v2); **colour + Frame frozen** in v1 (fixed neutral pair, no frame) — each gets a later **presentation loop** (user's idea: re-roll palette/frame on fixed geometry, rate independently → factorised dataset); single 1–5 keypress score + Space skip + F flag, `scoreSchemaVersion: 1`; records store the **full config** (seed = provenance only), IndexedDB + JSONL export; **Save-to-library + Open-in-Lab** on the current sample.
+- **CONTEXT.md** — Generator glossary entry added (App — workspaces).
+- **Tickets:** **#18** sampler module `src/generator/randomPattern.ts` (pure, seeded, `generatorVersion: 1` constants block, tests — **Model: Fable**) → blocks → **#19** mode shell + rating UI + IndexedDB persistence + JSONL export + keep-actions (**Model: Sonnet**). Native dependency edge set.
+- Memory: idea memo → **SPECCED**, MEMORY.md line updated.
+
+**NEXT (cold start):** implement **#18 in a Fable session** (`gh issue view 18`), then #19 in a Sonnet session. The star-tilings wave (below) remains the other open frontier — user chose Generator first.
+
+---
 ### ▶ 2026-07-11 (later) — ROADMAP SYNC: idea memories de-staled vs post-convergence code; "minimal build" bucket is empty
 
 **No code changed** — memory-hygiene / roadmap-sync session only (all edits under `~/.claude/.../memory/`, outside the repo; project tree clean, nothing to push).

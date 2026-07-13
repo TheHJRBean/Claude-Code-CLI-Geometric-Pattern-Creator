@@ -1,5 +1,11 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { stampSegments, periodicFastPathEligible } from './usePattern'
+import { stampSegments, periodicFastPathEligible, runPICForCategory } from './usePattern'
+import { runPIC } from '../pic/index'
+import { runRosettePIC } from '../pic/rosettePatch'
+import { generateTiling } from '../tilings/archimedean'
+import { generateRosettePatch } from '../tilings/rosettePatch'
+import { TILINGS } from '../tilings/index'
+import { DEFAULT_CONFIG } from '../state/defaults'
 import type { Segment } from '../types/geometry'
 import type { LatticeStamp } from '../editor/lattice'
 import type { PatternConfig, FigureConfig } from '../types/pattern'
@@ -140,5 +146,34 @@ describe('periodicFastPathEligible', () => {
   it('is ineligible when the periodicity flag is off, even with everything else clear', () => {
     perfFlag.periodicity = false
     expect(periodicFastPathEligible(cfg(), false, false, [T(0, 0)])).toBe(false)
+  })
+})
+
+// Rosette epic Step 4 (ticket #23) — pins the category dispatch so a
+// mis-wired branch (e.g. a merge accidentally routing rosette-patch tilings
+// back through runPIC) fails a fast unit test instead of only showing up as
+// a silent visual regression on the Gallery's irregular tilings.
+describe('runPICForCategory', () => {
+  const VP = { x: -150, y: -150, width: 300, height: 300 }
+
+  it('archimedean category dispatches to runPIC', () => {
+    const polys = generateTiling(TILINGS['square'], VP, 100)
+    expect(runPICForCategory('archimedean', polys, DEFAULT_CONFIG)).toEqual(runPIC(polys, DEFAULT_CONFIG))
+  })
+
+  it('rosette-patch category dispatches to runRosettePIC, not runPIC', () => {
+    const polys = generateRosettePatch(TILINGS['cairo-pentagonal'], VP, 50)
+    const config: PatternConfig = {
+      ...DEFAULT_CONFIG,
+      tiling: { type: 'cairo-pentagonal', scale: 50 },
+      figures: { '5': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 27.5 } },
+    }
+    const dispatched = runPICForCategory('rosette-patch', polys, config)
+    expect(dispatched).toEqual(runRosettePIC(polys, config))
+    // Cairo@27.5 is one of the retired golden cases precisely because
+    // runPIC's ray-ray intersection produces a different (degenerate)
+    // output than the bisector construction here — a real behavioural
+    // check, not just "different function reference".
+    expect(dispatched).not.toEqual(runPIC(polys, config))
   })
 })

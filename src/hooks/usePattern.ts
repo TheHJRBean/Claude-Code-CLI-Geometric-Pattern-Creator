@@ -4,6 +4,7 @@ import type { Polygon, Segment } from '../types/geometry'
 import type { Vec2 } from '../utils/math'
 import type { ViewTransform } from './usePanZoom'
 import { TILINGS } from '../tilings/index'
+import type { TilingCategory } from '../types/tiling'
 import { generateTiling } from '../tilings/archimedean'
 import { generateRosettePatch } from '../tilings/rosettePatch'
 import { editorBoundaryVertices, editorTilesToPolygons, tilesToPolygons } from '../editor/buildEditorPolygons'
@@ -18,6 +19,7 @@ import { activeCell } from '../editor/active'
 import { frameOutlinePolygon } from '../editor/frame'
 import { pointInPolygon, centroid } from '../utils/math'
 import { runPIC } from '../pic/index'
+import { runRosettePIC } from '../pic/rosettePatch'
 import { recordPerf, periodicityEnabled } from '../utils/perf'
 import { colourVoids, keyVoids, type PaintVoid, type StrandHit, type VoidFill } from '../decoration/resolve'
 import { extractVoids, pairCurvedOutlines, type VoidRegion } from '../decoration/voids'
@@ -168,6 +170,14 @@ export function periodicFastPathEligible(
     && !showBoundaryLattice
     && !Object.values(config.figures).some(f => f?.vertexLinesEnabled)
     && stamps.every(s => s.rotation === 0)
+}
+
+/** Rosette epic Step 4 (ticket #23) — the archimedean/rosette-patch PIC
+ * dispatch, pulled out of the main memo so it's independently testable
+ * without rendering the hook: a mis-wired category branch would silently
+ * run the wrong figure construction on live Gallery tilings. */
+export function runPICForCategory(category: TilingCategory, polygons: Polygon[], config: PatternConfig): Segment[] {
+  return category === 'rosette-patch' ? runRosettePIC(polygons, config) : runPIC(polygons, config)
 }
 
 /** Decoration Void extraction with curve-insensitive identity: Voids (and
@@ -901,7 +911,7 @@ export function usePattern(
     const polygons = def.category === 'rosette-patch'
       ? generateRosettePatch(def, viewport, config.tiling.scale)
       : generateTiling(def, viewport, config.tiling.scale)
-    const segments = runPIC(polygons, config)
+    const segments = runPICForCategory(def.category, polygons, config)
 
     return { polygons, segments }
   }, [config, editorBase, stampedField, decorationFills, baseStrandIds, decorationOrbitRing, decorationCellFrames, nonFastVoidData, nonFastStrandHits, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview, editorNeighbourBoundaries, editorNeighbourStrands, editorFrame, decorationActive, decorationPaintActive, decorationPaintTarget])

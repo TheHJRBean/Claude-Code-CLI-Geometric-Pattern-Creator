@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { runPIC } from './index'
 import { generateTiling } from '../tilings/archimedean'
-import { generateTapratsTiling } from '../tilings/tapratsTiling'
 import { TILINGS } from '../tilings/index'
 import { DEFAULT_CONFIG } from '../state/defaults'
 import { resetIds } from '../tilings/shared'
@@ -67,36 +66,15 @@ const CASES: Case[] = [
     gen: () => generateTiling(TILINGS['square'], VP, 100),
     config: { ...DEFAULT_CONFIG, figures: { 4: fig(67.5, { autoLineLength: false, lineLength: 0.6 }) } },
   },
-  {
-    key: 'cairo@27.5',
-    gen: () => generateTapratsTiling('cairo-pentagonal', VP, 50),
-    config: { ...DEFAULT_CONFIG, tiling: { type: 'cairo-pentagonal', scale: 50 }, figures: { '5': fig(27.5) } },
-  },
-  {
-    key: 'floret@40',
-    gen: () => generateTapratsTiling('floret-pentagonal', VP, 50),
-    config: { ...DEFAULT_CONFIG, tiling: { type: 'floret-pentagonal', scale: 50 }, figures: { '5': fig(40) } },
-  },
-  {
-    key: 'kisrhombille@72',
-    gen: () => generateTapratsTiling('kisrhombille', VP, 50),
-    config: { ...DEFAULT_CONFIG, tiling: { type: 'kisrhombille', scale: 50 }, figures: { '3': fig(72) } },
-  },
-  {
-    key: 'nonagonal@54',
-    gen: () => generateTapratsTiling('nonagonal-rosette', VP, 50),
-    config: { ...DEFAULT_CONFIG, tiling: { type: 'nonagonal-rosette', scale: 50 }, figures: { '5': fig(54), '9': fig(54), '6': fig(54) } },
-  },
-  {
-    key: 'tetrakis@46',
-    gen: () => generateTapratsTiling('tetrakis-square', VP, 50),
-    config: { ...DEFAULT_CONFIG, tiling: { type: 'tetrakis-square', scale: 50 }, figures: { '3': fig(46) } },
-  },
-  {
-    key: 'floret@40-edge',
-    gen: () => generateTapratsTiling('floret-pentagonal', VP, 50),
-    config: { ...DEFAULT_CONFIG, tiling: { type: 'floret-pentagonal', scale: 50 }, figures: { '5': fig(40) }, figureRouting: 'edge' },
-  },
+  // 2026-07-13 (rosette epic Step 4, ticket #23): the 6 rosette-patch/taprats
+  // golden cases that used to live here (cairo@27.5, floret@40, floret@40-edge,
+  // kisrhombille@72, nonagonal@54, tetrakis@46) were retired — `usePattern`
+  // now dispatches the `rosette-patch` category to `runRosettePIC`, not
+  // `runPIC`, so pinning their fingerprints against `runPIC` no longer tests
+  // the live path. Coverage moved to `pic/rosettePatch.test.ts` (Kepler
+  // baseline + collinear-singularity + grand-matrix property checks + the
+  // buildStrands interop suite, spanning all rosette-patch tilings incl.
+  // these five across a spread of contact angles).
   {
     // Rosette-patch epic ticket #21 — Kepler's Star, star-of-squares over
     // 4^4 at theta=67.5 through the existing archimedean path (gap octagon
@@ -119,12 +97,6 @@ const GOLDEN: Record<string, ReturnType<typeof fingerprint>> = {
   // including the field-boundary squares the old gate suppressed (was vtx 880).
   'square-vertexlines': { n: 1936, len: 89432, arms: 968, vtx: 968 },
   'square-fixedlen': { n: 968, len: 29040, arms: 968, vtx: 0 },
-  'cairo@27.5': { n: 1008, len: 23837, arms: 1008, vtx: 0 },
-  'floret@40': { n: 660, len: 21631, arms: 660, vtx: 0 },
-  'kisrhombille@72': { n: 920, len: 22626, arms: 920, vtx: 0 },
-  'nonagonal@54': { n: 1002, len: 21833, arms: 1002, vtx: 0 },
-  'tetrakis@46': { n: 1960, len: 33090, arms: 1960, vtx: 0 },
-  'floret@40-edge': { n: 660, len: 18070, arms: 660, vtx: 0 },
   // Captured 2026-07-13 (ticket #21). Same geometry as 'square@67.5' — the
   // registry entry differs only in name/label, so the fingerprint matches.
   'keplers-star@67.5': { n: 968, len: 37044, arms: 968, vtx: 0 },

@@ -71,8 +71,12 @@ function pairAtVertex(
  * the on-boundary start point doesn't self-intersect).
  * Returns the first boundary crossing and its edge index, or the natural
  * endpoint with `edgeIdx: -1` if the segment doesn't reach the boundary.
+ *
+ * Exported for reuse by `rosettePatch.ts` (as are pairVertexAtEdge,
+ * emitVertexArms and dedupPolygonSegments) — behaviour changes here affect
+ * both constructions.
  */
-function clipSegmentToPolygon(
+export function clipSegmentToPolygon(
   from: Vec2,
   to: Vec2,
   polyVertices: Vec2[],
@@ -427,7 +431,7 @@ function emitStarArms(
  * the polygon level (one pair-type per polygon) the same way the star-
  * arm fix could be extended.
  */
-function pairVertexAtEdge(
+export function pairVertexAtEdge(
   vertexRays: VertexRay[],
   vIdx1: number,
   vIdx2: number,
@@ -458,7 +462,7 @@ function pairVertexAtEdge(
  * Arms originate at polygon vertices and are clipped to the polygon boundary
  * so an out-of-polygon meeting point doesn't leak into neighbouring tiles.
  */
-function emitVertexArms(
+export function emitVertexArms(
   pair: { ray1: VertexRay; ray2: VertexRay; result: IntersectResult },
   autoLineLength: boolean,
   lineLength: number,
@@ -519,7 +523,7 @@ function emitVertexArms(
  * each "arm" is emitted twice (once from each end). Collapse endpoint-identical
  * pairs so each unique line renders once.
  */
-function dedupPolygonSegments(segments: Segment[], startIdx: number): void {
+export function dedupPolygonSegments(segments: Segment[], startIdx: number): void {
   const f = 1e3
   const seen = new Set<string>()
   const keep: Segment[] = []

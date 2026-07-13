@@ -97,6 +97,14 @@ const CASES: Case[] = [
     gen: () => generateTapratsTiling('floret-pentagonal', VP, 50),
     config: { ...DEFAULT_CONFIG, tiling: { type: 'floret-pentagonal', scale: 50 }, figures: { '5': fig(40) }, figureRouting: 'edge' },
   },
+  {
+    // Rosette-patch epic ticket #21 — Kepler's Star, star-of-squares over
+    // 4^4 at theta=67.5 through the existing archimedean path (gap octagon
+    // is regular there). Same underlying geometry as 'square@67.5'.
+    key: 'keplers-star@67.5',
+    gen: () => generateTiling(TILINGS['keplers-star'], VP, 100),
+    config: { ...DEFAULT_CONFIG, tiling: { type: 'keplers-star', scale: 100 }, figures: { 4: fig(67.5) } },
+  },
 ]
 
 // Captured 2026-06-13 on `main` @ 609e1c2 (before the dead-`convex`-param
@@ -117,6 +125,9 @@ const GOLDEN: Record<string, ReturnType<typeof fingerprint>> = {
   'nonagonal@54': { n: 1002, len: 21833, arms: 1002, vtx: 0 },
   'tetrakis@46': { n: 1960, len: 33090, arms: 1960, vtx: 0 },
   'floret@40-edge': { n: 660, len: 18070, arms: 660, vtx: 0 },
+  // Captured 2026-07-13 (ticket #21). Same geometry as 'square@67.5' — the
+  // registry entry differs only in name/label, so the fingerprint matches.
+  'keplers-star@67.5': { n: 968, len: 37044, arms: 968, vtx: 0 },
 }
 
 describe('runPIC — golden fingerprint across the tiling/θ matrix', () => {

@@ -55,12 +55,14 @@ function createSingleCellSeed(shape: CellShape): EditorConfig {
  */
 const TIER1_SEEDS: Record<string, () => EditorConfig> = {
   'square': () => createSingleCellSeed('square'),
+  'keplers-star': () => createSingleCellSeed('square'),
   'hexagonal': () => createSingleCellSeed('hexagon'),
   'triangular': () => createSingleCellSeed('triangle'),
   '4.8.8': createDefault488EditorConfig,
   '3.12.12': createDefault31212EditorConfig,
   '4.6.12': createDefault4612EditorConfig,
   '3.6.3.6': createDefault3636EditorConfig,
+  'davids-star': createDefault3636EditorConfig,
   '3.4.6.4': createDefault3464EditorConfig,
   '3.3.3.4.4': createDefault33344EditorConfig,
   '3.3.4.3.4': createDefault33434EditorConfig,

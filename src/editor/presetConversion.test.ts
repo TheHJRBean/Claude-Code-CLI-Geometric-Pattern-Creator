@@ -14,7 +14,7 @@ import {
 // carried over and provenance stamped; everything else must be cleanly
 // identified as non-convertible.
 
-const TIER1 = ['square', 'hexagonal', 'triangular', '4.8.8', '3.12.12', '4.6.12', '3.6.3.6', '3.4.6.4', '3.3.3.4.4', '3.3.4.3.4', '3.3.3.3.6']
+const TIER1 = ['square', 'keplers-star', 'hexagonal', 'triangular', '4.8.8', '3.12.12', '4.6.12', '3.6.3.6', 'davids-star', '3.4.6.4', '3.3.3.4.4', '3.3.4.3.4', '3.3.3.3.6']
 const NON_CONVERTIBLE = ['cairo-pentagonal', 'rhombille', 'decagonal-rosette', 'no-such-tiling']
 
 function presetConfig(type: string, scale = 100): PatternConfig {

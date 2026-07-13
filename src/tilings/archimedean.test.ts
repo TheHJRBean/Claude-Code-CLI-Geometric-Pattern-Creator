@@ -119,12 +119,14 @@ function countVertexConfigViolations(tilingKey: string) {
 const archimedeanTilings = [
   'triangular',
   'square',
+  'keplers-star',
   'hexagonal',
   '3.3.3.4.4',
   '3.3.4.3.4',
   '3.3.3.3.6',
   '3.4.6.4',
   '3.6.3.6',
+  'davids-star',
   '4.8.8',
   '3.12.12',
   '4.6.12',
@@ -173,6 +175,28 @@ describe('generateTiling — basic properties', () => {
     const sides = new Set(polys.map(p => p.sides))
     expect(sides.has(4)).toBe(true)
     expect(sides.has(8)).toBe(true)
+  })
+})
+
+// ── Rosette-patch epic tickets #20/#21: named aliases resolve identically
+// to the existing preset they duplicate (same vertexConfig/seedSides/
+// foldSymmetry, only the registry name/label differ) ────────────────────
+
+describe('davids-star — registry entry resolves identically to 3.6.3.6', () => {
+  it('produces the same polygons as 3.6.3.6', () => {
+    const stars = generateTiling(TILINGS['davids-star'], smallVp, edgeLen)
+    const trihex = generateTiling(TILINGS['3.6.3.6'], smallVp, edgeLen)
+    expect(stars.map(p => ({ sides: p.sides, vertices: p.vertices })))
+      .toEqual(trihex.map(p => ({ sides: p.sides, vertices: p.vertices })))
+  })
+})
+
+describe("keplers-star — registry entry resolves identically to square", () => {
+  it('produces the same polygons as square', () => {
+    const stars = generateTiling(TILINGS['keplers-star'], smallVp, edgeLen)
+    const squares = generateTiling(TILINGS['square'], smallVp, edgeLen)
+    expect(stars.map(p => ({ sides: p.sides, vertices: p.vertices })))
+      .toEqual(squares.map(p => ({ sides: p.sides, vertices: p.vertices })))
   })
 })
 

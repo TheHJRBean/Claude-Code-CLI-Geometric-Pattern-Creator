@@ -26,6 +26,20 @@ export const TILINGS: Record<string, TilingDefinition> = {
       figures: { 4: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 67.5 } },
     },
   },
+  // Kepler's Star: star-of-squares over 4^4 at theta=67.5 (the gap octagon is
+  // regular there) — bit-identical geometry to 'square', registered as its
+  // own named preset per the rosette-patch epic (ticket #21).
+  'keplers-star': {
+    name: 'keplers-star',
+    label: "Kepler's Star (4.4.4.4 @ 67.5°)",
+    vertexConfig: [4, 4, 4, 4],
+    seedSides: 4,
+    foldSymmetry: 4,
+    category: 'archimedean',
+    defaultConfig: {
+      figures: { 4: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 67.5 } },
+    },
+  },
   '3.3.3.4.4': {
     name: '3.3.3.4.4',
     label: 'Elongated Triangular 3.3.3.4.4',
@@ -153,6 +167,23 @@ export const TILINGS: Record<string, TilingDefinition> = {
   '3.6.3.6': {
     name: '3.6.3.6',
     label: 'Trihexagonal 3.6.3.6',
+    vertexConfig: [3, 6, 3, 6],
+    seedSides: 6,
+    foldSymmetry: 6,
+    category: 'archimedean',
+    defaultConfig: {
+      figures: {
+        3: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 60 },
+        6: { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 60 },
+      },
+    },
+  },
+  // David's Star: star-of-triangles over 3.6.3.6 — bit-identical geometry to
+  // 3.6.3.6 (same vertex config/seed/fold), registered as its own named
+  // preset per the rosette-patch epic (ticket #20).
+  'davids-star': {
+    name: 'davids-star',
+    label: "David's Star (3.6.3.6)",
     vertexConfig: [3, 6, 3, 6],
     seedSides: 6,
     foldSymmetry: 6,
@@ -381,9 +412,9 @@ export const TILING_NAMES = Object.keys(TILINGS)
 
 export const SYMMETRY_GROUPS: SymmetryGroup[] = [
   { fold: 3,  label: '3-fold',  tilings: ['triangular'] },
-  { fold: 4,  label: '4-fold',  tilings: ['square', '3.3.3.4.4', '3.3.4.3.4', 'cairo-pentagonal', 'tetrakis-square'] },
+  { fold: 4,  label: '4-fold',  tilings: ['square', 'keplers-star', '3.3.3.4.4', '3.3.4.3.4', 'cairo-pentagonal', 'tetrakis-square'] },
   { fold: 5,  label: '5-fold',  tilings: ['pentagonal-rosette'] },
-  { fold: 6,  label: '6-fold',  tilings: ['hexagonal', '3.3.3.3.6', '3.4.6.4', '3.6.3.6', 'rhombille', 'floret-pentagonal', 'deltoidal-trihexagonal', 'kisrhombille'] },
+  { fold: 6,  label: '6-fold',  tilings: ['hexagonal', '3.3.3.3.6', '3.4.6.4', '3.6.3.6', 'davids-star', 'rhombille', 'floret-pentagonal', 'deltoidal-trihexagonal', 'kisrhombille'] },
   { fold: 7,  label: '7-fold',  tilings: ['heptagonal-rosette'] },
   { fold: 8,  label: '8-fold',  tilings: ['4.8.8'] },
   { fold: 9,  label: '9-fold',  tilings: ['nonagonal-rosette'] },

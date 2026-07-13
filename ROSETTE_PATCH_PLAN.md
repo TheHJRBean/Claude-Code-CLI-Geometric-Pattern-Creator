@@ -1,6 +1,6 @@
 # Rosette-patch figure architecture + star tilings
 
-Status: **Steps 0–3 DONE 2026-07-13** — Step 0 spike PASSED (findings below); Steps 1–2 shipped `f42dce7` (#20/#21); Step 3 shipped `70945eb` (#22 — `src/pic/rosettePatch.ts` + tests, NOT wired into `usePattern` yet). Next: Step 4 (#23). Step 3 decisions: fixed-length + vertex-lines inherit runPIC semantics (shared helpers exported from `pic/index.ts`); decagonal `6.3` residual accepted as weave, also present at θ=80 (documented test exclusion).
+Status: **Steps 0–4 DONE 2026-07-13** — Step 0 spike PASSED (findings below); Steps 1–2 shipped `f42dce7` (#20/#21); Step 3 shipped `70945eb` (#22 — `src/pic/rosettePatch.ts` + tests); Step 4 shipped `09187d8` (#23 — wired into `usePattern` via the new `runPICForCategory` seam, 6 old goldens retired, smoke-tested). Next: Step 5 (#24, audit-first). Step 3 decisions: fixed-length + vertex-lines inherit runPIC semantics (shared helpers exported from `pic/index.ts`); decagonal `6.3` residual accepted as weave, also present at θ=80 (documented test exclusion).
 
 ## Step 0 findings (2026-07-13, spike run in-session, scratch file deleted per plan)
 

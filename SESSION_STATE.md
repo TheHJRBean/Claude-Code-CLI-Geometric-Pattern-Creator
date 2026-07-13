@@ -5,6 +5,19 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-13 (night) — ✅ Rosette epic Step 4 SHIPPED: `runRosettePIC` wired into `usePattern` (`09187d8`), ticket #23 closed
+
+**Goal:** #23 — flip `usePattern`'s `rosette-patch` category branch from `runPIC` to `runRosettePIC` (Step 3's bespoke bisector construction, built but not wired in), retire the 6 now-dead taprats goldens, add dispatch coverage, smoke-test before merging.
+
+**Done, one commit, pushed to `main`:**
+- **`09187d8`** — **#23 CLOSED.** `usePattern.ts`'s dispatch pulled out into an exported pure helper `runPICForCategory(category, polygons, config)` (same testability pattern as the file's existing `stampSegments`/`periodicFastPathEligible`) — `rosette-patch` → `runRosettePIC`, `archimedean` → `runPIC` unchanged. `runPIC.characterization.test.ts` shrunk from 13 to 7 cases: removed `cairo@27.5`, `floret@40`, `floret@40-edge`, `kisrhombille@72`, `nonagonal@54`, `tetrakis@46` (dated comment pointing at `rosettePatch.test.ts`'s grand-matrix + interop suites, which already cover all five tilings across a θ spread).
+- **New test:** `usePattern.test.ts` `runPICForCategory` describe block — archimedean case checked equal to direct `runPIC` output; rosette-patch case checked equal to direct `runRosettePIC` output **and explicitly NOT equal** to what `runPIC` would have produced on the same cairo@27.5 input — a real behavioural assertion (the two constructions provably diverge there), not just a function-identity check.
+- **Smoke test:** no browser-automation tool available this session either (same gap noted 2026-07-13 earlier — checked ToolSearch, nothing present). Used the repo's established headless-render fallback (`@resvg/resvg-js`, same pattern as `scripts/repro-*.mts`) via a scratch vitest file (deleted after use, never committed): rendered all 12 rosette-patch Gallery tilings + Kepler's/David's Star through the exact `runPICForCategory` dispatch at each tiling's own `defaultConfig` θ. All 14 produced finite, non-empty, visually closed figures. Eyeballed all 14 PNGs directly — clean in every case; the only visible crossing artifact was decagonal-rosette's `6.3` elongated-hexagon interleave at θ=72°, which is the **already-documented, accepted Step 3 residual** (plan calls it out explicitly as "renders as weave"), not a new regression.
+- **Green:** tsc clean, **872 vitest** (67 files; net −1 test file count effect is nil, characterization file shrank in case count only).
+
+**NEXT (cold start):** **#24** (Step 5 — audit whether `figureRouting`/edge-centroid routing is still load-bearing for Lab-authored irregular polygons on the archimedean path; only remove end-to-end if the audit clears it; branch-ladder refactor + dedupe proceeds either way; Sonnet for audit+mechanical, escalate to Opus if the reframe is gnarlier than preserve-the-fingerprint) → #25 (optional Archimedes' Star spike, explicitly deferrable). Still owed: user eyeball of the Step 3 before/after artifact (https://claude.ai/code/artifact/c1d90ab6-bce4-4217-8d97-887e43ceb41b) + a real browser pass on the 12 rosette tilings now that they're live (this session only verified via headless render, not the actual Gallery UI).
+
+---
 ### ▶ 2026-07-13 (evening) — ✅ Rosette epic Step 3 SHIPPED: `runRosettePIC` bisector construction (`70945eb`), ticket #22 closed
 
 **Goal:** #22 — implement the Step 0 validated bisector-anchored construction as `src/pic/rosettePatch.ts` (additive, NOT wired into `usePattern`).

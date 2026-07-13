@@ -5,6 +5,20 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-13 (evening) — ✅ Rosette epic Step 3 SHIPPED: `runRosettePIC` bisector construction (`70945eb`), ticket #22 closed
+
+**Goal:** #22 — implement the Step 0 validated bisector-anchored construction as `src/pic/rosettePatch.ts` (additive, NOT wired into `usePattern`).
+
+**Done, one commit, pushed to `main`:**
+- **`70945eb`** — **#22 CLOSED.** `runRosettePIC(polygons, config): Segment[]` implementing v3/λ=0 exactly per the plan's "Step 0 findings": interior-bisector per vertex (reflex flip via turn-sign vs shoelace winding; straight vertices → inward edge normal), pair-A/pair-B line∩line bisector probe (`t2 > −ε ∧ t1 > ε` gate, pair-A-clamped fallback), tip at **min** offset, capped by boundary-exit distance + positive centre projection, reflex pinned at 0. Same `Segment` shape/`kind`/`side` tags as `runPIC`.
+- **Carried-item decisions:** (1) fixed-length mode inherits runPIC semantics — bisector-chosen pair rays at user length, boundary-clipped; (2) vertex-lines inherit runPIC verbatim via shared helpers now **exported** from `pic/index.ts` (`clipSegmentToPolygon`/`pairVertexAtEdge`/`emitVertexArms`/`dedupPolygonSegments` — export-only change, characterization suite untouched); (3) decagonal `6.3` interleave = accept-as-weave, and probing showed it ALSO occurs at θ=80 (172 crossings, ~9-unit depth @ scale 50) → exclusion set is {67.5, 72, 80}, mutual-trim polish stays a future candidate.
+- **Tests (+128 → 876 green):** `rosettePatch.test.ts` — (a) Kepler baseline exact multiset match vs runPIC (square@67.5, hexagonal@60, fixed-length, vertex-lines); (b) collinear singularity (square@45/triangular@60) checked separately — these are the plan's documented exception: the construction emits each chord as two clean halves split at the bisector crossing, geometrically equivalent but not segment-identical to runPIC's pair-B chords+stubs, so the test asserts 2-arms-per-vertex/no-duplicates/closure instead; (c) grand matrix 12 rosette tilings × 9 θ — finite, even-degree closure, tips in-polygon, no VISIBLE crossings (tolerance = 1% of scale: nonagonal@80 + decagonal-rhombus@36 graze at 0.03/0.29 units — invisible tip contact, not defects) + a guard test pinning decagonal@60 clean so the exclusions can't mask regressions; (d) buildStrands interop — single-square figure = one closed 8-seg strand, and per-tile-type single-polygon figures across all 12 tilings chain into fully-closed strands with every segment consumed once. Note two registry entries (heptagonal/nonagonal rosette) declare no `tileTypes` — test figures are keyed off generated polygons' `tileTypeId`s instead.
+
+**Green:** tsc clean, **876 vitest** (67 files); `runPIC.characterization.test.ts` + `tapratsTiling.test.ts` untouched per ticket constraint.
+
+**NEXT (cold start):** **#23** (Step 4 — wire `runRosettePIC` into `usePattern` ~line 896-906 for `rosette-patch` category, retire the 6 old rosette goldens with dated comment, add dispatch-branch coverage, smoke-test every rosette tiling via `run`; Sonnet per plan) → #24 (figureRouting removal, audit first) → #25 (optional Archimedes' spike). Still owed: user eyeball of the Step 0 artifact (https://claude.ai/code/artifact/1a7f53ae-b3dc-4b5d-be16-96a6233ce803) + browser passes accumulated from earlier sessions.
+
+---
 ### ▶ 2026-07-13 (later still) — ✅ Rosette epic Steps 1–2 SHIPPED: David's Star + Kepler's Star presets (`f42dce7`), tickets #20/#21 closed
 
 **Goal:** implement the first two ticketed steps of the rosette-patch epic — the two "free win" presets the plan front-loads before the hard Step 3 geometry work.

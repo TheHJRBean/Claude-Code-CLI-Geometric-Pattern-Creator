@@ -5,6 +5,21 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-13 (later still) — ✅ Rosette epic Steps 1–2 SHIPPED: David's Star + Kepler's Star presets (`f42dce7`), tickets #20/#21 closed
+
+**Goal:** implement the first two ticketed steps of the rosette-patch epic — the two "free win" presets the plan front-loads before the hard Step 3 geometry work.
+
+**Done, one commit, pushed to `main`:**
+- **`f42dce7`** — **#20 + #21 CLOSED.** Added `davids-star` (bit-identical to `3.6.3.6`) and `keplers-star` (θ=67.5 baked in, bit-identical to `square@67.5`) as independent named `TilingDefinition` entries in `src/tilings/index.ts` — following the registry's existing convention (every entry is a flat, hand-written literal; no alias mechanism exists, so duplicate-with-different-name was the right call, matching how the codebase already does everything else). Both go through the **existing** archimedean `generateTiling`/`runPIC` path, zero new figure-construction logic (as the plan specified for Step 2, and confirmed by research for Step 1). Also wired both into the Lab's tier-1 conversion table (`presetConversion.ts` `TIER1_SEEDS`, reusing the twin preset's seed factory: `createDefault3636EditorConfig` / `createSingleCellSeed('square')`) so they convert to fully editable Builder Patches rather than sitting as view-only tier-3 cards — this went beyond the ticket's literal ask but was the consistent choice given the "bit-identical" framing.
+- **Tests:** registry-resolution equality checks (`archimedean.test.ts` — `generateTiling` output for each new entry compared field-for-field against its twin) + both added to the archimedean gap-detection/vertex-config sweep list (free extra coverage, same pattern the file already uses for every archimedean-category entry); new `keplers-star@67.5` golden case in `runPIC.characterization.test.ts` (captured fingerprint `{n:968, len:37044, arms:968, vtx:0}` — identical to `square@67.5`, as expected, dated comment per the file's convention); `presetConversion.test.ts`'s `TIER1` list extended for both new ids.
+
+**Green:** tsc clean, **748 vitest** (+11 from session start). **⏳ BROWSER-VERIFY OWED — no browser-automation tool available this session** (checked ToolSearch, no chromium-cli/Playwright/Puppeteer present, and `npx playwright` would need a network install not attempted). Verified instead via: dev server serving the transformed `src/tilings/index.ts` module cleanly (200, both new ids present, no syntax errors) + `PresetShelfPanel.tsx` confirmed to map generically over `buildPresetShelf()` with no per-id special-casing (so the new cards render exactly like their twins) + the existing generic `presetShelf.test.ts`/`appSmoke.test.ts` render tests passing. Worth an actual eyeball next time you're in the app — pick `davids-star`/`keplers-star` from the Lab Presets shelf and confirm the cards + conversion work, alongside the still-owed Step 0 spike artifact (https://claude.ai/code/artifact/1a7f53ae-b3dc-4b5d-be16-96a6233ce803).
+
+**Side effect to note:** cleanup after the dev-server check ran `pkill -f vite`, which also killed a pre-existing Vite dev server that was already running on port 5173 before this session started one on 5174. If that was a dev server from another terminal/session, it'll need restarting.
+
+**NEXT (cold start):** **#22** (Step 3 — build `src/pic/rosettePatch.ts` from the Step 0 spike's validated bisector-anchored construction; **Fable**, the hard geometry work, not wired into `usePattern` yet) → #23 (wire-in + retire old rosette goldens) → #24 (`figureRouting` removal, needs the audit) → #25 (optional Archimedes' Star spike). Dependency edges already set (23←22, 24←23, 25←24) from the previous session's ticketing pass.
+
+---
 ### ▶ 2026-07-13 (rosette epic start) — ✅ STEP 0 SPIKE PASSED: bisector-anchored figure construction validated
 
 **Goal:** start the rosette-patch epic (`ROSETTE_PATCH_PLAN.md`). Session = plan review against code (all assumptions verified, 2 amendments) + the Step 0 throwaway geometry spike (Fable, per plan's model rec).

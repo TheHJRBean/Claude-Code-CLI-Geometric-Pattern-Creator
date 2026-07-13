@@ -10,6 +10,10 @@ Key shape of the decision:
 - **Records store the full config.** `{ seed, generatorVersion, scoreSchemaVersion, config: PatternConfig, score, flagged, timestamp }` in IndexedDB, with a JSONL "Export dataset" download. Seed-only records were rejected: any sampler change silently breaks seed→config reproducibility, and the ML step consumes configs anyway. Seed survives as provenance/debug.
 - **Keep what you roll.** The current sample offers **Save to library** (writes to `pattern-library-v1`, appears in the Gallery like any save) and **Open in Lab** (same hand-off path as the Presets shelf). Generator is a discovery tool from day one; ratings are the exhaust.
 
+## Amendment (2026-07-13): score widened from a 1–5 keypress to a 0–10 slider
+
+Scoring is now a **drag-to-release slider** over 0–10 (integer steps), not five keypress buttons. Dragging the slider updates a live readout; releasing the pointer (or an arrow/Home/End/PageUp/PageDown keyup once it has keyboard focus) commits that value as the score and auto-advances — the same instant-throughput property the keypress design had, just mouse-first. `Space` (skip, no record) and `F` (flag broken) are unchanged. `scoreSchemaVersion` bumps to **2** so pre-amendment 1–5 records stay distinguishable from 0–10 records in the exported dataset.
+
 ## Considered Options
 
 - **Lab-hosted tool** (rejected — was the recommendation): fits CONTEXT.md's "Lab hosts more exploratory tools" framing and avoids a third `AppMode`. The user chose a top-level mode named **Generator** — rating/discovery is a distinct activity, not authoring.

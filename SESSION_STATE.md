@@ -15,7 +15,7 @@
 - **Visual before/after artifact** (15 cases, old runPIC vs new construction): https://claude.ai/code/artifact/1a7f53ae-b3dc-4b5d-be16-96a6233ce803 — ⏳ user eyeball owed.
 - Spike scratch file deleted per plan (no `src/` changes); suite green 737/737.
 
-**NEXT (cold start):** user eyeballs the artifact → then Step 1 (David's Star registry alias, Sonnet-fine) and/or Step 2 (Kepler's Star preset) — both decoupled quick wins — then Step 3 `src/pic/rosettePatch.ts` (Fable) implementing the construction verbatim from the plan's findings section.
+**NEXT (cold start):** user eyeballs the artifact → then the ticketed steps: **#20** (Step 1 David's Star, Sonnet) / **#21** (Step 2 Kepler's Star, Sonnet) — independent quick wins — then **#22** (Step 3 `rosettePatch.ts`, Fable) → #23 (wire-in) → #24 (figureRouting removal) → #25 (optional Archimedes' spike). Native dependency edges set 23←22, 24←23, 25←24.
 
 ---
 ### ▶ 2026-07-13 (later) — ✅ Generator v1 BUILT + SHIPPED: #18 + #19 closed, scoring amended to 0–10 slider

@@ -28,11 +28,11 @@ interface Props {
  * Generator — third top-level mode (ADR-0007, ticket #19). Shows one random
  * finished pattern at a time (full-bleed, via the shared `Canvas` — the same
  * read-only render path the Gallery detail view and thumbnails use, so
- * there's no new renderer to maintain) and lets the user rate it with a
- * single keypress: `1`–`5` scores, `Space` skips (no record — nothing to
- * learn from an unrated sample), `F` flags it broken. Every scored or flagged
- * sample persists to IndexedDB with its full config as ground truth (the
- * seed is provenance only, never used to regenerate).
+ * there's no new renderer to maintain) and lets the user rate it: drag the
+ * 0–10 slider and release to score-and-advance, `Space` skips (no record —
+ * nothing to learn from an unrated sample), `F` flags it broken. Every
+ * scored or flagged sample persists to IndexedDB with its full config as
+ * ground truth (the seed is provenance only, never used to regenerate).
  */
 export function GeneratorMode({ onOpenInLab }: Props) {
   const svgRef = useRef<SVGSVGElement>(null)
@@ -41,8 +41,12 @@ export function GeneratorMode({ onOpenInLab }: Props) {
   const [ratedCount, setRatedCount] = useState(0)
   const [saveModalOpen, setSaveModalOpen] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
+  // 0–10 slider position; recentred to the neutral midpoint on every new
+  // sample so it never shows the previous pattern's score.
+  const [sliderValue, setSliderValue] = useState(5)
 
   useEffect(() => { void countRecords().then(setRatedCount) }, [])
+  useEffect(() => { setSliderValue(5) }, [sample])
 
   const flashMessage = (msg: string) => {
     setFlash(msg)
@@ -53,7 +57,7 @@ export function GeneratorMode({ onOpenInLab }: Props) {
     setSample(sampleRandomPattern(randomSeed()))
   }, [])
 
-  // Score (1–5) or flag the CURRENT sample, persist it, then advance. Skips
+  // Score (0–10) or flag the CURRENT sample, persist it, then advance. Skips
   // never reach here — an unrated sample carries no taste signal.
   const rateAndAdvance = useCallback((score: number | null, flagged: boolean) => {
     const record: NewDatasetRecord = {
@@ -69,6 +73,8 @@ export function GeneratorMode({ onOpenInLab }: Props) {
     advance()
   }, [sample, advance])
 
+  // Score is slider-driven now (drag-to-release, see the dock below);
+  // Space/F stay keyboard shortcuts.
   useEffect(() => {
     // Don't hijack typing in the Save-to-library name prompt — gated on the
     // modal's open state (not just focus) so a stray keystroke can't rate a
@@ -77,14 +83,23 @@ export function GeneratorMode({ onOpenInLab }: Props) {
     const onKey = (e: KeyboardEvent) => {
       if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return
       const target = e.target
-      if (target instanceof HTMLElement && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return
-      if (e.key >= '1' && e.key <= '5') { rateAndAdvance(Number(e.key), false); return }
+      // Only text-like inputs are off-limits; the score slider is itself an
+      // <input type="range"> and must keep Space/F working while focused.
+      if (target instanceof HTMLTextAreaElement) return
+      if (target instanceof HTMLInputElement && target.type !== 'range') return
       if (e.key === ' ') { e.preventDefault(); advance(); return }
       if (e.key.toLowerCase() === 'f') { rateAndAdvance(null, true) }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [rateAndAdvance, advance, saveModalOpen])
+
+  const commitScore = (value: number) => rateAndAdvance(value, false)
+  const onSliderKeyUp = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'].includes(e.key)) {
+      commitScore(Number(e.currentTarget.value))
+    }
+  }
 
   const handleExport = () => {
     void allRecords().then(records => {
@@ -137,11 +152,20 @@ export function GeneratorMode({ onOpenInLab }: Props) {
           {...flags}
         />
         <div className="generator-dock" role="toolbar" aria-label="Rate this pattern">
-          {[1, 2, 3, 4, 5].map(n => (
-            <button key={n} className="generator-dock__btn" onClick={() => rateAndAdvance(n, false)} title={`Score ${n}`}>
-              {n}
-            </button>
-          ))}
+          <span className="generator-dock__slider-value">{sliderValue}</span>
+          <input
+            type="range"
+            className="pattern-slider generator-dock__slider"
+            min={0}
+            max={10}
+            step={1}
+            value={sliderValue}
+            onChange={e => setSliderValue(Number(e.target.value))}
+            onPointerUp={e => commitScore(Number(e.currentTarget.value))}
+            onKeyUp={onSliderKeyUp}
+            aria-label="Score, 0 to 10 — release to submit"
+            title="Drag and release to score"
+          />
           <button className="generator-dock__btn generator-dock__btn--skip" onClick={advance} title="Skip (Space)">
             Skip
           </button>

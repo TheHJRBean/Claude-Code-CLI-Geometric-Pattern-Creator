@@ -15,8 +15,9 @@ const STORE = 'ratings'
 const DB_VERSION = 1
 
 /** Bump when the *shape* of a rating (not the sampler) changes, so future
- * dimensions can be added without corrupting existing records (ADR-0007). */
-export const SCORE_SCHEMA_VERSION = 1
+ * dimensions can be added without corrupting existing records (ADR-0007).
+ * v2: score scale widened from a 1–5 keypress to a 0–10 slider. */
+export const SCORE_SCHEMA_VERSION = 2
 
 /** `{ seed, generatorVersion, scoreSchemaVersion, config, score, flagged,
  * timestamp }` per ADR-0007. The full config is ground truth — the seed is
@@ -27,7 +28,8 @@ export interface DatasetRecord {
   generatorVersion: number
   scoreSchemaVersion: number
   config: PatternConfig
-  /** 1–5, or null when the sample was only flagged, never scored. */
+  /** 0–10 (scoreSchemaVersion 2), or null when the sample was only flagged,
+   * never scored. */
   score: number | null
   flagged: boolean
   timestamp: number

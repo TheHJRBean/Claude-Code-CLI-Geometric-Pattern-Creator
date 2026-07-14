@@ -307,6 +307,35 @@ export interface DecorationConfig {
   strandColours: ColourRecord[]
   /** Void-fill assignments, keyed by Void shape signature in Stage 1. */
   voidFills: ColourRecord[]
+  /** Void **Stamp** assignments — an uploaded image clipped into every Void
+   * the record's scope reaches (v1: `congruent` only, keyed by signature).
+   * Optional + additive so decoration blocks without stamps stay version 1. */
+  voidStamps?: VoidStampRecord[]
+}
+
+/**
+ * One Void **Stamp** assignment: an uploaded image (downscaled data-URL, so
+ * it travels inside the saved config) placed in every Void the scope reaches,
+ * clipped to the Void outline. The image is laid out in the Void's
+ * **canonical pose** (see `decoration/stamps.ts`), so one record lands
+ * consistently rotated/mirrored on every congruent instance — and a canvas
+ * exported for the same signature round-trips at exactly the right size.
+ */
+export interface VoidStampRecord {
+  /** Grouping-scope rung. v1 only emits `'congruent'`; the ladder is
+   * reserved (mirrors `ColourRecord`). */
+  scope: GroupingScope
+  /** Identity key per scope — v1: the Void's congruent signature. */
+  key: string
+  /** Image as a data URL (compressed + downscaled at import). */
+  image: string
+  /** Natural pixel size of `image` — stored so render never has to load the
+   * image to compute the fit transform. */
+  width: number
+  height: number
+  /** How the image maps onto the canonical-pose bounding box: `cover` fills
+   * the box and crops overflow (default), `contain` letterboxes. */
+  fit: 'cover' | 'contain'
 }
 
 /**

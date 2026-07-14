@@ -490,7 +490,7 @@ function canonicaliseSignatures(voids: VoidRegion[], lengthSnap: number, angleSn
  * congruent sibling; dropping them makes the two outlines — and signatures —
  * identical.
  */
-function simplifyCollinear(poly: Vec2[], angleTol = (1.5 * Math.PI) / 180): Vec2[] {
+export function simplifyCollinear(poly: Vec2[], angleTol = (1.5 * Math.PI) / 180): Vec2[] {
   const n = poly.length
   if (n < 4) return poly
   const out: Vec2[] = []
@@ -506,7 +506,7 @@ function simplifyCollinear(poly: Vec2[], angleTol = (1.5 * Math.PI) / 180): Vec2
   return out.length >= 3 ? out : poly
 }
 
-function signedArea(poly: Vec2[]): number {
+export function signedArea(poly: Vec2[]): number {
   let a = 0
   for (let i = 0; i < poly.length; i++) {
     const j = (i + 1) % poly.length

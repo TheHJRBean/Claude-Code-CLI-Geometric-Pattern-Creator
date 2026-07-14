@@ -22,6 +22,7 @@ import { runPIC } from '../pic/index'
 import { runRosettePIC } from '../pic/rosettePatch'
 import { recordPerf, periodicityEnabled } from '../utils/perf'
 import { colourVoids, keyVoids, type PaintVoid, type StrandHit, type VoidFill } from '../decoration/resolve'
+import { resolveVoidStamps, type StampPlacement } from '../decoration/stamps'
 import { extractVoids, pairCurvedOutlines, type VoidRegion } from '../decoration/voids'
 import { buildColourIndex, orbitOffset, resolveColour, scopedKey } from '../decoration/scopes'
 import { cellFramesFromOutlines, cellOrbitKey, reduceToOrbit, type CellFrame } from '../decoration/cellScope'
@@ -96,6 +97,12 @@ export interface PatternData {
    * `voidFills` there, which is already world-space).
    */
   instanceVoidFills?: VoidFill[]
+  /**
+   * Decoration **Void Stamps** — resolved image placements. Same coordinate
+   * convention as `voidFills`: representative (fragment-space) on the
+   * periodic fast-path so `<use>` tiles them, world-space otherwise.
+   */
+  voidStamps?: StampPlacement[]
   /**
    * Step 19.3 — Void hit-targets for the Paint overlay (representative Voids
    * tiled across the visible stamps), carrying their Grouping-scope keys.
@@ -396,7 +403,7 @@ export function usePattern(
   // Congruent + patch rungs resolve here (a coloured rep tiles via <use>, which
   // IS the Lattice orbit); instance records can't render inside the fragment —
   // the main memo materialises those as world-space `instanceVoidFills`.
-  const decorationFills = useMemo<{ fills: VoidFill[]; reps: RepVoid[]; voidIndex: ReturnType<typeof buildColourIndex> } | null>(() => {
+  const decorationFills = useMemo<{ fills: VoidFill[]; reps: RepVoid[]; voidIndex: ReturnType<typeof buildColourIndex>; stampPlacements: StampPlacement[] } | null>(() => {
     if (!decorationReps) return null
     const voidIndex = buildColourIndex(config.editor?.decoration?.voidFills)
     const fills: VoidFill[] = []
@@ -404,7 +411,10 @@ export function usePattern(
       const colour = resolveColour(voidIndex, r.signature, r.centroid, null, r.cellKey)
       if (colour) fills.push({ polygon: r.polygon, colour })
     }
-    return { fills, reps: decorationReps, voidIndex }
+    // Void Stamps over the same representative set — fragment-space, tiled by
+    // <use> exactly like the fills.
+    const stampPlacements = resolveVoidStamps(decorationReps, config.editor?.decoration?.voidStamps)
+    return { fills, reps: decorationReps, voidIndex, stampPlacements }
   }, [decorationReps, config.editor?.decoration])
 
   // Stage 2 — a local ring of lattice translations used to reduce strand
@@ -871,6 +881,7 @@ export function usePattern(
             compositionStamps: stamps,
             voidFills: decorationFills?.fills ?? [],
             instanceVoidFills,
+            voidStamps: decorationFills?.stampPlacements,
             decorationVoids,
             decorationStrandHits,
             decorationOrbitStamps: decorationOrbitRing ?? undefined,
@@ -894,6 +905,7 @@ export function usePattern(
           segments,
           boundaryOutlines,
           voidFills: colourVoids(keyed, patch.decoration),
+          voidStamps: resolveVoidStamps(keyed, patch.decoration?.voidStamps),
           decorationVoids: keyed,
           decorationStrandHits: nonFastStrandHits ?? undefined,
           decorationOrbitStamps: stampTranslations,

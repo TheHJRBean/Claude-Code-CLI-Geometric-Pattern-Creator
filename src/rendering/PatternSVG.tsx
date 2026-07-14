@@ -9,7 +9,9 @@ import { TileLayer } from './TileLayer'
 import { StrandLayer } from './StrandLayer'
 import { ControlPointLayer } from './ControlPointLayer'
 import { VoidFillLayer } from './VoidFillLayer'
+import { VoidStampLayer } from './VoidStampLayer'
 import type { VoidFill } from '../decoration/resolve'
+import type { StampPlacement } from '../decoration/stamps'
 import type { ColourRecord } from '../types/editor'
 import type { CellFrame } from '../decoration/cellScope'
 
@@ -111,6 +113,12 @@ interface Props {
    */
   instanceVoidFills?: VoidFill[]
   /**
+   * Decoration **Void Stamps** — uploaded images clipped into their Voids.
+   * Drawn over the Void fills, under the Strands. Same coordinate convention
+   * as `voidFills` (fragment-space on the fast path, world-space otherwise).
+   */
+  voidStamps?: StampPlacement[]
+  /**
    * Step 19 Stage 2 — Decoration **Strand colour** records; StrandLayer
    * resolves each Strand's stroke through the scope ladder. Absent ⇒ the
    * global `config.strand.color`.
@@ -126,7 +134,7 @@ interface Props {
 }
 
 export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
-  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, compositionStamps, editorOverlay, clipEditorOverlayToFrame = false, frameOutline, clipToFrame = true, frameNodes, frameStroke, voidFills, instanceVoidFills, strandRecords, orbitStamps, cellFrames },
+  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, compositionStamps, editorOverlay, clipEditorOverlayToFrame = false, frameOutline, clipToFrame = true, frameNodes, frameStroke, voidFills, instanceVoidFills, voidStamps, strandRecords, orbitStamps, cellFrames },
   ref
 ) {
   const { x, y, zoom, rotation } = viewTransform
@@ -186,6 +194,7 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
                         be covered by the tile fills/outlines. */}
                     <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
                     {voidFills && <VoidFillLayer fills={voidFills} />}
+                    {voidStamps && <VoidStampLayer placements={voidStamps} idPrefix="void-stamp-frag" />}
                   </g>
                   <g id="composition-fragment-strands">
                     {showLines && <StrandLayer segments={segments} config={config} strandRecords={strandRecords} orbitStamps={orbitStamps} cellFrames={cellFrames} />}
@@ -209,6 +218,7 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
                         Tiles under fills, matching the non-fast-path order. */}
                     <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
                     {voidFills && <VoidFillLayer fills={voidFills} />}
+                    {voidStamps && <VoidStampLayer placements={voidStamps} idPrefix="void-stamp-frag" />}
                     {showLines && <StrandLayer segments={segments} config={config} strandRecords={strandRecords} orbitStamps={orbitStamps} cellFrames={cellFrames} />}
                   </g>
                 </defs>
@@ -240,6 +250,7 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
               )}
               <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
               {voidFills && <VoidFillLayer fills={voidFills} />}
+              {voidStamps && <VoidStampLayer placements={voidStamps} idPrefix="void-stamp-world" />}
               {showLines && <StrandLayer segments={segments} config={config} ghostPolygonIds={ghostPolygonIds} strandRecords={strandRecords} orbitStamps={orbitStamps} cellFrames={cellFrames} />}
               <ControlPointLayer
                 segments={segments}

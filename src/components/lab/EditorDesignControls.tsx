@@ -1,6 +1,7 @@
 import type { PatternConfig } from '../../types/pattern'
 import type { Action } from '../../state/actions'
 import type { PaintTarget, StrandPaintScope, VoidPaintScope } from '../../rendering/DecorationPaintLayer'
+import type { PaintVoid } from '../../decoration/resolve'
 import type { Vec2 } from '../../utils/math'
 import { FieldLabel, segmentedButtonStyle } from './labShared'
 import { CompositionPanel } from './CompositionPanel'
@@ -27,6 +28,8 @@ export interface EditorDesignControlsProps {
   onSetVoidScope: (s: VoidPaintScope) => void
   strandScope: StrandPaintScope
   onSetStrandScope: (s: StrandPaintScope) => void
+  /** Decoration Stamp target — the Void shape selected on the canvas. */
+  stampSelection: PaintVoid | null
   showBoundaryLattice: boolean
   onToggleShowBoundaryLattice: (next: boolean) => void
   showNeighbours: boolean
@@ -67,6 +70,7 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
     onSetVoidScope,
     strandScope,
     onSetStrandScope,
+    stampSelection,
     showBoundaryLattice,
     onToggleShowBoundaryLattice,
     showNeighbours,
@@ -158,6 +162,7 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
           onSetVoidScope={onSetVoidScope}
           strandScope={strandScope}
           onSetStrandScope={onSetStrandScope}
+          stampSelection={stampSelection}
         />
       )}
 

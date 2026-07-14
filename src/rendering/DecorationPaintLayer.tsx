@@ -5,7 +5,7 @@ import type { ClickedTargetKeys } from '../decoration/scopes'
 import type { PaintVoid, StrandHit } from '../decoration/resolve'
 import { nearestSegmentIndex, polygonPath } from './svgGeometry'
 
-export type PaintTarget = 'off' | 'voids' | 'strands'
+export type PaintTarget = 'off' | 'voids' | 'strands' | 'stamp'
 
 /** Which Grouping-scope rung a Void click binds at (ADR-0005 ladder).
  * `cell` = the clicked Void plus its rotation/mirror twins within its Cell. */
@@ -55,6 +55,11 @@ export function DecorationPaintLayer({
   zoom,
   onPaintVoid,
   onPaintStrand,
+  // Stamp target: a Void click selects its congruent shape for the panel's
+  // inspector / export / upload flow (no painting); the selected signature's
+  // group renders a persistent outline highlight.
+  onSelectStampVoid,
+  selectedStampSignature,
 }: {
   target: PaintTarget
   voids: PaintVoid[]
@@ -65,12 +70,16 @@ export function DecorationPaintLayer({
   zoom: number
   onPaintVoid: (payload: PaintPayload) => void
   onPaintStrand: (payload: PaintPayload) => void
+  onSelectStampVoid?: (v: PaintVoid) => void
+  selectedStampSignature?: string | null
 }) {
   const [hoveredVoid, setHoveredVoid] = useState<number | null>(null)
   const [hoveredStrand, setHoveredStrand] = useState<number | null>(null)
 
+  // Stamp mode always groups by congruent signature (v1 stamp scope).
+  const stampMode = target === 'stamp'
   const voidKey = (v: PaintVoid): string =>
-    voidScope === 'congruent' ? v.signature
+    stampMode || voidScope === 'congruent' ? v.signature
       : voidScope === 'cell' ? v.cellKey
         : voidScope === 'patch' ? v.patchKey
           : v.instanceKey
@@ -86,6 +95,10 @@ export function DecorationPaintLayer({
       onPointerLeave={() => setHoveredVoid(h => (h === i ? null : h))}
       onPointerDown={e => {
         e.stopPropagation()
+        if (stampMode) {
+          onSelectStampVoid?.(v)
+          return
+        }
         onPaintVoid({
           scope: voidScope,
           key: voidKey(v),
@@ -94,7 +107,7 @@ export function DecorationPaintLayer({
       }}
     />
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  )), [voids, onPaintVoid, voidScope])
+  )), [voids, onPaintVoid, voidScope, stampMode, onSelectStampVoid])
 
   const voidHighlight = useMemo(() => {
     if (hoveredVoid === null || hoveredVoid >= voids.length) return null
@@ -206,6 +219,27 @@ export function DecorationPaintLayer({
 
   if (target === 'voids') {
     return <g id="decoration-paint-layer">{voidHighlight}{voidHits}</g>
+  }
+
+  if (target === 'stamp') {
+    // Persistent outline on the selected shape's whole congruent group, so
+    // the user sees exactly which Voids an upload will stamp.
+    const selected = selectedStampSignature
+      ? voids.filter(v => v.signature === selectedStampSignature).map((v, i) => (
+        <path
+          key={`sel-${i}`}
+          d={polygonPath(v.polygon)}
+          fill="var(--accent, #d4af37)"
+          fillOpacity={0.12}
+          stroke="var(--accent, #d4af37)"
+          strokeOpacity={0.9}
+          strokeWidth={1.5}
+          vectorEffect="non-scaling-stroke"
+          pointerEvents="none"
+        />
+      ))
+      : null
+    return <g id="decoration-paint-layer">{selected}{voidHighlight}{voidHits}</g>
   }
 
   if (target === 'strands') {

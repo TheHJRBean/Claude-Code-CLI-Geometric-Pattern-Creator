@@ -1,6 +1,9 @@
+import { useRef, useState } from 'react'
 import type { PatternConfig, StrandLineStyle } from '../../types/pattern'
 import type { Action } from '../../state/actions'
 import type { PaintTarget, StrandPaintScope, VoidPaintScope } from '../../rendering/DecorationPaintLayer'
+import type { PaintVoid } from '../../decoration/resolve'
+import { downloadVoidShapePNG, downloadVoidShapeSVG, importStampImage, voidStampCanvas } from '../../export/stampAssets'
 import { ColourPicker, pushRecentColour } from '../ColourPicker'
 import { FieldLabel, segmentedButtonStyle } from './labShared'
 
@@ -28,6 +31,8 @@ interface DecorationPanelProps {
   onSetVoidScope: (s: VoidPaintScope) => void
   strandScope: StrandPaintScope
   onSetStrandScope: (s: StrandPaintScope) => void
+  /** Stamp target — the Void shape selected on the canvas (null = none yet). */
+  stampSelection: PaintVoid | null
 }
 
 /**
@@ -47,11 +52,13 @@ export function DecorationPanel({
   onSetVoidScope,
   strandScope,
   onSetStrandScope,
+  stampSelection,
 }: DecorationPanelProps) {
   const strandRec = editor.decoration?.strandColours.find(r => r.scope === 'congruent' && r.key === '*')
   const strandRecCount = editor.decoration?.strandColours.length ?? 0
   const voidCount = editor.decoration?.voidFills.length ?? 0
-  const hasDecoration = strandRecCount > 0 || voidCount > 0
+  const stampCount = editor.decoration?.voidStamps?.length ?? 0
+  const hasDecoration = strandRecCount > 0 || voidCount > 0 || stampCount > 0
   // The Decoration seg buttons match the phase switch minus the hover
   // transition (they snap on click).
   const segButtonStyle = (active: boolean): React.CSSProperties =>
@@ -73,11 +80,11 @@ export function DecorationPanel({
         unpaints it. Strand geometry is frozen here — flip back to
         Composition to reshape.
       </div>
-      <FieldLabel label="Paint target" tooltip="What clicking on the canvas paints. Off frees panning; Voids fill the gaps between Strands; Strands colour the lines themselves." />
+      <FieldLabel label="Paint target" tooltip="What clicking on the canvas paints. Off frees panning; Voids fill the gaps between Strands; Strands colour the lines themselves; Stamp selects a Void shape to export as a canvas or fill with an uploaded image." />
       <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
-        {(['off', 'voids', 'strands'] as const).map(t => (
+        {(['off', 'voids', 'strands', 'stamp'] as const).map(t => (
           <button key={t} onClick={() => onSetPaintTarget(t)} style={segButtonStyle(paintTarget === t)}>
-            {t === 'off' ? 'Off' : t === 'voids' ? 'Voids' : 'Strands'}
+            {t === 'off' ? 'Off' : t === 'voids' ? 'Voids' : t === 'strands' ? 'Strands' : 'Stamp'}
           </button>
         ))}
       </div>
@@ -105,8 +112,11 @@ export function DecorationPanel({
           </div>
         </>
       )}
-      <ColourPicker value={decorationColor} onChange={onSetDecorationColor} />
-      {paintTarget === 'strands' ? (() => {
+      {paintTarget === 'stamp' && (
+        <StampSection editor={editor} dispatch={dispatch} selection={stampSelection} />
+      )}
+      {paintTarget !== 'stamp' && <ColourPicker value={decorationColor} onChange={onSetDecorationColor} />}
+      {paintTarget === 'stamp' ? null : paintTarget === 'strands' ? (() => {
         // Toggle: if every strand already carries the current paint colour,
         // the button removes it; otherwise it applies/updates. Removal
         // stores the `'none'` sentinel (strands hidden, Void fills meet
@@ -143,7 +153,7 @@ export function DecorationPanel({
           Colour all Voids
         </button>
       )}
-      <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+      {paintTarget !== 'stamp' && <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
         {strandRec?.colour !== 'none' && (
           <button
             onClick={() => dispatch({ type: 'SET_DECORATION_STRAND_COLOR', payload: { scope: 'congruent', key: '*', colour: 'none' } })}
@@ -168,12 +178,14 @@ export function DecorationPanel({
             Clear all
           </button>
         )}
-      </div>
+      </div>}
       {hasDecoration && (
         <div style={{ marginTop: 8, fontSize: 11 }}>
           {voidCount > 0 && <span>{voidCount} Void group{voidCount === 1 ? '' : 's'} filled</span>}
           {voidCount > 0 && strandRecCount > 0 && <span> · </span>}
           {strandRecCount > 0 && <span>{strandRecCount} Strand colour{strandRecCount === 1 ? '' : 's'}</span>}
+          {stampCount > 0 && (voidCount > 0 || strandRecCount > 0) && <span> · </span>}
+          {stampCount > 0 && <span>{stampCount} Stamp{stampCount === 1 ? '' : 's'}</span>}
         </div>
       )}
       {/* Frame border stroke — the Decoration styling slot ADR-0004
@@ -243,6 +255,152 @@ export function DecorationPanel({
           </div>
         )
       })()}
+    </div>
+  )
+}
+
+/**
+ * The **Stamp** target's panel section: inspect the selected Void shape,
+ * export a blank canvas at its exact canonical proportions (design a stamp
+ * externally), and upload an image that fills every congruent Void, clipped
+ * to the shape. One stamp record per Void signature (v1 congruent scope).
+ */
+function StampSection({ editor, dispatch, selection }: {
+  editor: NonNullable<PatternConfig['editor']>
+  dispatch: React.Dispatch<Action>
+  selection: PaintVoid | null
+}) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const stamps = editor.decoration?.voidStamps ?? []
+  const selRec = selection
+    ? stamps.find(r => r.scope === 'congruent' && r.key === selection.signature)
+    : undefined
+  const outline = selection ? (selection.keyPolygon ?? selection.polygon) : null
+  const canvasInfo = outline ? voidStampCanvas(outline) : null
+
+  const upload = async (file: File) => {
+    if (!selection) return
+    setBusy(true)
+    setError(null)
+    try {
+      const img = await importStampImage(file)
+      dispatch({
+        type: 'SET_DECORATION_VOID_STAMP',
+        payload: { scope: 'congruent', key: selection.signature, fit: selRec?.fit ?? 'cover', ...img },
+      })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'image import failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div style={{ marginBottom: 8 }}>
+      {!selection && (
+        <div style={{ fontSize: 11, fontStyle: 'italic', marginBottom: 8 }}>
+          Click a Void on the canvas to inspect its shape. Matching Voids
+          highlight together — a stamp fills all of them.
+        </div>
+      )}
+      {selection && canvasInfo && (
+        <div style={{ border: '1px solid var(--border-subtle)', padding: '6px 8px', marginBottom: 8 }}>
+          <div style={{ fontSize: 11, marginBottom: 6 }}>
+            <strong>Shape {selection.signature.slice(0, 8)}</strong>
+            {' — '}{canvasInfo.points.length} vertices · canvas {canvasInfo.box.width.toFixed(1)} × {canvasInfo.box.height.toFixed(1)} · area {selection.area.toFixed(1)}
+          </div>
+          <FieldLabel label="Shape canvas" tooltip="Download a blank, transparent canvas at this Void's exact proportions with the outline as a guide layer. Design a stamp on it externally, then upload it below — it lands back at exactly this size and orientation on every matching Void." />
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+            <button
+              onClick={() => downloadVoidShapeSVG(outline!, `void-${selection.signature.slice(0, 8)}-canvas.svg`)}
+              style={{ ...decorationButtonStyle, flex: 1 }}
+            >
+              Export SVG
+            </button>
+            <button
+              onClick={() => downloadVoidShapePNG(outline!, `void-${selection.signature.slice(0, 8)}-canvas.png`)}
+              style={{ ...decorationButtonStyle, flex: 1 }}
+            >
+              Export PNG
+            </button>
+          </div>
+          <FieldLabel label="Stamp image" tooltip="Upload an image (PNG/JPG/SVG/WebP) to fill every matching Void, cropped to the Void shape. Cover scales the image to fill the shape's box (overflow is clipped); Contain fits it inside. Images made on the exported shape canvas fit exactly." />
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={e => {
+              const f = e.target.files?.[0]
+              if (f) void upload(f)
+              e.target.value = ''
+            }}
+          />
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={busy}
+            style={{ ...decorationButtonStyle, width: '100%', opacity: busy ? 0.5 : 1 }}
+          >
+            {busy ? 'Importing…' : selRec ? 'Replace stamp image…' : 'Upload stamp image…'}
+          </button>
+          {error && <div style={{ fontSize: 11, color: 'var(--danger, #c0392b)', marginTop: 4 }}>{error}</div>}
+          {selRec && (
+            <div style={{ display: 'flex', gap: 6, marginTop: 6, alignItems: 'center' }}>
+              <img
+                src={selRec.image}
+                alt="stamp"
+                style={{ height: 32, width: 32, objectFit: 'cover', border: '1px solid var(--border-subtle)' }}
+              />
+              <div style={{ display: 'flex', gap: 0, flex: 1 }}>
+                {(['cover', 'contain'] as const).map(f => (
+                  <button
+                    key={f}
+                    onClick={() => dispatch({ type: 'SET_DECORATION_VOID_STAMP', payload: { ...selRec, fit: f } })}
+                    style={segmentedButtonStyle(selRec.fit === f, { transition: false })}
+                  >
+                    {f === 'cover' ? 'Cover' : 'Contain'}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => dispatch({ type: 'REMOVE_DECORATION_VOID_STAMP', payload: { scope: 'congruent', key: selection.signature } })}
+                style={decorationButtonStyle}
+                title="Remove this stamp"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      {stamps.length > 0 && (
+        <div style={{ fontSize: 11 }}>
+          <FieldLabel label="Stamped shapes" tooltip="Every Void shape carrying a stamp. Click ✕ to remove one." />
+          {stamps.map(r => (
+            <div
+              key={`${r.scope}:${r.key}`}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '3px 4px',
+                border: '1px solid var(--border-subtle)', marginBottom: 3,
+                background: selection && r.key === selection.signature ? 'var(--accent-bg, rgba(212,175,55,0.12))' : 'transparent',
+              }}
+            >
+              <img src={r.image} alt="" style={{ height: 22, width: 22, objectFit: 'cover' }} />
+              <span style={{ flex: 1, fontFamily: 'monospace' }}>{r.key.slice(0, 8)}</span>
+              <span style={{ opacity: 0.7 }}>{r.fit}</span>
+              <button
+                onClick={() => dispatch({ type: 'REMOVE_DECORATION_VOID_STAMP', payload: { scope: r.scope, key: r.key } })}
+                style={{ ...decorationButtonStyle, padding: '2px 6px' }}
+                title="Remove this stamp"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

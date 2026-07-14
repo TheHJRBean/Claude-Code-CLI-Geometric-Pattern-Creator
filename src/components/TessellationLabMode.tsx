@@ -15,6 +15,7 @@ import {
 } from '../editor/presetShelf'
 import { Canvas, type SelectedEdge } from './Canvas'
 import type { PaintTarget, StrandPaintScope, VoidPaintScope } from '../rendering/DecorationPaintLayer'
+import type { PaintVoid } from '../decoration/resolve'
 import type { SectionKey } from './EditorBoundaryInwardLayer'
 import { SandstoneEdge } from './SandstoneEdge'
 import { TopBar } from './TopBar'
@@ -212,6 +213,9 @@ export function TessellationLabMode({
   // Grouping-scope ladder).
   const [voidScope, setVoidScope] = useState<VoidPaintScope>('congruent')
   const [strandScope, setStrandScope] = useState<StrandPaintScope>('all')
+  // Stamp target — the Void shape picked on the canvas for the panel's
+  // inspector / shape-canvas export / image-upload flow.
+  const [stampSelection, setStampSelection] = useState<PaintVoid | null>(null)
   // Step 17.6 — Composition Phase: show the Patch Boundary stamped on the lattice.
   const [showBoundaryLattice, setShowBoundaryLattice] = useState(false)
   // Step 17.6d — Design Phase: low-opacity ghost copies of the Patch at the
@@ -458,6 +462,7 @@ export function TessellationLabMode({
                 onSetVoidScope={setVoidScope}
                 strandScope={strandScope}
                 onSetStrandScope={setStrandScope}
+                stampSelection={stampSelection}
                 onSetEditorPhase={p => {
                   // Step 17.7 — fire auto-complete when leaving Design for any
                   // later phase (Composition or Decoration) if the user opted
@@ -802,6 +807,8 @@ export function TessellationLabMode({
         paintStrandScope={strandScope}
         onPaintVoid={p => { pushRecentColour(decorationColor); dispatch({ type: 'SET_DECORATION_VOID_FILL', payload: { ...p, colour: decorationColor } }) }}
         onPaintStrand={p => { pushRecentColour(decorationColor); dispatch({ type: 'SET_DECORATION_STRAND_COLOR', payload: { ...p, colour: decorationColor } }) }}
+        onSelectStampVoid={setStampSelection}
+        selectedStampSignature={paintTarget === 'stamp' ? stampSelection?.signature ?? null : null}
         editorFrame={!!config.editor?.frame}
         showBoundaryLattice={showBoundaryLattice}
         editorNeighbourPreview={editorPhase === 'design' && showNeighbours && !(config.editor && activeCell(config.editor).wrapBoundary)}

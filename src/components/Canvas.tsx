@@ -9,6 +9,7 @@ import { usePanZoom } from '../hooks/usePanZoom'
 import { PatternSVG } from '../rendering/PatternSVG'
 import { worldToScreen } from '../rendering/screenSpace'
 import { DecorationPaintLayer, type PaintPayload, type PaintTarget, type StrandPaintScope, type VoidPaintScope } from '../rendering/DecorationPaintLayer'
+import type { PaintVoid } from '../decoration/resolve'
 import { RotationDial } from './RotationDial'
 import { ZoomControl } from './ZoomControl'
 import type { ExposedEdge } from '../editor/exposedEdges'
@@ -148,11 +149,16 @@ interface Props {
   paintVoidScope?: VoidPaintScope
   /** Stage 2 — how far a Strand click reaches (all / congruent / patch). */
   paintStrandScope?: StrandPaintScope
+  /** Stamp target — a Void click selects its congruent shape for the
+   * Decoration panel's inspector / export / upload flow. */
+  onSelectStampVoid?: (v: PaintVoid) => void
+  /** Signature of the selected stamp shape (persistent highlight). */
+  selectedStampSignature?: string | null
 }
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, editorMode = 'place', picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all' }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, editorMode = 'place', picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -195,7 +201,8 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     editorNeighbourStrands,
     editorFrame,
     decorationActive,
-    decorationActive ? paintTarget : 'off',
+    // Stamp mode needs the same Void hit-targets as Voids painting.
+    !decorationActive ? 'off' : paintTarget === 'stamp' ? 'voids' : paintTarget,
   )
 
   // The Frame outline to clip the Composition to — a persistent overlay across
@@ -784,6 +791,8 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         zoom={viewTransform.zoom}
         onPaintVoid={onPaintVoid}
         onPaintStrand={onPaintStrand}
+        onSelectStampVoid={onSelectStampVoid}
+        selectedStampSignature={selectedStampSignature}
       />
     )
     : null

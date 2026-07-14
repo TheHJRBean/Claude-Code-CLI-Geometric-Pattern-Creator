@@ -5,6 +5,21 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-14 (later still) — ✅ ML taste-model preprocessing pipeline SHIPPED (first slice of the ML arc)
+
+**Goal:** user decision — the ML generator will be a **user-selectable option alongside Random** (Random | Guided source toggle), NOT a replacement. That makes the data-independent scaffolding buildable now (dataset at 238 rated samples, below the ~300–500 gate for training the real model). This session shipped the preprocessing slice.
+
+**Done:**
+- `src/generator/features.ts` — pure `extractFeatures(PatternConfig) → number[]` + `FEATURE_NAMES` (tiling one-hot, scale, figure aggregates: contact-angle mean/spread, auto/edge/vertex/decoupled/curve fractions, curve shape stats, strand width/weave/lineStyle one-hot, smoothTransitions). Mirrors `SAMPLER_TUNING` dimensions. Total function — unknown tilings / empty figure maps → zeros, never throws. **Contract: trained artifacts must persist their own featureNames and re-index by name** (FEATURE_NAMES grows with the tiling list).
+- `src/generator/preprocess.ts` — `preprocessRecords(DatasetRecord[]) → TrainingDataset {featureNames, X, y, ids}`; `normalizeScore` (schema v1 1–5 → 0–10 linear, v2 pass-through, unknown → drop; flagged-with-score kept); `recordsFromJSONL` (round-trips `datasetExport.toJSONL`, skips bad lines); `fitStandardizer`/`applyStandardizer` (z-score, constant cols → 0).
+- Tests: `features.test.ts` (8) + `preprocess.test.ts` (10). tsc clean, generator suite 26 green (pure addition, no existing code touched).
+
+**NEXT (ML arc, in order):**
+1. **Learnability probe at 238** (Sonnet) — export JSONL → `recordsFromJSONL` → `preprocessRecords` → small ridge/GBM script, cross-validated correlation; also check score distribution (narrow band = weak signal). Answers "is taste learnable from these features?" before the 300–500 gate.
+2. Model slice — likely in-browser ridge regression trained from IndexedDB on demand (tiny at this scale), weights persisted with their featureNames snapshot. Re-rec model at open.
+3. Generator UI slice — **Random | Guided** source toggle in GeneratorMode; Guided = sample N candidates, score with model, present best. (Sonnet once model exists.)
+
+---
 ### ▶ 2026-07-14 (later) — ✅ Rosette epic Step 6 SHIPPED: Archimedes' Star preset, ticket #25 closed — **EPIC COMPLETE (all of #20–#25)**
 
 **Goal:** #25 — Step-0-style scratch spike for Archimedes' Star (star-of-hexagons over 6³; hexagons as 12-gons with collinear vertex pairs), then the preset if the spike cleared. Model: Fable (per ticket).

@@ -14,6 +14,7 @@ import type {
   FrameType,
   GroupingScope,
   SymmetryMode,
+  VoidStampRecord,
 } from '../types/editor'
 import type { StrandLineStyle } from '../types/pattern'
 
@@ -193,11 +194,33 @@ function migrateDecoration(raw: unknown): DecorationConfig | undefined {
     }
     return out
   }
-  return {
+  const out: DecorationConfig = {
     version: 1,
     strandColours: readRecords(r.strandColours),
     voidFills: readRecords(r.voidFills),
   }
+  if (Array.isArray(r.voidStamps)) {
+    const stamps: VoidStampRecord[] = []
+    for (const rec of r.voidStamps) {
+      const stamp = migrateVoidStamp(rec)
+      if (stamp) stamps.push(stamp)
+    }
+    if (stamps.length > 0) out.voidStamps = stamps
+  }
+  return out
+}
+
+/** Validate one persisted `VoidStampRecord`; invalid records are dropped. */
+function migrateVoidStamp(raw: unknown): VoidStampRecord | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const r = raw as Record<string, unknown>
+  if (!GROUPING_SCOPES.has(r.scope as GroupingScope)) return null
+  if (typeof r.key !== 'string' || r.key.length === 0) return null
+  if (typeof r.image !== 'string' || !r.image.startsWith('data:image/')) return null
+  if (typeof r.width !== 'number' || !(r.width > 0)) return null
+  if (typeof r.height !== 'number' || !(r.height > 0)) return null
+  if (r.fit !== 'cover' && r.fit !== 'contain') return null
+  return { scope: r.scope as GroupingScope, key: r.key, image: r.image, width: r.width, height: r.height, fit: r.fit }
 }
 
 /**

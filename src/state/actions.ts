@@ -1,5 +1,5 @@
 import type { PatternConfig, StrandStyle } from '../types/pattern'
-import type { BoundaryShape, ConfigurationId, EditorConfig, FrameConfig, GroupingScope, SymmetryMode } from '../types/editor'
+import type { BoundaryShape, ConfigurationId, EditorConfig, FrameConfig, GroupingScope, SymmetryMode, VoidStampRecord } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import type { ClickedTargetKeys } from '../decoration/scopes'
 
@@ -103,4 +103,9 @@ export type Action =
   // record explicitly.
   | { type: 'SET_DECORATION_VOID_FILL'; payload: { scope: GroupingScope; key: string; colour: string; clicked?: ClickedTargetKeys } }
   | { type: 'SET_DECORATION_STRAND_COLOR'; payload: { scope: GroupingScope; key: string; colour: string | null; clicked?: ClickedTargetKeys } }
+  // Void Stamps — an uploaded image clipped into every Void the record
+  // reaches (v1 scope: congruent, key = shape signature). Upserts by
+  // (scope, key); REMOVE deletes the record.
+  | { type: 'SET_DECORATION_VOID_STAMP'; payload: VoidStampRecord }
+  | { type: 'REMOVE_DECORATION_VOID_STAMP'; payload: { scope: GroupingScope; key: string } }
   | { type: 'CLEAR_DECORATION' }

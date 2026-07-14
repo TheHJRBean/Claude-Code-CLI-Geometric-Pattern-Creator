@@ -585,6 +585,28 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       }
       return { ...state, editor: { ...state.editor, decoration: { ...deco, strandColours } } }
     }
+    case 'SET_DECORATION_VOID_STAMP': {
+      // Void Stamp upsert by (scope, key) — one image per Void group. No
+      // masking ladder yet (v1 is congruent-only); re-stamping a key just
+      // replaces its image.
+      if (!state.editor) return state
+      const deco = state.editor.decoration ?? { version: 1 as const, strandColours: [], voidFills: [] }
+      const { scope, key } = action.payload
+      const voidStamps = (deco.voidStamps ?? []).filter(r => !(r.scope === scope && r.key === key))
+      voidStamps.push(action.payload)
+      return { ...state, editor: { ...state.editor, decoration: { ...deco, voidStamps } } }
+    }
+    case 'REMOVE_DECORATION_VOID_STAMP': {
+      const deco = state.editor?.decoration
+      if (!deco?.voidStamps) return state
+      const { scope, key } = action.payload
+      const voidStamps = deco.voidStamps.filter(r => !(r.scope === scope && r.key === key))
+      if (voidStamps.length === deco.voidStamps.length) return state
+      const next = { ...deco }
+      if (voidStamps.length > 0) next.voidStamps = voidStamps
+      else delete next.voidStamps
+      return { ...state, editor: { ...state.editor!, decoration: next } }
+    }
     case 'CLEAR_DECORATION': {
       if (!state.editor || !state.editor.decoration) return state
       const { decoration: _drop, ...rest } = state.editor

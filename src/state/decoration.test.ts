@@ -147,3 +147,39 @@ describe('Step 19 — decoration reducer actions (scoped records)', () => {
     expect(reducer(s, { type: 'SET_DECORATION_VOID_FILL', payload: { scope: 'congruent', key: 'x', colour: '#000' } } as Action)).toBe(s)
   })
 })
+
+describe('Void Stamps — reducer actions', () => {
+  const stamp = { scope: 'congruent' as const, key: 'a1b2c3d4', image: 'data:image/webp;base64,x', width: 800, height: 600, fit: 'cover' as const }
+
+  it('SET_DECORATION_VOID_STAMP creates decoration and upserts by (scope, key)', () => {
+    let s = base()
+    s = reducer(s, { type: 'SET_DECORATION_VOID_STAMP', payload: stamp } as Action)
+    expect(s.editor!.decoration!.voidStamps).toEqual([stamp])
+    // Re-stamping the same key replaces the image.
+    s = reducer(s, { type: 'SET_DECORATION_VOID_STAMP', payload: { ...stamp, image: 'data:image/webp;base64,y' } } as Action)
+    expect(s.editor!.decoration!.voidStamps).toHaveLength(1)
+    expect(s.editor!.decoration!.voidStamps![0].image).toBe('data:image/webp;base64,y')
+    // A second signature appends.
+    s = reducer(s, { type: 'SET_DECORATION_VOID_STAMP', payload: { ...stamp, key: 'deadbeef' } } as Action)
+    expect(s.editor!.decoration!.voidStamps).toHaveLength(2)
+  })
+
+  it('REMOVE_DECORATION_VOID_STAMP deletes the record; the field drops when empty', () => {
+    let s = base()
+    s = reducer(s, { type: 'SET_DECORATION_VOID_STAMP', payload: stamp } as Action)
+    s = reducer(s, { type: 'REMOVE_DECORATION_VOID_STAMP', payload: { scope: 'congruent', key: 'other' } } as Action)
+    expect(s.editor!.decoration!.voidStamps).toHaveLength(1)
+    s = reducer(s, { type: 'REMOVE_DECORATION_VOID_STAMP', payload: { scope: 'congruent', key: stamp.key } } as Action)
+    expect(s.editor!.decoration!.voidStamps).toBeUndefined()
+  })
+
+  it('stamps coexist with fills and CLEAR_DECORATION drops both', () => {
+    let s = base()
+    s = reducer(s, { type: 'SET_DECORATION_VOID_FILL', payload: { scope: 'congruent', key: 'a1b2c3d4', colour: '#111' } } as Action)
+    s = reducer(s, { type: 'SET_DECORATION_VOID_STAMP', payload: stamp } as Action)
+    expect(s.editor!.decoration!.voidFills).toHaveLength(1)
+    expect(s.editor!.decoration!.voidStamps).toHaveLength(1)
+    s = reducer(s, { type: 'CLEAR_DECORATION' } as Action)
+    expect(s.editor!.decoration).toBeUndefined()
+  })
+})

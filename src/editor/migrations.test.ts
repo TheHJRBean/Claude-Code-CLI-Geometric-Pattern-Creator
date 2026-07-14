@@ -112,3 +112,37 @@ describe('Step 19 — decoration migration', () => {
     expect(out!.decoration).toEqual({ version: 1, strandColours: [], voidFills: [] })
   })
 })
+
+describe('Void Stamps — migration', () => {
+  const stamp = { scope: 'congruent', key: 'a1b2c3d4', image: 'data:image/webp;base64,x', width: 800, height: 600, fit: 'cover' }
+
+  it('round-trips a valid voidStamps array', () => {
+    const out = migrateEditorConfig(v3Patch({
+      decoration: { version: 1, strandColours: [], voidFills: [], voidStamps: [stamp] },
+    }))
+    expect(out!.decoration!.voidStamps).toEqual([stamp])
+  })
+
+  it('drops malformed stamp records but keeps valid ones; empty array drops the field', () => {
+    const out = migrateEditorConfig(v3Patch({
+      decoration: {
+        version: 1,
+        strandColours: [],
+        voidFills: [],
+        voidStamps: [
+          stamp,
+          { ...stamp, image: 'not-a-data-url' },
+          { ...stamp, width: 0 },
+          { ...stamp, fit: 'stretch' },
+          { ...stamp, key: '' },
+          'garbage',
+        ],
+      },
+    }))
+    expect(out!.decoration!.voidStamps).toEqual([stamp])
+    const empty = migrateEditorConfig(v3Patch({
+      decoration: { version: 1, strandColours: [], voidFills: [], voidStamps: [{ ...stamp, width: -1 }] },
+    }))
+    expect(empty!.decoration!.voidStamps).toBeUndefined()
+  })
+})

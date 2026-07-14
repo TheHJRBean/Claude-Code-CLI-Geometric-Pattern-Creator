@@ -5,6 +5,21 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-14 (evening) — ✅ Decoration VOID STAMPS v1 SHIPPED (shape-canvas export + image import clipped to Voids)
+
+**Goal:** first slice of the decoration-stamps idea, scoped to **Voids** (user request: inspect void types → export the shape as an editable canvas → upload images auto-cropped to the void shape). User decisions via Q&A: images **embedded in config as data-URLs** (downscaled ≤1024px, WebP q0.85); v1 scope **congruent only** (ladder reserved in schema).
+
+**Done, 4 commits on `main` (`7412d38` → `1f3c4db` → `d89868e` → `7093496`):**
+- `src/decoration/stamps.ts` — **canonical pose**: deterministic rigid(-or-reflected) placement every congruent Void agrees on (same quantised angle/edge token ring as the signature, lex-min over 2n traversals). `canonicalPose` / `poseBBox` / `fitImageRect` / `resolveVoidStamps`. Pose keys off `keyPolygon` (straight outline) so stamps survive curve edits; clip stays the rendered outline. Symmetric shapes: pose ambiguous up to the shape's own symmetry group — inherent, documented. +13 tests.
+- Schema: `VoidStampRecord { scope, key, image, width, height, fit }`, `DecorationConfig.voidStamps?` (additive, version stays 1). Actions `SET/REMOVE_DECORATION_VOID_STAMP` (upsert by scope+key), CLEAR_DECORATION covers it. `migrations.ts` validates records (drops malformed). +6 tests.
+- `src/rendering/VoidStampLayer.tsx` — `<clipPath>` per placement + `<image>` under `matrix(toInstance)`. Rendered after `VoidFillLayer` in ALL THREE PatternSVG spots (fragment ×2 variants + non-fast world-space) — stamps over fills, under Strands. usePattern: fast path resolves off `decorationReps` inside the `decorationFills` memo; non-fast off `nonFastVoidData.keyed`. New result field `voidStamps` (fills' coordinate convention).
+- UI: 4th Paint target **Stamp** (`PaintTarget` now incl. `'stamp'`; usePattern sees it as `'voids'` for hit-targets). Click a Void → `stampSelection` (TessellationLabMode state); selected congruent group gets a persistent accent highlight (DecorationPaintLayer). `StampSection` in DecorationPanel: shape info (vertices/canvas dims/area), **Export SVG/PNG shape canvas** (`src/export/stampAssets.ts` — canvas = EXACT canonical bbox, no padding, so cover-fit round-trips pixel-true; guide outline layer), **Upload/Replace image** (compressed data-URL), Cover/Contain toggle, per-record remove + stamped-shapes list.
+
+**Green:** tsc, **923 vitest** (71 files), build. **⏳ BROWSER-VERIFY OWED:** (a) Stamp target click-select + highlight; (b) SVG+PNG canvas downloads open in an editor at sane proportions; (c) upload lands on every matching void, consistently oriented (check a reflected instance mirrors); (d) round-trip: design on exported canvas → upload → aligns with guide outline; (e) SVG/PNG exports include stamps (data-URL images through `rasterizeSvgToCanvas`); (f) localStorage quota headroom after saving a config with 2-3 stamps; (g) stamps tile correctly on the periodic fast path AND with a Frame (non-fast path).
+
+**NEXT:** browser verify above → then remaining stamp-idea scope (idea memo): fit/rotate/mirror controls, ladder rungs (cell/patch/instance), Tile-stamping (vs Voids), asset library. ML arc continues in parallel (learnability probe at 238 samples).
+
+---
 ### ▶ 2026-07-14 (later still) — ✅ ML taste-model preprocessing pipeline SHIPPED (first slice of the ML arc)
 
 **Goal:** user decision — the ML generator will be a **user-selectable option alongside Random** (Random | Guided source toggle), NOT a replacement. That makes the data-independent scaffolding buildable now (dataset at 238 rated samples, below the ~300–500 gate for training the real model). This session shipped the preprocessing slice.

@@ -759,6 +759,76 @@ const TAPRATS_DATA: Record<string, TapratsTilingData> = {
     ],
   },
 
+  // ── Archimedes' Star (star tiling of 6³) ───────────────
+  // Rosette-patch epic Step 6 (ticket #25, spiked 2026-07-14): trihexagonal
+  // 3.6.3.6 with hexagon edge E = 2 and every triangle medially subdivided
+  // into 4 equilateral triangles of edge s = 1 (3 corner "star point"
+  // triangles + 1 inverted medial per big triangle). The tiling is
+  // NON-edge-to-edge: each hexagon edge faces two triangle edges, so the
+  // hexagon is encoded as a 12-gon with collinear vertex pairs (corners +
+  // edge midpoints) to align per-edge contact midpoints across the border.
+  // runRosettePIC's straight-vertex branch (inward edge normal) carries the
+  // collinear vertices natively — validated 0-defect across θ 27.5–80 by the
+  // Step-6 spike. Canonical edge (12-gon half-edge = triangle edge) = 1.
+  'archimedes-star': {
+    t1: { x: 4, y: 0 },
+    t2: { x: 2, y: 3.4641016151377544 },               // (2, 2√3)
+    tiles: [
+      {
+        // Hexagon as 12-gon: corners at circumradius 2 (angles 60k°)
+        // interleaved with edge midpoints, CCW.
+        sides: 12, regular: false,
+        vertices: [
+          { x: 2, y: 0 },                              // C0
+          { x: 1.5, y: 0.8660254037844386 },           // M0 (√3/2)
+          { x: 1, y: 1.7320508075688772 },             // C1 (√3)
+          { x: 0, y: 1.7320508075688772 },             // M1
+          { x: -1, y: 1.7320508075688772 },            // C2
+          { x: -1.5, y: 0.8660254037844386 },          // M2
+          { x: -2, y: 0 },                             // C3
+          { x: -1.5, y: -0.8660254037844386 },         // M3
+          { x: -1, y: -1.7320508075688772 },           // C4
+          { x: 0, y: -1.7320508075688772 },            // M4
+          { x: 1, y: -1.7320508075688772 },            // C5
+          { x: 1.5, y: -0.8660254037844386 },          // M5
+        ],
+        transforms: [{ a: 1, b: 0, tx: 0, c: 0, d: 1, ty: 0 }],
+      },
+      {
+        // Apex-down small triangles (translates): 3 corners of the
+        // apex-down big triangle + the medial of the apex-up one.
+        sides: 3, regular: false, tileTypeId: '3',
+        vertices: [
+          { x: 0, y: 0 },                              // apex (bottom)
+          { x: 0.5, y: 0.8660254037844386 },
+          { x: -0.5, y: 0.8660254037844386 },
+        ],
+        transforms: [
+          { a: 1, b: 0, tx: 2, c: 0, d: 1, ty: 0 },
+          { a: 1, b: 0, tx: 2.5, c: 0, d: 1, ty: 0.8660254037844386 },
+          { a: 1, b: 0, tx: 1.5, c: 0, d: 1, ty: 0.8660254037844386 },
+          { a: 1, b: 0, tx: 0, c: 0, d: 1, ty: 1.7320508075688772 },
+        ],
+      },
+      {
+        // Apex-up small triangles (translates): 3 corners of the
+        // apex-up big triangle + the medial of the apex-down one.
+        sides: 3, regular: false, tileTypeId: '3',
+        vertices: [
+          { x: 0, y: 0 },
+          { x: 1, y: 0 },
+          { x: 0.5, y: 0.8660254037844386 },           // apex (top)
+        ],
+        transforms: [
+          { a: 1, b: 0, tx: 1.5, c: 0, d: 1, ty: 0.8660254037844386 },
+          { a: 1, b: 0, tx: 0, c: 0, d: 1, ty: 1.7320508075688772 },
+          { a: 1, b: 0, tx: -0.5, c: 0, d: 1, ty: 2.598076211353316 },
+          { a: 1, b: 0, tx: -1, c: 0, d: 1, ty: 1.7320508075688772 },
+        ],
+      },
+    ],
+  },
+
   // ── 16-fold: hexadecagonal rosette ─────────────────────
   // One regular 16-gon at the origin of each square lattice cell,
   // sharing four edges with its N/S/E/W neighbours. The remaining

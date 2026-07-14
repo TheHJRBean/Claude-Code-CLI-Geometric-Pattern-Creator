@@ -9,7 +9,7 @@ const ALL_KEYS = [
   'pentagonal-rosette', 'heptagonal-rosette', 'nonagonal-rosette',
   'decagonal-rosette', 'hendecagonal-rosette', 'tetrakis-square',
   'cairo-pentagonal', 'kisrhombille', 'deltoidal-trihexagonal',
-  'floret-pentagonal', 'rhombille', 'hexadecagonal-rosette',
+  'floret-pentagonal', 'rhombille', 'archimedes-star', 'hexadecagonal-rosette',
 ] as const
 
 beforeEach(() => resetIds())
@@ -197,6 +197,54 @@ describe('generateTapratsTiling — rhombille', () => {
       if (edge.polygonIds.length === 2) shared++
     }
     expect(shared).toBeGreaterThan(0)
+  })
+})
+
+describe('generateTapratsTiling — Archimedes\' Star', () => {
+  // Star tiling of 6³ (rosette-patch epic Step 6, ticket #25): hexagons
+  // encoded as 12-gons with collinear vertex pairs + subdivided triangles.
+  it('produces 12-gon hexagons and triangles, all edges = edgeLen', () => {
+    const polys = generateTapratsTiling('archimedes-star', viewport, edgeLen)
+    const sides = new Set(polys.map(p => p.sides))
+    expect(sides).toEqual(new Set([12, 3]))
+    expect(new Set(polys.map(p => p.tileTypeId))).toEqual(new Set(['12', '3']))
+    for (const p of polys) {
+      for (let i = 0; i < p.sides; i++) {
+        const a = p.vertices[i], b = p.vertices[(i + 1) % p.sides]
+        expect(Math.hypot(b.x - a.x, b.y - a.y)).toBeCloseTo(edgeLen, 6)
+      }
+    }
+  })
+
+  it('12-gon has 6 collinear midpoint vertices (the non-edge-to-edge encoding)', () => {
+    const polys = generateTapratsTiling('archimedes-star', viewport, edgeLen)
+    const hex = polys.find(p => p.sides === 12)!
+    let straight = 0
+    for (let k = 0; k < 12; k++) {
+      const prev = hex.vertices[(k + 11) % 12], v = hex.vertices[k], next = hex.vertices[(k + 1) % 12]
+      const cross = (v.x - prev.x) * (next.y - v.y) - (v.y - prev.y) * (next.x - v.x)
+      if (Math.abs(cross) < 1e-6 * edgeLen * edgeLen) {
+        straight++
+        // straight vertex sits exactly at the midpoint of its neighbours
+        expect(v.x).toBeCloseTo((prev.x + next.x) / 2, 6)
+        expect(v.y).toBeCloseTo((prev.y + next.y) / 2, 6)
+      }
+    }
+    expect(straight).toBe(6)
+  })
+
+  it('has shared edges across the hexagon↔triangle border', () => {
+    const polys = generateTapratsTiling('archimedes-star', viewport, edgeLen)
+    const edgeMap = buildEdgeMap(polys)
+    const byId = new Map(polys.map(p => [p.id, p]))
+    let hexTriShared = 0
+    for (const [, edge] of edgeMap) {
+      if (edge.polygonIds.length === 2) {
+        const [a, b] = edge.polygonIds.map(id => byId.get(id)!.sides)
+        if ((a === 12 && b === 3) || (a === 3 && b === 12)) hexTriShared++
+      }
+    }
+    expect(hexTriShared).toBeGreaterThan(0)
   })
 })
 

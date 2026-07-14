@@ -5,6 +5,27 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-14 (later) — ✅ Rosette epic Step 6 SHIPPED: Archimedes' Star preset, ticket #25 closed — **EPIC COMPLETE (all of #20–#25)**
+
+**Goal:** #25 — Step-0-style scratch spike for Archimedes' Star (star-of-hexagons over 6³; hexagons as 12-gons with collinear vertex pairs), then the preset if the spike cleared. Model: Fable (per ticket).
+
+**Spike PASSED — zero new tolerance work needed** (scratch vitest file, deleted, never committed; PNGs in session scratchpad `archimedes-spike/`):
+- Geometry per RESEARCH §10.2: 3.6.3.6 at hexagon edge E with every triangle medially subdivided into 4 equilateral triangles (edge s = E/2); hexagon encoded as 12-gon (corners + edge midpoints) so contact midpoints align across the non-edge-to-edge hexagon↔triangle border.
+- **`runRosettePIC`: 0 defects at all 8 spiked θ (27.5–80)** — 0 non-finite, 0 odd-degree, 0 tips-outside, 0 crossings. Its straight-vertex branch (inward edge normal) carries the collinear vertices natively; no epsilon/tolerance parameter needed anywhere.
+- **`runPIC` provably breaks on the same field**: θ=60 loses segments (738 vs 840, 198 odd-degree endpoints), θ=80 has 594 arm crossings → path decision = bespoke rosette-patch path (which the taprats generator forces anyway via `runPICForCategory`).
+- buildStrands interop: single 12-gon figure → 1 closed 24-seg strand; full field → 840 segs chain into 17 strands, **all closed** (strands cross the split border correctly).
+
+**Shipped (one commit):**
+- `src/tilings/tapratsTiling.ts` — `TAPRATS_DATA['archimedes-star']`: t1=(4,0), t2=(2,2√3), canonical edge 1 (= 12-gon half-edge = triangle edge, so user scale = drawn edge length); 12-gon (identity transform) + apex-down and apex-up triangle entries (4 translates each, both explicit `tileTypeId: '3'` so all 8 group as one tile type).
+- `src/tilings/index.ts` — `TILINGS['archimedes-star']` (`category: 'rosette-patch'`, `tileTypes` `12`/`3`, defaults θ=60/60, foldSymmetry 6) + 6-fold `SYMMETRY_GROUPS` entry after davids-star.
+- `src/tilings/tapratsTiling.test.ts` — added to `ALL_KEYS` sweep + new describe: sides/tileTypeIds/edge-length uniformity, the 6-collinear-midpoint-vertex encoding invariant, hexagon↔triangle shared edges.
+- **Auto-joined coverage (no edits needed):** rosettePatch grand matrix (9 θ × property checks) + interop@54 (`ROSETTE_TILINGS` is category-derived), presetShelf tier-3 view-only badge, Generator sampler coverage (via `tileTypes`).
+
+**Green:** tsc clean, **884 vitest** (67 files; +14 from 870). Headless smoke render through the real `generateTapratsTiling` + `runPICForCategory` shipped path at defaultConfig — clean star pattern, eyeballed. ⏳ browser-verify owed: pick Archimedes' Star in the Gallery/Generator, confirm card + render + tier-3 shelf badge (no browser-automation tool in this sandbox, same gap as prior sessions).
+
+**NEXT (cold start): the rosette epic is fully closed (#20–#25 all shipped).** No open tickets remain. Carried verify debt: user eyeball of the Step 3 before/after artifact (https://claude.ai/code/artifact/c1d90ab6-bce4-4217-8d97-887e43ceb41b) + a browser pass over the 12 rosette tilings + the 3 star presets. Next frontier is whatever the user picks off the ideas list (`/roadmap` or MEMORY.md Ideas section).
+
+---
 ### ▶ 2026-07-14 — ✅ Rosette epic Step 5 SHIPPED: `figureRouting` removed, `pic/index.ts` branch ladder shrunk (`ca506e9`), ticket #24 closed
 
 **Goal:** #24 — audit whether `figureRouting` is still load-bearing anywhere live; remove it end-to-end if clear; shrink the `pic/index.ts` branch ladder (named-case table, `pushSegment`/centroid-V helpers, dedupe the triplicated pair-A/B probe) either way.

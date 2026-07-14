@@ -195,6 +195,28 @@ export const TILINGS: Record<string, TilingDefinition> = {
       },
     },
   },
+  // Archimedes' Star: star-of-hexagons over 6³ ≡ 3.6.3.6 with every triangle
+  // medially subdivided (rosette-patch epic Step 6, ticket #25). Non-edge-to-
+  // edge, so the hexagon ships as a 12-gon with collinear vertex pairs —
+  // generated via the taprats block + runRosettePIC (spike-validated).
+  'archimedes-star': {
+    name: 'archimedes-star',
+    label: "Archimedes' Star (6.6.6 star tiling)",
+    vertexConfig: [12, 3],
+    seedSides: 12,
+    foldSymmetry: 6,
+    category: 'rosette-patch',
+    tileTypes: [
+      { id: '12', sides: 12, label: 'Hexagon (12-gon)' },
+      { id: '3', sides: 3, label: 'Star triangle' },
+    ],
+    defaultConfig: {
+      figures: {
+        '12': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 60 },
+        '3': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 60 },
+      },
+    },
+  },
   'rhombille': {
     name: 'rhombille',
     label: 'Rhombille (Laves dual of 3.6.3.6)',
@@ -414,7 +436,7 @@ export const SYMMETRY_GROUPS: SymmetryGroup[] = [
   { fold: 3,  label: '3-fold',  tilings: ['triangular'] },
   { fold: 4,  label: '4-fold',  tilings: ['square', 'keplers-star', '3.3.3.4.4', '3.3.4.3.4', 'cairo-pentagonal', 'tetrakis-square'] },
   { fold: 5,  label: '5-fold',  tilings: ['pentagonal-rosette'] },
-  { fold: 6,  label: '6-fold',  tilings: ['hexagonal', '3.3.3.3.6', '3.4.6.4', '3.6.3.6', 'davids-star', 'rhombille', 'floret-pentagonal', 'deltoidal-trihexagonal', 'kisrhombille'] },
+  { fold: 6,  label: '6-fold',  tilings: ['hexagonal', '3.3.3.3.6', '3.4.6.4', '3.6.3.6', 'davids-star', 'archimedes-star', 'rhombille', 'floret-pentagonal', 'deltoidal-trihexagonal', 'kisrhombille'] },
   { fold: 7,  label: '7-fold',  tilings: ['heptagonal-rosette'] },
   { fold: 8,  label: '8-fold',  tilings: ['4.8.8'] },
   { fold: 9,  label: '9-fold',  tilings: ['nonagonal-rosette'] },

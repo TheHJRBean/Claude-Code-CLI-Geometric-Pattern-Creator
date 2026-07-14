@@ -5,6 +5,22 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-14 — ✅ Rosette epic Step 5 SHIPPED: `figureRouting` removed, `pic/index.ts` branch ladder shrunk (`ca506e9`), ticket #24 closed
+
+**Goal:** #24 — audit whether `figureRouting` is still load-bearing anywhere live; remove it end-to-end if clear; shrink the `pic/index.ts` branch ladder (named-case table, `pushSegment`/centroid-V helpers, dedupe the triplicated pair-A/B probe) either way.
+
+**Audit finding:** dead in production. Zero `.tsx` files dispatch `SET_FIGURE_ROUTING` (no UI control ever existed, matching the earlier CLAUDE.md note). `DEFAULT_CONFIG`, Builder `createDefault*`/`presetConversion` seeds, and the Generator (`randomPattern.ts`, explicitly `'auto'`) never diverge from the default. And `'auto'`/`'centroid'` were behaviourally IDENTICAL in the routing gate (`routing !== 'edge' && isConvex` — nothing ever checked `=== 'centroid'`) — only `'edge'` differed, and nothing ever picked it. Cleared for removal.
+
+**Done, one commit, pushed to `main`:**
+- **`ca506e9`** — **#24 CLOSED.** `figureRouting` stripped from `types/pattern.ts`, `state/actions.ts` (`SET_FIGURE_ROUTING` action gone), `state/reducer.ts`, `state/configValidation.ts`, `generator/randomPattern.ts`; `emitStarArms`'s `useCentroidV` is now unconditional on `isConvexPolygon` (was `routing !== 'edge' && isConvex` — since routing was always `'auto'` in practice, this is the exact same live behaviour, just without the dead indirection). The convex/concave SPLIT itself stays — real production logic for Builder-authored (possibly concave) polygons, just no longer routing-gated. Updated 8 test fixtures: deleted the `figureRouting=edge bypasses centroid V` regression test in `pipeline.test.ts` (asserted on dead routing behaviour) and the `drops an invalid figureRouting value` test in `configValidation.test.ts`; trimmed incidental `figureRouting: 'auto'` fixture fields elsewhere.
+- **Branch-ladder shrink** (same commit, scoped down since the routing toggle's indirection was already gone): new `probePair()` helper dedupes the ray-probe-and-classify logic that was duplicated across `pairAtVertex`'s A/B pairs and repeated again in `pairVertexAtEdge`; both selectors' ordered-`if` chains became named-case tables (`{ cond, ray1, ray2, result }[]`, evaluated in the SAME order as before — a pure structural transform, not a logic change); `pushSegment`/`pushCentroidPair`/`PolyCtx` replace ~15 duplicated 9-field `Segment` object literals across `emitStarArms`/`emitVertexArms`/`runPIC`'s orphan-ray loop. `emitVertexArms`/`pairVertexAtEdge`/`clipSegmentToPolygon`/`dedupPolygonSegments` kept their EXACT exported signatures throughout (`rosettePatch.ts` depends on them) — only the non-exported `pairAtVertex`/`emitStarArms` had signatures reshaped.
+- **Verification:** ran the full suite after the routing removal alone (870 green) and again after the branch-ladder shrink (870 green, identical count) — the acceptance gate (7 `runPIC.characterization.test.ts` goldens) stayed bit-identical across both changes, confirmed by re-running `runPIC.characterization.test.ts` + `pipeline.test.ts` + `probe.test.ts` explicitly after the shrink.
+
+**Green:** tsc clean, **870 vitest** (67 files; down from 872 — net −2 from deleting the two routing-behaviour tests, no new tests added since this was pure refactor/removal against an existing acceptance gate).
+
+**NEXT (cold start):** the rosette-patch epic is **functionally complete** — Steps 1–5 delivered the architectural fix (bespoke figure construction for irregular tilings) plus 2 of 3 named star-tiling presets (David's, Kepler's). **#25** (Step 6, Archimedes' Star spike) is explicitly OFF the critical path and optional — only pick it up if there's appetite for more speculative geometry work. **Model:** Fable for the Step-0-style spike (collinear-vertex tolerance on hexagons-as-12-gons is novel), Sonnet for the preset plumbing after, per the ticket. If not picking up #25, the epic can be considered closed out; consider updating `TESSELLATION_REVAMP_PLAN.md`'s Step 17 section / the memory index to mark it delivered rather than in-progress.
+
+---
 ### ▶ 2026-07-13 (night) — ✅ Rosette epic Step 4 SHIPPED: `runRosettePIC` wired into `usePattern` (`09187d8`), ticket #23 closed
 
 **Goal:** #23 — flip `usePattern`'s `rosette-patch` category branch from `runPIC` to `runRosettePIC` (Step 3's bespoke bisector construction, built but not wired in), retire the 6 now-dead taprats goldens, add dispatch coverage, smoke-test before merging.

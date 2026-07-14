@@ -23,7 +23,7 @@ const vertexFigure: FigureConfig = {
 function configFor(polys: Polygon[]): PatternConfig {
   const figures: Record<string, FigureConfig> = {}
   for (const p of polys) figures[p.tileTypeId] = vertexFigure
-  return { figures, figureRouting: 'auto' } as unknown as PatternConfig
+  return { figures } as unknown as PatternConfig
 }
 
 function dodecagonEdgesCovered(polys: Polygon[], config: PatternConfig): number {

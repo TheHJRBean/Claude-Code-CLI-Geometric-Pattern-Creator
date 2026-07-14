@@ -1,32 +1,59 @@
-import type { Polygon, Segment } from '../types/geometry'
-import type { FigureRouting, PatternConfig } from '../types/pattern'
+import type { Polygon, RaySide, Segment, SegmentKind } from '../types/geometry'
+import type { PatternConfig } from '../types/pattern'
 import { computeContactRays, computeVertexRays, type ContactRay, type VertexRay } from './stellation'
 import { rayRayIntersect, type IntersectResult } from './intersect'
 import { EPSILON, dist, midpoint, pointInPolygon, isConvexPolygon, type Vec2 } from '../utils/math'
+
+/**
+ * Ray-ray probe shared by `pairAtVertex` and `pairVertexAtEdge`: intersect
+ * two rays and classify the meeting point. `valid` requires both rays to
+ * meet ahead of their own origins; `inside` additionally requires the
+ * meeting point to lie within the polygon.
+ *
+ * A polygon-convexity flag is deliberately NOT taken to skip pointInPolygon —
+ * for irregular convex tiles, a pairing's intersection can be outside even
+ * though the polygon is convex. The cost of pointInPolygon is negligible here.
+ */
+function probePair(
+  r1: { origin: Vec2; dir: Vec2 },
+  r2: { origin: Vec2; dir: Vec2 },
+  polyVertices: Vec2[],
+): { result: IntersectResult | null; valid: boolean; inside: boolean } {
+  const result = rayRayIntersect(r1.origin, r1.dir, r2.origin, r2.dir)
+  const valid = !!result && result.t1 > EPSILON && result.t2 > EPSILON
+  const inside = valid && pointInPolygon(result!.point, polyVertices)
+  return { result, valid, inside }
+}
 
 /**
  * For a given vertex (shared by prevEdge and currEdge), find the correct
  * ray pairing. The pairing depends on polygon winding, so we try both
  * combinations.
  *
- * Selection priority:
- *  1. Whichever pairing's intersection lies INSIDE the polygon (normal star
- *     for pair A; concave/reflex star for pair B). This lets the figure
- *     switch from convex-star to concave-star as θ sweeps past the regime
- *     where pair A's tip leaves the polygon.
- *  2. Both t positive but intersection outside — downstream emitStarArms
- *     handles via edge-slide.
- *  3. Asymmetric (one t positive, one negative). Returned only so that
- *     fixed-length emission still gets two rays at the user's chosen
- *     length; auto-length emission in emitStarArms early-returns on this
- *     case and lets the per-ray fallback handle both rays via Kaplan
- *     trim. By construction this tier never fires for regular polygons
- *     (their symmetry forces both t the same sign).
- *  4. Neither is even partially valid (parallel, or both t negative): null.
- *
- * A polygon-convexity flag is deliberately NOT taken to skip pointInPolygon —
- * for irregular convex tiles, pair A's intersection can be outside even though
- * the polygon is convex. The cost of pointInPolygon is negligible here.
+ * Selection priority (a named-case table, evaluated in order — first match
+ * wins; see the block comment above each case's condition upstream in
+ * `probePair`/`aAsym`/`bAsym` for what each one means):
+ *  1. `aInside` — pair-A's intersection lies INSIDE the polygon (normal
+ *     star). Preferred: pair-B is reserved for the concave-star fallback
+ *     where pair-A's tip is fully outside the polygon (aValid but not
+ *     aInside).
+ *  2. `aAsym` — pair-A is asymmetric (one ray points away from its origin,
+ *     e.g. the Tetrakis Square right-triangle's 45° vertices at θ ≥ 46°).
+ *     MUST stick with pair-A here and let emitStarArms / per-ray fallback
+ *     handle it — falling through to pair-B causes double-emission of rays
+ *     that a neighbouring vertex's pair-A also uses (e.g. V1 pair-A IN but
+ *     V0/V2 pair-A ASYM + pair-B IN).
+ *  3. `bInside` — pair-B's intersection lies inside (concave/reflex star).
+ *  4. `aValid` — both t positive but intersection outside; downstream
+ *     emitStarArms handles via edge-slide.
+ *  5. `bValid` — same, for pair-B.
+ *  6. `bAsym` — pair-B asymmetric. Returned only so fixed-length emission
+ *     still gets two rays at the user's chosen length; auto-length emission
+ *     in emitStarArms early-returns on the asymmetric case and lets the
+ *     per-ray fallback handle both rays via Kaplan trim. By construction
+ *     this tier never fires for regular polygons (their symmetry forces
+ *     both t the same sign).
+ *  Neither valid (parallel, or both t negative): null.
  */
 function pairAtVertex(
   rays: ContactRay[],
@@ -36,32 +63,26 @@ function pairAtVertex(
 ): { ray1: ContactRay; ray2: ContactRay; result: IntersectResult } | null {
   const rA1 = rays[prevEdge * 2 + 1]
   const rA2 = rays[currEdge * 2]
-  const resA = rayRayIntersect(rA1.origin, rA1.dir, rA2.origin, rA2.dir)
-  const aValid = !!resA && resA.t1 > EPSILON && resA.t2 > EPSILON
-  const aInside = aValid && pointInPolygon(resA!.point, polyVertices)
+  const a = probePair(rA1, rA2, polyVertices)
 
   const rB1 = rays[prevEdge * 2]
   const rB2 = rays[currEdge * 2 + 1]
-  const resB = rayRayIntersect(rB1.origin, rB1.dir, rB2.origin, rB2.dir)
-  const bValid = !!resB && resB.t1 > EPSILON && resB.t2 > EPSILON
-  const bInside = bValid && pointInPolygon(resB!.point, polyVertices)
+  const b = probePair(rB1, rB2, polyVertices)
 
-  const aAsym = !!resA && (resA.t1 > EPSILON || resA.t2 > EPSILON) && !aValid
-  const bAsym = !!resB && (resB.t1 > EPSILON || resB.t2 > EPSILON) && !bValid
+  const aAsym = !!a.result && (a.result.t1 > EPSILON || a.result.t2 > EPSILON) && !a.valid
+  const bAsym = !!b.result && (b.result.t1 > EPSILON || b.result.t2 > EPSILON) && !b.valid
 
-  // Priority: prefer pair-A; pair-B is reserved for the concave-star fallback
-  // where pair-A's tip is fully outside the polygon (aValid but not aInside).
-  // When pair-A is asymmetric (one ray points away from its origin) we MUST
-  // stick with pair-A and let emitStarArms / per-ray fallback handle it —
-  // falling through to pair-B here causes double-emission of rays that
-  // neighbouring vertices' pair-A also uses (e.g. Tetrakis right-triangle
-  // at θ ≥ 46° where V1 is pair-A IN but V0/V2 are pair-A ASYM + pair-B IN).
-  if (aInside) return { ray1: rA1, ray2: rA2, result: resA! }
-  if (aAsym) return { ray1: rA1, ray2: rA2, result: resA! }
-  if (bInside) return { ray1: rB1, ray2: rB2, result: resB! }
-  if (aValid) return { ray1: rA1, ray2: rA2, result: resA! }
-  if (bValid) return { ray1: rB1, ray2: rB2, result: resB! }
-  if (bAsym) return { ray1: rB1, ray2: rB2, result: resB! }
+  const cases: { cond: boolean; ray1: ContactRay; ray2: ContactRay; result: IntersectResult | null }[] = [
+    { cond: a.inside, ray1: rA1, ray2: rA2, result: a.result },
+    { cond: aAsym, ray1: rA1, ray2: rA2, result: a.result },
+    { cond: b.inside, ray1: rB1, ray2: rB2, result: b.result },
+    { cond: a.valid, ray1: rA1, ray2: rA2, result: a.result },
+    { cond: b.valid, ray1: rB1, ray2: rB2, result: b.result },
+    { cond: bAsym, ray1: rB1, ray2: rB2, result: b.result },
+  ]
+  for (const c of cases) {
+    if (c.cond) return { ray1: c.ray1, ray2: c.ray2, result: c.result! }
+  }
   return null
 }
 
@@ -151,6 +172,59 @@ function findOrphanRayEndpoint(
   return clip
 }
 
+/** Per-polygon fields every emitted `Segment` in a figure pass shares —
+ * bundled once so the push helpers below don't repeat 4 positional args at
+ * every call site. */
+interface PolyCtx {
+  polygonId: string
+  tileTypeId: string
+  polygonCenter: Vec2
+  polygonSides: number
+  kind: SegmentKind
+}
+
+/** Push one `Segment`, filling the per-polygon fields from `ctx`. */
+function pushSegment(
+  segments: Segment[],
+  ctx: PolyCtx,
+  from: Vec2,
+  to: Vec2,
+  edgeMidpoint: Vec2,
+  side: RaySide,
+): void {
+  segments.push({
+    from,
+    to,
+    edgeMidpoint,
+    polygonCenter: ctx.polygonCenter,
+    polygonSides: ctx.polygonSides,
+    polygonId: ctx.polygonId,
+    tileTypeId: ctx.tileTypeId,
+    kind: ctx.kind,
+    side,
+  })
+}
+
+/** Push a centroid-routed V — each ray's origin to the polygon centre — and
+ * mark both rays emitted. Shared by `emitStarArms`'s asymmetric-pair and
+ * outside-tip branches (2026-05-22, Direction 3): the two branches hit the
+ * same "route through the centre on convex polygons" case from different
+ * degenerate starting points. */
+function pushCentroidPair(
+  segments: Segment[],
+  ctx: PolyCtx,
+  emittedRays: Set<string>,
+  ray1: { origin: Vec2; side: RaySide },
+  key1: string,
+  ray2: { origin: Vec2; side: RaySide },
+  key2: string,
+): void {
+  pushSegment(segments, ctx, ray1.origin, ctx.polygonCenter, ray1.origin, ray1.side)
+  pushSegment(segments, ctx, ray2.origin, ctx.polygonCenter, ray2.origin, ray2.side)
+  emittedRays.add(key1)
+  emittedRays.add(key2)
+}
+
 /**
  * Emit star arm segments for a single vertex pairing.
  *
@@ -167,26 +241,20 @@ function emitStarArms(
   autoLineLength: boolean,
   lineLength: number,
   inradius: number,
-  polygonId: string,
-  tileTypeId: string,
-  polygonCenter: Vec2,
-  polygonSides: number,
+  ctx: PolyCtx,
   polyVertices: Vec2[],
   segments: Segment[],
   emittedRays: Set<string>,
-  routing: FigureRouting,
 ): void {
   const { ray1, ray2, result } = pair
   const key1 = `${ray1.edgeIndex}-${ray1.side}`
   const key2 = `${ray2.edgeIndex}-${ray2.side}`
 
-  // Routing gate. `auto` and `centroid` use centroid V on convex polygons
-  // (concave polygons fall back to edge-slide since the centroid may lie
-  // outside the polygon). `edge` always uses the original edge-slide.
-  // The same-edge guard still applies on concave polygons regardless of
-  // mode — cross-polygon cuts are never desired.
-  const isConvex = isConvexPolygon(polyVertices)
-  const useCentroidV = routing !== 'edge' && isConvex
+  // Convex polygons route through the centre (centroid V); concave polygons
+  // fall back to the edge-slide below since the centroid may lie outside the
+  // polygon. The same-edge guard still applies to the edge-slide regardless —
+  // cross-polygon cuts are never desired.
+  const useCentroidV = isConvexPolygon(polyVertices)
 
   // Asymmetric pair (one ray's meeting is behind its origin) — e.g. the
   // Tetrakis Square right-triangle's 45° vertices at θ ≥ 46°, where one
@@ -205,39 +273,8 @@ function emitStarArms(
     const forwardKey = result.t1 > EPSILON ? key1 : key2
     const backKey = result.t1 > EPSILON ? key2 : key1
 
-    // Centroid-routed V (2026-05-22, Direction 3): on convex polygons,
-    // route a V through the polygon centre instead of clipping the forward
-    // ray to the boundary and sliding along an edge. Stays interior, fills
-    // the figure, avoids the "running along the edge" artifact reported on
-    // 2026-05-21. Honoured when `routing` is `auto` or `centroid`; the
-    // `edge` mode skips this branch and falls through to the original
-    // edge-slide path below (re-introduces the slide artifact but never
-    // drops a ray pair).
     if (useCentroidV) {
-      segments.push({
-        from: forwardRay.origin,
-        to: polygonCenter,
-        edgeMidpoint: forwardRay.origin,
-        polygonCenter,
-        polygonSides,
-        polygonId,
-        tileTypeId,
-        kind: 'star-arm',
-        side: forwardRay.side,
-      })
-      segments.push({
-        from: backRay.origin,
-        to: polygonCenter,
-        edgeMidpoint: backRay.origin,
-        polygonCenter,
-        polygonSides,
-        polygonId,
-        tileTypeId,
-        kind: 'star-arm',
-        side: backRay.side,
-      })
-      emittedRays.add(forwardKey)
-      emittedRays.add(backKey)
+      pushCentroidPair(segments, ctx, emittedRays, forwardRay, forwardKey, backRay, backKey)
       return
     }
 
@@ -250,17 +287,7 @@ function emitStarArms(
     const armLen = dist(forwardRay.origin, clip)
     if (armLen < EPSILON) return
 
-    segments.push({
-      from: forwardRay.origin,
-      to: clip,
-      edgeMidpoint: forwardRay.origin,
-      polygonCenter,
-      polygonSides,
-      polygonId,
-      tileTypeId,
-      kind: 'star-arm',
-      side: forwardRay.side,
-    })
+    pushSegment(segments, ctx, forwardRay.origin, clip, forwardRay.origin, forwardRay.side)
     // Same-edge slide guard: the slide is only valid when it runs along
     // a single polygon edge — i.e. the boundary clip and the back ray's
     // origin both lie on the same edge. On concave polygons the forward
@@ -272,53 +299,18 @@ function emitStarArms(
       emittedRays.add(forwardKey)
       return
     }
-    segments.push({
-      from: clip,
-      to: backRay.origin,
-      edgeMidpoint: forwardRay.origin,
-      polygonCenter,
-      polygonSides,
-      polygonId,
-      tileTypeId,
-      kind: 'star-arm',
-      side: forwardRay.side,
-    })
+    pushSegment(segments, ctx, clip, backRay.origin, forwardRay.origin, forwardRay.side)
     emittedRays.add(forwardKey)
     emittedRays.add(backKey)
     return
   }
 
   if (autoLineLength && !pointInPolygon(result.point, polyVertices)) {
-    // Edge-slide mode: star tip is outside the polygon.
-    // Centroid-routed V (mirrors the asymmetric branch): convex polygons
-    // route ray1.origin → centre and ray2.origin → centre instead of
-    // clipping + sliding along the boundary. Skipped when `routing ===
-    // 'edge'` so the user can opt into the original slide behaviour.
+    // Star tip is outside the polygon. Centroid-routed V (mirrors the
+    // asymmetric branch): convex polygons route ray1.origin → centre and
+    // ray2.origin → centre instead of clipping + sliding along the boundary.
     if (useCentroidV) {
-      segments.push({
-        from: ray1.origin,
-        to: polygonCenter,
-        edgeMidpoint: ray1.origin,
-        polygonCenter,
-        polygonSides,
-        polygonId,
-        tileTypeId,
-        kind: 'star-arm',
-        side: ray1.side,
-      })
-      segments.push({
-        from: ray2.origin,
-        to: polygonCenter,
-        edgeMidpoint: ray2.origin,
-        polygonCenter,
-        polygonSides,
-        polygonId,
-        tileTypeId,
-        kind: 'star-arm',
-        side: ray2.side,
-      })
-      emittedRays.add(key1)
-      emittedRays.add(key2)
+      pushCentroidPair(segments, ctx, emittedRays, ray1, key1, ray2, key2)
       return
     }
 
@@ -337,17 +329,7 @@ function emitStarArms(
     const shortKey = longIsR1 ? key2 : key1
 
     // Arm: long ray's straight portion from its origin to the boundary.
-    segments.push({
-      from: longRay.origin,
-      to: longClipRes.point,
-      edgeMidpoint: longRay.origin,
-      polygonCenter,
-      polygonSides,
-      polygonId,
-      tileTypeId,
-      kind: 'star-arm',
-      side: longRay.side,
-    })
+    pushSegment(segments, ctx, longRay.origin, longClipRes.point, longRay.origin, longRay.side)
     // Same-edge slide guard: only slide when the long ray's clip lands
     // on the short ray's edge — otherwise the slide would cut across
     // the polygon interior (concave polygon with reflex notch). When
@@ -358,17 +340,7 @@ function emitStarArms(
       return
     }
     // Slide: along the shared exit edge to the suppressed ray's origin.
-    segments.push({
-      from: longClipRes.point,
-      to: shortRay.origin,
-      edgeMidpoint: longRay.origin,
-      polygonCenter,
-      polygonSides,
-      polygonId,
-      tileTypeId,
-      kind: 'star-arm',
-      side: longRay.side,
-    })
+    pushSegment(segments, ctx, longClipRes.point, shortRay.origin, longRay.origin, longRay.side)
     // Both rays consumed — the slide already lands at the short ray's
     // origin, so don't let the per-ray fallback redundantly emit a
     // (typically short) Kaplan-trim segment for the short ray on top.
@@ -390,28 +362,8 @@ function emitStarArms(
         y: ray2.origin.y + ray2.dir.y * lineLength * inradius,
       }
 
-  segments.push({
-    from: ray1.origin,
-    to: clipSegmentToPolygon(ray1.origin, to1Natural, polyVertices, ray1.edgeIndex).point,
-    edgeMidpoint: ray1.origin,
-    polygonCenter,
-    polygonSides,
-    polygonId,
-    tileTypeId,
-    kind: 'star-arm',
-    side: ray1.side,
-  })
-  segments.push({
-    from: ray2.origin,
-    to: clipSegmentToPolygon(ray2.origin, to2Natural, polyVertices, ray2.edgeIndex).point,
-    edgeMidpoint: ray2.origin,
-    polygonCenter,
-    polygonSides,
-    polygonId,
-    tileTypeId,
-    kind: 'star-arm',
-    side: ray2.side,
-  })
+  pushSegment(segments, ctx, ray1.origin, clipSegmentToPolygon(ray1.origin, to1Natural, polyVertices, ray1.edgeIndex).point, ray1.origin, ray1.side)
+  pushSegment(segments, ctx, ray2.origin, clipSegmentToPolygon(ray2.origin, to2Natural, polyVertices, ray2.edgeIndex).point, ray2.origin, ray2.side)
   emittedRays.add(key1)
   emittedRays.add(key2)
 }
@@ -439,20 +391,21 @@ export function pairVertexAtEdge(
 ): { ray1: VertexRay; ray2: VertexRay; result: IntersectResult } | null {
   const rA1 = vertexRays[vIdx1 * 2 + 1]
   const rA2 = vertexRays[vIdx2 * 2]
-  const resA = rayRayIntersect(rA1.origin, rA1.dir, rA2.origin, rA2.dir)
-  const aValid = !!resA && resA.t1 > EPSILON && resA.t2 > EPSILON
-  const aInside = aValid && pointInPolygon(resA!.point, polyVertices)
+  const a = probePair(rA1, rA2, polyVertices)
 
   const rB1 = vertexRays[vIdx1 * 2]
   const rB2 = vertexRays[vIdx2 * 2 + 1]
-  const resB = rayRayIntersect(rB1.origin, rB1.dir, rB2.origin, rB2.dir)
-  const bValid = !!resB && resB.t1 > EPSILON && resB.t2 > EPSILON
-  const bInside = bValid && pointInPolygon(resB!.point, polyVertices)
+  const b = probePair(rB1, rB2, polyVertices)
 
-  if (aInside) return { ray1: rA1, ray2: rA2, result: resA! }
-  if (bInside) return { ray1: rB1, ray2: rB2, result: resB! }
-  if (aValid) return { ray1: rA1, ray2: rA2, result: resA! }
-  if (bValid) return { ray1: rB1, ray2: rB2, result: resB! }
+  const cases: { cond: boolean; ray1: VertexRay; ray2: VertexRay; result: IntersectResult | null }[] = [
+    { cond: a.inside, ray1: rA1, ray2: rA2, result: a.result },
+    { cond: b.inside, ray1: rB1, ray2: rB2, result: b.result },
+    { cond: a.valid, ray1: rA1, ray2: rA2, result: a.result },
+    { cond: b.valid, ray1: rB1, ray2: rB2, result: b.result },
+  ]
+  for (const c of cases) {
+    if (c.cond) return { ray1: c.ray1, ray2: c.ray2, result: c.result! }
+  }
   return null
 }
 
@@ -476,6 +429,7 @@ export function emitVertexArms(
   segments: Segment[],
 ): void {
   const { ray1, ray2, result } = pair
+  const ctx: PolyCtx = { polygonId, tileTypeId, polygonCenter, polygonSides, kind: 'vertex-line' }
 
   const to1Natural = autoLineLength
     ? result.point
@@ -492,28 +446,8 @@ export function emitVertexArms(
 
   // Vertex arms start at a polygon vertex (incident to two edges); t1 > EPSILON
   // alone rejects the trivial self-intersection so no skipEdgeIdx is needed.
-  segments.push({
-    from: ray1.origin,
-    to: clipSegmentToPolygon(ray1.origin, to1Natural, polyVertices, -1).point,
-    edgeMidpoint: edgeMid,
-    polygonCenter,
-    polygonSides,
-    polygonId,
-    tileTypeId,
-    kind: 'vertex-line',
-    side: ray1.side,
-  })
-  segments.push({
-    from: ray2.origin,
-    to: clipSegmentToPolygon(ray2.origin, to2Natural, polyVertices, -1).point,
-    edgeMidpoint: edgeMid,
-    polygonCenter,
-    polygonSides,
-    polygonId,
-    tileTypeId,
-    kind: 'vertex-line',
-    side: ray2.side,
-  })
+  pushSegment(segments, ctx, ray1.origin, clipSegmentToPolygon(ray1.origin, to1Natural, polyVertices, -1).point, edgeMid, ray1.side)
+  pushSegment(segments, ctx, ray2.origin, clipSegmentToPolygon(ray2.origin, to2Natural, polyVertices, -1).point, edgeMid, ray2.side)
 }
 
 /**
@@ -545,7 +479,6 @@ export function dedupPolygonSegments(segments: Segment[], startIdx: number): voi
 
 export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
   const segments: Segment[] = []
-  const routing: FigureRouting = config.figureRouting ?? 'auto'
 
   for (const poly of polygons) {
     const fig = config.figures[poly.tileTypeId]
@@ -556,6 +489,7 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
     const rays = computeContactRays(poly, fig.contactAngle)
     const n = poly.sides
     const inradius = n > 0 ? dist(poly.center, rays[0].origin) : 0
+    const starCtx: PolyCtx = { polygonId: poly.id, tileTypeId: poly.tileTypeId, polygonCenter: poly.center, polygonSides: n, kind: 'star-arm' }
 
     const emittedRays = new Set<string>()
 
@@ -565,7 +499,7 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
       if (!pair) continue
 
       if (edgeEnabled) {
-        emitStarArms(pair, fig.autoLineLength, fig.lineLength, inradius, poly.id, poly.tileTypeId, poly.center, n, poly.vertices, segments, emittedRays, routing)
+        emitStarArms(pair, fig.autoLineLength, fig.lineLength, inradius, starCtx, poly.vertices, segments, emittedRays)
       }
     }
 
@@ -595,17 +529,7 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
         if (!endpoint) continue
         const len = dist(ray.origin, endpoint)
         if (len < minLen) continue
-        segments.push({
-          from: ray.origin,
-          to: endpoint,
-          edgeMidpoint: ray.origin,
-          polygonCenter: poly.center,
-          polygonSides: n,
-          polygonId: poly.id,
-          tileTypeId: poly.tileTypeId,
-          kind: 'star-arm',
-          side: ray.side,
-        })
+        pushSegment(segments, starCtx, ray.origin, endpoint, ray.origin, ray.side)
       }
     }
 

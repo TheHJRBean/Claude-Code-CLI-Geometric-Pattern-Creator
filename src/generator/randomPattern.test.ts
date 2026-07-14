@@ -47,11 +47,10 @@ describe('sampleRandomPattern invariants', () => {
       expect(config.tiling.scale).toBeGreaterThanOrEqual(t.scale.min)
       expect(config.tiling.scale).toBeLessThanOrEqual(t.scale.max)
 
-      // Frozen: neutral colour pair, no Frame, auto routing.
+      // Frozen: neutral colour pair, no Frame.
       expect(config.strand.color).toBe(GENERATOR_STRAND_COLOR)
       expect(config.strand.background).toBe(GENERATOR_BACKGROUND)
       expect(config.frame).toBeUndefined()
-      expect(config.figureRouting).toBe('auto')
 
       expect(config.strand.width).toBeGreaterThanOrEqual(t.strandWidth.min)
       expect(config.strand.width).toBeLessThanOrEqual(t.strandWidth.max)

@@ -199,7 +199,6 @@ export function sampleRandomPattern(seed: number): GeneratedPattern {
       weave: coin(rng, t.weaveProbability),
     },
     smoothTransitions: anyCurve ? coin(rng, t.smoothTransitionsProbability) : undefined,
-    figureRouting: 'auto',
   }
 
   return { seed, generatorVersion: GENERATOR_VERSION, config }

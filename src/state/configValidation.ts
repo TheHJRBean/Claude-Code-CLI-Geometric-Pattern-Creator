@@ -177,9 +177,6 @@ export function loadPatternConfig(raw: unknown): PatternConfig {
   if (typeof r.smoothTransitions === 'boolean') {
     out.smoothTransitions = r.smoothTransitions
   }
-  if (r.figureRouting === 'auto' || r.figureRouting === 'edge' || r.figureRouting === 'centroid') {
-    out.figureRouting = r.figureRouting
-  }
   if (r.editor !== undefined) {
     const editor = migrateEditorConfig(r.editor)
     if (!editor) {

@@ -366,41 +366,11 @@ describe('runPIC — full pipeline integration', () => {
     }
   })
 
-  // Regression: figureRouting === 'edge' bypasses the centroid V and runs
-  // the original Kaplan edge-slide. Floret θ=40° in auto-mode produces
-  // centroid endpoints at poly.center; in edge-mode it produces no
-  // centroid endpoints and instead emits a long forward arm clipped to
-  // the polygon boundary (~63 units on a 132-unit-diameter pentagon).
-  it('figureRouting=edge bypasses centroid V on floret θ=40°', () => {
-    const vp: Viewport = { x: -300, y: -300, width: 600, height: 600 }
-    const polys = generateTapratsTiling('floret-pentagonal', vp, 50)
-    const config: PatternConfig = {
-      ...DEFAULT_CONFIG,
-      tiling: { type: 'floret-pentagonal', scale: 50 },
-      figures: { '5': { type: 'star', lineLength: 1.0, autoLineLength: true, contactAngle: 40 } },
-      figureRouting: 'edge',
-    }
-    const segs = runPIC(polys, config)
-    const pentagons = polys.filter(p => p.sides === 5)
-    expect(pentagons.length).toBeGreaterThan(0)
-    for (const poly of pentagons) {
-      const polySegs = segs.filter(s => s.polygonId === poly.id && s.kind === 'star-arm')
-      const hasCentreEndpoint = polySegs.some(s =>
-        Math.hypot(s.to.x - poly.center.x, s.to.y - poly.center.y) < 1e-6,
-      )
-      expect(hasCentreEndpoint).toBe(false)
-      // Edge mode should produce a long forward arm (≥ 0.4 × diameter).
-      let diameter = 0
-      for (let i = 0; i < poly.vertices.length; i++) {
-        for (let j = i + 1; j < poly.vertices.length; j++) {
-          const d = Math.hypot(poly.vertices[i].x - poly.vertices[j].x, poly.vertices[i].y - poly.vertices[j].y)
-          if (d > diameter) diameter = d
-        }
-      }
-      const longestSeg = Math.max(
-        ...polySegs.map(s => Math.hypot(s.to.x - s.from.x, s.to.y - s.from.y)),
-      )
-      expect(longestSeg).toBeGreaterThan(diameter * 0.4)
-    }
-  })
+  // 2026-07-14 (rosette epic Step 5, ticket #24): the `figureRouting=edge`
+  // regression test that lived here was removed along with the `figureRouting`
+  // field itself — it asserted on the 'edge' routing mode, which no UI control
+  // ever exposed and no live config ever set (audit: 'auto'/'centroid' were
+  // behaviourally identical; only 'edge' differed, and nothing picked it).
+  // `emitStarArms`'s centroid-V-on-convex / edge-slide-on-concave split is
+  // unconditional now — see `pic/index.ts`.
 })

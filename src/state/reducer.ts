@@ -234,8 +234,6 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         curve => ({ ...curve, direction: action.payload.direction }))
     case 'SET_SMOOTH_TRANSITIONS':
       return { ...state, smoothTransitions: action.payload }
-    case 'SET_FIGURE_ROUTING':
-      return { ...state, figureRouting: action.payload }
     case 'LOAD_CONFIG': {
       // Clean up already-polluted saves on load: drop figure keys that
       // aren't tile types of the loaded tiling. No-op for Builder configs.

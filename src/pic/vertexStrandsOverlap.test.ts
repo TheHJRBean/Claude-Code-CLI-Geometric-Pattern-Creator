@@ -18,7 +18,7 @@ const vertexFigure: FigureConfig = {
   vertexLinesEnabled: true,
 }
 
-const config = { figures: { '4': vertexFigure }, figureRouting: 'auto' } as unknown as PatternConfig
+const config = { figures: { '4': vertexFigure } } as unknown as PatternConfig
 
 function square(id: string, cx: number, cy: number, h = 1): Polygon {
   return {

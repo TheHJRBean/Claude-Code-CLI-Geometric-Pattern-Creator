@@ -112,21 +112,14 @@ describe('loadPatternConfig — legacy rosette figures', () => {
 })
 
 describe('loadPatternConfig — optional passthrough fields', () => {
-  it('carries edgeAngles, smoothTransitions, figureRouting when valid', () => {
+  it('carries edgeAngles, smoothTransitions when valid', () => {
     const out = loadPatternConfig({
       ...minimalRaw(),
       edgeAngles: { '0': 30 },
       smoothTransitions: true,
-      figureRouting: 'centroid',
     })
     expect(out.edgeAngles).toEqual({ '0': 30 })
     expect(out.smoothTransitions).toBe(true)
-    expect(out.figureRouting).toBe('centroid')
-  })
-
-  it('drops an invalid figureRouting value', () => {
-    const out = loadPatternConfig({ ...minimalRaw(), figureRouting: 'diagonal' })
-    expect(out.figureRouting).toBeUndefined()
   })
 })
 

@@ -31,7 +31,6 @@ function seg(from: Segment['from'], to: Segment['to'], over: Partial<Segment> = 
 function configWith(curve: CurveConfig | undefined): PatternConfig {
   return {
     figures: { '4': { type: 'star', contactAngle: 60, lineLength: 1, autoLineLength: true, curve } },
-    figureRouting: 'auto',
   } as unknown as PatternConfig
 }
 

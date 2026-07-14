@@ -195,11 +195,9 @@ describe('top-level config mutations', () => {
     expect(s.strand.color).toBe('#1a1a2e') // preserved
   })
 
-  it('SET_SMOOTH_TRANSITIONS and SET_FIGURE_ROUTING set their flags', () => {
-    let s = reducer(gallery(), { type: 'SET_SMOOTH_TRANSITIONS', payload: true } as Action)
+  it('SET_SMOOTH_TRANSITIONS sets the flag', () => {
+    const s = reducer(gallery(), { type: 'SET_SMOOTH_TRANSITIONS', payload: true } as Action)
     expect(s.smoothTransitions).toBe(true)
-    s = reducer(s, { type: 'SET_FIGURE_ROUTING', payload: 'centroid' } as Action)
-    expect(s.figureRouting).toBe('centroid')
   })
 })
 

@@ -262,9 +262,9 @@ export function usePattern(
   // `baseSegments` is the PIC over the unstamped Patch only; the Composition
   // and neighbour-ghost paths still run their own viewport-dependent PIC.
   // Re-keyed (19.4 snag #1) on the geometry sub-fields + runPIC's full config
-  // read-set (`figures` + `figureRouting` — verified) instead of the whole
-  // `config`, so Decoration paints (which only touch `editor.decoration`) no
-  // longer re-run PIC. The reducer's paint actions preserve the `cells` ref.
+  // read-set (`figures` — verified) instead of the whole `config`, so
+  // Decoration paints (which only touch `editor.decoration`) no longer
+  // re-run PIC. The reducer's paint actions preserve the `cells` ref.
   // ⚠ Contract: the returned `patch` is a snapshot from the last GEOMETRY
   // change — its `decoration` / `frame` may be stale. Consumers may read
   // geometry fields off it (values match the deps), but must read live
@@ -288,7 +288,7 @@ export function usePattern(
     // swap removed it only ever changes alongside `cells` (updateCell re-aims
     // it as it mutates), and re-keying on it made every selection click re-run
     // the full PIC.
-  }, [ed?.cells, ed?.edgeLength, ed?.configuration, ed?.alternateOrientation, config.figures, config.figureRouting])
+  }, [ed?.cells, ed?.edgeLength, ed?.configuration, ed?.alternateOrientation, config.figures])
 
   // A representative Void in the fundamental domain, enriched with its
   // centroid (= Lattice-orbit offset, since reps live in the origin stamp's
@@ -487,9 +487,9 @@ export function usePattern(
   // vertex-line fields. Paints now reuse the field refs, so StrandLayer's
   // strand/weave memos hold. Reads live `config.editor` for patch geometry
   // (equal to the editorBase snapshot whenever geometry changed — see the
-  // editorBase contract); `figures`/`figureRouting` (runPIC + eligibility
-  // read-set) are covered by the editorBase dep; the reducer's paint actions
-  // preserve the `frame` ref.
+  // editorBase contract); `figures` (runPIC + eligibility read-set) is
+  // covered by the editorBase dep; the reducer's paint actions preserve the
+  // `frame` ref.
   const stampedField = useMemo(() => {
     if (!ed || !editorBase || !editorStrandMode) return null
     const patch = ed

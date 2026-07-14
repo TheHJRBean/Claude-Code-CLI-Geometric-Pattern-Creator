@@ -23,7 +23,6 @@ function presetConfig(type: string, scale = 100): PatternConfig {
     figures: (TILINGS[type]?.defaultConfig?.figures ?? {}) as PatternConfig['figures'],
     strand: { width: 3, color: '#8b1e3f', background: '#f5f0e8', lineStyle: 'double' },
     smoothTransitions: true,
-    figureRouting: 'centroid',
   }
 }
 
@@ -42,13 +41,12 @@ describe('convertPresetToEditorConfig — tier-1 table', () => {
     expect(loaded!.presetId).toBe(type)
   })
 
-  it.each(TIER1)('%s carries figure recipes, strand style and routing over', (type) => {
+  it.each(TIER1)('%s carries figure recipes and strand style over', (type) => {
     const src = presetConfig(type)
     const out = convertPresetToEditorConfig(src)!
     expect(out.figures).toEqual(src.figures)
     expect(out.strand).toEqual(src.strand)
     expect(out.smoothTransitions).toBe(true)
-    expect(out.figureRouting).toBe('centroid')
   })
 
   it('multi-cell presets keep their Configuration id', () => {

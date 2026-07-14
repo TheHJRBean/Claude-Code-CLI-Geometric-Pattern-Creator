@@ -24,6 +24,10 @@ _Avoid_: Studio, Rate mode, randomizer; "suggest mode" (that's the future ML arc
 The current tool inside the Lab — the tessellation-authoring surface. In code this lives under the `Editor` namespace (`src/editor/`, `EditorPatch`, `EditorTile`…). The visible label users see in the Lab is "Builder".
 _Avoid_: tessellation editor, patch editor; in code, keep the existing `Editor` prefix for now
 
+**Presets shelf**:
+The Lab-sidebar section (above My Tessellations) holding one read-only card per shipped catalogue tiling (`TILINGS`) — since the convergence flip this is where presets are *picked*; the Gallery only browses saves. Clicking a card mints a fresh working config: **tier-1** presets (every Archimedean entry, incl. David's and Kepler's Star) convert to a fully editable **Patch**; **tier-3** presets (`rosette-patch` — the Laves/rosette tilings and Archimedes' Star) load the legacy config and are badged **View only** (tunable θ/strands, no Patch editing) pending the irregular-tile Patch encoder. Code: `editor/presetShelf.ts` + `PresetShelfPanel.tsx` (ADR-0006).
+_Avoid_: "Gallery preset" / "pick in the Gallery" (pre-flip language — presets live on the shelf; code identifiers keep the legacy `preset` naming); catalogue/template (casual ok, the canonical noun is **preset**)
+
 **Phase** _(Builder concept)_:
 A stage of the build workflow inside the Builder. The canonical sequence is **Design → Composition → Decoration**. Only Design and Composition are live today; Decoration is a reserved Phase name — when it ships it slots after Composition. (Framing was once a reserved Phase here; it has been demoted to a persistent **Frame** overlay that spans both live phases — see ADR-0003 amendment.) The word "phase" carries the *sequence* of authoring even though the user can move between live phases freely.
 _Avoid_: mode, tab, view (the Builder may have modes within a phase, but a phase is the higher-level stage)
@@ -35,7 +39,7 @@ A Shape-type Frame also acts as a **completion boundary**, but with no bespoke o
 _Avoid_: crop, mask, clip, window (those are mechanisms or metaphors, not the noun); "Tiling frame" / "Shape frame" (rejected — one noun, Frame, with a type); bare "node" (use **Frame node** for the seed-spaced division points); "Framing phase" (the Frame is a persistent overlay, not a Phase)
 
 **Decoration** _(Phase, reserved)_:
-Final Phase where the user assigns line colours, gap fills, and reintroduced strand weaving. Not yet implemented — placeholder name only. The future **Fill** vocabulary lives here (colour-fill of gaps), which is why the Design-phase operation is called **Complete**, not Fill. **Builder-only**: Decoration is the third Builder Phase and its data lives on `editor.decoration`. The **Gallery** is *not* decorated — it keeps the single global **StrandStyle** (`PatternConfig.strand`) as its only "look" control. (This resolves the older idea-memo framing of Decoration as a universal Gallery+Builder finishing stage — rejected; it is a Builder Phase.) Its two Stage-1 targets are **Strand colour** and **Void Fill**, each with an independent **Grouping scope**. Decoration is **style-only**: strand *geometry* (contact angle, line length, curve, **Figure recipe**) is **frozen** here — those edits live in **Composition**. Only colour changes; **Voids** stay stable (their congruent signatures are the keys that **Fill** colours attach to, so geometry must not move under them). To reshape a strand, **phase-switch** back to Composition; re-entering Decoration re-extracts Voids and colours persist for surviving signatures. A **Frame** is the *preferred* bound (it gives a clean exportable artifact) but is **not required** — absent a Frame, the **Void** arrangement is computed over the current viewport (the identity-keyed colours stay stable as you pan). This relaxes ADR-0003's "Decoration needs the Frame as its region" — see the ADR-0003 amendment.
+Final Phase where the user assigns line colours, gap fills, and reintroduced strand weaving. Not yet implemented — placeholder name only. The future **Fill** vocabulary lives here (colour-fill of gaps), which is why the Design-phase operation is called **Complete**, not Fill. **Builder-only**: Decoration is the third Builder Phase and its data lives on `editor.decoration`. Preset-path / legacy configs are *not* decorated — they keep the single global **StrandStyle** (`PatternConfig.strand`) as their only "look" control (the Gallery browser just renders whatever a save carries). (This resolves the older idea-memo framing of Decoration as a universal Gallery+Builder finishing stage — rejected; it is a Builder Phase.) Its two Stage-1 targets are **Strand colour** and **Void Fill**, each with an independent **Grouping scope**. Decoration is **style-only**: strand *geometry* (contact angle, line length, curve, **Figure recipe**) is **frozen** here — those edits live in **Composition**. Only colour changes; **Voids** stay stable (their congruent signatures are the keys that **Fill** colours attach to, so geometry must not move under them). To reshape a strand, **phase-switch** back to Composition; re-entering Decoration re-extracts Voids and colours persist for surviving signatures. A **Frame** is the *preferred* bound (it gives a clean exportable artifact) but is **not required** — absent a Frame, the **Void** arrangement is computed over the current viewport (the identity-keyed colours stay stable as you pan). This relaxes ADR-0003's "Decoration needs the Frame as its region" — see the ADR-0003 amendment.
 _Avoid_: "finishing stage" / "post-generation pipeline" as if it wraps the Gallery — Decoration is scoped to the Builder
 
 **Phase-switch**:
@@ -54,7 +58,7 @@ _Avoid_: strand editor, strand mode, preview mode, render mode
 
 **Tiling**:
 The polygon coverage of the plane — bare polygons, no PIC strands. The geometric substrate that PIC runs over. Produced in two ways:
-- In the Gallery: by the BFS generator over an Archimedean **Configuration** seed.
+- On the **preset path**: by the BFS generator over an Archimedean **Configuration** seed, or by a Taprats data block for `rosette-patch` presets. This path serves the Lab's **Presets shelf** (view-only tiers), legacy saves rendered in the Gallery viewer, and the **Generator** — the Gallery itself no longer generates anything.
 - In the Builder: by stamping a **Patch** across the canvas via a **Lattice**.
 
 Distinct from **Composition** (Tiling + Strands rendered).
@@ -65,7 +69,7 @@ The translation basis that stamps a **Patch** across the canvas to produce the *
 _Avoid_: grid, tiling vectors, repeat basis
 
 **Archimedean**:
-The family of edge-to-edge tilings whose vertices are all transitive (same vertex configuration at every vertex). The current Gallery generator handles this family. Literature term — keep as-is.
+The family of edge-to-edge tilings whose vertices are all transitive (same vertex configuration at every vertex). The preset BFS generator (`tilings/archimedean.ts`) handles this family; non-Archimedean presets (`category: 'rosette-patch'`) go through Taprats data blocks instead. Literature term — keep as-is.
 
 ### Pattern — PIC output vocabulary
 
@@ -126,8 +130,8 @@ The rendered tiled output — the **Patch** repeated across the canvas, seen in 
 _Avoid_: tiling output, layout result
 
 **Configuration**:
-The named tessellation family, identified by its vertex notation (e.g. `"4.8.8"`, `"3.6.3.6"`, `"6.6.6"`). The literature alias is **vertex configuration** — use that when precision matters. Both the **Gallery** and the **Builder** reference Configurations:
-- In the Gallery, a Configuration drives the BFS polygon generator to tile the plane.
+The named tessellation family, identified by its vertex notation (e.g. `"4.8.8"`, `"3.6.3.6"`, `"6.6.6"`). The literature alias is **vertex configuration** — use that when precision matters. Both the **preset path** and the **Builder** reference Configurations:
+- On the preset path (Presets shelf / legacy saves / Generator), a Configuration drives the BFS polygon generator to tile the plane.
 - In the Builder, a Configuration identifies a multi-cell **Patch**'s layout (e.g. octagon + square for `"4.8.8"`).
 
 Configuration is stored only on multi-cell Builder Patches; single-cell Patches have no Configuration field (their Cell shape implicitly identifies the tessellation).
@@ -160,7 +164,7 @@ _Avoid_: origin (reserved for the geometric `(0,0)` point), provenance
 ## Relationships
 
 - A **Composition** is a **Tiling** with **Strands** rendered on top, seen in the Builder's Composition Phase
-- A **Tiling** is a **Patch** stamped across the canvas via a **Lattice** (Builder), or generated from a **Configuration** by BFS (Gallery)
+- A **Tiling** is a **Patch** stamped across the canvas via a **Lattice** (Builder), or generated from a **Configuration** by BFS / a Taprats block (preset path)
 - A **Patch** contains one or more **Cells**; multi-cell Patches also carry a **Configuration**
 - A **Cell** has a **Boundary** (its closed perimeter) and carries zero or more **Tiles**
 - A **Tile** has a `source` of `'seed'`, `'placed'`, or `'completed'`

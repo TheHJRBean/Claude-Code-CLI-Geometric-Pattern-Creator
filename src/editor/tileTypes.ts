@@ -41,6 +41,13 @@ export function editorTileTypes(patch: EditorPatch): TileTypeInfo[] {
     const id = tileTypeIdFor(tile)
     if (!seen.has(id)) seen.set(id, tile)
   }
+  // Guide-scoped world-space completion Tiles (slice 3) carry their own tile
+  // types too — same reasoning as frame completions: seed a Figure recipe and
+  // give the Composition panel a row to edit it.
+  for (const tile of patch.guideTiles ?? []) {
+    const id = tileTypeIdFor(tile)
+    if (!seen.has(id)) seen.set(id, tile)
+  }
   // Build the irregular rank map in first-seen order.
   const irregularRank = new Map<string, number>()
   for (const id of seen.keys()) {

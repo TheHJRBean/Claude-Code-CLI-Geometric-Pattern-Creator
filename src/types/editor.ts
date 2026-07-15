@@ -515,6 +515,14 @@ export interface EditorPatch {
    */
   guides?: EditorGuide[]
   /**
+   * Guides slice 3 — Tiles minted from a Complete / Place built off a
+   * **non-stamping** (world-space) Guide Anchor. Stored in world coords like
+   * `frame.completedTiles`: they render once and **never repeat under the
+   * Lattice** (a stamping-Guide Anchor produces an ordinary Cell Tile instead).
+   * Optional + additive; absent ⇒ none.
+   */
+  guideTiles?: EditorTile[]
+  /**
    * Multi-cell "Alternate orientation": when true, the whole Patch is rotated
    * *rigidly* by a Configuration-specific angle (`compositionAlternateAngle`) —
    * every Cell, the lattice basis, the boundary outlines, and the Design-Phase

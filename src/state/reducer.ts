@@ -932,7 +932,11 @@ function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[], force
 function seedFigures(state: PatternConfig): PatternConfig {
   if (!state.editor) return state
   void allCells // imported for parity with the v2 reducer; the walker lives inside seedFiguresForEditor now
-  const figures = seedFiguresForEditor(state.figures, state.editor, state.editor.frame?.completedTiles ?? [])
+  const extraTiles = [
+    ...(state.editor.frame?.completedTiles ?? []),
+    ...(state.editor.guideTiles ?? []),
+  ]
+  const figures = seedFiguresForEditor(state.figures, state.editor, extraTiles)
   return figures === state.figures ? state : { ...state, figures }
 }
 

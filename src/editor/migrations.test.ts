@@ -24,6 +24,37 @@ function v3Patch(extra: Record<string, unknown> = {}): Record<string, unknown> {
   }
 }
 
+describe('Guides slice 3 — guideTiles migration', () => {
+  it('a patch with no guideTiles loads with the field absent', () => {
+    const out = migrateEditorConfig(v3Patch())
+    expect(out).not.toBeNull()
+    expect(out!.guideTiles).toBeUndefined()
+  })
+
+  it('round-trips valid world-space Guide Tiles (regular + irregular)', () => {
+    const out = migrateEditorConfig(v3Patch({
+      guideTiles: [
+        { id: 'g0', kind: 'regular', sides: 6, center: { x: 40, y: 20 }, edgeLength: 60, rotation: 0.3, source: 'completed' },
+        { id: 'g1', kind: 'irregular', vertices: [{ x: 0, y: 0 }, { x: 50, y: 0 }, { x: 25, y: 40 }], source: 'completed' },
+      ],
+    }))
+    expect(out!.guideTiles).toHaveLength(2)
+    expect(out!.guideTiles![0].kind).toBe('regular')
+    expect(out!.guideTiles![1].kind).toBe('irregular')
+  })
+
+  it('drops malformed Guide Tiles, keeping the valid ones', () => {
+    const out = migrateEditorConfig(v3Patch({
+      guideTiles: [
+        { id: 'ok', kind: 'regular', sides: 4, center: { x: 0, y: 0 }, edgeLength: 30, rotation: 0, source: 'completed' },
+        { kind: 'nonsense' },
+        null,
+      ],
+    }))
+    expect(out!.guideTiles).toHaveLength(1)
+  })
+})
+
 describe('Step 19 — decoration migration', () => {
   it('a v3 patch with no decoration loads with decoration undefined', () => {
     const out = migrateEditorConfig(v3Patch())

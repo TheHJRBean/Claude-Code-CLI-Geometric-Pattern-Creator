@@ -175,6 +175,9 @@ export function periodicFastPathEligible(
   return periodicityEnabled()
     && !editorFrame
     && !showBoundaryLattice
+    // World-space Guide-scoped Tiles don't repeat under the Lattice, so the
+    // per-domain <use> tiling would either drop or falsely repeat them.
+    && !(config.editor?.guideTiles?.length)
     && !Object.values(config.figures).some(f => f?.vertexLinesEnabled)
     && stamps.every(s => s.rotation === 0)
 }
@@ -548,6 +551,12 @@ export function usePattern(
         }
       }
     }
+    // Guide-scoped world-space Tiles (slice 3) render once — added after the
+    // stamped field and never repeated, so Strands flow through them to their
+    // own tile-type Figure recipe just like frame completions.
+    if (patch.guideTiles?.length) {
+      picPolygons = [...picPolygons, ...tilesToPolygons(patch.guideTiles)]
+    }
     const tPic = performance.now()
     const segments = runPIC(picPolygons, config)
     recordPerf({
@@ -737,18 +746,25 @@ export function usePattern(
             }
           }
         }
+        // Guide-scoped world-space Tiles (slice 3) join the live Patch's own
+        // Tiles: rendered in the Tile layer and fed to PIC so their Strands
+        // emerge immediately after a free-standing Complete. They don't ghost
+        // (world-space one-offs) and force a fresh PIC run since the base run
+        // is Guide-tile-free.
+        const guidePolys = patch.guideTiles?.length ? tilesToPolygons(patch.guideTiles) : []
+        const localPolys = guidePolys.length ? [...basePolys, ...guidePolys] : basePolys
         // Strands flow across stamp boundaries when the user opts in by
         // including ghost polygons in the PIC input. Otherwise PIC runs on
         // the centre patch only and strands stop at the boundary.
         const ghostsInPic = !!(editorNeighbourPreview && editorNeighbourStrands && ghostPolygons)
         const picInput = ghostsInPic && ghostPolygons
-          ? [...basePolys, ...ghostPolygons]
-          : basePolys
-        // Reuse the viewport-independent base PIC run when no ghosts feed it
-        // (Finding 2). Only the neighbour-ghost case needs a fresh, viewport-
-        // dependent PIC over the stamped ghost ring.
+          ? [...localPolys, ...ghostPolygons]
+          : localPolys
+        // Reuse the viewport-independent base PIC run when no ghosts / Guide
+        // Tiles feed it (Finding 2). The ghost or Guide-tile case needs a fresh
+        // PIC over the augmented input.
         const tPic = performance.now()
-        const segments = ghostsInPic ? runPIC(picInput, config) : editorBase.baseSegments
+        const segments = (ghostsInPic || guidePolys.length) ? runPIC(picInput, config) : editorBase.baseSegments
         recordPerf({
           phase: editorNeighbourPreview ? 'design+neighbours' : 'design',
           polygons: basePolys.length,
@@ -762,7 +778,7 @@ export function usePattern(
           ? new Set(ghostPolygons.map(p => p.id))
           : undefined
         return {
-          polygons: basePolys,
+          polygons: localPolys,
           segments,
           boundaryOutlines,
           ghostPolygons,

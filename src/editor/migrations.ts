@@ -459,6 +459,14 @@ function migrateV3(r: Record<string, unknown>): EditorConfig | null {
   if (decoration) out.decoration = decoration
   const guides = migrateGuides(r.guides)
   if (guides) out.guides = guides
+  if (Array.isArray(r.guideTiles)) {
+    const tiles: EditorTile[] = []
+    for (const t of r.guideTiles) {
+      const tile = migrateTile(t)
+      if (tile) tiles.push(tile)
+    }
+    if (tiles.length) out.guideTiles = tiles
+  }
   // Multi-cell alternate moved from per-Cell `alternateBoundary` to the
   // Patch-level `alternateOrientation` (rigid whole-Patch rotation). Convert
   // legacy multi-cell patches that still carry the per-Cell flag, and clear it

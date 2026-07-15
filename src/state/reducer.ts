@@ -52,6 +52,7 @@ import { tileVertices } from '../editor/exposedEdges'
 import type { LatticeStamp } from '../editor/lattice'
 import { centroid, pointsEqual } from '../utils/math'
 import { EDITOR_EPS } from '../editor/exposedEdges'
+import { collectGuideAnchors, type GuideAnchor } from '../editor/guides'
 
 const FALLBACK_FIGURE: FigureConfig = { type: 'star', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
 
@@ -853,13 +854,32 @@ function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[], force
   if (!state.editor) return state
   const patch = state.editor
   const active = activeCell(patch)
-  if (!picks.every(p => isPatchSelectableVertex(patch, p, true))) return state
-  // Non-floating rule: at least one pick must be on a vertex from the user's
-  // actual Patch (no neighbour stamps). Rejects polygons built entirely on
-  // ghost-stamp vertices.
-  if (!picks.some(p => isPatchSelectableVertex(patch, p, false))) return state
-
   const patchRot = patchRotation(patch)
+
+  // Guide Anchors (slice 3) join the pickable set. A pick is legitimate if it
+  // matches a Cell / neighbour / Frame point (existing) OR a Guide Anchor.
+  const guideAnchors = collectGuideAnchors(patch, patchRot)
+  const guideAnchorAt = (p: Vec2): GuideAnchor | undefined =>
+    guideAnchors.find(a => pointsEqual(p, a.p, EDITOR_EPS))
+  if (!picks.every(p => isPatchSelectableVertex(patch, p, true) || guideAnchorAt(p))) return state
+  // Grounding rule (spec Decision 4 relaxes it): at least one pick must be a
+  // real Patch vertex OR a Guide Anchor — so free-standing Anchor-only Completes
+  // are allowed, while polygons built purely from neighbour ghosts / Frame
+  // nodes are still rejected.
+  if (!picks.some(p => isPatchSelectableVertex(patch, p, false) || guideAnchorAt(p))) return state
+
+  // World-space Guide completion: any pick sits on a **non-stamping** Guide
+  // Anchor that isn't also a real Cell vertex ⇒ the Tile is world-space and
+  // must not repeat under the Lattice. Stored on `patch.guideTiles` (the
+  // `frame.completedTiles` model). Stamping-Guide Anchors stay Patch-relative
+  // and fall through to the ordinary Cell path below.
+  const worldSpaceGuide = picks.some(p => {
+    const a = guideAnchorAt(p)
+    return a && !a.stamp && !isPatchSelectableVertex(patch, p, false)
+  })
+  if (worldSpaceGuide && !(patch.frame && picks.some(p => isSelectable(p, frameSelectablePoints(patch))))) {
+    return guideCompleteWorldSpace(state, picks, force)
+  }
 
   // Frame-scoped completion: if any pick is a Frame node, the completed Tile
   // sits at the frame edge in world space and must NOT repeat under the Lattice
@@ -900,10 +920,11 @@ function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[], force
   const userTiles = existingTilesInHostFrame(patch, active)
   for (let i = 0; i < syms.length; i++) {
     const transformed = localPicks.map(p => applySym(syms[i], p))
-    // Orbit image must also land on selectable vertices — drop silently for
-    // asymmetric setups where the orbit branch has no real pick targets.
+    // Orbit image must also land on selectable vertices (or Guide Anchors) —
+    // drop silently for asymmetric setups where the orbit branch has no real
+    // pick targets.
     const patchLocal = transformed.map(p => applyCellTransform(p, active, patchRot))
-    if (!patchLocal.every(p => isPatchSelectableVertex(patch, p, true))) continue
+    if (!patchLocal.every(p => isPatchSelectableVertex(patch, p, true) || guideAnchorAt(p))) continue
     const c = centroid(transformed)
     if (seenCentroids.some(q => pointsEqual(c, q, EDITOR_EPS))) continue
     seenCentroids.push(c)
@@ -921,6 +942,40 @@ function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[], force
   }
   if (placements.length === 0) return state
   return applyWrap(seedFigures(updateCell(state, undefined, _ => working)))
+}
+
+/**
+ * World-space Guide completion (slice 3, spec Decision 4). The picks include a
+ * non-stamping Guide Anchor, so the completed Tile lives in world coords and
+ * must not repeat under the Lattice — stored on `patch.guideTiles`, mirroring
+ * the frame-scoped completion path. Free-standing (Anchor-only, touching no
+ * existing Tile) is allowed. No symmetry orbit (world-space Guides draw as
+ * singles); overlap rides the flexible-placement `force` gate.
+ */
+function guideCompleteWorldSpace(state: PatternConfig, picks: Vec2[], force: boolean): PatternConfig {
+  if (!state.editor) return state
+  const patch = state.editor
+  const active = activeCell(patch)
+  const patchRot = patchRotation(patch)
+  // World-space vertex arrays of every existing Tile (all Cells) + prior
+  // world-space completions (frame + guide), for the centroid-inside check and
+  // the overlap guard.
+  const worldTiles: Vec2[][] = []
+  for (const cell of patch.cells) {
+    for (const t of cell.tiles) worldTiles.push(tileVertices(t).map(v => applyCellTransform(v, cell, patchRot)))
+  }
+  for (const ft of patch.frame?.completedTiles ?? []) worldTiles.push(tileVertices(ft))
+  for (const gt of patch.guideTiles ?? []) worldTiles.push(tileVertices(gt))
+  const probeCell: EditorCell = {
+    ...active,
+    tiles: worldTiles.map((vs, i): EditorTile => ({ id: `world-${i}`, kind: 'irregular', vertices: vs, source: 'completed' })),
+  }
+  const id = `guide-${(patch.guideTiles?.length ?? 0)}-${Date.now()}`
+  const tile = completeNGap(probeCell, picks, id, force)
+  if (!tile) return state
+  if (!force && overlapsExisting(tileVertices(tile), worldTiles)) return state
+  const guideTiles = [...(patch.guideTiles ?? []), tile]
+  return seedFigures({ ...state, editor: { ...patch, guideTiles } })
 }
 
 /**

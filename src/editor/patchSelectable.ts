@@ -9,6 +9,7 @@ import { ensureCCW } from './complete'
 import { validateNGapPolygon } from './completeN'
 import { overlapsExistingDetail, type OverlapDetail } from './tileOverlap'
 import { frameOutlinePolygon, computeFrameSections, frameNodePoints } from './frame'
+import { collectGuideAnchors, type GuideAnchor } from './guides'
 
 /**
  * Patch-frame helpers for Complete mode.
@@ -284,11 +285,39 @@ export function multiPickValidityLabel(v: MultiPickValidity): string | null {
  */
 export function validateMultiPick(patch: EditorPatch, picks: Vec2[]): MultiPickValidity {
   if (picks.length < 3) return { kind: 'too-few' }
-  if (!picks.every(p => isPatchSelectableVertex(patch, p, true))) return { kind: 'pick-not-selectable' }
-  if (!picks.some(p => isPatchSelectableVertex(patch, p, false))) return { kind: 'no-real-cell-pick' }
+  const patchRot = patchRotation(patch)
+  // Guide Anchors (slice 3) join the pickable + grounding sets (spec Decision 4
+  // relaxes grounding so free-standing Anchor-only Completes preview green).
+  const guideAnchors = collectGuideAnchors(patch, patchRot)
+  const guideAt = (p: Vec2): GuideAnchor | undefined =>
+    guideAnchors.find(a => pointsEqual(p, a.p, EDITOR_EPS))
+  if (!picks.every(p => isPatchSelectableVertex(patch, p, true) || guideAt(p))) return { kind: 'pick-not-selectable' }
+  if (!picks.some(p => isPatchSelectableVertex(patch, p, false) || guideAt(p))) return { kind: 'no-real-cell-pick' }
+
+  // World-space Guide completion (mirrors the reducer): a non-stamping Guide
+  // Anchor that isn't also a real Cell vertex ⇒ validate the polygon in world
+  // space against every existing world Tile, not Cell-local.
+  const worldSpaceGuide = picks.some(p => {
+    const a = guideAt(p)
+    return a && !a.stamp && !isPatchSelectableVertex(patch, p, false)
+  })
+  if (worldSpaceGuide && !(patch.frame && picks.some(p => isSelectable(p, frameSelectablePoints(patch))))) {
+    const worldTiles = worldTileVertexArrays(patch, patchRot)
+    const probe: EditorCell = {
+      ...(patch.cells.find(c => c.id === patch.activeCellId) ?? patch.cells[0]),
+      tiles: worldTiles.map((vs, i): EditorTile => ({ id: `world-${i}`, kind: 'irregular', vertices: vs, source: 'completed' })),
+    }
+    const ngap = validateNGapPolygon(picks, probe)
+    if (ngap.kind === 'too-few') return { kind: 'too-few' }
+    if (ngap.kind === 'duplicate-vertex') return { kind: 'duplicate-vertex' }
+    if (ngap.kind === 'self-intersecting') return { kind: 'self-intersecting' }
+    if (ngap.kind === 'inside-tile') return { kind: 'inside-tile' }
+    const detail = overlapsExistingDetail(ensureCCW([...picks]), worldTiles)
+    if (detail) return { kind: 'overlaps-existing', detail }
+    return { kind: 'valid' }
+  }
 
   const active = patch.cells.find(c => c.id === patch.activeCellId) ?? patch.cells[0]
-  const patchRot = patchRotation(patch)
   const localPicks = picks.map(p => inverseCellTransform(p, active, patchRot))
   const ngap = validateNGapPolygon(localPicks, active)
   if (ngap.kind === 'too-few') return { kind: 'too-few' }
@@ -302,4 +331,17 @@ export function validateMultiPick(patch: EditorPatch, picks: Vec2[]): MultiPickV
   if (detail) return { kind: 'overlaps-existing', detail }
 
   return { kind: 'valid' }
+}
+
+/** World-space vertex arrays of every existing Tile across all Cells, plus
+ *  prior world-space completions (frame + guide). Shared by the world-space
+ *  Guide-completion preview + overlap check. */
+function worldTileVertexArrays(patch: EditorPatch, patchRot: number): Vec2[][] {
+  const out: Vec2[][] = []
+  for (const cell of patch.cells) {
+    for (const t of cell.tiles) out.push(tileVertices(t).map(v => applyCellTransform(v, cell, patchRot)))
+  }
+  for (const ft of patch.frame?.completedTiles ?? []) out.push(tileVertices(ft))
+  for (const gt of patch.guideTiles ?? []) out.push(tileVertices(gt))
+  return out
 }

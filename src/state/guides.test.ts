@@ -65,6 +65,59 @@ describe('Guides — reducer actions (slice 1)', () => {
   })
 })
 
+describe('Guides — Complete on Anchors (slice 3)', () => {
+  // Three non-stamping Guide lines whose shared endpoints form an equilateral
+  // triangle far from the Seed Tile — a free-standing Anchor set that fits a
+  // regular 3-gon (so the minted Tile keys as type '3').
+  const P0 = { x: 200, y: 200 }
+  const P1 = { x: 300, y: 200 }
+  const APEX = { x: 250, y: 200 + 50 * Math.sqrt(3) }
+  const triangleGuides = (stamp = false): EditorGuideLine[] => [
+    { id: 'a', kind: 'line', start: P0, end: P1, stamp, extend: 'none', manualAnchors: [] },
+    { id: 'b', kind: 'line', start: P1, end: APEX, stamp, extend: 'none', manualAnchors: [] },
+    { id: 'c', kind: 'line', start: APEX, end: P0, stamp, extend: 'none', manualAnchors: [] },
+  ]
+  const triangle = [P0, P1, APEX]
+
+  const withGuides = (guides: EditorGuideLine[]): PatternConfig => {
+    let s = base()
+    for (const g of guides) s = reducer(s, { type: 'EDITOR_ADD_GUIDE', payload: { guide: g } })
+    return s
+  }
+
+  it('free-standing Complete on non-stamping Guide Anchors → world-space guideTiles (not a Cell Tile)', () => {
+    const s = withGuides(triangleGuides(false))
+    const cellTilesBefore = s.editor!.cells[0].tiles.length
+    const out = reducer(s, { type: 'EDITOR_COMPLETE_N_GAP', payload: { picks: triangle } })
+    expect(out.editor!.guideTiles).toHaveLength(1)
+    expect(out.editor!.cells[0].tiles).toHaveLength(cellTilesBefore) // Seed untouched
+    // A triangle fits regular, so it minted a regular 3-gon.
+    expect(out.editor!.guideTiles![0].kind).toBe('regular')
+  })
+
+  it('seeds a Figure recipe for the minted world-space Tile', () => {
+    const s = withGuides(triangleGuides(false))
+    const out = reducer(s, { type: 'EDITOR_COMPLETE_N_GAP', payload: { picks: triangle } })
+    // The 3-gon type key '3' now has a figure entry.
+    expect(out.figures['3']).toBeDefined()
+  })
+
+  it('Complete on stamping Guide Anchors → ordinary Cell Tile (repeats under the Lattice)', () => {
+    const s = withGuides(triangleGuides(true))
+    const before = s.editor!.cells[0].tiles.length
+    const out = reducer(s, { type: 'EDITOR_COMPLETE_N_GAP', payload: { picks: triangle } })
+    expect(out.editor!.cells[0].tiles.length).toBe(before + 1)
+    expect(out.editor!.guideTiles).toBeUndefined()
+  })
+
+  it('rejects a polygon built purely from neighbour ghosts (grounding still enforced)', () => {
+    // No guides, picks off in space with no real vertex / anchor → no-op.
+    const s = base()
+    const out = reducer(s, { type: 'EDITOR_COMPLETE_N_GAP', payload: { picks: triangle } })
+    expect(out).toBe(s)
+  })
+})
+
 describe('Guides — undo wiring', () => {
   it('all three guide actions are Design-mode undoable', () => {
     expect(DESIGN_MODE_ACTIONS.has('EDITOR_ADD_GUIDE')).toBe(true)

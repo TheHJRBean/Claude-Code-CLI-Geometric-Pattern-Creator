@@ -5,6 +5,24 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-15 (implementation) — ✅ GUIDES SLICE 2 SHIPPED (#27): Guide circles + divided Guide circles
+
+**Goal:** ticket #27, Guides slice 2 (spec decisions 5/6/7; `CONSTRUCTION_GUIDES_SPEC.md`, ADR-0008). Model: **Opus** per ticket. Built directly on the slice-1 seams.
+
+**Done (978 vitest green, tsc + `npm run build` clean):**
+- **Data** (`types/editor.ts`): `EditorGuideCircle` (`center` + scalar `radius` + optional `phase` = drawn-radius angle + optional `divisions` + stamp/tick/manual fields); `EditorGuide` is now `Line | Circle`. New `EditorGuidePatch` = union-friendly popup/drag patch. A **divided** circle = a circle with `divisions > 0` (one `kind`, not two).
+- **Geometry** (`editor/guides.ts`): `GuideTool` (`line|circle|divided-circle`), `DEFAULT_CIRCLE_DIVISIONS=6`, `createGuideCircle`, `guideCircleRadiusPoint/DivisionPoints/TickPoints/ManualPoints` (divisions = **2n** rim Anchors from `phase`; ticks **arc-spaced**, count = round(circ/spacing)); `guideAnchorPoints` + `guideIntersections` branch per kind (added **circle×line** + **circle×circle**, both respect line `extend`).
+- **Migrations**: `migrateGuide` now accepts `kind:'circle'` (`migrateGuideCircle`: needs finite centre + positive radius; rounds divisions; shared `sanitizeAnchorFractions`).
+- **Reducer**: `mergeGuide` re-pins `id`/`kind` per-kind so the union patch can't widen the discriminant. UPDATE_GUIDE payload → `EditorGuidePatch`.
+- **UI**: Construct toolbar gains a **Guide tool** selector (Line / Circle / Divided) in `DesignPanel` (Lab-level `constructTool` state, threaded via EditorDesignControls → Canvas). `GuidePopupOverlay` split into shared shell (stamp / ticks / delete / Accept-Cancel) + `LineControls` (extend + typed angle) / `CircleControls` (radius input, size presets ×√2 / ÷√2 / = edge / 2·edge, n-division). `EditorGuideLayer` renders circles (rim + hit-ring + division spokes/dots + arc ticks + centre/radius drag handles) and a circle draft preview; `onDragEndpoint`→`onDragHandle` (`start|end|center|radius`).
+- **Canvas**: draw gesture branches on `constructTool` (line = 2-click segment; circle/divided = centre then radius); tool-change abandons a half-drawn draft; radius-drag snaps to a point else angle-snaps its direction about the centre; popup anchors at a circle's north point.
+- **Tests** +34 (`editor/guides.test.ts`): circle create defaults, 2n divisions, arc-tick count, radius/manual points, circle anchor set, circle×line (incl. extend), circle×circle (overlap / disjoint / concentric), circle migration round-trip + validation.
+
+**⏳ BROWSER-VERIFY OWED:** (a) Guide tool selector appears in the Construct toolbar; (b) **Circle**: click centre then radius draws a circle; radius/centre snap to tile vertex/midpoint (ring marker); draft shows a dashed circle + radius line; (c) **Divided**: draws with 12 rim Anchors (dots + faint spokes); popup n-division changes → 2n dots; (d) popup circle controls — radius input + ×√2 / = edge presets resize live, Accept keeps / Cancel reverts; (e) drag centre translates, drag radius handle resizes **and** rotates (angle snaps); (f) intersection × glyphs appear at circle×line and circle×circle crossings; (g) arc ticks space along the rim, "Show ticks" toggles; (h) undo/redo across circle draw/edit/delete; (i) save/reload keeps circles; (j) Composition "Show guides" reveals circles; export strips them.
+
+**NEXT — slice 3, ticket #28 (Anchor → Place/Complete wiring). Model: Fable** (per ticket). Depends on #26 + #27 (both done); #27 was blocking #28 and #30. `gh issue view 28`. This is the payoff slice: Guide Anchors (intersections/ticks/manual/divisions) join the pickable set of Place + multi-point Complete (Frame-node precedent), incl. free-standing Complete on Guide Anchors alone (spec Decisions 3/4). Also owed from spec Decision 5: **Guide×Tile-edge** and **Guide×Cell-Boundary** intersection Anchors (slice 2 shipped Guide×Guide only). Manual-Anchor **creation** UI (click a Guide to drop an Anchor) also lands here — schema fields (`manualAnchors`) already ship on both kinds.
+
+---
 ### ▶ 2026-07-15 (implementation) — ✅ GUIDES SLICE 1 SHIPPED (#26): data model + Construct mode + Guide lines + per-Guide popup
 
 **Goal:** ticket #26, first Guides slice (spec `CONSTRUCTION_GUIDES_SPEC.md`, ADR-0008). Model: Fable per ticket.

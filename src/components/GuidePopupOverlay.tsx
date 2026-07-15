@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import type { EditorGuideLine, GuideExtend } from '../types/editor'
+import type { EditorGuide, EditorGuideCircle, EditorGuideLine, EditorGuidePatch, GuideExtend } from '../types/editor'
 import { guideLineAngleDeg, GUIDE_COLOUR_STAMP, GUIDE_COLOUR_STATIC } from '../editor/guides'
 
 /**
  * Per-Guide popup (spec Decision 10) — placement-picker-style floating
- * popover anchored over the selected Guide: stamp toggle, extend, tick
- * spacing, typed angle, Accept / Cancel, delete.
+ * popover anchored over the selected Guide. Shared controls (stamp, ticks,
+ * Accept / Cancel, delete) wrap a kind-specific block: lines get extend +
+ * typed angle; circles get radius + size presets + n-division (spec Decision
+ * 6/7).
  *
  * Edits dispatch immediately so the canvas previews live, but the popup
  * snapshots the Guide's editable fields at open: **Accept** keeps the edits,
@@ -14,17 +16,29 @@ import { guideLineAngleDeg, GUIDE_COLOUR_STAMP, GUIDE_COLOUR_STATIC } from '../e
  * the snapshot resets per selection.
  */
 interface Props {
-  guide: EditorGuideLine
+  guide: EditorGuide
   position: { x: number; y: number }
-  /** Default tick spacing shown when the Guide has no override. */
+  /** Default tick spacing shown when the Guide has no override; also the Patch
+   *  edge length, reused by the circle size presets. */
   defaultTickSpacing: number
-  onUpdate: (patch: Partial<Omit<EditorGuideLine, 'id' | 'kind'>>) => void
+  onUpdate: (patch: EditorGuidePatch) => void
   onDelete: () => void
   onClose: () => void
 }
 
 /** The fields the popup can change — snapshotted at open for Cancel. */
-function editableFields(g: EditorGuideLine): Partial<Omit<EditorGuideLine, 'id' | 'kind'>> {
+function editableFields(g: EditorGuide): EditorGuidePatch {
+  if (g.kind === 'circle') {
+    return {
+      stamp: g.stamp,
+      tickSpacing: g.tickSpacing,
+      ticksEnabled: g.ticksEnabled,
+      center: g.center,
+      radius: g.radius,
+      phase: g.phase,
+      divisions: g.divisions,
+    }
+  }
   return {
     stamp: g.stamp,
     extend: g.extend,
@@ -61,17 +75,22 @@ const inputStyle: React.CSSProperties = {
   color: 'var(--text)',
 }
 
+const presetButtonStyle: React.CSSProperties = {
+  flex: 1,
+  padding: '3px 0',
+  fontFamily: "'EB Garamond', Georgia, serif",
+  fontSize: 12,
+  cursor: 'pointer',
+  border: '1px solid var(--border-subtle)',
+  background: 'transparent',
+  color: 'var(--text-muted)',
+}
+
 export function GuidePopupOverlay({ guide, position, defaultTickSpacing, onUpdate, onDelete, onClose }: Props) {
   const dialogRef = useRef<HTMLDivElement>(null)
   // Snapshot of the editable fields at open — Cancel restores this. A ref,
   // captured once per mount (parent keys the popup by Guide id).
   const originalRef = useRef(editableFields(guide))
-  // Typed angle is buffered locally so partial input ("4" en route to "45")
-  // doesn't spin the line; commit on blur / Enter.
-  const [angleText, setAngleText] = useState(() => guideLineAngleDeg(guide).toFixed(1))
-  useEffect(() => {
-    setAngleText(guideLineAngleDeg(guide).toFixed(1))
-  }, [guide])
 
   const accept = onClose
   const cancel = () => {
@@ -99,19 +118,7 @@ export function GuidePopupOverlay({ guide, position, defaultTickSpacing, onUpdat
     }
   }, [])
 
-  const commitAngle = () => {
-    const deg = Number(angleText)
-    if (!Number.isFinite(deg)) {
-      setAngleText(guideLineAngleDeg(guide).toFixed(1))
-      return
-    }
-    if (Math.abs(deg - guideLineAngleDeg(guide)) < 1e-9) return
-    // Rotate end about start preserving length — the popup import stays tiny
-    // by computing here instead of pulling withGuideLineAngle's caller chain.
-    const r = Math.hypot(guide.end.x - guide.start.x, guide.end.y - guide.start.y)
-    const rad = (deg * Math.PI) / 180
-    onUpdate({ end: { x: guide.start.x + r * Math.cos(rad), y: guide.start.y + r * Math.sin(rad) } })
-  }
+  const tickSpacingLabel = guide.kind === 'circle' ? 'Arc spacing' : 'Tick spacing'
 
   return (
     <div
@@ -138,7 +145,9 @@ export function GuidePopupOverlay({ guide, position, defaultTickSpacing, onUpdat
         gap: 8,
       }}
     >
-      <div style={{ ...labelStyle, fontSize: 10, color: 'var(--text)' }}>Guide line</div>
+      <div style={{ ...labelStyle, fontSize: 10, color: 'var(--text)' }}>
+        {guide.kind === 'circle' ? (guide.divisions ? 'Divided circle' : 'Guide circle') : 'Guide line'}
+      </div>
 
       {/* Stamp toggle — colour IS the stamp state (spec Decision 2). */}
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontFamily: "'EB Garamond', Georgia, serif", fontSize: 13, color: 'var(--text)' }}>
@@ -158,63 +167,25 @@ export function GuidePopupOverlay({ guide, position, defaultTickSpacing, onUpdat
         />
       </label>
 
-      {/* Extend — none / back / forward / both. */}
-      <div>
-        <div style={labelStyle}>Extend</div>
-        <div style={{ display: 'flex', gap: 0, marginTop: 3 }}>
-          {EXTEND_OPTIONS.map(opt => {
-            const active = guide.extend === opt.value
-            return (
-              <button
-                key={opt.value}
-                onClick={() => onUpdate({ extend: opt.value })}
-                title={opt.value === 'none' ? 'Just the drawn segment' : `Extend ${opt.value === 'both' ? 'both directions' : `beyond the ${opt.value} point`}`}
-                style={{
-                  flex: 1,
-                  padding: '3px 0',
-                  fontFamily: "'EB Garamond', Georgia, serif",
-                  fontSize: 12,
-                  cursor: 'pointer',
-                  border: '1px solid var(--border-subtle)',
-                  background: active ? 'var(--accent-bg, rgba(230,201,122,0.18))' : 'transparent',
-                  color: active ? 'var(--text)' : 'var(--text-muted)',
-                }}
-              >
-                {opt.label}
-              </button>
-            )
-          })}
-        </div>
-      </div>
+      {guide.kind === 'circle'
+        ? <CircleControls guide={guide} edgeLength={defaultTickSpacing} onUpdate={onUpdate} />
+        : <LineControls guide={guide} onUpdate={onUpdate} />}
 
-      {/* Tick spacing + typed angle. */}
-      <div style={{ display: 'flex', gap: 12 }}>
-        <div>
-          <div style={labelStyle}>Tick spacing</div>
-          <input
-            type="number"
-            min={1}
-            step={1}
-            value={guide.tickSpacing ?? defaultTickSpacing}
-            onChange={e => {
-              const v = Number(e.target.value)
-              if (Number.isFinite(v) && v > 0) onUpdate({ tickSpacing: v })
-            }}
-            style={{ ...inputStyle, marginTop: 3 }}
-          />
-        </div>
-        <div>
-          <div style={labelStyle}>Angle °</div>
-          <input
-            type="number"
-            step={1}
-            value={angleText}
-            onChange={e => setAngleText(e.target.value)}
-            onBlur={commitAngle}
-            onKeyDown={e => { if (e.key === 'Enter') commitAngle() }}
-            style={{ ...inputStyle, marginTop: 3 }}
-          />
-        </div>
+      {/* Tick spacing + show-ticks (shared; circles measure spacing along the
+          arc). Lines pair it with typed angle inside LineControls. */}
+      <div>
+        <div style={labelStyle}>{tickSpacingLabel}</div>
+        <input
+          type="number"
+          min={1}
+          step={1}
+          value={guide.tickSpacing ?? defaultTickSpacing}
+          onChange={e => {
+            const v = Number(e.target.value)
+            if (Number.isFinite(v) && v > 0) onUpdate({ tickSpacing: v })
+          }}
+          style={{ ...inputStyle, marginTop: 3 }}
+        />
       </div>
 
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontFamily: "'EB Garamond', Georgia, serif", fontSize: 12.5, color: 'var(--text-muted)' }}>
@@ -284,5 +255,159 @@ export function GuidePopupOverlay({ guide, position, defaultTickSpacing, onUpdat
         Delete guide
       </button>
     </div>
+  )
+}
+
+/* ── Line-specific controls: extend + typed angle ───────────────────────── */
+
+function LineControls({ guide, onUpdate }: { guide: EditorGuideLine; onUpdate: (p: EditorGuidePatch) => void }) {
+  // Typed angle is buffered locally so partial input ("4" en route to "45")
+  // doesn't spin the line; commit on blur / Enter.
+  const [angleText, setAngleText] = useState(() => guideLineAngleDeg(guide).toFixed(1))
+  useEffect(() => {
+    setAngleText(guideLineAngleDeg(guide).toFixed(1))
+  }, [guide])
+
+  const commitAngle = () => {
+    const deg = Number(angleText)
+    if (!Number.isFinite(deg)) {
+      setAngleText(guideLineAngleDeg(guide).toFixed(1))
+      return
+    }
+    if (Math.abs(deg - guideLineAngleDeg(guide)) < 1e-9) return
+    // Rotate end about start preserving length.
+    const r = Math.hypot(guide.end.x - guide.start.x, guide.end.y - guide.start.y)
+    const rad = (deg * Math.PI) / 180
+    onUpdate({ end: { x: guide.start.x + r * Math.cos(rad), y: guide.start.y + r * Math.sin(rad) } })
+  }
+
+  return (
+    <>
+      {/* Extend — none / back / forward / both. */}
+      <div>
+        <div style={labelStyle}>Extend</div>
+        <div style={{ display: 'flex', gap: 0, marginTop: 3 }}>
+          {EXTEND_OPTIONS.map(opt => {
+            const active = guide.extend === opt.value
+            return (
+              <button
+                key={opt.value}
+                onClick={() => onUpdate({ extend: opt.value })}
+                title={opt.value === 'none' ? 'Just the drawn segment' : `Extend ${opt.value === 'both' ? 'both directions' : `beyond the ${opt.value} point`}`}
+                style={{
+                  flex: 1,
+                  padding: '3px 0',
+                  fontFamily: "'EB Garamond', Georgia, serif",
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  border: '1px solid var(--border-subtle)',
+                  background: active ? 'var(--accent-bg, rgba(230,201,122,0.18))' : 'transparent',
+                  color: active ? 'var(--text)' : 'var(--text-muted)',
+                }}
+              >
+                {opt.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Typed angle. */}
+      <div>
+        <div style={labelStyle}>Angle °</div>
+        <input
+          type="number"
+          step={1}
+          value={angleText}
+          onChange={e => setAngleText(e.target.value)}
+          onBlur={commitAngle}
+          onKeyDown={e => { if (e.key === 'Enter') commitAngle() }}
+          style={{ ...inputStyle, marginTop: 3 }}
+        />
+      </div>
+    </>
+  )
+}
+
+/* ── Circle-specific controls: radius + size presets + n-division ───────── */
+
+function CircleControls({ guide, edgeLength, onUpdate }: { guide: EditorGuideCircle; edgeLength: number; onUpdate: (p: EditorGuidePatch) => void }) {
+  // Radius buffered locally like the line angle so partial typing doesn't
+  // collapse the circle; commit on blur / Enter.
+  const [radiusText, setRadiusText] = useState(() => guide.radius.toFixed(1))
+  useEffect(() => {
+    setRadiusText(guide.radius.toFixed(1))
+  }, [guide])
+
+  const setRadius = (r: number) => {
+    if (Number.isFinite(r) && r > 0) onUpdate({ radius: r })
+  }
+  const commitRadius = () => {
+    const r = Number(radiusText)
+    if (!Number.isFinite(r) || !(r > 0)) {
+      setRadiusText(guide.radius.toFixed(1))
+      return
+    }
+    setRadius(r)
+  }
+
+  const presets: { label: string; title: string; apply: () => void }[] = [
+    { label: '×√2', title: 'Grow the radius by √2 (the classic construction step)', apply: () => setRadius(guide.radius * Math.SQRT2) },
+    { label: '÷√2', title: 'Shrink the radius by √2', apply: () => setRadius(guide.radius / Math.SQRT2) },
+    { label: '= edge', title: 'Set the radius to the Patch tile edge length', apply: () => setRadius(edgeLength) },
+    { label: '2·edge', title: 'Set the radius to twice the tile edge length', apply: () => setRadius(2 * edgeLength) },
+  ]
+
+  return (
+    <>
+      {/* Radius (free sizing). */}
+      <div>
+        <div style={labelStyle}>Radius</div>
+        <input
+          type="number"
+          min={1}
+          step={1}
+          value={radiusText}
+          onChange={e => setRadiusText(e.target.value)}
+          onBlur={commitRadius}
+          onKeyDown={e => { if (e.key === 'Enter') commitRadius() }}
+          style={{ ...inputStyle, marginTop: 3 }}
+        />
+      </div>
+
+      {/* Size presets (spec Decision 7): √2 progression + tile-edge relative. */}
+      <div>
+        <div style={labelStyle}>Size preset</div>
+        <div style={{ display: 'flex', gap: 0, marginTop: 3 }}>
+          {presets.map(p => (
+            <button key={p.label} onClick={p.apply} title={p.title} style={presetButtonStyle}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* n-division (spec Decision 6): n → 2n rim Anchors; 0 → plain circle. */}
+      <div>
+        <div style={labelStyle}>Divisions n</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 3 }}>
+          <input
+            type="number"
+            min={0}
+            step={1}
+            value={guide.divisions ?? 0}
+            onChange={e => {
+              const n = Math.round(Number(e.target.value))
+              if (!Number.isFinite(n)) return
+              onUpdate(n >= 1 ? { divisions: n } : { divisions: undefined })
+            }}
+            style={inputStyle}
+          />
+          <span style={{ fontFamily: "'EB Garamond', Georgia, serif", fontSize: 12, color: 'var(--text-muted)' }}>
+            {guide.divisions ? `${2 * guide.divisions} anchors` : 'plain'}
+          </span>
+        </div>
+      </div>
+    </>
   )
 }

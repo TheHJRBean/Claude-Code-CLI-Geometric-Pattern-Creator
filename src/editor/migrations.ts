@@ -7,6 +7,7 @@ import type {
   EditorCell,
   EditorConfig,
   EditorGuide,
+  EditorGuideCircle,
   EditorIrregularTile,
   EditorRegularTile,
   EditorTile,
@@ -241,12 +242,13 @@ function migrateVoidStamp(raw: unknown): VoidStampRecord | null {
 
 const GUIDE_EXTENDS = new Set<GuideExtend>(['none', 'start', 'end', 'both'])
 
-/** Guides (slice 1) — validate one persisted Guide. Invalid entries are
- * dropped (returns null), never crash the load. Lines only in v1 slice 1;
- * circle kinds join in slice 2. */
+/** Guides — validate one persisted Guide. Invalid entries are dropped
+ * (returns null), never crash the load. `'line'` (slice 1) + `'circle'`
+ * (slice 2, incl. divided circles via `divisions`). */
 function migrateGuide(raw: unknown): EditorGuide | null {
   if (typeof raw !== 'object' || raw === null) return null
   const r = raw as Record<string, unknown>
+  if (r.kind === 'circle') return migrateGuideCircle(r)
   if (r.kind !== 'line') return null
   if (typeof r.id !== 'string' || r.id.length === 0) return null
   if (!isVec2(r.start) || !isVec2(r.end)) return null
@@ -258,13 +260,38 @@ function migrateGuide(raw: unknown): EditorGuide | null {
     end: { x: r.end.x, y: r.end.y },
     stamp: r.stamp === true,
     extend: r.extend as GuideExtend,
-    manualAnchors: Array.isArray(r.manualAnchors)
-      ? r.manualAnchors.filter((t): t is number => typeof t === 'number' && Number.isFinite(t))
-      : [],
+    manualAnchors: sanitizeAnchorFractions(r.manualAnchors),
   }
   if (typeof r.tickSpacing === 'number' && r.tickSpacing > 0) out.tickSpacing = r.tickSpacing
   if (typeof r.ticksEnabled === 'boolean') out.ticksEnabled = r.ticksEnabled
   return out
+}
+
+/** Slice-2 Guide circle validator: needs a finite centre + positive radius;
+ *  `phase` / `divisions` / tick fields are optional. */
+function migrateGuideCircle(r: Record<string, unknown>): EditorGuideCircle | null {
+  if (typeof r.id !== 'string' || r.id.length === 0) return null
+  if (!isVec2(r.center)) return null
+  if (typeof r.radius !== 'number' || !(r.radius > 0)) return null
+  const out: EditorGuideCircle = {
+    id: r.id,
+    kind: 'circle',
+    center: { x: r.center.x, y: r.center.y },
+    radius: r.radius,
+    stamp: r.stamp === true,
+    manualAnchors: sanitizeAnchorFractions(r.manualAnchors),
+  }
+  if (typeof r.phase === 'number' && Number.isFinite(r.phase)) out.phase = r.phase
+  if (typeof r.divisions === 'number' && r.divisions >= 1) out.divisions = Math.round(r.divisions)
+  if (typeof r.tickSpacing === 'number' && r.tickSpacing > 0) out.tickSpacing = r.tickSpacing
+  if (typeof r.ticksEnabled === 'boolean') out.ticksEnabled = r.ticksEnabled
+  return out
+}
+
+function sanitizeAnchorFractions(raw: unknown): number[] {
+  return Array.isArray(raw)
+    ? raw.filter((t): t is number => typeof t === 'number' && Number.isFinite(t))
+    : []
 }
 
 /** Guides array — bad individual Guides are filtered out rather than failing

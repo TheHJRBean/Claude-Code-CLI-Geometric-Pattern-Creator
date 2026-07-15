@@ -5,8 +5,14 @@ import type { BoundaryShape, ConfigurationId, EditorCell, SymmetryMode } from '.
 import type { EditorMode } from '../../types/appMode'
 import type { Vec2 } from '../../utils/math'
 import { BOUNDARY_SIZE_MAX_BY_SHAPE } from '../../editor/createDefault'
-import { ANGLE_STEP_PRESETS } from '../../editor/guides'
+import { ANGLE_STEP_PRESETS, type GuideTool } from '../../editor/guides'
 import { FieldLabel, SectionTitle, segmentedButtonStyle } from './labShared'
+
+const GUIDE_TOOLS: { value: GuideTool; label: string; tooltip: string }[] = [
+  { value: 'line', label: 'Line', tooltip: 'Straight Guide line — click a start then an end point.' },
+  { value: 'circle', label: 'Circle', tooltip: 'Guide circle — click the centre, then a radius point.' },
+  { value: 'divided-circle', label: 'Divided', tooltip: 'Divided Guide circle — a circle split into 2n equal division Anchors (the rosette scaffold). Set n in the popup.' },
+]
 
 type BoundaryPickerKind =
   | { kind: 'shape'; shape: BoundaryShape }
@@ -181,7 +187,9 @@ interface DesignPanelProps {
   dispatch: React.Dispatch<Action>
   editorMode: EditorMode
   onSetEditorMode: (m: EditorMode) => void
-  /** Construct toolbar (spec Decision 11) — angle-snap step + snap toggle. */
+  /** Construct toolbar (spec Decision 11) — Guide tool + angle-snap step + snap toggle. */
+  constructTool: GuideTool
+  onSetConstructTool: (t: GuideTool) => void
   constructAngleStep: number
   onSetConstructAngleStep: (deg: number) => void
   constructSnap: boolean
@@ -210,6 +218,8 @@ export function DesignPanel({
   dispatch,
   editorMode,
   onSetEditorMode,
+  constructTool,
+  onSetConstructTool,
   constructAngleStep,
   onSetConstructAngleStep,
   constructSnap,
@@ -408,11 +418,30 @@ export function DesignPanel({
         {editorMode === 'construct' && (
           <>
             {/* Construct toolbar (spec Decision 11) — appears only in-mode.
-                The Guide-line tool is the sole (implicitly armed) tool in
-                slice 1; circles join in slice 2. */}
+                Guide tool (line / circle / divided circle), then the shared
+                angle-snap step + snap toggle. */}
+            <FieldLabel
+              label="Guide"
+              tooltip="Which Guide the two-click draw creates. Line = straight segment (start, end). Circle = centre then radius. Divided = a circle split into 2n equal points — the rosette scaffold; set n in the Guide's popup."
+            />
+            <div style={{ display: 'flex', gap: 0 }}>
+              {GUIDE_TOOLS.map(t => {
+                const active = constructTool === t.value
+                return (
+                  <button
+                    key={t.value}
+                    onClick={() => onSetConstructTool(t.value)}
+                    title={t.tooltip}
+                    style={{ ...segmentedButtonStyle(active, { letterSpacing: '0.04em' }), fontSize: 10 }}
+                  >
+                    {t.label}
+                  </button>
+                )
+              })}
+            </div>
             <FieldLabel
               label="Angle step"
-              tooltip="Angle-snap step while drawing: lines snap to multiples of this from the horizontal — and from the edge the line starts on, so continuations and perpendiculars come free. 36° / 72° serve five-fold and Girih layouts. Hold Shift to draw freehand."
+              tooltip="Angle-snap step while drawing: lines snap to multiples of this from the horizontal — and from the edge the line starts on, so continuations and perpendiculars come free. A circle's radius handle snaps its direction the same way. 36° / 72° serve five-fold and Girih layouts. Hold Shift to draw freehand."
             />
             <select
               className="pattern-select"
@@ -438,9 +467,11 @@ export function DesignPanel({
               color: 'var(--text-muted)',
               lineHeight: 1.4,
             }}>
-              Click twice to draw a Guide line. Hold Shift for freehand,
-              Esc to cancel. Click a Guide to edit it — stamp, extend,
-              ticks, angle, delete.
+              {constructTool === 'line'
+                ? 'Click twice to draw a Guide line (start, end).'
+                : 'Click the centre, then a radius point.'}
+              {' '}Hold Shift for freehand, Esc to cancel. Click a Guide to edit
+              it — {constructTool === 'line' ? 'stamp, extend, ticks, angle' : 'stamp, radius, divisions, ticks'}, delete.
             </div>
           </>
         )}

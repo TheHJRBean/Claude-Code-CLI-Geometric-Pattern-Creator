@@ -1,6 +1,7 @@
 import type { PatternConfig } from '../../types/pattern'
 import type { Action } from '../../state/actions'
 import type { EditorMode } from '../../types/appMode'
+import type { GuideTool } from '../../editor/guides'
 import type { PaintTarget, StrandPaintScope, VoidPaintScope } from '../../rendering/DecorationPaintLayer'
 import type { PaintVoid } from '../../decoration/resolve'
 import type { Vec2 } from '../../utils/math'
@@ -18,6 +19,8 @@ export interface EditorDesignControlsProps {
   onSetEditorMode: (m: EditorMode) => void
   constructAngleStep: number
   onSetConstructAngleStep: (deg: number) => void
+  constructTool: GuideTool
+  onSetConstructTool: (t: GuideTool) => void
   constructSnap: boolean
   onSetConstructSnap: (on: boolean) => void
   showGuides: boolean
@@ -68,6 +71,8 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
     onSetEditorMode,
     constructAngleStep,
     onSetConstructAngleStep,
+    constructTool,
+    onSetConstructTool,
     constructSnap,
     onSetConstructSnap,
     showGuides,
@@ -195,6 +200,8 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
           onSetEditorMode={onSetEditorMode}
           constructAngleStep={constructAngleStep}
           onSetConstructAngleStep={onSetConstructAngleStep}
+          constructTool={constructTool}
+          onSetConstructTool={onSetConstructTool}
           constructSnap={constructSnap}
           onSetConstructSnap={onSetConstructSnap}
           picks={picks}

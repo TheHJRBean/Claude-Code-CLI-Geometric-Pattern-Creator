@@ -374,7 +374,7 @@ export type GuideExtend = 'none' | 'start' | 'end' | 'both'
 
 /**
  * A Guide line — two-click segment in Patch-local world coordinates.
- * Slice 2 adds `'circle'` / `'divided-circle'` variants to the union.
+ * The `EditorGuide` union also carries `EditorGuideCircle` (slice 2).
  */
 export interface EditorGuideLine {
   /** Stable identifier within the Patch. */
@@ -411,10 +411,65 @@ export interface EditorGuideLine {
 }
 
 /**
- * A drawn construction element (ADR-0008). v1 slice 1 ships lines only;
- * circles and divided circles (slice 2) will widen this union.
+ * A Guide circle (slice 2) — centre + radius, drawn centre-click then
+ * radius-click in Patch-local world coordinates. A **divided** Guide circle
+ * is the same shape with `divisions > 0`: it exposes 2·`divisions` equal
+ * division Anchors round the rim (the traditional rosette scaffold — see
+ * RESEARCH §2.1 "a circle divided into 2n equal parts"). Circles are closed,
+ * so there is no `extend`; ticks are spaced along the **arc** instead.
  */
-export type EditorGuide = EditorGuideLine
+export interface EditorGuideCircle {
+  /** Stable identifier within the Patch. */
+  id: string
+  kind: 'circle'
+  /** Centre, Patch-local world coords. */
+  center: Vec2
+  /** Radius in world units (> 0). */
+  radius: number
+  /**
+   * Orientation angle (radians) of the drawn radius, i.e. the direction of
+   * the second click from the centre. The radius handle, the first division
+   * Anchor and the first arc tick all start here so a division can be aimed
+   * at a snapped vertex. Absent → 0 (east). Purely a rotation of an otherwise
+   * rotationally-symmetric scaffold. */
+  phase?: number
+  /**
+   * Division count n (spec Decision 6): when set (> 0) the circle is
+   * **divided** — 2n equal Anchors round the rim. Absent / 0 → a plain circle
+   * (no division Anchors). */
+  divisions?: number
+  /** Stamp toggle — see `EditorGuideLine.stamp`. */
+  stamp: boolean
+  /**
+   * Arc-spaced tick Anchors (spec Decision 5): spacing measured **along the
+   * arc** in world units; absent → the Patch's `edgeLength`. `ticksEnabled`
+   * absent → true. The tick count is `round(circumference / spacing)` so the
+   * ticks land evenly and close the loop. */
+  tickSpacing?: number
+  ticksEnabled?: boolean
+  /**
+   * Manual Anchors round the rim, as angle fractions (t ∈ [0, 1), measured
+   * CCW from `phase`). Ride along under radius/phase edits. Creation UI lands
+   * with the Anchor wiring (slice 3); the schema ships now for save-shape
+   * stability. */
+  manualAnchors: number[]
+}
+
+/**
+ * A drawn construction element (ADR-0008). Guide lines (slice 1) plus Guide
+ * circles / divided Guide circles (slice 2).
+ */
+export type EditorGuide = EditorGuideLine | EditorGuideCircle
+
+/**
+ * A partial edit applied to a single Guide by `EDITOR_UPDATE_GUIDE` / the
+ * per-Guide popup. Union-friendly: every editable field of both variants,
+ * all optional. `id` / `kind` are never patchable (the reducer re-pins them).
+ * Only fields relevant to the target Guide's kind are ever sent.
+ */
+export type EditorGuidePatch =
+  Partial<Omit<EditorGuideLine, 'id' | 'kind'>> &
+  Partial<Omit<EditorGuideCircle, 'id' | 'kind'>>
 
 /**
  * A Patch — one repeat unit of the tiled Composition. Always carries one or

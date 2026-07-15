@@ -41,17 +41,19 @@ import { PICKER_SIDES } from '../editor/placement'
 import { regularPolygonVertices } from '../editor/regularPolygon'
 import { PerfHud } from './PerfHud'
 import type { EditorMode } from '../types/appMode'
-import type { EditorGuide, EditorGuideLine } from '../types/editor'
+import type { EditorGuide, EditorGuidePatch } from '../types/editor'
 import {
   collectSnapPoints,
+  createGuideCircle,
   createGuideLine,
   DEFAULT_ANGLE_STEP,
+  type GuideTool,
   snapAngle,
   snapToPoint,
   type SnapPoint,
   type WorldBounds,
 } from '../editor/guides'
-import { EditorGuideLayer } from './EditorGuideLayer'
+import { EditorGuideLayer, type GuideHandle } from './EditorGuideLayer'
 import { GuidePopupOverlay } from './GuidePopupOverlay'
 import { midpoint as vecMidpoint, pointsEqual } from '../utils/math'
 
@@ -121,13 +123,15 @@ interface Props {
   constructSnap?: boolean
   /** Construct mode — angle-snap step in degrees (spec Decision 7). */
   constructAngleStep?: number
+  /** Construct mode — which Guide the two-click gesture draws (spec Decision 11). */
+  constructTool?: GuideTool
   /** Composition Phase — Guides overlay show/hide (hidden by default). In
    *  Design Phase Guides always render. */
   showGuides?: boolean
-  /** Construct mode — a completed two-click Guide line. */
+  /** Construct mode — a completed two-click Guide (line or circle). */
   onAddGuide?: (guide: EditorGuide) => void
-  /** Construct mode — per-Guide popup edits + endpoint drags. */
-  onUpdateGuide?: (guideId: string, patch: Partial<Omit<EditorGuideLine, 'id' | 'kind'>>) => void
+  /** Construct mode — per-Guide popup edits + handle drags. */
+  onUpdateGuide?: (guideId: string, patch: EditorGuidePatch) => void
   onDeleteGuide?: (guideId: string) => void
   /** Step 17.11 — accumulated picks (chord mode: 0–1; multi mode: 0+). */
   picks?: Vec2[]
@@ -189,7 +193,7 @@ interface Props {
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, editorMode = 'place', constructSnap = true, constructAngleStep = DEFAULT_ANGLE_STEP, showGuides = false, onAddGuide, onUpdateGuide, onDeleteGuide, picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature, onDecorationVoids }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, editorMode = 'place', constructSnap = true, constructAngleStep = DEFAULT_ANGLE_STEP, constructTool = 'line', showGuides = false, onAddGuide, onUpdateGuide, onDeleteGuide, picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature, onDecorationVoids }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -758,6 +762,12 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   useEffect(() => {
     if (selectedGuideId && !guides.some(g => g.id === selectedGuideId)) setSelectedGuideId(null)
   }, [guides, selectedGuideId])
+  // Switching Guide tool mid-draw abandons the half-drawn draft (a committed
+  // first click shouldn't reinterpret as the other shape's anchor).
+  useEffect(() => {
+    setGuideDraftStart(null)
+    setGuideSnapTarget(null)
+  }, [constructTool])
   // Esc cancels the in-progress draft (and closes the popup via its own key
   // handler).
   useEffect(() => {
@@ -827,25 +837,45 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       setGuideDraftStart({ p, edgeAngle: snap?.edgeAngle })
       return
     }
+    // Second click: zero-extent is a no-op (double-click on the same point).
     if (pointsEqual(guideDraftStart.p, p, 1e-6)) return
-    onAddGuide?.(createGuideLine(guideDraftStart.p, p, guides))
+    const guide = constructTool === 'line'
+      ? createGuideLine(guideDraftStart.p, p, guides)
+      : createGuideCircle(guideDraftStart.p, p, constructTool === 'divided-circle', guides)
+    onAddGuide?.(guide)
     setGuideDraftStart(null)
     setGuideSnapTarget(null)
-  }, [selectedGuideId, resolveConstructPoint, guideDraftStart, onAddGuide, guides])
+  }, [selectedGuideId, resolveConstructPoint, guideDraftStart, onAddGuide, guides, constructTool])
 
-  // Endpoint drag on the selected Guide: point-snap (own Anchors excluded),
-  // else angle-snap about the fixed opposite endpoint.
-  const handleDragEndpoint = useCallback((id: string, which: 'start' | 'end', screen: Vec2) => {
+  // Handle drag on the selected Guide: point-snap (own Anchors excluded),
+  // else angle-snap. Line endpoints pivot about the fixed opposite endpoint;
+  // a circle's centre translates, its radius handle resizes + rotates about
+  // the centre.
+  const handleDragHandle = useCallback((id: string, handle: GuideHandle, screen: Vec2) => {
     const g = guides.find(g => g.id === id)
-    if (!g || g.kind !== 'line' || !onUpdateGuide) return
+    if (!g || !onUpdateGuide) return
     const w = screenToWorld(screen, viewTransform, size.width, size.height)
-    let p = w
-    if (constructSnap) {
-      const tol = 14 / viewTransform.zoom
-      const snap = snapToPoint(w, guideSnapPoints, tol)
-      p = snap ? snap.p : snapAngle(which === 'start' ? g.end : g.start, w, constructAngleStep)
+    const tol = 14 / viewTransform.zoom
+    const snap = constructSnap ? snapToPoint(w, guideSnapPoints, tol) : null
+    if (g.kind === 'line' && (handle === 'start' || handle === 'end')) {
+      const p = snap ? snap.p : (constructSnap ? snapAngle(handle === 'start' ? g.end : g.start, w, constructAngleStep) : w)
+      onUpdateGuide(id, { [handle]: p })
+      return
     }
-    onUpdateGuide(id, { [which]: p })
+    if (g.kind === 'circle' && handle === 'center') {
+      onUpdateGuide(id, { center: snap ? snap.p : w })
+      return
+    }
+    if (g.kind === 'circle' && handle === 'radius') {
+      // Snap the radius endpoint to a point if near one; else angle-snap the
+      // direction about the centre (free radius, snapped phase).
+      const p = snap ? snap.p : (constructSnap ? snapAngle(g.center, w, constructAngleStep) : w)
+      const dx = p.x - g.center.x
+      const dy = p.y - g.center.y
+      const radius = Math.hypot(dx, dy)
+      if (radius < 1e-6) return
+      onUpdateGuide(id, { radius, phase: Math.atan2(dy, dx) })
+    }
   }, [guides, onUpdateGuide, viewTransform, size.width, size.height, constructSnap, guideSnapPoints, constructAngleStep])
 
   // Wrap the pan/zoom handlers with click-slop detection while Construct is
@@ -893,17 +923,23 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       zoom={viewTransform.zoom}
       draftStart={guideDraftStart?.p ?? null}
       draftCursor={constructCursor}
+      draftTool={constructTool === 'line' ? 'line' : 'circle'}
       snapTarget={guideSnapTarget}
       selectedGuideId={selectedGuideId}
       onSelectGuide={setSelectedGuideId}
-      onDragEndpoint={handleDragEndpoint}
+      onDragHandle={handleDragHandle}
     />
   ) : null
 
-  // Per-Guide popup anchor — over the drawn segment's midpoint.
+  // Per-Guide popup anchor — over a line's midpoint / a circle's north point.
   const selectedGuide = selectedGuideId ? guides.find(g => g.id === selectedGuideId) ?? null : null
-  const guidePopupScreenPos = selectedGuide && constructActive
-    ? worldToScreen(vecMidpoint(selectedGuide.start, selectedGuide.end), viewTransform, size.width, size.height)
+  const guidePopupAnchor = selectedGuide
+    ? selectedGuide.kind === 'circle'
+      ? { x: selectedGuide.center.x, y: selectedGuide.center.y - selectedGuide.radius }
+      : vecMidpoint(selectedGuide.start, selectedGuide.end)
+    : null
+  const guidePopupScreenPos = selectedGuide && guidePopupAnchor && constructActive
+    ? worldToScreen(guidePopupAnchor, viewTransform, size.width, size.height)
     : null
 
   // Composition Phase hides every Design-Phase overlay — the canvas is the

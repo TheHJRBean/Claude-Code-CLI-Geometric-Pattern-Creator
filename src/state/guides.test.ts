@@ -37,7 +37,7 @@ describe('Guides — reducer actions (slice 1)', () => {
       type: 'EDITOR_UPDATE_GUIDE',
       payload: { guideId: 'g1', patch: { stamp: true, extend: 'both', tickSpacing: 42 } },
     })
-    const g = s.editor!.guides![0]
+    const g = s.editor!.guides![0] as EditorGuideLine
     expect(g.stamp).toBe(true)
     expect(g.extend).toBe('both')
     expect(g.tickSpacing).toBe(42)

@@ -1,6 +1,6 @@
 import type { CurveConfig, CurvePoint, FigureConfig, PatternConfig } from '../types/pattern'
 import type { CurveTarget } from './actions'
-import type { EditorCell, EditorConfig, EditorRegularTile, EditorTile } from '../types/editor'
+import type { EditorCell, EditorConfig, EditorGuide, EditorGuidePatch, EditorRegularTile, EditorTile } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import type { Action } from './actions'
 import { TILINGS } from '../tilings/index'
@@ -126,6 +126,15 @@ function updateCurve(
   const fig = getFigure(state, tileTypeId)
   const base = curveBase(fig, target, defaultEnabled)
   return updateFigure(state, tileTypeId, { [curveField(target)]: mutate(base) })
+}
+
+/** Apply a Guide popup/drag patch, re-pinning `id`/`kind` so the discriminant
+ *  can't be widened and the patch's cross-kind optional fields drop out. */
+function mergeGuide(g: EditorGuide, patch: EditorGuidePatch): EditorGuide {
+  if (g.kind === 'circle') {
+    return { ...g, ...patch, id: g.id, kind: 'circle' }
+  }
+  return { ...g, ...patch, id: g.id, kind: 'line' }
 }
 
 export function reducer(state: PatternConfig, action: Action): PatternConfig {
@@ -547,7 +556,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       const { guideId, patch } = action.payload
       const idx = guides.findIndex(g => g.id === guideId)
       if (idx === -1) return state
-      const next = guides.map(g => (g.id === guideId ? { ...g, ...patch, id: g.id, kind: g.kind } : g))
+      const next = guides.map(g => (g.id === guideId ? mergeGuide(g, patch) : g))
       return { ...state, editor: { ...state.editor, guides: next } }
     }
     case 'EDITOR_DELETE_GUIDE': {

@@ -33,8 +33,8 @@ import { StrandStyleControls } from './ui/StrandStyleControls'
 import { EditorDesignControls } from './lab/EditorDesignControls'
 import { buildExportMenuItems } from '../export/exportActions'
 import type { AppMode, EditorMode } from '../types/appMode'
-import type { EditorGuide, EditorGuideLine } from '../types/editor'
-import { DEFAULT_ANGLE_STEP } from '../editor/guides'
+import type { EditorGuide, EditorGuidePatch } from '../types/editor'
+import { DEFAULT_ANGLE_STEP, type GuideTool } from '../editor/guides'
 
 
 /**
@@ -200,13 +200,14 @@ export function TessellationLabMode({
   // Toolbar state — angle-snap step + snap toggle (spec Decision 7). Session
   // UI state, not persisted. Guides themselves live on `editor.guides`.
   const [constructAngleStep, setConstructAngleStep] = useState<number>(DEFAULT_ANGLE_STEP)
+  const [constructTool, setConstructTool] = useState<GuideTool>('line')
   const [constructSnap, setConstructSnap] = useState(true)
   // Composition-Phase Guides overlay toggle — hidden by default (Decision 9).
   const [showGuides, setShowGuides] = useState(false)
   const handleAddGuide = useCallback((guide: EditorGuide) => {
     dispatch({ type: 'EDITOR_ADD_GUIDE', payload: { guide } })
   }, [dispatch])
-  const handleUpdateGuide = useCallback((guideId: string, patch: Partial<Omit<EditorGuideLine, 'id' | 'kind'>>) => {
+  const handleUpdateGuide = useCallback((guideId: string, patch: EditorGuidePatch) => {
     dispatch({ type: 'EDITOR_UPDATE_GUIDE', payload: { guideId, patch } })
   }, [dispatch])
   const handleDeleteGuide = useCallback((guideId: string) => {
@@ -476,6 +477,8 @@ export function TessellationLabMode({
                 }}
                 constructAngleStep={constructAngleStep}
                 onSetConstructAngleStep={setConstructAngleStep}
+                constructTool={constructTool}
+                onSetConstructTool={setConstructTool}
                 constructSnap={constructSnap}
                 onSetConstructSnap={setConstructSnap}
                 showGuides={showGuides}
@@ -821,6 +824,7 @@ export function TessellationLabMode({
         editorMode={editorMode}
         constructSnap={constructSnap}
         constructAngleStep={constructAngleStep}
+        constructTool={constructTool}
         showGuides={showGuides}
         onAddGuide={handleAddGuide}
         onUpdateGuide={handleUpdateGuide}

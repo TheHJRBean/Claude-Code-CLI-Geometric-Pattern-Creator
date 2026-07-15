@@ -1,4 +1,4 @@
-import type { EditorGuide, EditorGuideLine, EditorPatch } from '../types/editor'
+import type { EditorGuide, EditorGuideCircle, EditorGuideLine, EditorPatch } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import { add, sub, scale, dot, cross, len, normalize, midpoint, dist, degToRad } from '../utils/math'
 import { applyCellTransform } from './patchSelectable'
@@ -32,6 +32,14 @@ export function guideColour(guide: EditorGuide): string {
  *  entry derives a step of 180/n at pick time. */
 export const ANGLE_STEP_PRESETS = [15, 30, 36, 45, 72] as const
 export const DEFAULT_ANGLE_STEP = 15
+
+/** The three Construct tools (spec Decision 11), selected in the Construct
+ *  toolbar. `'divided-circle'` draws a circle pre-seeded with divisions. */
+export type GuideTool = 'line' | 'circle' | 'divided-circle'
+
+/** Default division count a fresh divided Guide circle seeds with → 12 rim
+ *  Anchors (2·6), a common rosette scaffold; tunable per-Guide in the popup. */
+export const DEFAULT_CIRCLE_DIVISIONS = 6
 
 /* ── Snap points ────────────────────────────────────────────────────────── */
 
@@ -252,27 +260,50 @@ export function guideManualAnchorPoints(g: EditorGuideLine): Vec2[] {
   return g.manualAnchors.map(t => add(g.start, scale(d, t)))
 }
 
-/** Every Anchor a single Guide exposes by itself: endpoints, ticks, manual.
- *  (Intersections need the full Guide set — see `guideIntersections`.) */
+/** Every Anchor a single Guide exposes by itself: line endpoints/ticks/manual,
+ *  or circle centre/radius-handle/divisions/arc-ticks/manual. (Intersections
+ *  need the full Guide set — see `guideIntersections`.) */
 export function guideAnchorPoints(g: EditorGuide, patchEdgeLength: number): Vec2[] {
+  if (g.kind === 'circle') {
+    return [
+      g.center,
+      guideCircleRadiusPoint(g),
+      ...guideCircleDivisionPoints(g),
+      ...guideCircleTickPoints(g, patchEdgeLength),
+      ...guideCircleManualPoints(g),
+    ]
+  }
   return [g.start, g.end, ...guideTickPoints(g, patchEdgeLength), ...guideManualAnchorPoints(g)]
 }
 
 /**
- * Guide×Guide intersection Anchors (spec Decision 5 — always on). Respects
- * each line's `extend`: an intersection only exists where both lines actually
- * reach. Guide×Tile-edge and Guide×Cell-Boundary crossings join in slice 3
- * with the Anchor→Place/Complete wiring.
+ * Guide×Guide intersection Anchors (spec Decision 5 — always on) across every
+ * kind pair: line×line, line×circle, circle×circle. Respects each line's
+ * `extend` (an intersection only exists where both lines actually reach).
+ * Guide×Tile-edge and Guide×Cell-Boundary crossings join in slice 3 with the
+ * Anchor→Place/Complete wiring.
  */
 export function guideIntersections(guides: EditorGuide[]): Vec2[] {
   const out: Vec2[] = []
   for (let i = 0; i < guides.length; i++) {
     for (let j = i + 1; j < guides.length; j++) {
-      const p = lineLineIntersection(guides[i], guides[j])
-      if (p) out.push(p)
+      out.push(...guidePairIntersections(guides[i], guides[j]))
     }
   }
   return out
+}
+
+function guidePairIntersections(a: EditorGuide, b: EditorGuide): Vec2[] {
+  if (a.kind === 'line' && b.kind === 'line') {
+    const p = lineLineIntersection(a, b)
+    return p ? [p] : []
+  }
+  if (a.kind === 'circle' && b.kind === 'circle') {
+    return circleCircleIntersection(a, b)
+  }
+  const line = (a.kind === 'line' ? a : b) as EditorGuideLine
+  const circle = (a.kind === 'circle' ? a : b) as EditorGuideCircle
+  return circleLineIntersection(circle, line)
 }
 
 /** The extend-allowed parametric range of a Guide line (t=0 start, t=1 end). */
@@ -301,6 +332,108 @@ function lineLineIntersection(a: EditorGuideLine, b: EditorGuideLine): Vec2 | nu
   return add(a.start, scale(da, ta))
 }
 
+/* ── Circle Anchors ─────────────────────────────────────────────────────── */
+
+/** The radius-handle point: `center` offset by `radius` along `phase`. Doubles
+ *  as an Anchor (the snapped second click) and the drag handle. */
+export function guideCircleRadiusPoint(c: EditorGuideCircle): Vec2 {
+  const phase = c.phase ?? 0
+  return add(c.center, { x: c.radius * Math.cos(phase), y: c.radius * Math.sin(phase) })
+}
+
+/**
+ * The 2n division Anchors of a divided Guide circle (spec Decision 6) — the
+ * rosette scaffold (RESEARCH §2.1). Marches CCW from `phase` so the first
+ * division sits on the drawn radius point. Empty for a plain circle (no
+ * `divisions`) or a degenerate radius.
+ */
+export function guideCircleDivisionPoints(c: EditorGuideCircle): Vec2[] {
+  const n = c.divisions ?? 0
+  if (!(n >= 1) || !(c.radius > 0)) return []
+  const count = 2 * Math.round(n)
+  return pointsRoundRim(c, count)
+}
+
+/**
+ * Arc-spaced tick Anchors round a Guide circle (spec Decision 5): evenly
+ * spaced at ≈`tickSpacing` **along the arc**, starting from `phase`. The count
+ * is `round(circumference / spacing)` so ticks land evenly and close the loop;
+ * fewer than two would fit ⇒ none. Off when `ticksEnabled === false`.
+ */
+export function guideCircleTickPoints(c: EditorGuideCircle, patchEdgeLength: number): Vec2[] {
+  if (c.ticksEnabled === false || !(c.radius > 0)) return []
+  const spacing = c.tickSpacing ?? patchEdgeLength
+  if (!(spacing > 0)) return []
+  const count = Math.round((2 * Math.PI * c.radius) / spacing)
+  if (count < 2) return []
+  return pointsRoundRim(c, count)
+}
+
+/** Manual Anchor world positions round a Guide circle (angle fractions from
+ *  `phase`, CCW). */
+export function guideCircleManualPoints(c: EditorGuideCircle): Vec2[] {
+  const phase = c.phase ?? 0
+  return c.manualAnchors.map(t => {
+    const a = phase + t * 2 * Math.PI
+    return add(c.center, { x: c.radius * Math.cos(a), y: c.radius * Math.sin(a) })
+  })
+}
+
+/** `count` equally-spaced points round the rim, first at `phase`, CCW. */
+function pointsRoundRim(c: EditorGuideCircle, count: number): Vec2[] {
+  const phase = c.phase ?? 0
+  const out: Vec2[] = []
+  for (let k = 0; k < count; k++) {
+    const a = phase + (k * 2 * Math.PI) / count
+    out.push(add(c.center, { x: c.radius * Math.cos(a), y: c.radius * Math.sin(a) }))
+  }
+  return out
+}
+
+/* ── Circle intersections ───────────────────────────────────────────────── */
+
+/** Where a Guide circle meets a Guide line, respecting the line's `extend`
+ *  range. 0, 1 (tangent) or 2 points. */
+function circleLineIntersection(c: EditorGuideCircle, line: EditorGuideLine): Vec2[] {
+  const d = sub(line.end, line.start)
+  const a2 = dot(d, d)
+  if (a2 < 1e-12) return []
+  const f = sub(line.start, c.center)
+  const b2 = 2 * dot(f, d)
+  const c2 = dot(f, f) - c.radius * c.radius
+  const disc = b2 * b2 - 4 * a2 * c2
+  if (disc < 0) return []
+  const sq = Math.sqrt(Math.max(disc, 0))
+  const ts = disc < 1e-9 ? [-b2 / (2 * a2)] : [(-b2 - sq) / (2 * a2), (-b2 + sq) / (2 * a2)]
+  const [t0, t1] = extendRange(line)
+  const eps = 1e-9
+  const out: Vec2[] = []
+  for (const t of ts) {
+    if (t < t0 - eps || t > t1 + eps) continue
+    out.push(add(line.start, scale(d, t)))
+  }
+  return out
+}
+
+/** Where two Guide circles meet: 0 (disjoint / one inside the other / equal),
+ *  1 (tangent) or 2 points. */
+function circleCircleIntersection(a: EditorGuideCircle, b: EditorGuideCircle): Vec2[] {
+  const dvec = sub(b.center, a.center)
+  const dcen = len(dvec)
+  if (dcen < 1e-9) return [] // concentric (incl. identical) — no discrete points
+  const r0 = a.radius
+  const r1 = b.radius
+  if (dcen > r0 + r1 + 1e-9) return [] // too far apart
+  if (dcen < Math.abs(r0 - r1) - 1e-9) return [] // one contained in the other
+  const aDist = (r0 * r0 - r1 * r1 + dcen * dcen) / (2 * dcen)
+  const mid = add(a.center, scale(dvec, aDist / dcen))
+  const h2 = r0 * r0 - aDist * aDist
+  if (h2 <= 1e-9) return [mid] // tangent
+  const h = Math.sqrt(h2)
+  const perp = { x: -dvec.y / dcen, y: dvec.x / dcen }
+  return [add(mid, scale(perp, h)), add(mid, scale(perp, -h))]
+}
+
 /* ── Construction ───────────────────────────────────────────────────────── */
 
 /** Build a fresh Guide line with the v1 defaults (stamp OFF, no extension,
@@ -313,6 +446,33 @@ export function createGuideLine(start: Vec2, end: Vec2, existing: EditorGuide[])
     end,
     stamp: false,
     extend: 'none',
+    manualAnchors: [],
+  }
+}
+
+/**
+ * Build a fresh Guide circle from the two-click draw: `center` then
+ * `radiusPoint` (the phase-carrying second click). `divided` seeds the rosette
+ * division count and leads with divisions (arc ticks off) rather than ticks.
+ */
+export function createGuideCircle(
+  center: Vec2,
+  radiusPoint: Vec2,
+  divided: boolean,
+  existing: EditorGuide[],
+): EditorGuideCircle {
+  const d = sub(radiusPoint, center)
+  return {
+    id: `guide-${existing.length}-${Date.now()}`,
+    kind: 'circle',
+    center,
+    radius: len(d),
+    phase: Math.atan2(d.y, d.x),
+    ...(divided ? { divisions: DEFAULT_CIRCLE_DIVISIONS } : {}),
+    stamp: false,
+    // A divided circle's scaffold IS its divisions; a plain circle leads with
+    // arc ticks. Either is toggled in the popup.
+    ticksEnabled: !divided,
     manualAnchors: [],
   }
 }

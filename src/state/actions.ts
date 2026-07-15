@@ -1,5 +1,5 @@
 import type { PatternConfig, StrandStyle } from '../types/pattern'
-import type { BoundaryShape, ConfigurationId, EditorConfig, EditorGuide, EditorGuideLine, FrameConfig, GroupingScope, SymmetryMode, VoidStampRecord } from '../types/editor'
+import type { BoundaryShape, ConfigurationId, EditorConfig, EditorGuide, EditorGuidePatch, FrameConfig, GroupingScope, SymmetryMode, VoidStampRecord } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import type { ClickedTargetKeys } from '../decoration/scopes'
 
@@ -93,7 +93,7 @@ export type Action =
   // typed angle), carrying `guideId` so history coalescing keys drags per
   // Guide; DELETE removes it. All three are Design-mode undoable.
   | { type: 'EDITOR_ADD_GUIDE'; payload: { guide: EditorGuide } }
-  | { type: 'EDITOR_UPDATE_GUIDE'; payload: { guideId: string; patch: Partial<Omit<EditorGuideLine, 'id' | 'kind'>> } }
+  | { type: 'EDITOR_UPDATE_GUIDE'; payload: { guideId: string; patch: EditorGuidePatch } }
   | { type: 'EDITOR_DELETE_GUIDE'; payload: { guideId: string } }
   | { type: 'SET_FRAME'; payload: FrameConfig | null }
   // Gallery-mode Frame (clip-only, top-level `config.frame`). Distinct from

@@ -1,9 +1,15 @@
 import { describe, it, expect } from 'vitest'
-import type { EditorGuideLine, EditorPatch } from '../types/editor'
+import type { EditorGuideCircle, EditorGuideLine, EditorPatch } from '../types/editor'
 import {
   collectSnapPoints,
+  createGuideCircle,
   createGuideLine,
+  DEFAULT_CIRCLE_DIVISIONS,
   guideAnchorPoints,
+  guideCircleDivisionPoints,
+  guideCircleManualPoints,
+  guideCircleRadiusPoint,
+  guideCircleTickPoints,
   guideIntersections,
   guideLineAngleDeg,
   guideLineSpan,
@@ -192,6 +198,119 @@ describe('Guides — creation defaults', () => {
   })
 })
 
+function circle(partial: Partial<EditorGuideCircle> = {}): EditorGuideCircle {
+  return {
+    id: 'c1',
+    kind: 'circle',
+    center: { x: 0, y: 0 },
+    radius: 100,
+    stamp: false,
+    manualAnchors: [],
+    ...partial,
+  }
+}
+
+describe('Guides — circles', () => {
+  it('createGuideCircle: plain circle takes radius + phase from the two clicks, ticks on, no divisions', () => {
+    const c = createGuideCircle({ x: 0, y: 0 }, { x: 0, y: 50 }, false, [])
+    expect(c.kind).toBe('circle')
+    expect(c.radius).toBeCloseTo(50)
+    expect(c.phase).toBeCloseTo(Math.PI / 2)
+    expect(c.divisions).toBeUndefined()
+    expect(c.ticksEnabled).toBe(true)
+  })
+
+  it('createGuideCircle: divided circle seeds the default division count and leads with divisions (ticks off)', () => {
+    const c = createGuideCircle({ x: 0, y: 0 }, { x: 40, y: 0 }, true, [])
+    expect(c.divisions).toBe(DEFAULT_CIRCLE_DIVISIONS)
+    expect(c.ticksEnabled).toBe(false)
+  })
+
+  it('division points: n divisions → 2n equally-spaced rim points starting at phase', () => {
+    const pts = guideCircleDivisionPoints(circle({ divisions: 3, phase: 0 }))
+    expect(pts).toHaveLength(6) // 2·3
+    expect(pts[0].x).toBeCloseTo(100)
+    expect(pts[0].y).toBeCloseTo(0)
+    expect(pts[1].x).toBeCloseTo(100 * Math.cos(Math.PI / 3))
+    expect(pts[1].y).toBeCloseTo(100 * Math.sin(Math.PI / 3))
+  })
+
+  it('division points: none for a plain circle', () => {
+    expect(guideCircleDivisionPoints(circle())).toEqual([])
+  })
+
+  it('arc ticks: count = round(circumference / spacing), evenly spread', () => {
+    // Circumference 2π·100 ≈ 628; spacing 100 → round(6.28) = 6 ticks.
+    const ticks = guideCircleTickPoints(circle({ tickSpacing: 100 }), 100)
+    expect(ticks).toHaveLength(6)
+    // First tick sits on the phase (east) point.
+    expect(ticks[0].x).toBeCloseTo(100)
+    expect(ticks[0].y).toBeCloseTo(0)
+  })
+
+  it('arc ticks: suppressed when disabled or when fewer than two would fit', () => {
+    expect(guideCircleTickPoints(circle({ ticksEnabled: false }), 100)).toEqual([])
+    expect(guideCircleTickPoints(circle({ radius: 10, tickSpacing: 1000 }), 100)).toEqual([])
+  })
+
+  it('radius point sits at phase; manual anchors are angle fractions from phase', () => {
+    expect(guideCircleRadiusPoint(circle({ phase: Math.PI / 2 })).y).toBeCloseTo(100)
+    const m = guideCircleManualPoints(circle({ phase: 0, manualAnchors: [0.25] }))
+    expect(m[0].x).toBeCloseTo(0)
+    expect(m[0].y).toBeCloseTo(100) // quarter turn CCW
+  })
+
+  it('anchor points include centre, radius handle, divisions and ticks', () => {
+    const pts = guideAnchorPoints(circle({ divisions: 2, phase: 0 }), 100)
+    expect(pts).toContainEqual({ x: 0, y: 0 }) // centre
+    expect(pts.some(p => Math.abs(p.x - 100) < 1e-6 && Math.abs(p.y) < 1e-6)).toBe(true)
+  })
+})
+
+describe('Guides — circle intersections', () => {
+  it('circle × line: a line through the centre crosses at both poles', () => {
+    const c = circle() // centre 0,0 r=100
+    const l: EditorGuideLine = {
+      id: 'l1', kind: 'line', start: { x: -200, y: 0 }, end: { x: 200, y: 0 },
+      stamp: false, extend: 'none', manualAnchors: [],
+    }
+    const hits = guideIntersections([c, l])
+    expect(hits).toHaveLength(2)
+    expect(hits.map(h => Math.round(h.x)).sort((a, b) => a - b)).toEqual([-100, 100])
+  })
+
+  it('circle × line: a segment inside the circle misses; extending it reaches the rim', () => {
+    const c = circle() // centre 0,0 r=100
+    const short: EditorGuideLine = {
+      id: 'l2', kind: 'line', start: { x: 0, y: 0 }, end: { x: 50, y: 0 },
+      stamp: false, extend: 'none', manualAnchors: [],
+    }
+    // Both roots (t = ±2) fall outside the drawn [0, 1] segment.
+    expect(guideIntersections([c, short])).toHaveLength(0)
+    // Extending forward reaches the +x pole (t = 2).
+    const hits = guideIntersections([c, { ...short, extend: 'end' }])
+    expect(hits).toHaveLength(1)
+    expect(hits[0].x).toBeCloseTo(100)
+  })
+
+  it('circle × circle: two overlapping circles meet at two points', () => {
+    const a = circle({ id: 'a', center: { x: 0, y: 0 }, radius: 100 })
+    const b = circle({ id: 'b', center: { x: 120, y: 0 }, radius: 100 })
+    const hits = guideIntersections([a, b])
+    expect(hits).toHaveLength(2)
+    expect(hits[0].x).toBeCloseTo(60)
+    expect(Math.abs(hits[0].y)).toBeCloseTo(80)
+  })
+
+  it('circle × circle: disjoint / concentric circles do not meet', () => {
+    const a = circle({ id: 'a', radius: 50 })
+    const far = circle({ id: 'b', center: { x: 500, y: 0 }, radius: 50 })
+    expect(guideIntersections([a, far])).toHaveLength(0)
+    const concentric = circle({ id: 'b', radius: 80 })
+    expect(guideIntersections([a, concentric])).toHaveLength(0)
+  })
+})
+
 describe('Guides — migration', () => {
   function v3Patch(extra: Record<string, unknown> = {}): Record<string, unknown> {
     return {
@@ -254,5 +373,28 @@ describe('Guides — migration', () => {
   it('an empty guides array drops to undefined', () => {
     const out = migrateEditorConfig(v3Patch({ guides: [] }))
     expect(out!.guides).toBeUndefined()
+  })
+
+  it('round-trips a valid circle guide, preserving phase / divisions / tick fields', () => {
+    const g = {
+      id: 'guide-0', kind: 'circle', center: { x: 10, y: 20 }, radius: 75,
+      phase: 1.2, divisions: 6, stamp: true, tickSpacing: 40, ticksEnabled: false, manualAnchors: [0.25],
+    }
+    const out = migrateEditorConfig(v3Patch({ guides: [g] }))
+    expect(out!.guides).toEqual([g])
+  })
+
+  it('drops circles with a bad centre or non-positive radius; rounds divisions', () => {
+    const bads = [
+      { id: 'b1', kind: 'circle', center: { x: 'no' }, radius: 10, stamp: false, manualAnchors: [] },
+      { id: 'b2', kind: 'circle', center: { x: 0, y: 0 }, radius: 0, stamp: false, manualAnchors: [] },
+      { id: 'b3', kind: 'circle', center: { x: 0, y: 0 }, radius: -5, stamp: false, manualAnchors: [] },
+    ]
+    const good = { id: 'g', kind: 'circle', center: { x: 0, y: 0 }, radius: 30, divisions: 5.6, stamp: false, manualAnchors: [] }
+    const out = migrateEditorConfig(v3Patch({ guides: [...bads, good] }))
+    expect(out!.guides).toHaveLength(1)
+    const c = out!.guides![0] as EditorGuideCircle
+    expect(c.id).toBe('g')
+    expect(c.divisions).toBe(6) // rounded
   })
 })

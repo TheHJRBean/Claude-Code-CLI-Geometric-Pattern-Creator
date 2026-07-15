@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import type { EditorGuideCircle, EditorGuideLine, EditorPatch } from '../types/editor'
 import {
+  collectGuideAnchors,
   collectSnapPoints,
   createGuideCircle,
+  guideEdgeIntersections,
+  type GuideAnchor,
   createGuideLine,
   DEFAULT_CIRCLE_DIVISIONS,
   guideAnchorPoints,
@@ -84,6 +87,72 @@ describe('Guides — angle snap', () => {
   it('returns the cursor unchanged at zero length', () => {
     const p = { x: 0, y: 0 }
     expect(snapAngle(p, p, 15)).toEqual(p)
+  })
+})
+
+describe('Guides — anchor engine (slice 3)', () => {
+  // A CCW unit-ish square, half-extent 50, as Patch-world geometry edges.
+  const square: Array<[{ x: number; y: number }, { x: number; y: number }]> = [
+    [{ x: -50, y: -50 }, { x: 50, y: -50 }],
+    [{ x: 50, y: -50 }, { x: 50, y: 50 }],
+    [{ x: 50, y: 50 }, { x: -50, y: 50 }],
+    [{ x: -50, y: 50 }, { x: -50, y: -50 }],
+  ]
+
+  const near = (anchors: GuideAnchor[], x: number, y: number) =>
+    anchors.filter(a => Math.hypot(a.p.x - x, a.p.y - y) < 1e-6)
+
+  it('finds Guide line × edge crossings on both sides of the square', () => {
+    const pts = guideEdgeIntersections(line({ start: { x: -100, y: 0 }, end: { x: 100, y: 0 } }), square)
+    expect(pts.length).toBe(2)
+    const xs = pts.map(p => p.x).sort((a, b) => a - b)
+    expect(xs[0]).toBeCloseTo(-50)
+    expect(xs[1]).toBeCloseTo(50)
+    expect(pts.every(p => Math.abs(p.y) < 1e-9)).toBe(true)
+  })
+
+  it("respects the Guide line's extend range", () => {
+    // Segment stops short of the square (extend none) → no crossing; extend
+    // both reaches the far edges.
+    const g = line({ start: { x: -100, y: 0 }, end: { x: -80, y: 0 } })
+    expect(guideEdgeIntersections(g, square).length).toBe(0)
+    expect(guideEdgeIntersections({ ...g, extend: 'both' }, square).length).toBe(2)
+  })
+
+  it('finds Guide circle × edge crossings (2 per edge when the rim cuts it)', () => {
+    // radius 60: 50 < 60 < 50√2, so the rim crosses every edge twice → 8 pts.
+    expect(guideEdgeIntersections(circle({ radius: 60 }), square).length).toBe(8)
+    // radius 40: rim sits inside the square → no crossings.
+    expect(guideEdgeIntersections(circle({ radius: 40 }), square).length).toBe(0)
+  })
+
+  it('collectGuideAnchors includes Guide×Tile-edge crossings', () => {
+    // Horizontal line straight through the Seed square's body.
+    const g = line({ id: 'gx', start: { x: -200, y: 0 }, end: { x: 200, y: 0 }, ticksEnabled: true })
+    const anchors = collectGuideAnchors(patch({ guides: [g] }), 0)
+    // The Seed square (edge 100, rotation 0) is a diamond; the line crosses its
+    // two side vertices at (±100/√2·√2 …) — assert there are crossings off the
+    // Guide's own endpoints/ticks by checking anchors exist beyond x=±100.
+    expect(anchors.some(a => Math.abs(a.p.y) < 1e-6 && Math.abs(a.p.x) > 1e-6 && Math.abs(a.p.x) < 100)).toBe(true)
+  })
+
+  it('tags stamp per Decision 2: intersection = AND, and non-stamping downgrades a coincident stamping point', () => {
+    const a = line({ id: 'a', start: { x: -100, y: 0 }, end: { x: 100, y: 0 }, stamp: false, ticksEnabled: false })
+    const b = line({ id: 'b', start: { x: 30, y: -100 }, end: { x: 30, y: 100 }, stamp: true, ticksEnabled: false })
+    const anchors = collectGuideAnchors(patch({ guides: [a, b] }), 0)
+    // Crossing at (30, 0): a is world-space ⇒ AND ⇒ false, and it downgrades
+    // b's coincident endpoint-tick pass to world-space too.
+    const cross = near(anchors, 30, 0)
+    expect(cross.length).toBe(1)
+    expect(cross[0].stamp).toBe(false)
+  })
+
+  it("tags a stamping Guide's own anchors as stamp=true", () => {
+    const g = line({ id: 's', start: { x: -300, y: 300 }, end: { x: -200, y: 300 }, stamp: true, ticksEnabled: false })
+    const anchors = collectGuideAnchors(patch({ guides: [g] }), 0)
+    const end = near(anchors, -200, 300)
+    expect(end.length).toBe(1)
+    expect(end[0].stamp).toBe(true)
   })
 })
 

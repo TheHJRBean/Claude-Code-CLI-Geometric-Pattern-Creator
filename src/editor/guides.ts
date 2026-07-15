@@ -58,8 +58,9 @@ export interface SnapPoint {
 /**
  * Collect the snap-while-drawing candidate set in Patch-local world coords
  * (spec Decision 7): every Tile vertex, every Tile edge midpoint, every
- * Cell-Boundary corner, plus existing Guide Anchors (endpoints, ticks,
- * manual) and Guide×Guide intersections.
+ * Cell-Boundary corner, plus every Guide **Anchor** (`collectGuideAnchors` —
+ * self anchors, Guide×Guide, and Guide×Tile-edge / Guide×Cell-Boundary
+ * crossings).
  */
 export function collectSnapPoints(patch: EditorPatch, patchRot: number): SnapPoint[] {
   const out: SnapPoint[] = []
@@ -81,16 +82,93 @@ export function collectSnapPoints(patch: EditorPatch, patchRot: number): SnapPoi
       out.push({ p: applyCellTransform(v, cell, patchRot), kind: 'boundary-corner' })
     }
   }
-  const guides = patch.guides ?? []
-  for (const g of guides) {
-    for (const p of guideAnchorPoints(g, patch.edgeLength)) {
-      out.push({ p, kind: 'guide-anchor' })
-    }
-  }
-  for (const p of guideIntersections(guides)) {
-    out.push({ p, kind: 'guide-anchor' })
+  for (const a of collectGuideAnchors(patch, patchRot)) {
+    out.push({ p: a.p, kind: 'guide-anchor' })
   }
   return out
+}
+
+/* ── Anchor engine (slice 3) ────────────────────────────────────────────────
+ * A **GuideAnchor** is any single point a Guide exposes, in Patch-world coords,
+ * carried with its provenance so the Complete / Place flows can route the
+ * resulting Tile: `stamp` decides world-space one-off vs ordinary Cell Tile
+ * (spec Decision 2 + the slice-3 storage semantics). This is the single source
+ * of truth consumed by snap, the Guide layer, and both placement flows. */
+
+/** A pickable point exposed by a Guide, in Patch-world coords. */
+export interface GuideAnchor {
+  p: Vec2
+  /** Owning Guide (for an intersection: the "primary" Guide — see `stamp`). */
+  guideId: string
+  /**
+   * True ⇒ the anchor is Patch-relative (repeats under the Lattice): a Tile
+   * minted here is an ordinary Cell Tile. False ⇒ world-space one-off. For a
+   * Guide×Guide intersection this is the AND of both Guides' stamp flags — a
+   * crossing is only Patch-relative if *both* Guides are; for a
+   * Guide×Tile-edge / Guide×Boundary crossing it follows the Guide (the Tile /
+   * Boundary is already Patch-relative).
+   */
+  stamp: boolean
+}
+
+/** Every Tile-edge + Cell-Boundary edge across the Patch, in Patch-world coords
+ *  — the target set for Guide×geometry intersection Anchors. */
+function patchWorldEdges(patch: EditorPatch, patchRot: number): Array<[Vec2, Vec2]> {
+  const edges: Array<[Vec2, Vec2]> = []
+  for (const cell of patch.cells) {
+    for (const tile of cell.tiles) {
+      const vs = tileVertices(tile).map(v => applyCellTransform(v, cell, patchRot))
+      for (let i = 0; i < vs.length; i++) edges.push([vs[i], vs[(i + 1) % vs.length]])
+    }
+    const bv = editorBoundaryVertices(cell).map(v => applyCellTransform(v, cell, patchRot))
+    for (let i = 0; i < bv.length; i++) edges.push([bv[i], bv[(i + 1) % bv.length]])
+  }
+  return edges
+}
+
+/**
+ * Every Guide **Anchor** the Patch exposes (spec Decision 5), in Patch-world
+ * coords: each Guide's own anchors (endpoints/centre/ticks/divisions/manual),
+ * Guide×Guide intersections, and Guide×Tile-edge / Guide×Cell-Boundary
+ * crossings. Deduplicated to a rounded grid so coincident points (a tick that
+ * lands on a crossing, a shared tile edge hit twice) collapse to one pick.
+ */
+export function collectGuideAnchors(patch: EditorPatch, patchRot: number): GuideAnchor[] {
+  const guides = patch.guides ?? []
+  if (guides.length === 0) return []
+  const out: GuideAnchor[] = []
+  // Self anchors.
+  for (const g of guides) {
+    for (const p of guideAnchorPoints(g, patch.edgeLength)) out.push({ p, guideId: g.id, stamp: g.stamp })
+  }
+  // Guide×Guide crossings — Patch-relative only when both Guides stamp.
+  for (let i = 0; i < guides.length; i++) {
+    for (let j = i + 1; j < guides.length; j++) {
+      const stamp = guides[i].stamp && guides[j].stamp
+      for (const p of guidePairIntersections(guides[i], guides[j])) out.push({ p, guideId: guides[i].id, stamp })
+    }
+  }
+  // Guide×Tile-edge and Guide×Cell-Boundary crossings — follow the Guide's
+  // stamp flag (the target geometry is already Patch-relative).
+  const edges = patchWorldEdges(patch, patchRot)
+  for (const g of guides) {
+    for (const p of guideEdgeIntersections(g, edges)) out.push({ p, guideId: g.id, stamp: g.stamp })
+  }
+  return dedupeAnchors(out)
+}
+
+/** Collapse anchors sharing a rounded position; first occurrence wins, but a
+ *  non-stamping (world-space) duplicate downgrades a stamping one so a point
+ *  reachable both ways never silently repeats under the Lattice. */
+function dedupeAnchors(anchors: GuideAnchor[]): GuideAnchor[] {
+  const byKey = new Map<string, GuideAnchor>()
+  for (const a of anchors) {
+    const key = `${Math.round(a.p.x * 1e4)},${Math.round(a.p.y * 1e4)}`
+    const prev = byKey.get(key)
+    if (!prev) byKey.set(key, a)
+    else if (prev.stamp && !a.stamp) byKey.set(key, a)
+  }
+  return [...byKey.values()]
 }
 
 /** Nearest snap candidate within `tolerance` (world units), or null. */
@@ -432,6 +510,65 @@ function circleCircleIntersection(a: EditorGuideCircle, b: EditorGuideCircle): V
   const h = Math.sqrt(h2)
   const perp = { x: -dvec.y / dcen, y: dvec.x / dcen }
   return [add(mid, scale(perp, h)), add(mid, scale(perp, -h))]
+}
+
+/* ── Guide × geometry-edge intersections (slice 3) ──────────────────────── */
+
+/**
+ * Where a Guide crosses a set of finite geometry edges (Tile edges,
+ * Cell-Boundary edges) — spec Decision 5. Each edge is the segment [a, b]
+ * (parameter u ∈ [0, 1]); a Guide line still respects its own `extend` range.
+ */
+export function guideEdgeIntersections(g: EditorGuide, edges: Array<[Vec2, Vec2]>): Vec2[] {
+  const out: Vec2[] = []
+  for (const [a, b] of edges) {
+    if (g.kind === 'line') {
+      const p = lineSegmentIntersection(g, a, b)
+      if (p) out.push(p)
+    } else {
+      out.push(...circleSegmentIntersection(g, a, b))
+    }
+  }
+  return out
+}
+
+/** Intersection of a Guide line (respecting `extend`) with the finite segment
+ *  [a, b], or null when they don't cross within both ranges. */
+function lineSegmentIntersection(line: EditorGuideLine, a: Vec2, b: Vec2): Vec2 | null {
+  const da = sub(line.end, line.start)
+  const db = sub(b, a)
+  const denom = cross(da, db)
+  if (Math.abs(denom) < 1e-12) return null
+  const ab = sub(a, line.start)
+  const t = cross(ab, db) / denom // param along the Guide line
+  const u = cross(ab, da) / denom // param along the segment
+  const eps = 1e-9
+  if (u < -eps || u > 1 + eps) return null
+  const [t0, t1] = extendRange(line)
+  if (t < t0 - eps || t > t1 + eps) return null
+  return add(line.start, scale(da, t))
+}
+
+/** Intersection points of a Guide circle with the finite segment [a, b].
+ *  0, 1 (tangent / single crossing in range) or 2 points. */
+function circleSegmentIntersection(c: EditorGuideCircle, a: Vec2, b: Vec2): Vec2[] {
+  const d = sub(b, a)
+  const a2 = dot(d, d)
+  if (a2 < 1e-12) return []
+  const f = sub(a, c.center)
+  const b2 = 2 * dot(f, d)
+  const c2 = dot(f, f) - c.radius * c.radius
+  const disc = b2 * b2 - 4 * a2 * c2
+  if (disc < 0) return []
+  const sq = Math.sqrt(Math.max(disc, 0))
+  const us = disc < 1e-9 ? [-b2 / (2 * a2)] : [(-b2 - sq) / (2 * a2), (-b2 + sq) / (2 * a2)]
+  const eps = 1e-9
+  const out: Vec2[] = []
+  for (const u of us) {
+    if (u < -eps || u > 1 + eps) continue
+    out.push(add(a, scale(d, u)))
+  }
+  return out
 }
 
 /* ── Construction ───────────────────────────────────────────────────────── */

@@ -6,6 +6,7 @@ import type { PaintVoid } from '../../decoration/resolve'
 import { downloadAllVoidShapeCanvases, downloadVoidShapePNG, downloadVoidShapeSVG, importStampImage, voidStampCanvas } from '../../export/stampAssets'
 import { ColourPicker, pushRecentColour } from '../ColourPicker'
 import { FieldLabel, segmentedButtonStyle } from './labShared'
+import { StampFocusEditor } from './StampFocusEditor'
 
 const decorationButtonStyle: React.CSSProperties = {
   padding: '5px 8px',
@@ -279,6 +280,7 @@ function StampSection({ editor, dispatch, selection, getStampVoids }: {
   const [busy, setBusy] = useState(false)
   const [exportAllNote, setExportAllNote] = useState<string | null>(null)
   const [exportingAll, setExportingAll] = useState(false)
+  const [focusOpen, setFocusOpen] = useState(false)
 
   const exportAll = async (format: 'svg' | 'png') => {
     setExportingAll(true)
@@ -307,7 +309,13 @@ function StampSection({ editor, dispatch, selection, getStampVoids }: {
       const img = await importStampImage(file)
       dispatch({
         type: 'SET_DECORATION_VOID_STAMP',
-        payload: { scope: 'congruent', key: selection.signature, fit: selRec?.fit ?? 'cover', ...img },
+        // Keep the fit + Focus-mode adjustment when replacing the image so
+        // an externally-iterated design doesn't reset its placement.
+        payload: {
+          scope: 'congruent', key: selection.signature, fit: selRec?.fit ?? 'cover',
+          ...(selRec?.transform ? { transform: selRec.transform } : null),
+          ...img,
+        },
       })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'image import failed')
@@ -392,7 +400,24 @@ function StampSection({ editor, dispatch, selection, getStampVoids }: {
               </button>
             </div>
           )}
+          {selRec && (
+            <button
+              onClick={() => setFocusOpen(true)}
+              style={{ ...decorationButtonStyle, width: '100%', marginTop: 6 }}
+              title="Open the shape full-screen and pan / zoom / rotate the image inside it"
+            >
+              Focus mode — adjust placement…
+            </button>
+          )}
         </div>
+      )}
+      {focusOpen && selRec && outline && (
+        <StampFocusEditor
+          record={selRec}
+          outline={outline}
+          onApply={rec => dispatch({ type: 'SET_DECORATION_VOID_STAMP', payload: rec })}
+          onClose={() => setFocusOpen(false)}
+        />
       )}
       <FieldLabel label="All shape canvases" tooltip="Download one blank, transparent shape canvas per distinct Void shape on the canvas, named by shape (triangle-1, triangle-2, 6-gon, hexagon…). Design stamps on them externally, then upload each below." />
       <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { Vec2 } from '../utils/math'
-import { canonicalPose, poseBBox, fitImageRect, resolveVoidStamps, type StampTransform } from './stamps'
+import { canonicalPose, poseBBox, fitImageRect, resolveVoidStamps, userTransformMatrix, composeTransforms, isIdentityUserTransform, IDENTITY_USER_TRANSFORM, type StampTransform } from './stamps'
 import { voidSignature } from './voids'
 
 const apply = (m: StampTransform, p: Vec2): Vec2 => ({
@@ -159,6 +159,71 @@ describe('resolveVoidStamps', () => {
       [{ polygon: QUAD, signature: sig }],
       [{ ...record, scope: 'instance' }],
     )).toEqual([])
+  })
+})
+
+describe('userTransformMatrix', () => {
+  const box = { x: 0, y: 0, width: 20, height: 10 }
+  const apply = (m: StampTransform, p: { x: number; y: number }) =>
+    ({ x: m.a * p.x + m.c * p.y + m.e, y: m.b * p.x + m.d * p.y + m.f })
+
+  it('identity transform is the identity matrix', () => {
+    const m = userTransformMatrix(box, IDENTITY_USER_TRANSFORM)
+    expect(m.a).toBeCloseTo(1); expect(m.b).toBeCloseTo(0)
+    expect(m.c).toBeCloseTo(0); expect(m.d).toBeCloseTo(1)
+    expect(m.e).toBeCloseTo(0); expect(m.f).toBeCloseTo(0)
+  })
+
+  it('pans by box fractions', () => {
+    const m = userTransformMatrix(box, { offsetX: 0.5, offsetY: -0.2, scale: 1, rotation: 0 })
+    expect(apply(m, { x: 3, y: 4 })).toEqual({ x: 3 + 10, y: 4 - 2 })
+  })
+
+  it('zooms and rotates about the box centre', () => {
+    const centre = { x: 10, y: 5 }
+    const mz = userTransformMatrix(box, { offsetX: 0, offsetY: 0, scale: 2, rotation: 0 })
+    expect(apply(mz, centre).x).toBeCloseTo(centre.x)
+    expect(apply(mz, centre).y).toBeCloseTo(centre.y)
+    expect(apply(mz, { x: 12, y: 5 }).x).toBeCloseTo(14) // 2 right of centre → 4
+    const mr = userTransformMatrix(box, { offsetX: 0, offsetY: 0, scale: 1, rotation: 90 })
+    const p = apply(mr, { x: 12, y: 5 }) // 2 right of centre → 2 below (y-down 90° CW)
+    expect(p.x).toBeCloseTo(10)
+    expect(p.y).toBeCloseTo(7)
+  })
+
+  it('isIdentityUserTransform detects the no-op', () => {
+    expect(isIdentityUserTransform(IDENTITY_USER_TRANSFORM)).toBe(true)
+    expect(isIdentityUserTransform({ offsetX: 0, offsetY: 0, scale: 1.2, rotation: 0 })).toBe(false)
+  })
+
+  it('composeTransforms applies B first', () => {
+    const shift: StampTransform = { a: 1, b: 0, c: 0, d: 1, e: 5, f: 0 }
+    const scale2: StampTransform = { a: 2, b: 0, c: 0, d: 2, e: 0, f: 0 }
+    // scale ∘ shift: (1,0) → (6,0) → (12,0)
+    expect(apply(composeTransforms(scale2, shift), { x: 1, y: 0 })).toEqual({ x: 12, y: 0 })
+  })
+})
+
+describe('resolveVoidStamps with a user transform', () => {
+  const sig = voidSignature(QUAD, 0.5, (0.5 * Math.PI) / 180)
+  const record = { scope: 'congruent' as const, key: sig, image: 'data:image/png;base64,x', width: 100, height: 50, fit: 'cover' as const }
+
+  it('composes the adjustment into the placement transform', () => {
+    const base = resolveVoidStamps([{ polygon: QUAD, signature: sig }], [record])[0]
+    const adjusted = resolveVoidStamps(
+      [{ polygon: QUAD, signature: sig }],
+      [{ ...record, transform: { offsetX: 0.25, offsetY: 0, scale: 1, rotation: 0 } }],
+    )[0]
+    // Base rect unchanged; the pan rides in the matrix.
+    expect(adjusted.rect).toEqual(base.rect)
+    const box = poseBBox(canonicalPose(QUAD)!.points)!
+    const p = { x: 1, y: 1 }
+    const applyM = (m: StampTransform) => ({ x: m.a * p.x + m.c * p.y + m.e, y: m.b * p.x + m.d * p.y + m.f })
+    const b = applyM(base.transform)
+    const a = applyM(adjusted.transform)
+    // Instance-space displacement is the isometry image of the canonical pan
+    // — its length is exactly offsetX·boxWidth.
+    expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeCloseTo(0.25 * box.width, 9)
   })
 })
 

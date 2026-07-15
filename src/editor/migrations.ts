@@ -220,7 +220,21 @@ function migrateVoidStamp(raw: unknown): VoidStampRecord | null {
   if (typeof r.width !== 'number' || !(r.width > 0)) return null
   if (typeof r.height !== 'number' || !(r.height > 0)) return null
   if (r.fit !== 'cover' && r.fit !== 'contain') return null
-  return { scope: r.scope as GroupingScope, key: r.key, image: r.image, width: r.width, height: r.height, fit: r.fit }
+  const out: VoidStampRecord = { scope: r.scope as GroupingScope, key: r.key, image: r.image, width: r.width, height: r.height, fit: r.fit }
+  // Optional Focus-mode adjustment — a malformed transform is stripped (the
+  // stamp survives at its base fit) rather than dropping the whole record.
+  if (typeof r.transform === 'object' && r.transform !== null) {
+    const t = r.transform as Record<string, unknown>
+    if (
+      typeof t.offsetX === 'number' && Number.isFinite(t.offsetX)
+      && typeof t.offsetY === 'number' && Number.isFinite(t.offsetY)
+      && typeof t.scale === 'number' && Number.isFinite(t.scale) && t.scale > 0
+      && typeof t.rotation === 'number' && Number.isFinite(t.rotation)
+    ) {
+      out.transform = { offsetX: t.offsetX, offsetY: t.offsetY, scale: t.scale, rotation: t.rotation }
+    }
+  }
+  return out
 }
 
 /**

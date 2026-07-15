@@ -5,6 +5,22 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-15 (later) — ✅ Stamp FOCUS MODE SHIPPED (pan/zoom/rotate an image inside its Void)
+
+**Goal:** user request — full-screen editor for how an uploaded stamp sits in its polygon: shape shown alone at window size, pan/zoom/rotate ("crop" falls out of pan+zoom within the clip).
+
+**Done (1 commit on `main`):**
+- Schema: `VoidStampRecord.transform?: StampUserTransform { offsetX, offsetY, scale, rotation }` — pan as canonical-box fractions, zoom/rotation° about the box centre. Additive; `migrations.ts` strips a malformed transform but KEEPS the record at base fit.
+- `src/decoration/stamps.ts`: `IDENTITY_USER_TRANSFORM`, `isIdentityUserTransform`, `userTransformMatrix(box, t)` (canonical→canonical affine), `composeTransforms`. `resolveVoidStamps` composes `toInstance ∘ userMatrix` — `VoidStampLayer` untouched, every congruent instance (incl. mirrored) inherits the adjustment.
+- `src/components/lab/StampFocusEditor.tsx` — portal full-screen overlay: canonical shape fit to window (18% pad), image clipped + unclipped ghost (0.22 opacity), accent dashed guide. Drag = pan (pointer capture, client-px→canonical via viewBox meet scale), wheel = zoom (non-passive listener, clamp 0.05–20), sliders for zoom (log₂) + rotation (−180…180°), Reset / Cancel / Apply, Esc cancels. Local state while editing; Apply dispatches `SET_DECORATION_VOID_STAMP` (identity ⇒ field omitted).
+- StampSection: "Focus mode — adjust placement…" button under the stamp row; image REPLACE now preserves fit+transform.
+- Tests: +7 (matrix/compose/identity/resolver-composition in `stamps.test.ts`, transform round-trip+strip in `migrations.test.ts`). Green: tsc, **934 vitest**, build.
+
+**⏳ BROWSER-VERIFY:** (a) focus mode opens with shape filling window; (b) drag/wheel/sliders feel right (drag direction correct on REFLECTED instances too — check a mirrored twin after Apply); (c) adjustment lands on every matching Void; (d) ghost shows crop; (e) save/reload keeps the transform; (f) SVG/PNG export includes adjusted stamps.
+
+**NEXT (stamps idea):** ladder rungs (cell/patch/instance), Tile-stamping, asset library.
+
+---
 ### ▶ 2026-07-15 — ✅ Stamp "Export all shapes" SHIPPED
 
 **Goal:** user request — batch-export shape canvases for every distinct Void shape, named by shape ("triangle-1", "6-gon"…). (Also asked for a transparent-background option — moot: both shape-canvas exports were already transparent; user confirmed via Q&A.)

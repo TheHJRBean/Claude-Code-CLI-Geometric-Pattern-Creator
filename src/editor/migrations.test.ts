@@ -145,4 +145,23 @@ describe('Void Stamps — migration', () => {
     }))
     expect(empty!.decoration!.voidStamps).toBeUndefined()
   })
+
+  it('round-trips a Focus-mode transform; strips a malformed one, keeping the record', () => {
+    const transform = { offsetX: 0.2, offsetY: -0.1, scale: 1.5, rotation: 45 }
+    const out = migrateEditorConfig(v3Patch({
+      decoration: { version: 1, strandColours: [], voidFills: [], voidStamps: [{ ...stamp, transform }] },
+    }))
+    expect(out!.decoration!.voidStamps).toEqual([{ ...stamp, transform }])
+    for (const bad of [
+      { ...transform, scale: 0 },
+      { ...transform, rotation: 'lots' },
+      { ...transform, offsetX: NaN },
+      'garbage',
+    ]) {
+      const stripped = migrateEditorConfig(v3Patch({
+        decoration: { version: 1, strandColours: [], voidFills: [], voidStamps: [{ ...stamp, transform: bad }] },
+      }))
+      expect(stripped!.decoration!.voidStamps).toEqual([stamp])
+    }
+  })
 })

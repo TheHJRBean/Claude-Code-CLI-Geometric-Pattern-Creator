@@ -1,6 +1,6 @@
 import type { Vec2 } from '../utils/math'
 import { dist, sub, cross, dot } from '../utils/math'
-import type { VoidStampRecord } from '../types/editor'
+import type { StampUserTransform, VoidStampRecord } from '../types/editor'
 import { signedArea, simplifyCollinear } from './voids'
 
 /**
@@ -170,6 +170,54 @@ export function fitImageRect(
   }
 }
 
+export const IDENTITY_USER_TRANSFORM: StampUserTransform = {
+  offsetX: 0, offsetY: 0, scale: 1, rotation: 0,
+}
+
+/** True when `t` is (numerically) the identity — used to omit the field from
+ * saved records instead of storing a no-op. */
+export function isIdentityUserTransform(t: StampUserTransform): boolean {
+  return Math.abs(t.offsetX) < 1e-9 && Math.abs(t.offsetY) < 1e-9
+    && Math.abs(t.scale - 1) < 1e-9 && Math.abs(t.rotation) < 1e-9
+}
+
+/**
+ * Canonical→canonical affine for a Focus-mode adjustment: rotate by
+ * `rotation`° and zoom by `scale` about the canonical box centre, then pan by
+ * the box-fraction offsets. Applied between the base cover/contain fit and
+ * the canonical→instance isometry, so one adjustment lands on every
+ * congruent instance (mirrored on reflected ones, like the image itself).
+ */
+export function userTransformMatrix(box: StampBBox, t: StampUserTransform): StampTransform {
+  const rad = (t.rotation * Math.PI) / 180
+  const cos = Math.cos(rad) * t.scale
+  const sin = Math.sin(rad) * t.scale
+  const cx = box.x + box.width / 2
+  const cy = box.y + box.height / 2
+  const dx = t.offsetX * box.width
+  const dy = t.offsetY * box.height
+  return {
+    a: cos,
+    b: sin,
+    c: -sin,
+    d: cos,
+    e: cx + dx - (cos * cx - sin * cy),
+    f: cy + dy - (sin * cx + cos * cy),
+  }
+}
+
+/** Affine composition `A ∘ B` (apply B first, then A). */
+export function composeTransforms(A: StampTransform, B: StampTransform): StampTransform {
+  return {
+    a: A.a * B.a + A.c * B.b,
+    b: A.b * B.a + A.d * B.b,
+    c: A.a * B.c + A.c * B.d,
+    d: A.b * B.c + A.d * B.d,
+    e: A.a * B.e + A.c * B.f + A.e,
+    f: A.b * B.e + A.d * B.f + A.f,
+  }
+}
+
 /** One render-ready stamped Void: clip to `clip` (instance coords), draw
  * `image` at the canonical-coords rect under `transform`. */
 export interface StampPlacement {
@@ -218,7 +266,10 @@ export function resolveVoidStamps(
     if (!box || box.width <= 0 || box.height <= 0) continue
     out.push({
       clip: v.polygon,
-      transform: pose.toInstance,
+      // Focus-mode adjustment slots between the base fit and the isometry.
+      transform: rec.transform
+        ? composeTransforms(pose.toInstance, userTransformMatrix(box, rec.transform))
+        : pose.toInstance,
       image: rec.image,
       rect: fitImageRect(box, rec.width, rec.height, rec.fit),
     })

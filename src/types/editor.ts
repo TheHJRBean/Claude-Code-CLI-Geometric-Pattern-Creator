@@ -336,6 +336,26 @@ export interface VoidStampRecord {
   /** How the image maps onto the canonical-pose bounding box: `cover` fills
    * the box and crops overflow (default), `contain` letterboxes. */
   fit: 'cover' | 'contain'
+  /** Optional user adjustment on top of the base fit (Focus mode). Absent =
+   * identity. Additive so pre-existing stamp records stay valid. */
+  transform?: StampUserTransform
+}
+
+/**
+ * User adjustment of how a stamp image sits inside its Void, expressed in
+ * the Void's canonical pose so every congruent instance inherits it. Pan is
+ * stored as fractions of the canonical bounding box (resolution-independent);
+ * zoom and rotation act about the box centre.
+ */
+export interface StampUserTransform {
+  /** Image offset as a fraction of the canonical box width (+x → right). */
+  offsetX: number
+  /** Image offset as a fraction of the canonical box height (+y → down). */
+  offsetY: number
+  /** Extra zoom on top of the cover/contain base fit (1 = no change). */
+  scale: number
+  /** Rotation in degrees about the canonical box centre. */
+  rotation: number
 }
 
 /**

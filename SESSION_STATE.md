@@ -5,6 +5,18 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-15 (later still) — ✅ GUIDES (construction lines) GRILLED + SPECCED + TICKETED
+
+**Goal:** grill-with-docs session on the construction-lines idea (feature shaping only, no implementation).
+
+**Done (no code):**
+- 12-question grill complete, all decisions user-confirmed. Spec: `CONSTRUCTION_GUIDES_SPEC.md`. Vocabulary ADR: `docs/adr/0008-guides-construct-anchor-vocabulary.md` (**Construct** mode / **Guide** element / **Anchor** app-wide umbrella term; Guides make Tiles, never pattern lines — PIC stays sole engine).
+- Tickets #26–#31 (v1 slices, `guides` label, native dep edges, per-ticket Model recs: Fable #26/#28, Opus #27/#29/#30, Sonnet #31) + #32 Girih-reveal follow-up.
+- Memory: construction-lines idea → SPECCED; new spin-off idea `project_circular_cell_boundary_idea.md`.
+
+**Next:** implement slice 1 (#26) on **Fable** — data model + Construct mode + Guide lines + popup.
+
+---
 ### ▶ 2026-07-15 (later) — ✅ Stamp FOCUS MODE SHIPPED (pan/zoom/rotate an image inside its Void)
 
 **Goal:** user request — full-screen editor for how an uploaded stamp sits in its polygon: shape shown alone at window size, pan/zoom/rotate ("crop" falls out of pan+zoom within the clip).

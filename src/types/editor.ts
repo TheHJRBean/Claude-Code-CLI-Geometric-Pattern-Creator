@@ -359,6 +359,64 @@ export interface StampUserTransform {
 }
 
 /**
+ * Guides (CONSTRUCTION_GUIDES_SPEC.md, ADR-0008) — compass-and-straightedge
+ * scaffolding drawn in the Design-Phase **Construct** mode. Guides expose
+ * **Anchors** (intersections / ticks / manual points) that join the Place +
+ * Complete pickable set (slice 3); Guides produce Tiles, never pattern lines.
+ *
+ * How a Guide line extends beyond its drawn segment:
+ * - `'none'`  — the finite two-click segment.
+ * - `'start'` — infinite ray back through the start point.
+ * - `'end'`   — infinite ray forward through the end point.
+ * - `'both'`  — infinite line.
+ */
+export type GuideExtend = 'none' | 'start' | 'end' | 'both'
+
+/**
+ * A Guide line — two-click segment in Patch-local world coordinates.
+ * Slice 2 adds `'circle'` / `'divided-circle'` variants to the union.
+ */
+export interface EditorGuideLine {
+  /** Stable identifier within the Patch. */
+  id: string
+  kind: 'line'
+  /** First-click endpoint, Patch-local world coords. */
+  start: Vec2
+  /** Second-click endpoint, Patch-local world coords. */
+  end: Vec2
+  /**
+   * Stamp toggle (spec Decision 2), default OFF. OFF = one-off, world-space;
+   * ON = Patch-relative, repeats in every Lattice stamp. Rendering under the
+   * Lattice is slice 5 — this slice only persists the flag and shows it via
+   * the fixed stamp/static system colours.
+   */
+  stamp: boolean
+  /** Extension beyond the drawn segment. */
+  extend: GuideExtend
+  /**
+   * Spaced-tick Anchors along the Guide (spec Decision 5): spacing in world
+   * units; absent → the Patch's `edgeLength`. `ticksEnabled` absent → true
+   * (ticks are on by default).
+   */
+  tickSpacing?: number
+  ticksEnabled?: boolean
+  /**
+   * Manual Anchors dropped on the Guide, as parametric positions along
+   * start→end (t = 0 at start, 1 at end; outside [0, 1] on extended lines).
+   * Parametric so they ride along when an endpoint is dragged. Creation UI
+   * arrives with the Anchor wiring in slice 3; the schema ships now so saved
+   * configs don't change shape later.
+   */
+  manualAnchors: number[]
+}
+
+/**
+ * A drawn construction element (ADR-0008). v1 slice 1 ships lines only;
+ * circles and divided circles (slice 2) will widen this union.
+ */
+export type EditorGuide = EditorGuideLine
+
+/**
  * A Patch — one repeat unit of the tiled Composition. Always carries one or
  * more **Cells** (ADR-0001: every Patch always has Cells). The Patch level
  * holds the shared **Lattice** edge length, the active-Cell pointer for
@@ -396,6 +454,11 @@ export interface EditorPatch {
    * provenance badge. Absent on user-authored Patches.
    */
   presetId?: string
+  /**
+   * Guides drawn in Construct mode (CONSTRUCTION_GUIDES_SPEC.md). Optional +
+   * additive so patches without Guides keep their shape; absent ⇒ no Guides.
+   */
+  guides?: EditorGuide[]
   /**
    * Multi-cell "Alternate orientation": when true, the whole Patch is rotated
    * *rigidly* by a Configuration-specific angle (`compositionAlternateAngle`) —

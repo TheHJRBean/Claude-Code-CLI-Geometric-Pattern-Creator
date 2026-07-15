@@ -6,6 +6,7 @@ import type {
   EditorAutoCompleteSettings,
   EditorCell,
   EditorConfig,
+  EditorGuide,
   EditorIrregularTile,
   EditorRegularTile,
   EditorTile,
@@ -13,6 +14,7 @@ import type {
   FrameShape,
   FrameType,
   GroupingScope,
+  GuideExtend,
   SymmetryMode,
   VoidStampRecord,
 } from '../types/editor'
@@ -237,6 +239,46 @@ function migrateVoidStamp(raw: unknown): VoidStampRecord | null {
   return out
 }
 
+const GUIDE_EXTENDS = new Set<GuideExtend>(['none', 'start', 'end', 'both'])
+
+/** Guides (slice 1) — validate one persisted Guide. Invalid entries are
+ * dropped (returns null), never crash the load. Lines only in v1 slice 1;
+ * circle kinds join in slice 2. */
+function migrateGuide(raw: unknown): EditorGuide | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const r = raw as Record<string, unknown>
+  if (r.kind !== 'line') return null
+  if (typeof r.id !== 'string' || r.id.length === 0) return null
+  if (!isVec2(r.start) || !isVec2(r.end)) return null
+  if (!GUIDE_EXTENDS.has(r.extend as GuideExtend)) return null
+  const out: EditorGuide = {
+    id: r.id,
+    kind: 'line',
+    start: { x: r.start.x, y: r.start.y },
+    end: { x: r.end.x, y: r.end.y },
+    stamp: r.stamp === true,
+    extend: r.extend as GuideExtend,
+    manualAnchors: Array.isArray(r.manualAnchors)
+      ? r.manualAnchors.filter((t): t is number => typeof t === 'number' && Number.isFinite(t))
+      : [],
+  }
+  if (typeof r.tickSpacing === 'number' && r.tickSpacing > 0) out.tickSpacing = r.tickSpacing
+  if (typeof r.ticksEnabled === 'boolean') out.ticksEnabled = r.ticksEnabled
+  return out
+}
+
+/** Guides array — bad individual Guides are filtered out rather than failing
+ * the load; an empty result drops to `undefined` (no Guides block). */
+function migrateGuides(raw: unknown): EditorGuide[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const out: EditorGuide[] = []
+  for (const g of raw) {
+    const guide = migrateGuide(g)
+    if (guide) out.push(guide)
+  }
+  return out.length > 0 ? out : undefined
+}
+
 /**
  * v3 Cell validator. Used both for top-level v3 patches (where
  * `allowOctagon` follows whether the Patch is multi-cell) and for v2-tile →
@@ -388,6 +430,8 @@ function migrateV3(r: Record<string, unknown>): EditorConfig | null {
   if (frame) out.frame = frame
   const decoration = migrateDecoration(r.decoration)
   if (decoration) out.decoration = decoration
+  const guides = migrateGuides(r.guides)
+  if (guides) out.guides = guides
   // Multi-cell alternate moved from per-Cell `alternateBoundary` to the
   // Patch-level `alternateOrientation` (rigid whole-Patch rotation). Convert
   // legacy multi-cell patches that still carry the per-Cell flag, and clear it

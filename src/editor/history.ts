@@ -44,8 +44,8 @@ export const HISTORY_COALESCE_MS = 500
  * Actions without a Cell target coalesce on type as before.
  */
 export function historyCoalesceKey(action: { type: string; payload?: unknown }): string {
-  const payload = action.payload as { cellId?: string; hostCellId?: string } | undefined
-  return `${action.type}@${payload?.cellId ?? payload?.hostCellId ?? ''}`
+  const payload = action.payload as { cellId?: string; hostCellId?: string; guideId?: string } | undefined
+  return `${action.type}@${payload?.cellId ?? payload?.hostCellId ?? payload?.guideId ?? ''}`
 }
 
 /**
@@ -85,6 +85,11 @@ export const DESIGN_MODE_ACTIONS: ReadonlySet<string> = new Set([
   // Frame overlay — setting / clearing the Frame is undoable. Frame-node
   // completions land via EDITOR_COMPLETE_N_GAP (already in this set).
   'SET_FRAME',
+  // Guides (Construct mode) — draw / edit / delete are undoable. UPDATE
+  // coalesces per `guideId` (endpoint drags fire many updates per second).
+  'EDITOR_ADD_GUIDE',
+  'EDITOR_UPDATE_GUIDE',
+  'EDITOR_DELETE_GUIDE',
   // Step 19 Decoration — colouring Voids / Strands is undoable.
   'SET_DECORATION_VOID_FILL',
   'SET_DECORATION_STRAND_COLOR',

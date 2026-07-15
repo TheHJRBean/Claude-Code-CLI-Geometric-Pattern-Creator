@@ -534,6 +534,35 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         editor: { ...state.editor, autoComplete: { ...prev, enabled: action.payload } },
       }
     }
+    case 'EDITOR_ADD_GUIDE': {
+      if (!state.editor) return state
+      const guides = [...(state.editor.guides ?? []), action.payload.guide]
+      return { ...state, editor: { ...state.editor, guides } }
+    }
+    case 'EDITOR_UPDATE_GUIDE': {
+      // Patch one Guide's fields by id. Fails closed on an unknown id (stale
+      // popup / drag against a since-replaced Patch), mirroring updateCell.
+      const guides = state.editor?.guides
+      if (!state.editor || !guides) return state
+      const { guideId, patch } = action.payload
+      const idx = guides.findIndex(g => g.id === guideId)
+      if (idx === -1) return state
+      const next = guides.map(g => (g.id === guideId ? { ...g, ...patch, id: g.id, kind: g.kind } : g))
+      return { ...state, editor: { ...state.editor, guides: next } }
+    }
+    case 'EDITOR_DELETE_GUIDE': {
+      const guides = state.editor?.guides
+      if (!state.editor || !guides) return state
+      const next = guides.filter(g => g.id !== action.payload.guideId)
+      if (next.length === guides.length) return state
+      // The last delete drops the block entirely (matches migration semantics).
+      if (next.length === 0) {
+        const { guides: _drop, ...rest } = state.editor
+        void _drop
+        return { ...state, editor: rest }
+      }
+      return { ...state, editor: { ...state.editor, guides: next } }
+    }
     case 'SET_FRAME': {
       if (!state.editor) return state
       // `null` clears the Frame. Setting / replacing stores it on the Patch.

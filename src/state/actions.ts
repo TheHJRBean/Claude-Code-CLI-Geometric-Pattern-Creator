@@ -1,5 +1,5 @@
 import type { PatternConfig, StrandStyle } from '../types/pattern'
-import type { BoundaryShape, ConfigurationId, EditorConfig, FrameConfig, GroupingScope, SymmetryMode, VoidStampRecord } from '../types/editor'
+import type { BoundaryShape, ConfigurationId, EditorConfig, EditorGuide, EditorGuideLine, FrameConfig, GroupingScope, SymmetryMode, VoidStampRecord } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import type { ClickedTargetKeys } from '../decoration/scopes'
 
@@ -87,6 +87,14 @@ export type Action =
   // (e.g. 4.8.8, 3.12.12). `null` returns to a single-Cell Patch; an id
   // seeds a fresh Cell set for that Configuration.
   | { type: 'SET_BUILDER_CONFIGURATION'; payload: ConfigurationId | null }
+  // Guides (CONSTRUCTION_GUIDES_SPEC.md slice 1) — Construct-mode mutations on
+  // `editor.guides`. ADD appends a drawn Guide; UPDATE patches one Guide's
+  // fields by id (endpoint drags, popup edits — stamp / extend / tick spacing /
+  // typed angle), carrying `guideId` so history coalescing keys drags per
+  // Guide; DELETE removes it. All three are Design-mode undoable.
+  | { type: 'EDITOR_ADD_GUIDE'; payload: { guide: EditorGuide } }
+  | { type: 'EDITOR_UPDATE_GUIDE'; payload: { guideId: string; patch: Partial<Omit<EditorGuideLine, 'id' | 'kind'>> } }
+  | { type: 'EDITOR_DELETE_GUIDE'; payload: { guideId: string } }
   | { type: 'SET_FRAME'; payload: FrameConfig | null }
   // Gallery-mode Frame (clip-only, top-level `config.frame`). Distinct from
   // SET_FRAME, which targets the Builder's `editor.frame`. `null` clears it.

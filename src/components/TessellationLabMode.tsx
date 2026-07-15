@@ -32,7 +32,9 @@ import { SectionTitle, FieldLabel } from './lab/labShared'
 import { StrandStyleControls } from './ui/StrandStyleControls'
 import { EditorDesignControls } from './lab/EditorDesignControls'
 import { buildExportMenuItems } from '../export/exportActions'
-import type { AppMode } from '../types/appMode'
+import type { AppMode, EditorMode } from '../types/appMode'
+import type { EditorGuide, EditorGuideLine } from '../types/editor'
+import { DEFAULT_ANGLE_STEP } from '../editor/guides'
 
 
 /**
@@ -193,7 +195,23 @@ export function TessellationLabMode({
   }
 
   // ── Editor mode + Complete picker (Step 17.5 / 17.11) ──
-  const [editorMode, setEditorMode] = useState<'place' | 'complete'>('place')
+  const [editorMode, setEditorMode] = useState<EditorMode>('place')
+  // ── Construct mode (Guides slice 1) ────────────────────
+  // Toolbar state — angle-snap step + snap toggle (spec Decision 7). Session
+  // UI state, not persisted. Guides themselves live on `editor.guides`.
+  const [constructAngleStep, setConstructAngleStep] = useState<number>(DEFAULT_ANGLE_STEP)
+  const [constructSnap, setConstructSnap] = useState(true)
+  // Composition-Phase Guides overlay toggle — hidden by default (Decision 9).
+  const [showGuides, setShowGuides] = useState(false)
+  const handleAddGuide = useCallback((guide: EditorGuide) => {
+    dispatch({ type: 'EDITOR_ADD_GUIDE', payload: { guide } })
+  }, [dispatch])
+  const handleUpdateGuide = useCallback((guideId: string, patch: Partial<Omit<EditorGuideLine, 'id' | 'kind'>>) => {
+    dispatch({ type: 'EDITOR_UPDATE_GUIDE', payload: { guideId, patch } })
+  }, [dispatch])
+  const handleDeleteGuide = useCallback((guideId: string) => {
+    dispatch({ type: 'EDITOR_DELETE_GUIDE', payload: { guideId } })
+  }, [dispatch])
   // 17.11.3 — multi-pick state. `multiMode` is engaged by Ctrl/Cmd-click and
   // persists until Enter (commit) or Esc (cancel). When `multiMode` is false,
   // `picks` is the legacy 17.5 chord state (length 0 or 1) and clicking a
@@ -456,6 +474,12 @@ export function TessellationLabMode({
                   setSelectedEdge(null)
                   resetPicks()
                 }}
+                constructAngleStep={constructAngleStep}
+                onSetConstructAngleStep={setConstructAngleStep}
+                constructSnap={constructSnap}
+                onSetConstructSnap={setConstructSnap}
+                showGuides={showGuides}
+                onToggleShowGuides={setShowGuides}
                 picks={picks}
                 multiMode={multiMode}
                 onCancelComplete={resetPicks}
@@ -795,6 +819,12 @@ export function TessellationLabMode({
         onPlaceTileOnBoundarySection={handlePlaceTileOnBoundarySection}
         onPlaceTileOnVertex={handlePlaceTileOnVertex}
         editorMode={editorMode}
+        constructSnap={constructSnap}
+        constructAngleStep={constructAngleStep}
+        showGuides={showGuides}
+        onAddGuide={handleAddGuide}
+        onUpdateGuide={handleUpdateGuide}
+        onDeleteGuide={handleDeleteGuide}
         picks={picks}
         onPickVertex={handlePickVertex}
         previewValid={validity ? validity.kind === 'valid' : null}

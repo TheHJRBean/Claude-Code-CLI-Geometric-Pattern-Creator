@@ -1,5 +1,6 @@
 import type { PatternConfig } from '../../types/pattern'
 import type { Action } from '../../state/actions'
+import type { EditorMode } from '../../types/appMode'
 import type { PaintTarget, StrandPaintScope, VoidPaintScope } from '../../rendering/DecorationPaintLayer'
 import type { PaintVoid } from '../../decoration/resolve'
 import type { Vec2 } from '../../utils/math'
@@ -13,8 +14,14 @@ export interface EditorDesignControlsProps {
   editor: NonNullable<PatternConfig['editor']>
   dispatch: React.Dispatch<Action>
   onClear: () => void
-  editorMode: 'place' | 'complete'
-  onSetEditorMode: (m: 'place' | 'complete') => void
+  editorMode: EditorMode
+  onSetEditorMode: (m: EditorMode) => void
+  constructAngleStep: number
+  onSetConstructAngleStep: (deg: number) => void
+  constructSnap: boolean
+  onSetConstructSnap: (on: boolean) => void
+  showGuides: boolean
+  onToggleShowGuides: (next: boolean) => void
   picks: Vec2[]
   multiMode: boolean
   onCancelComplete: () => void
@@ -59,6 +66,12 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
     onClear,
     editorMode,
     onSetEditorMode,
+    constructAngleStep,
+    onSetConstructAngleStep,
+    constructSnap,
+    onSetConstructSnap,
+    showGuides,
+    onToggleShowGuides,
     picks,
     multiMode,
     onCancelComplete,
@@ -150,6 +163,8 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
           editor={editor}
           showBoundaryLattice={showBoundaryLattice}
           onToggleShowBoundaryLattice={onToggleShowBoundaryLattice}
+          showGuides={showGuides}
+          onToggleShowGuides={onToggleShowGuides}
         />
       )}
 
@@ -178,6 +193,10 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
           dispatch={dispatch}
           editorMode={editorMode}
           onSetEditorMode={onSetEditorMode}
+          constructAngleStep={constructAngleStep}
+          onSetConstructAngleStep={onSetConstructAngleStep}
+          constructSnap={constructSnap}
+          onSetConstructSnap={onSetConstructSnap}
           picks={picks}
           multiMode={multiMode}
           onCancelComplete={onCancelComplete}

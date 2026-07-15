@@ -2,8 +2,10 @@ import { useState } from 'react'
 import type { PatternConfig } from '../../types/pattern'
 import type { Action } from '../../state/actions'
 import type { BoundaryShape, ConfigurationId, EditorCell, SymmetryMode } from '../../types/editor'
+import type { EditorMode } from '../../types/appMode'
 import type { Vec2 } from '../../utils/math'
 import { BOUNDARY_SIZE_MAX_BY_SHAPE } from '../../editor/createDefault'
+import { ANGLE_STEP_PRESETS } from '../../editor/guides'
 import { FieldLabel, SectionTitle, segmentedButtonStyle } from './labShared'
 
 type BoundaryPickerKind =
@@ -177,8 +179,13 @@ function CellControls({
 interface DesignPanelProps {
   editor: NonNullable<PatternConfig['editor']>
   dispatch: React.Dispatch<Action>
-  editorMode: 'place' | 'complete'
-  onSetEditorMode: (m: 'place' | 'complete') => void
+  editorMode: EditorMode
+  onSetEditorMode: (m: EditorMode) => void
+  /** Construct toolbar (spec Decision 11) — angle-snap step + snap toggle. */
+  constructAngleStep: number
+  onSetConstructAngleStep: (deg: number) => void
+  constructSnap: boolean
+  onSetConstructSnap: (on: boolean) => void
   picks: Vec2[]
   multiMode: boolean
   onCancelComplete: () => void
@@ -203,6 +210,10 @@ export function DesignPanel({
   dispatch,
   editorMode,
   onSetEditorMode,
+  constructAngleStep,
+  onSetConstructAngleStep,
+  constructSnap,
+  onSetConstructSnap,
   picks,
   multiMode,
   onCancelComplete,
@@ -367,18 +378,21 @@ export function DesignPanel({
         )
       })()}
 
-      {/* Step 17.5 — Tool toggle: Place edge Tiles vs. Complete gap Tiles. */}
+      {/* Step 17.5 / Guides — Tool toggle: Place / Complete / Construct. */}
       <div style={{ marginTop: 14 }}>
         <FieldLabel
           label="Tool"
-          tooltip="Design-Phase tool. Place adds a single Tile on a clicked edge. Complete fills the gaps around your placed Tiles with regular polygons (or irregular fallbacks)."
+          tooltip="Design-Phase tool. Place adds a single Tile on a clicked edge. Complete fills the gaps around your placed Tiles. Construct draws Guides — compass-and-straightedge scaffolding whose Anchors will feed Place and Complete."
         />
         <div style={{ display: 'flex', gap: 0 }}>
-          {(['place', 'complete'] as const).map(m => {
+          {(['place', 'complete', 'construct'] as const).map(m => {
             const active = editorMode === m
             const tooltip = m === 'place'
               ? 'Click a Cell edge to place a single Tile on that side.'
-              : 'Fill the gaps around your placed Tiles with regular polygons (or irregular fallbacks). Fills with Tiles, not colour — colour-fill arrives later under the Decoration Phase.'
+              : m === 'complete'
+                ? 'Fill the gaps around your placed Tiles with regular polygons (or irregular fallbacks). Fills with Tiles, not colour — colour-fill arrives later under the Decoration Phase.'
+                : 'Draw Guide lines — two clicks per line, snapping to Tile vertices, edge midpoints, Boundary corners, and existing Guide anchors. Click a Guide to edit or delete it.'
+            const label = m === 'place' ? 'Place' : m === 'complete' ? 'Complete' : 'Construct'
             return (
               <button
                 key={m}
@@ -386,11 +400,50 @@ export function DesignPanel({
                 title={tooltip}
                 style={segmentedButtonStyle(active, { letterSpacing: '0.10em' })}
               >
-                {m === 'place' ? 'Place' : 'Complete'}
+                {label}
               </button>
             )
           })}
         </div>
+        {editorMode === 'construct' && (
+          <>
+            {/* Construct toolbar (spec Decision 11) — appears only in-mode.
+                The Guide-line tool is the sole (implicitly armed) tool in
+                slice 1; circles join in slice 2. */}
+            <FieldLabel
+              label="Angle step"
+              tooltip="Angle-snap step while drawing: lines snap to multiples of this from the horizontal — and from the edge the line starts on, so continuations and perpendiculars come free. 36° / 72° serve five-fold and Girih layouts. Hold Shift to draw freehand."
+            />
+            <select
+              className="pattern-select"
+              value={String(constructAngleStep)}
+              onChange={e => onSetConstructAngleStep(Number(e.target.value))}
+            >
+              {ANGLE_STEP_PRESETS.map(deg => (
+                <option key={deg} value={String(deg)}>{deg}°</option>
+              ))}
+            </select>
+            <label style={checkboxLabelStyle(constructSnap, { marginTop: 8 })}>
+              <input
+                type="checkbox"
+                checked={constructSnap}
+                onChange={e => onSetConstructSnap(e.target.checked)}
+              />
+              Snap while drawing
+            </label>
+            <div style={{
+              marginTop: 8,
+              fontFamily: "'EB Garamond', Georgia, serif",
+              fontSize: 12,
+              color: 'var(--text-muted)',
+              lineHeight: 1.4,
+            }}>
+              Click twice to draw a Guide line. Hold Shift for freehand,
+              Esc to cancel. Click a Guide to edit it — stamp, extend,
+              ticks, angle, delete.
+            </div>
+          </>
+        )}
         {editorMode === 'complete' && (
           <>
             {/* Step 17.7 — Auto-complete on flip (Decision 11). Lives in

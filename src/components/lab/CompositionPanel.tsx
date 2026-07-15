@@ -10,10 +10,16 @@ export function CompositionPanel({
   editor,
   showBoundaryLattice,
   onToggleShowBoundaryLattice,
+  showGuides,
+  onToggleShowGuides,
 }: {
   editor: NonNullable<PatternConfig['editor']>
   showBoundaryLattice: boolean
   onToggleShowBoundaryLattice: (next: boolean) => void
+  /** Guides overlay show/hide — hidden by default in Composition (spec
+   *  Decision 9). Only offered when the Patch carries Guides. */
+  showGuides: boolean
+  onToggleShowGuides: (next: boolean) => void
 }) {
   return (
     <div style={{
@@ -46,6 +52,23 @@ export function CompositionPanel({
         />
         Show boundary tessellation
       </label>
+      {(editor.guides?.length ?? 0) > 0 && (
+        <label style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginTop: 8,
+          cursor: 'pointer',
+          color: showGuides ? 'var(--text)' : 'var(--text-muted)',
+        }}>
+          <input
+            type="checkbox"
+            checked={showGuides}
+            onChange={e => onToggleShowGuides(e.target.checked)}
+          />
+          Show guides
+        </label>
+      )}
     </div>
   )
 }

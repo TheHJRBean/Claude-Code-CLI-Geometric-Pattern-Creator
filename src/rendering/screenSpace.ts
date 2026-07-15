@@ -14,6 +14,35 @@ import type { ViewTransform } from '../hooks/usePanZoom'
  * over their selected target. Pure — extracted from `Canvas` so it can be
  * tested independently of the component.
  */
+/**
+ * Inverse of `worldToScreen`: map a screen-space pixel position (relative to
+ * the canvas container) back to world coordinates, undoing pan, zoom, and the
+ * rotation applied about the viewBox centre. Used by the Construct-mode Guide
+ * drawing to turn pointer events into world points.
+ */
+export function screenToWorld(
+  screen: Vec2,
+  vt: ViewTransform,
+  width: number,
+  height: number,
+): Vec2 {
+  const vbx = vt.x + screen.x / vt.zoom
+  const vby = vt.y + screen.y / vt.zoom
+  const vw = width / vt.zoom
+  const vh = height / vt.zoom
+  const cx = vt.x + vw / 2
+  const cy = vt.y + vh / 2
+  const rad = (-vt.rotation * Math.PI) / 180
+  const cos = Math.cos(rad)
+  const sin = Math.sin(rad)
+  const dx = vbx - cx
+  const dy = vby - cy
+  return {
+    x: cx + dx * cos - dy * sin,
+    y: cy + dx * sin + dy * cos,
+  }
+}
+
 export function worldToScreen(
   world: Vec2,
   vt: ViewTransform,

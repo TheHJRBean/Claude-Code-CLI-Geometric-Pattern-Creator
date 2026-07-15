@@ -6,8 +6,9 @@ import { usePattern } from '../hooks/usePattern'
 import { frameOutlinePolygon, computeFrameSections, frameNodePoints } from '../editor/frame'
 import { nRingOutline, compositionNRingOutline, DEFAULT_FRAME_RINGS } from '../editor/frameNRing'
 import { usePanZoom } from '../hooks/usePanZoom'
+import type { PanZoomHandlers } from '../hooks/usePanZoom'
 import { PatternSVG } from '../rendering/PatternSVG'
-import { worldToScreen } from '../rendering/screenSpace'
+import { screenToWorld, worldToScreen } from '../rendering/screenSpace'
 import { DecorationPaintLayer, type PaintPayload, type PaintTarget, type StrandPaintScope, type VoidPaintScope } from '../rendering/DecorationPaintLayer'
 import type { PaintVoid } from '../decoration/resolve'
 import { RotationDial } from './RotationDial'
@@ -39,6 +40,20 @@ import {
 import { PICKER_SIDES } from '../editor/placement'
 import { regularPolygonVertices } from '../editor/regularPolygon'
 import { PerfHud } from './PerfHud'
+import type { EditorMode } from '../types/appMode'
+import type { EditorGuide, EditorGuideLine } from '../types/editor'
+import {
+  collectSnapPoints,
+  createGuideLine,
+  DEFAULT_ANGLE_STEP,
+  snapAngle,
+  snapToPoint,
+  type SnapPoint,
+  type WorldBounds,
+} from '../editor/guides'
+import { EditorGuideLayer } from './EditorGuideLayer'
+import { GuidePopupOverlay } from './GuidePopupOverlay'
+import { midpoint as vecMidpoint, pointsEqual } from '../utils/math'
 
 /**
  * Each **Cell** in a Patch lives in Patch-local coords via its own `center` +
@@ -99,8 +114,21 @@ interface Props {
    *  Phase + Place mode (single-cell only). The picker is two-page: shape
    *  grid → orientation arrows + live preview. */
   onPlaceTileOnVertex?: (payload: { vertexKey: VertexKey; sides: number; rotation: number; force?: boolean; hostCellId?: string }) => void
-  /** Step 17.5 — Complete mode: 'place' shows the edge picker, 'complete' shows the vertex picker. */
-  editorMode?: 'place' | 'complete'
+  /** Step 17.5 — Design-Phase tool: 'place' shows the edge picker, 'complete'
+   *  the vertex picker, 'construct' the Guide drawing layer (spec Decision 11). */
+  editorMode?: EditorMode
+  /** Construct mode — snap-while-drawing toggle (points + angles). */
+  constructSnap?: boolean
+  /** Construct mode — angle-snap step in degrees (spec Decision 7). */
+  constructAngleStep?: number
+  /** Composition Phase — Guides overlay show/hide (hidden by default). In
+   *  Design Phase Guides always render. */
+  showGuides?: boolean
+  /** Construct mode — a completed two-click Guide line. */
+  onAddGuide?: (guide: EditorGuide) => void
+  /** Construct mode — per-Guide popup edits + endpoint drags. */
+  onUpdateGuide?: (guideId: string, patch: Partial<Omit<EditorGuideLine, 'id' | 'kind'>>) => void
+  onDeleteGuide?: (guideId: string) => void
   /** Step 17.11 — accumulated picks (chord mode: 0–1; multi mode: 0+). */
   picks?: Vec2[]
   /** Step 17.11 — `ctrlOrCmd` reflects whether the modifier was held during the click. */
@@ -161,7 +189,7 @@ interface Props {
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, editorMode = 'place', picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature, onDecorationVoids }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, editorMode = 'place', constructSnap = true, constructAngleStep = DEFAULT_ANGLE_STEP, showGuides = false, onAddGuide, onUpdateGuide, onDeleteGuide, picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature, onDecorationVoids }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -701,6 +729,183 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     }
   }, [onSelectEdge, onSelectSection, closeVertexPicker])
 
+  // ── Construct mode (Guides, spec Decision 11) ─────────
+  // Two-click Guide-line drawing + select/drag/popup. Empty-canvas clicks are
+  // detected by wrapping the svg-level pan handlers (pointerdown→up within a
+  // slop radius), because usePanZoom pointer-captures the svg on pointerdown —
+  // an in-layer capture rect would never receive the retargeted pointerup.
+  const constructActive = editorActive && !editorStrandMode && !decorationActive
+    && editorMode === 'construct' && !!onAddGuide
+  const guides = useMemo(() => config.editor?.guides ?? [], [config.editor])
+  // Draft: the committed first click (plus the edge direction it snapped to,
+  // feeding the angle-snap reference set) — then the live snapped cursor.
+  const [guideDraftStart, setGuideDraftStart] = useState<{ p: Vec2; edgeAngle?: number } | null>(null)
+  const [constructCursor, setConstructCursor] = useState<Vec2 | null>(null)
+  const [guideSnapTarget, setGuideSnapTarget] = useState<SnapPoint | null>(null)
+  const [selectedGuideId, setSelectedGuideId] = useState<string | null>(null)
+  // Dismissing the popup by clicking the canvas fires close (pointerdown) then
+  // the click (pointerup) — swallow that click so it doesn't drop a draft point.
+  const swallowClickUntil = useRef(0)
+  useEffect(() => {
+    if (!constructActive) {
+      setGuideDraftStart(null)
+      setConstructCursor(null)
+      setGuideSnapTarget(null)
+      setSelectedGuideId(null)
+    }
+  }, [constructActive])
+  // Drop a stale selection if the Guide vanished (undo / delete / new patch).
+  useEffect(() => {
+    if (selectedGuideId && !guides.some(g => g.id === selectedGuideId)) setSelectedGuideId(null)
+  }, [guides, selectedGuideId])
+  // Esc cancels the in-progress draft (and closes the popup via its own key
+  // handler).
+  useEffect(() => {
+    if (!constructActive) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setGuideDraftStart(null)
+        setGuideSnapTarget(null)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [constructActive])
+
+  // Snap candidates (Patch-local world coords). While a Guide is selected its
+  // own Anchors are excluded so an endpoint drag can't snap to itself.
+  const guideSnapPoints = useMemo<SnapPoint[]>(() => {
+    if (!constructActive || !config.editor) return []
+    const patch = selectedGuideId
+      ? { ...config.editor, guides: guides.filter(g => g.id !== selectedGuideId) }
+      : config.editor
+    return collectSnapPoints(patch, patchRot)
+  }, [constructActive, config.editor, guides, selectedGuideId, patchRot])
+
+  // Visible world rectangle, padded to the view diagonal so rotation never
+  // exposes an unclipped corner — extended Guide lines clip to this.
+  const guideBounds = useMemo<WorldBounds>(() => {
+    const vw = size.width / viewTransform.zoom
+    const vh = size.height / viewTransform.zoom
+    const cx = viewTransform.x + vw / 2
+    const cy = viewTransform.y + vh / 2
+    const half = Math.hypot(vw, vh) / 2
+    return { minX: cx - half, minY: cy - half, maxX: cx + half, maxY: cy + half }
+  }, [size.width, size.height, viewTransform])
+
+  /** Resolve a screen-px pointer position into a (possibly snapped) world
+   *  point. Point snap wins; else, with a draft in progress, angle snap from
+   *  the draft start. `freehand` (Shift) bypasses both. */
+  const resolveConstructPoint = useCallback((screen: Vec2, freehand: boolean): { p: Vec2; snap: SnapPoint | null } => {
+    const w = screenToWorld(screen, viewTransform, size.width, size.height)
+    if (!constructSnap || freehand) return { p: w, snap: null }
+    const tol = 14 / viewTransform.zoom
+    const snap = snapToPoint(w, guideSnapPoints, tol)
+    if (snap) return { p: snap.p, snap }
+    if (guideDraftStart) {
+      return { p: snapAngle(guideDraftStart.p, w, constructAngleStep, guideDraftStart.edgeAngle), snap: null }
+    }
+    return { p: w, snap: null }
+  }, [viewTransform, size.width, size.height, constructSnap, guideSnapPoints, guideDraftStart, constructAngleStep])
+
+  const handleConstructMove = useCallback((screen: Vec2, freehand: boolean) => {
+    const { p, snap } = resolveConstructPoint(screen, freehand)
+    setConstructCursor(p)
+    setGuideSnapTarget(snap)
+  }, [resolveConstructPoint])
+
+  const handleConstructPoint = useCallback((screen: Vec2, freehand: boolean) => {
+    if (performance.now() < swallowClickUntil.current) return
+    // A click with the popup open just dismisses it (the popup's own
+    // outside-click close already fired on pointerdown).
+    if (selectedGuideId) {
+      setSelectedGuideId(null)
+      return
+    }
+    const { p, snap } = resolveConstructPoint(screen, freehand)
+    if (!guideDraftStart) {
+      setGuideDraftStart({ p, edgeAngle: snap?.edgeAngle })
+      return
+    }
+    if (pointsEqual(guideDraftStart.p, p, 1e-6)) return
+    onAddGuide?.(createGuideLine(guideDraftStart.p, p, guides))
+    setGuideDraftStart(null)
+    setGuideSnapTarget(null)
+  }, [selectedGuideId, resolveConstructPoint, guideDraftStart, onAddGuide, guides])
+
+  // Endpoint drag on the selected Guide: point-snap (own Anchors excluded),
+  // else angle-snap about the fixed opposite endpoint.
+  const handleDragEndpoint = useCallback((id: string, which: 'start' | 'end', screen: Vec2) => {
+    const g = guides.find(g => g.id === id)
+    if (!g || g.kind !== 'line' || !onUpdateGuide) return
+    const w = screenToWorld(screen, viewTransform, size.width, size.height)
+    let p = w
+    if (constructSnap) {
+      const tol = 14 / viewTransform.zoom
+      const snap = snapToPoint(w, guideSnapPoints, tol)
+      p = snap ? snap.p : snapAngle(which === 'start' ? g.end : g.start, w, constructAngleStep)
+    }
+    onUpdateGuide(id, { [which]: p })
+  }, [guides, onUpdateGuide, viewTransform, size.width, size.height, constructSnap, guideSnapPoints, constructAngleStep])
+
+  // Wrap the pan/zoom handlers with click-slop detection while Construct is
+  // live. Guide strokes + endpoint handles stopPropagation on pointerdown, so
+  // neither pans the canvas nor registers as a draw click.
+  const constructDownRef = useRef<{ x: number; y: number } | null>(null)
+  const svgScreenPos = useCallback((e: React.PointerEvent<SVGSVGElement>): Vec2 => {
+    const rect = svgRef.current?.getBoundingClientRect()
+    return { x: e.clientX - (rect?.left ?? 0), y: e.clientY - (rect?.top ?? 0) }
+  }, [svgRef])
+  const svgHandlers = useMemo<PanZoomHandlers>(() => {
+    if (!constructActive) return handlers
+    return {
+      onPointerDown: e => {
+        constructDownRef.current = { x: e.clientX, y: e.clientY }
+        handlers.onPointerDown(e)
+      },
+      onPointerMove: e => {
+        handlers.onPointerMove(e)
+        handleConstructMove(svgScreenPos(e), e.shiftKey)
+      },
+      onPointerUp: e => {
+        handlers.onPointerUp(e)
+        const down = constructDownRef.current
+        constructDownRef.current = null
+        if (!down) return
+        if (Math.abs(e.clientX - down.x) > 5 || Math.abs(e.clientY - down.y) > 5) return
+        handleConstructPoint(svgScreenPos(e), e.shiftKey)
+      },
+    }
+  }, [constructActive, handlers, handleConstructMove, handleConstructPoint, svgScreenPos])
+
+  // Guides render across Design modes (they're scaffolding for Place /
+  // Complete too); in Composition only behind the overlay toggle; never in
+  // Decoration (v1). Interactive only in Construct mode.
+  const guideLayerVisible = editorActive && !decorationActive
+    && (guides.length > 0 || constructActive)
+    && (!editorStrandMode || showGuides)
+  const guideLayer = guideLayerVisible && config.editor ? (
+    <EditorGuideLayer
+      guides={guides}
+      patchEdgeLength={config.editor.edgeLength}
+      bounds={guideBounds}
+      interactive={constructActive}
+      zoom={viewTransform.zoom}
+      draftStart={guideDraftStart?.p ?? null}
+      draftCursor={constructCursor}
+      snapTarget={guideSnapTarget}
+      selectedGuideId={selectedGuideId}
+      onSelectGuide={setSelectedGuideId}
+      onDragEndpoint={handleDragEndpoint}
+    />
+  ) : null
+
+  // Per-Guide popup anchor — over the drawn segment's midpoint.
+  const selectedGuide = selectedGuideId ? guides.find(g => g.id === selectedGuideId) ?? null : null
+  const guidePopupScreenPos = selectedGuide && constructActive
+    ? worldToScreen(vecMidpoint(selectedGuide.start, selectedGuide.end), viewTransform, size.width, size.height)
+    : null
+
   // Composition Phase hides every Design-Phase overlay — the canvas is the
   // lattice preview only, and Strand controls in the side panel drive what
   // changes. Multi-Cell Design Phase keeps the picker live: edges are
@@ -728,7 +933,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
           onPickVertex={onPickVertex}
         />
       )
-      : onSelectEdge ? (
+      : editorMode === 'place' && onSelectEdge ? (
         <g>
           {/* Section layer renders FIRST so the edge layer (rendered next)
               wins z-order on hit-testing — tile-priority for clicks
@@ -871,7 +1076,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         containerHeight={size.height}
         showTileLayer={showTileLayer}
         showLines={showLines}
-        handlers={handlers}
+        handlers={svgHandlers}
         cpVisible={cpVisible}
         cpActive={cpActive}
         outlineWidth={outlineWidth}
@@ -880,7 +1085,16 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         seedOutlineCount={seedOutlineCount}
         ghostPolygonIds={ghostPolygonIds}
         compositionStamps={compositionStamps}
-        editorOverlay={decorationActive ? decorationOverlay : editorOverlay}
+        editorOverlay={
+          decorationActive
+            ? decorationOverlay
+            // Guide layer first — passive scaffolding renders UNDER the
+            // interactive Place/Complete layers; in Construct mode
+            // editorOverlay is null and the Guide layer takes the events.
+            : (guideLayer || editorOverlay)
+              ? <g>{guideLayer}{editorOverlay}</g>
+              : null
+        }
         clipEditorOverlayToFrame={decorationActive}
         frameOutline={frameOutline}
         clipToFrame={config.tiling.type !== 'editor' || editorStrandMode}
@@ -984,6 +1198,21 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
             })
           }}
           onClose={closeVertexPicker}
+        />
+      )}
+      {guidePopupScreenPos && selectedGuide && onUpdateGuide && onDeleteGuide && (
+        <GuidePopupOverlay
+          guide={selectedGuide}
+          position={guidePopupScreenPos}
+          defaultTickSpacing={config.editor?.edgeLength ?? 100}
+          onUpdate={patch => onUpdateGuide(selectedGuide.id, patch)}
+          onDelete={() => { onDeleteGuide(selectedGuide.id); setSelectedGuideId(null) }}
+          onClose={() => {
+            // Swallow the click that closed the popup so it doesn't double as
+            // a draw point (close fires on pointerdown, the click on pointerup).
+            swallowClickUntil.current = performance.now() + 400
+            setSelectedGuideId(null)
+          }}
         />
       )}
       {overlapConfirm && (

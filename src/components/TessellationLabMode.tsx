@@ -216,6 +216,12 @@ export function TessellationLabMode({
   // Stamp target — the Void shape picked on the canvas for the panel's
   // inspector / shape-canvas export / image-upload flow.
   const [stampSelection, setStampSelection] = useState<PaintVoid | null>(null)
+  // Stamp target — latest Void hit-targets mirrored up from the Canvas so
+  // "Export all shapes" can enumerate every distinct shape on demand. A ref
+  // (not state): it updates on every pan/zoom and nothing renders from it.
+  const decorationVoidsRef = useRef<PaintVoid[]>([])
+  const handleDecorationVoids = useCallback((v: PaintVoid[]) => { decorationVoidsRef.current = v }, [])
+  const getStampVoids = useCallback(() => decorationVoidsRef.current, [])
   // Step 17.6 — Composition Phase: show the Patch Boundary stamped on the lattice.
   const [showBoundaryLattice, setShowBoundaryLattice] = useState(false)
   // Step 17.6d — Design Phase: low-opacity ghost copies of the Patch at the
@@ -463,6 +469,7 @@ export function TessellationLabMode({
                 strandScope={strandScope}
                 onSetStrandScope={setStrandScope}
                 stampSelection={stampSelection}
+                getStampVoids={getStampVoids}
                 onSetEditorPhase={p => {
                   // Step 17.7 — fire auto-complete when leaving Design for any
                   // later phase (Composition or Decoration) if the user opted
@@ -809,6 +816,7 @@ export function TessellationLabMode({
         onPaintStrand={p => { pushRecentColour(decorationColor); dispatch({ type: 'SET_DECORATION_STRAND_COLOR', payload: { ...p, colour: decorationColor } }) }}
         onSelectStampVoid={setStampSelection}
         selectedStampSignature={paintTarget === 'stamp' ? stampSelection?.signature ?? null : null}
+        onDecorationVoids={handleDecorationVoids}
         editorFrame={!!config.editor?.frame}
         showBoundaryLattice={showBoundaryLattice}
         editorNeighbourPreview={editorPhase === 'design' && showNeighbours && !(config.editor && activeCell(config.editor).wrapBoundary)}

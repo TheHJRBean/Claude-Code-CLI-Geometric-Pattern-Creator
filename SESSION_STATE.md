@@ -5,6 +5,19 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-15 — ✅ Stamp "Export all shapes" SHIPPED
+
+**Goal:** user request — batch-export shape canvases for every distinct Void shape, named by shape ("triangle-1", "6-gon"…). (Also asked for a transparent-background option — moot: both shape-canvas exports were already transparent; user confirmed via Q&A.)
+
+**Done (1 commit on `main`):**
+- `src/export/stampAssets.ts` — `nameVoidShapes` (dedupe by congruent signature, first-seen order; approx-regular shapes get Composition-style names triangle/square/hexagon…, others `<n>-gon`; distinct shapes sharing a base name get numbered) + `downloadAllVoidShapeCanvases(voids, 'svg'|'png')` (300 ms stagger so the browser doesn't drop the burst; filenames `<name>-canvas.<ext>`).
+- Plumbing: Canvas new prop `onDecorationVoids` mirrors `decorationVoids` up via effect → TessellationLabMode stores in a ref (no re-render churn) → `getStampVoids` down through EditorDesignControls → DecorationPanel.
+- UI: StampSection "All shape canvases" row — Export all SVG / Export all PNG buttons (always visible in Stamp target, no selection needed) + result note ("Exported N shape canvases" / empty-canvas notice).
+- +4 tests (`stampAssets.test.ts`). Green: tsc, 927 vitest (71 files).
+
+**⏳ BROWSER-VERIFY:** click Export all on a multi-shape pattern → N files download with sensible names; Chrome may prompt "allow multiple downloads" once.
+
+---
 ### ▶ 2026-07-14 (evening) — ✅ Decoration VOID STAMPS v1 SHIPPED (shape-canvas export + image import clipped to Voids)
 
 **Goal:** first slice of the decoration-stamps idea, scoped to **Voids** (user request: inspect void types → export the shape as an editable canvas → upload images auto-cropped to the void shape). User decisions via Q&A: images **embedded in config as data-URLs** (downscaled ≤1024px, WebP q0.85); v1 scope **congruent only** (ladder reserved in schema).

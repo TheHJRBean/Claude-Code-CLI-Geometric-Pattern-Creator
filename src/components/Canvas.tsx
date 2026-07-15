@@ -154,11 +154,14 @@ interface Props {
   onSelectStampVoid?: (v: PaintVoid) => void
   /** Signature of the selected stamp shape (persistent highlight). */
   selectedStampSignature?: string | null
+  /** Stamp target — surfaces the current Void hit-targets so the Decoration
+   * panel's "Export all shapes" can enumerate every distinct shape. */
+  onDecorationVoids?: (voids: PaintVoid[]) => void
 }
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, editorMode = 'place', picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, editorMode = 'place', picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature, onDecorationVoids }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -204,6 +207,12 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     // Stamp mode needs the same Void hit-targets as Voids painting.
     !decorationActive ? 'off' : paintTarget === 'stamp' ? 'voids' : paintTarget,
   )
+
+  // Mirror the Void hit-targets up so the Decoration panel can export every
+  // distinct shape without re-running the extraction.
+  useEffect(() => {
+    onDecorationVoids?.(decorationVoids ?? [])
+  }, [decorationVoids, onDecorationVoids])
 
   // The Frame outline to clip the Composition to — a persistent overlay across
   // Design + Composition (read later by Decoration). Shape Frames give a

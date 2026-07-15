@@ -3,7 +3,7 @@ import type { PatternConfig, StrandLineStyle } from '../../types/pattern'
 import type { Action } from '../../state/actions'
 import type { PaintTarget, StrandPaintScope, VoidPaintScope } from '../../rendering/DecorationPaintLayer'
 import type { PaintVoid } from '../../decoration/resolve'
-import { downloadVoidShapePNG, downloadVoidShapeSVG, importStampImage, voidStampCanvas } from '../../export/stampAssets'
+import { downloadAllVoidShapeCanvases, downloadVoidShapePNG, downloadVoidShapeSVG, importStampImage, voidStampCanvas } from '../../export/stampAssets'
 import { ColourPicker, pushRecentColour } from '../ColourPicker'
 import { FieldLabel, segmentedButtonStyle } from './labShared'
 
@@ -33,6 +33,8 @@ interface DecorationPanelProps {
   onSetStrandScope: (s: StrandPaintScope) => void
   /** Stamp target — the Void shape selected on the canvas (null = none yet). */
   stampSelection: PaintVoid | null
+  /** Stamp target — latest canvas Void hit-targets ("Export all shapes"). */
+  getStampVoids: () => PaintVoid[]
 }
 
 /**
@@ -53,6 +55,7 @@ export function DecorationPanel({
   strandScope,
   onSetStrandScope,
   stampSelection,
+  getStampVoids,
 }: DecorationPanelProps) {
   const strandRec = editor.decoration?.strandColours.find(r => r.scope === 'congruent' && r.key === '*')
   const strandRecCount = editor.decoration?.strandColours.length ?? 0
@@ -113,7 +116,7 @@ export function DecorationPanel({
         </>
       )}
       {paintTarget === 'stamp' && (
-        <StampSection editor={editor} dispatch={dispatch} selection={stampSelection} />
+        <StampSection editor={editor} dispatch={dispatch} selection={stampSelection} getStampVoids={getStampVoids} />
       )}
       {paintTarget !== 'stamp' && <ColourPicker value={decorationColor} onChange={onSetDecorationColor} />}
       {paintTarget === 'stamp' ? null : paintTarget === 'strands' ? (() => {
@@ -265,14 +268,30 @@ export function DecorationPanel({
  * externally), and upload an image that fills every congruent Void, clipped
  * to the shape. One stamp record per Void signature (v1 congruent scope).
  */
-function StampSection({ editor, dispatch, selection }: {
+function StampSection({ editor, dispatch, selection, getStampVoids }: {
   editor: NonNullable<PatternConfig['editor']>
   dispatch: React.Dispatch<Action>
   selection: PaintVoid | null
+  getStampVoids: () => PaintVoid[]
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [exportAllNote, setExportAllNote] = useState<string | null>(null)
+  const [exportingAll, setExportingAll] = useState(false)
+
+  const exportAll = async (format: 'svg' | 'png') => {
+    setExportingAll(true)
+    setExportAllNote(null)
+    try {
+      const count = await downloadAllVoidShapeCanvases(getStampVoids(), format)
+      setExportAllNote(count === 0
+        ? 'No Void shapes on the canvas to export.'
+        : `Exported ${count} shape canvas${count === 1 ? '' : 'es'}.`)
+    } finally {
+      setExportingAll(false)
+    }
+  }
   const stamps = editor.decoration?.voidStamps ?? []
   const selRec = selection
     ? stamps.find(r => r.scope === 'congruent' && r.key === selection.signature)
@@ -375,6 +394,20 @@ function StampSection({ editor, dispatch, selection }: {
           )}
         </div>
       )}
+      <FieldLabel label="All shape canvases" tooltip="Download one blank, transparent shape canvas per distinct Void shape on the canvas, named by shape (triangle-1, triangle-2, 6-gon, hexagon…). Design stamps on them externally, then upload each below." />
+      <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+        {(['svg', 'png'] as const).map(f => (
+          <button
+            key={f}
+            onClick={() => void exportAll(f)}
+            disabled={exportingAll}
+            style={{ ...decorationButtonStyle, flex: 1, opacity: exportingAll ? 0.5 : 1 }}
+          >
+            {exportingAll ? 'Exporting…' : `Export all ${f.toUpperCase()}`}
+          </button>
+        ))}
+      </div>
+      {exportAllNote && <div style={{ fontSize: 11, marginBottom: 8 }}>{exportAllNote}</div>}
       {stamps.length > 0 && (
         <div style={{ fontSize: 11 }}>
           <FieldLabel label="Stamped shapes" tooltip="Every Void shape carrying a stamp. Click ✕ to remove one." />

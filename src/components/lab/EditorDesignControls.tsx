@@ -30,6 +30,8 @@ export interface EditorDesignControlsProps {
   onSetStrandScope: (s: StrandPaintScope) => void
   /** Decoration Stamp target — the Void shape selected on the canvas. */
   stampSelection: PaintVoid | null
+  /** Decoration Stamp target — latest canvas Void hit-targets (Export all). */
+  getStampVoids: () => PaintVoid[]
   showBoundaryLattice: boolean
   onToggleShowBoundaryLattice: (next: boolean) => void
   showNeighbours: boolean
@@ -71,6 +73,7 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
     strandScope,
     onSetStrandScope,
     stampSelection,
+    getStampVoids,
     showBoundaryLattice,
     onToggleShowBoundaryLattice,
     showNeighbours,
@@ -163,6 +166,7 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
           strandScope={strandScope}
           onSetStrandScope={onSetStrandScope}
           stampSelection={stampSelection}
+          getStampVoids={getStampVoids}
         />
       )}
 

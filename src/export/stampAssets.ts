@@ -76,6 +76,99 @@ export function downloadVoidShapePNG(outline: Vec2[], filename: string, maxDim =
   return true
 }
 
+/** Named polygon labels matching the Composition-Phase tile-type scheme. */
+const REGULAR_NAME: Record<number, string> = {
+  3: 'triangle', 4: 'square', 5: 'pentagon', 6: 'hexagon',
+  7: 'heptagon', 8: 'octagon', 9: 'nonagon', 10: 'decagon', 11: 'hendecagon', 12: 'dodecagon',
+}
+
+/** True when the polygon is (within tolerance) a regular n-gon. */
+function isApproxRegular(points: Vec2[]): boolean {
+  const n = points.length
+  if (n < 3) return false
+  const lens: number[] = []
+  for (let i = 0; i < n; i++) {
+    const a = points[i], b = points[(i + 1) % n]
+    lens.push(Math.hypot(b.x - a.x, b.y - a.y))
+  }
+  const mean = lens.reduce((s, l) => s + l, 0) / n
+  if (mean <= 0) return false
+  if (lens.some(l => Math.abs(l - mean) > mean * 0.02)) return false
+  const expected = Math.PI * (n - 2) / n
+  for (let i = 0; i < n; i++) {
+    const p = points[(i + n - 1) % n], q = points[i], r = points[(i + 1) % n]
+    const v1x = p.x - q.x, v1y = p.y - q.y, v2x = r.x - q.x, v2y = r.y - q.y
+    const denom = Math.hypot(v1x, v1y) * Math.hypot(v2x, v2y)
+    if (denom <= 0) return false
+    const ang = Math.acos(Math.max(-1, Math.min(1, (v1x * v2x + v1y * v2y) / denom)))
+    if (Math.abs(ang - expected) > 0.02) return false
+  }
+  return true
+}
+
+export interface NamedVoidShape {
+  signature: string
+  outline: Vec2[]
+  /** Composition-style shape name, numbered when several distinct shapes
+   * share it: "triangle-1", "triangle-2", "6-gon", "hexagon". */
+  name: string
+}
+
+/**
+ * Dedupe Voids to one entry per congruent signature (first-seen order) and
+ * assign each a human shape name: regular shapes get the Composition-Phase
+ * label ("triangle", "hexagon"…), anything else "<n>-gon"; distinct shapes
+ * sharing a base name are numbered.
+ */
+export function nameVoidShapes(
+  voids: ReadonlyArray<{ signature: string; polygon: Vec2[]; keyPolygon?: Vec2[] }>,
+): NamedVoidShape[] {
+  const bySig = new Map<string, Vec2[]>()
+  for (const v of voids) {
+    if (!bySig.has(v.signature)) bySig.set(v.signature, v.keyPolygon ?? v.polygon)
+  }
+  const entries: { signature: string; outline: Vec2[]; base: string }[] = []
+  for (const [signature, outline] of bySig) {
+    const c = voidStampCanvas(outline)
+    if (!c) continue
+    const n = c.points.length
+    const base = isApproxRegular(c.points) ? (REGULAR_NAME[n] ?? `${n}-gon`) : `${n}-gon`
+    entries.push({ signature, outline, base })
+  }
+  const totals = new Map<string, number>()
+  for (const e of entries) totals.set(e.base, (totals.get(e.base) ?? 0) + 1)
+  const seen = new Map<string, number>()
+  return entries.map(e => {
+    const idx = (seen.get(e.base) ?? 0) + 1
+    seen.set(e.base, idx)
+    const name = (totals.get(e.base) ?? 1) > 1 ? `${e.base}-${idx}` : e.base
+    return { signature: e.signature, outline: e.outline, name }
+  })
+}
+
+/**
+ * Download one shape canvas per distinct Void shape, named by shape
+ * ("triangle-1-canvas.svg", "6-gon-canvas.png"…). Downloads are staggered so
+ * the browser doesn't drop them as a burst. Resolves to the file count.
+ */
+export async function downloadAllVoidShapeCanvases(
+  voids: ReadonlyArray<{ signature: string; polygon: Vec2[]; keyPolygon?: Vec2[] }>,
+  format: 'svg' | 'png',
+): Promise<number> {
+  const named = nameVoidShapes(voids)
+  let count = 0
+  for (const s of named) {
+    const ok = format === 'svg'
+      ? downloadVoidShapeSVG(s.outline, `${s.name}-canvas.svg`)
+      : downloadVoidShapePNG(s.outline, `${s.name}-canvas.png`)
+    if (ok) {
+      count++
+      await new Promise(r => setTimeout(r, 300))
+    }
+  }
+  return count
+}
+
 export interface StampImageImport {
   /** Compressed data URL. */
   image: string

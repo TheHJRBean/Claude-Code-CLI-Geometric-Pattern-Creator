@@ -1202,6 +1202,8 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       )}
       {guidePopupScreenPos && selectedGuide && onUpdateGuide && onDeleteGuide && (
         <GuidePopupOverlay
+          // Keyed by Guide id so the Cancel snapshot resets per selection.
+          key={selectedGuide.id}
           guide={selectedGuide}
           position={guidePopupScreenPos}
           defaultTickSpacing={config.editor?.edgeLength ?? 100}

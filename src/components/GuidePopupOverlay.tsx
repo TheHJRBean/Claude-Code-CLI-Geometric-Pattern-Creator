@@ -5,10 +5,13 @@ import { guideLineAngleDeg, GUIDE_COLOUR_STAMP, GUIDE_COLOUR_STATIC } from '../e
 /**
  * Per-Guide popup (spec Decision 10) — placement-picker-style floating
  * popover anchored over the selected Guide: stamp toggle, extend, tick
- * spacing, typed angle, delete. Closes on Escape or outside-click.
+ * spacing, typed angle, Accept / Cancel, delete.
  *
- * All edits dispatch immediately (live), one field per action — the history
- * layer coalesces repeats per Guide.
+ * Edits dispatch immediately so the canvas previews live, but the popup
+ * snapshots the Guide's editable fields at open: **Accept** keeps the edits,
+ * **Cancel** restores the snapshot. Escape and outside-click count as Cancel
+ * (explicit Accept commits). The parent keys this component by Guide id so
+ * the snapshot resets per selection.
  */
 interface Props {
   guide: EditorGuideLine
@@ -18,6 +21,18 @@ interface Props {
   onUpdate: (patch: Partial<Omit<EditorGuideLine, 'id' | 'kind'>>) => void
   onDelete: () => void
   onClose: () => void
+}
+
+/** The fields the popup can change — snapshotted at open for Cancel. */
+function editableFields(g: EditorGuideLine): Partial<Omit<EditorGuideLine, 'id' | 'kind'>> {
+  return {
+    stamp: g.stamp,
+    extend: g.extend,
+    tickSpacing: g.tickSpacing,
+    ticksEnabled: g.ticksEnabled,
+    start: g.start,
+    end: g.end,
+  }
 }
 
 const EXTEND_OPTIONS: { value: GuideExtend; label: string }[] = [
@@ -42,12 +57,15 @@ const inputStyle: React.CSSProperties = {
   fontFamily: "'EB Garamond', Georgia, serif",
   fontSize: 13,
   border: '1px solid var(--border-subtle)',
-  background: 'transparent',
+  background: 'var(--bg-input, #0c0c18)',
   color: 'var(--text)',
 }
 
 export function GuidePopupOverlay({ guide, position, defaultTickSpacing, onUpdate, onDelete, onClose }: Props) {
   const dialogRef = useRef<HTMLDivElement>(null)
+  // Snapshot of the editable fields at open — Cancel restores this. A ref,
+  // captured once per mount (parent keys the popup by Guide id).
+  const originalRef = useRef(editableFields(guide))
   // Typed angle is buffered locally so partial input ("4" en route to "45")
   // doesn't spin the line; commit on blur / Enter.
   const [angleText, setAngleText] = useState(() => guideLineAngleDeg(guide).toFixed(1))
@@ -55,14 +73,23 @@ export function GuidePopupOverlay({ guide, position, defaultTickSpacing, onUpdat
     setAngleText(guideLineAngleDeg(guide).toFixed(1))
   }, [guide])
 
+  const accept = onClose
+  const cancel = () => {
+    onUpdate(originalRef.current)
+    onClose()
+  }
+  // Refs so the window listeners (bound once) always see the live guide.
+  const cancelRef = useRef(cancel)
+  cancelRef.current = cancel
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') cancelRef.current()
     }
     const onPointerDown = (e: PointerEvent) => {
       const target = e.target as Node | null
       if (target && dialogRef.current && dialogRef.current.contains(target)) return
-      onClose()
+      cancelRef.current()
     }
     window.addEventListener('keydown', onKey)
     window.addEventListener('pointerdown', onPointerDown)
@@ -70,7 +97,7 @@ export function GuidePopupOverlay({ guide, position, defaultTickSpacing, onUpdat
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('pointerdown', onPointerDown)
     }
-  }, [onClose])
+  }, [])
 
   const commitAngle = () => {
     const deg = Number(angleText)
@@ -100,9 +127,11 @@ export function GuidePopupOverlay({ guide, position, defaultTickSpacing, onUpdat
         minWidth: 230,
         maxWidth: 'calc(100vw - 32px)',
         padding: '10px 12px',
-        background: 'var(--bg, #f5f0e8)',
-        border: '1px solid var(--border-subtle)',
-        boxShadow: '0 2px 12px rgba(0,0,0,0.22)',
+        // Theme tokens (styles.css defines --bg-elevated / --bg-input etc.;
+        // there is NO --bg var — a --bg fallback lands on the wrong theme).
+        background: 'var(--bg-elevated, #161620)',
+        border: '1px solid var(--border-accent, var(--accent))',
+        boxShadow: '0 8px 28px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0,0,0,0.2)',
         zIndex: 30,
         display: 'flex',
         flexDirection: 'column',
@@ -197,10 +226,49 @@ export function GuidePopupOverlay({ guide, position, defaultTickSpacing, onUpdat
         Show ticks
       </label>
 
+      {/* Accept commits the previewed edits; Cancel restores the state the
+          Guide had when the popup opened. */}
+      <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
+        <button
+          onClick={accept}
+          style={{
+            flex: 1,
+            padding: '5px 0',
+            fontFamily: "'Cinzel', Georgia, serif",
+            fontSize: 9,
+            fontWeight: 600,
+            letterSpacing: '0.10em',
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+            border: '1px solid var(--border-accent, var(--accent))',
+            background: 'var(--accent-bg, rgba(201,148,58,0.12))',
+            color: 'var(--text)',
+          }}
+        >
+          Accept
+        </button>
+        <button
+          onClick={cancel}
+          style={{
+            flex: 1,
+            padding: '5px 0',
+            fontFamily: "'Cinzel', Georgia, serif",
+            fontSize: 9,
+            fontWeight: 600,
+            letterSpacing: '0.10em',
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+            border: '1px solid var(--border-subtle)',
+            background: 'transparent',
+            color: 'var(--text-muted)',
+          }}
+        >
+          Cancel
+        </button>
+      </div>
       <button
         onClick={onDelete}
         style={{
-          marginTop: 2,
           padding: '4px 0',
           fontFamily: "'Cinzel', Georgia, serif",
           fontSize: 9,
@@ -210,7 +278,7 @@ export function GuidePopupOverlay({ guide, position, defaultTickSpacing, onUpdat
           cursor: 'pointer',
           border: '1px solid var(--border-subtle)',
           background: 'transparent',
-          color: '#a33',
+          color: '#c25b5b',
         }}
       >
         Delete guide

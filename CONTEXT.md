@@ -59,7 +59,7 @@ A drawn construction element — compass-and-straightedge-style scaffolding on t
 _Avoid_: construction line (in UI/code — canonical is Guide line); scaffold (casual ok); colliding with **Ray** / **Strand** / **Contact Ray**
 
 **Anchor** _(ADR-0008, umbrella term)_:
-ANY single point pickable for tile placement or Complete, app-wide: exposed vertices, **Frame nodes**, boundary-section points, neighbour vertices, and Guide anchors (kinds: intersection, tick, manual). Consolidates four flows that each named their points differently. Guide-anchor wiring into Place/Complete is Guides slice 3; slice 1 renders them as passive dots.
+ANY single point pickable for tile placement or Complete, app-wide: exposed vertices, **Frame nodes**, boundary-section points, neighbour vertices, and Guide anchors (kinds: intersection — incl. Guide×Tile-edge/Boundary — tick, manual, plus endpoints/centre/divisions). Consolidates flows that each named their points differently. Guide anchors are pickable in **Complete** as of slice 3 (#28): a Complete built off a **non-stamping** Guide anchor is stored world-space in `patch.guideTiles` (never repeats under the **Lattice**), a **stamping** one becomes an ordinary Cell Tile; **free-standing** Anchor-only Completes are allowed. Anchor→**Place** wiring (single-n-gon vertex placement) is the follow-up #33.
 _Avoid_: pick target / node / point as canonical nouns (casual ok, umbrella term is Anchor)
 
 **Composition** _(Phase)_:

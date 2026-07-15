@@ -5,6 +5,22 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-15 (implementation) — ✅ GUIDES SLICE 3 (Complete-on-Anchors) SHIPPED (#28); Place split to #33
+
+**Goal:** ticket #28, Guides slice 3 — the payoff slice. Model: **Fable** per ticket (ran on Opus this session). Delivered the **Anchor engine** + **Complete-on-Anchors**; the ticket's third workstream (**Place-on-Anchors**) was split to **#33** per user decision ("land Complete first, Place as follow-up") so the scaffold→Complete flow gets browser-verified before more Place picker UI is built.
+
+**Done (991 vitest green, tsc + `npm run build` clean). Commits `9949354`→`83cc7df` (pushed):**
+- **3a Anchor engine** (`9949354`, `editor/guides.ts`): `guideEdgeIntersections` (line/circle × finite segment, respects line `extend`) + `collectGuideAnchors(patch, patchRot) → GuideAnchor[]` — the single Anchor source (self anchors + Guide×Guide + Guide×Tile-edge/Boundary crossings), each tagged `guideId` + `stamp` (intersection = AND; `dedupeAnchors` downgrades a coincident stamping point to world-space). `collectSnapPoints` now sources from it (snap catches Guide×Tile-edge too). +6 tests.
+- **3b Storage plumbing** (`2129a25`): `EditorPatch.guideTiles?: EditorTile[]` (world-space one-off, frame-completion model — render once, no Lattice repeat). `migrateV3` validates/carries it (+tests); `editorTileTypes` + `seedFigures` surface guide-tile types; `usePattern` renders + PICs `guideTiles` in Design **and** Composition paths; periodic fast-path dropped when guideTiles present.
+- **3c Reducer routing** (`77e4fbb`): `multiPickCompleteAcrossPatch` treats Anchors as pickable + grounding → **free-standing Anchor-only Completes** allowed (spec Dec. 4); non-stamping Anchor (not also a real Cell vertex) → `guideCompleteWorldSpace` → `guideTiles`; stamping Anchor → ordinary Cell Tile (orbit-loop selectable check also accepts Anchors). `validateMultiPick` gains the matching world-space preview path. +reducer tests.
+- **3d Complete UI** (`83cc7df`): `Canvas.guideAnchorVertices` (from `collectGuideAnchors`) → `EditorVertexLayer` `guide-anchor`/`guide-anchor-stamp` dot variants coloured by stamp (blue = world-space, violet = repeats). Guides already render passively in Complete mode, so Anchors sit on visible scaffolding.
+- Docs: CLAUDE.md guides bullet (slices 1–3), CONTEXT.md Anchor entry, this file, memory idea + MEMORY.md.
+
+**⏳ BROWSER-VERIFY OWED:** (a) draw Guides in Construct, switch to **Complete** — Guide Anchor dots appear (blue non-stamp / violet stamp) at endpoints/ticks/divisions + Guide×Tile-edge/Boundary + Guide×Guide crossings; (b) Ctrl-click ≥3 Anchors away from any Tile + Enter → **free-standing** Tile mints (green preview), stored world-space (doesn't repeat when you enter Composition/lattice); (c) a Complete mixing Anchors + real Cell vertices works; (d) overlapping Complete shows ⚠ + Accept-and-continue (force); (e) the minted Tile's Strands render + its type is editable in the Composition tile-type panel; (f) a Complete off a **stamping** Guide's Anchors becomes an ordinary Cell Tile (DOES repeat under the Lattice); (g) undo/redo; (h) save/reload keeps `guideTiles`; (i) slice-2 circle verifies (below) still owed.
+
+**NEXT — ticket #33 (Place-on-Anchors). Model: Fable.** `gh issue view 33`. The engine + storage + render + figure-seed are all in place from #28; #33 is UI + one reducer action: a world-space `EDITOR_PLACE_TILE_ON_ANCHOR` (non-stamping→`guideTiles`, stamping→Cell Tile, mirror `guideCompleteWorldSpace`) + injecting Guide Anchors into the Place vertex picker as synthetic full-2π `ExposedVertex`es (parallel world-space path through `selectedVertexCell`/`placementEdgeLength`/viability+orientations against a probe Cell of all world Tiles/preview-skip-Cell-transform/commit). Reuses `placeRegularNGonOnVertex` + `isVertexPlacementViable` unchanged (they work in `vertex.p`'s coord space). Then #29 symmetry-orbit (Opus) → #30 stamp-under-Lattice (Opus) → #31 polish (Sonnet) → #32 Girih reveal.
+
+---
 ### ▶ 2026-07-15 (implementation) — ✅ GUIDES SLICE 2 SHIPPED (#27): Guide circles + divided Guide circles
 
 **Goal:** ticket #27, Guides slice 2 (spec decisions 5/6/7; `CONSTRUCTION_GUIDES_SPEC.md`, ADR-0008). Model: **Opus** per ticket. Built directly on the slice-1 seams.

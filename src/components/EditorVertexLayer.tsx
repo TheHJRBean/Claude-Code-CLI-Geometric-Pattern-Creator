@@ -3,6 +3,7 @@ import type React from 'react'
 import type { Vec2 } from '../utils/math'
 import type { BoundaryVertex } from '../editor/boundary'
 import { EDITOR_EPS } from '../editor/exposedEdges'
+import { GUIDE_COLOUR_STAMP, GUIDE_COLOUR_STATIC } from '../editor/guides'
 
 /**
  * Step 17.5 / 17.11 — interactive vertex layer used in Complete mode. Every
@@ -20,7 +21,7 @@ import { EDITOR_EPS } from '../editor/exposedEdges'
  * Dots use `vectorEffect="non-scaling-stroke"` so they stay the same size at
  * any zoom, mirroring the edge layer's behaviour.
  */
-type DotVariant = 'patch' | 'boundary' | 'pocket' | 'neighbour' | 'frame' | 'centre'
+type DotVariant = 'patch' | 'boundary' | 'pocket' | 'neighbour' | 'frame' | 'centre' | 'guide-anchor' | 'guide-anchor-stamp'
 
 interface Props {
   vertices: BoundaryVertex[]
@@ -32,6 +33,11 @@ interface Props {
   /** Cell-centre completion nodes — only present for no-Seed Cells, giving a
    *  radial anchor to build wedge Tiles out to the Boundary corners. */
   centreVertices?: BoundaryVertex[]
+  /** Guide **Anchors** (slice 3) — pickable completion targets exposed by
+   *  Guides. `stamp` picks the colour (violet = repeats under the Lattice;
+   *  blue = world-space one-off). */
+  guideAnchorVertices?: Array<BoundaryVertex & { stamp?: boolean }>
+
   /** Step 17.11.3 — accumulated picks. Length 0 or 1 in chord mode; arbitrary in multi mode. */
   picks: Vec2[]
   /** Step 17.11.4 — `null` = no preview, `true|false` = valid/invalid tint. */
@@ -99,6 +105,15 @@ function styleFor(variant: DotVariant, isPicked: boolean): DotStyle {
       // Larger solid accent disc with a bg rim — sits alone at the middle of an
       // empty no-Seed Cell, so it should read as the obvious "start here" anchor.
       return { radius: DOT_RADIUS + 2, fill: 'var(--accent)', stroke: 'var(--bg)', strokeWidth: 2.4 }
+    case 'guide-anchor':
+      // Guide Anchor from a non-stamping (world-space) Guide — the system
+      // static-Guide colour so it reads as "belongs to a Guide", set apart from
+      // the accent-gold Cell dots. Colour IS the stamp indicator (spec Dec. 2).
+      return { radius: DOT_RADIUS, fill: 'var(--bg)', stroke: GUIDE_COLOUR_STATIC, strokeWidth: 2 }
+    case 'guide-anchor-stamp':
+      // Guide Anchor from a stamping (Patch-relative) Guide — the system stamp
+      // colour (violet).
+      return { radius: DOT_RADIUS, fill: 'var(--bg)', stroke: GUIDE_COLOUR_STAMP, strokeWidth: 2 }
   }
 }
 
@@ -195,6 +210,7 @@ export const EditorVertexLayer = memo(function EditorVertexLayer({
   neighbourVertices = [],
   frameVertices = [],
   centreVertices = [],
+  guideAnchorVertices = [],
   picks,
   previewValid = null,
   previewMessage = null,
@@ -280,6 +296,15 @@ export const EditorVertexLayer = memo(function EditorVertexLayer({
           key={`c-${v.tileId}#${v.vertexIndex}#${i}`}
           v={v}
           variant="centre"
+          picks={picks}
+          onPickVertex={onPickVertex}
+        />
+      ))}
+      {guideAnchorVertices.map((v, i) => (
+        <VertexDot
+          key={`g-${v.tileId}#${v.vertexIndex}#${i}`}
+          v={v}
+          variant={v.stamp ? 'guide-anchor-stamp' : 'guide-anchor'}
           picks={picks}
           onPickVertex={onPickVertex}
         />

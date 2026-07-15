@@ -43,6 +43,7 @@ import { PerfHud } from './PerfHud'
 import type { EditorMode } from '../types/appMode'
 import type { EditorGuide, EditorGuidePatch } from '../types/editor'
 import {
+  collectGuideAnchors,
   collectSnapPoints,
   createGuideCircle,
   createGuideLine,
@@ -514,6 +515,21 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     return frameNodes.map((p, i) => ({ p, tileId: `frame/${i}`, vertexIndex: i }))
   }, [editorActive, editorMode, editorStrandMode, frameNodes])
 
+  // Guide Anchors are clickable completion targets in Complete mode (slice 3):
+  // every point a Guide exposes (endpoints/ticks/divisions/manual + Guide×Guide
+  // and Guide×Tile-edge/Boundary crossings) in Patch-world coords, tagged with
+  // `stamp` so the dot colour signals world-space vs Patch-relative. Picking one
+  // routes through the reducer's Guide-completion path.
+  const guideAnchorVertices = useMemo<Array<BoundaryVertex & { stamp: boolean }>>(() => {
+    if (!editorActive || !config.editor || editorMode !== 'complete' || editorStrandMode) return []
+    return collectGuideAnchors(config.editor, patchRot).map((a, i) => ({
+      p: a.p,
+      tileId: `guide-anchor/${a.guideId}`,
+      vertexIndex: i,
+      stamp: a.stamp,
+    }))
+  }, [editorActive, config.editor, editorMode, editorStrandMode, patchRot])
+
   // Lookup of Cell by id — shared by the section + vertex overlays to
   // transform each Cell's Cell-local geometry into Patch-local coords.
   const cellById = useMemo(() => {
@@ -961,6 +977,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
           neighbourVertices={neighbourVertices}
           frameVertices={frameVertices}
           centreVertices={centreVertices}
+          guideAnchorVertices={guideAnchorVertices}
           picks={picks ?? []}
           previewValid={previewValid}
           previewMessage={previewMessage}

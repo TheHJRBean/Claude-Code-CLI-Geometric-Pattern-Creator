@@ -50,6 +50,18 @@ _Avoid_: flip, toggle, switch (use the full "phase-switch" — bare "switch" is 
 The Builder phase where the user authors **Tiles** into **Cells** of a **Patch**. Click-to-place, Complete, delete, symmetry-aware editing all happen here.
 _Avoid_: design mode (drop the suffix), authoring mode, build mode
 
+**Construct** _(Design-Phase mode, ADR-0008)_:
+The Design-Phase tool mode where **Guides** are drawn and edited. Sits beside Place and Complete in the Tool toggle, mutually exclusive. Its toolbar (Guide-line tool, angle-step preset, snap toggle) appears only in-mode.
+_Avoid_: construction mode, guide mode, draw mode
+
+**Guide** _(ADR-0008)_:
+A drawn construction element — compass-and-straightedge-style scaffolding on the Builder canvas. Variants: **Guide line** (shipped, slice 1), **Guide circle** and **divided Guide circle** (slice 2). Guides expose **Anchors** and produce **Tiles** via Place/Complete — never pattern lines (PIC stays the single rendering engine). Each Guide has a **stamp** toggle (default off): off = one-off world-space, on = Patch-relative, repeating in every **Lattice** stamp. Stamp state is shown by fixed system colour (violet = stamping, slate blue = not); no user-pickable Guide colours in v1. Guides persist with the Patch (`editor.guides`), are hidden by default in Composition behind an overlay toggle, and are always stripped from exports. "Construction line" survives as the informal/literature synonym only.
+_Avoid_: construction line (in UI/code — canonical is Guide line); scaffold (casual ok); colliding with **Ray** / **Strand** / **Contact Ray**
+
+**Anchor** _(ADR-0008, umbrella term)_:
+ANY single point pickable for tile placement or Complete, app-wide: exposed vertices, **Frame nodes**, boundary-section points, neighbour vertices, and Guide anchors (kinds: intersection, tick, manual). Consolidates four flows that each named their points differently. Guide-anchor wiring into Place/Complete is Guides slice 3; slice 1 renders them as passive dots.
+_Avoid_: pick target / node / point as canonical nouns (casual ok, umbrella term is Anchor)
+
 **Composition** _(Phase)_:
 The Builder phase where the **Patch** is composed into the rendered tiled output. The user sees the full **Composition** (output) here and tunes PIC settings (contact angle, figures, lacing) without mutating Tiles.
 _Avoid_: strand editor, strand mode, preview mode, render mode

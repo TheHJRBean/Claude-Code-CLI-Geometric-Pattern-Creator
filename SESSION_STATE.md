@@ -5,6 +5,26 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-15 (implementation) — ✅ GUIDES SLICE 1 SHIPPED (#26): data model + Construct mode + Guide lines + per-Guide popup
+
+**Goal:** ticket #26, first Guides slice (spec `CONSTRUCTION_GUIDES_SPEC.md`, ADR-0008). Model: Fable per ticket.
+
+**Done, 4 commits on `main` (`10aae59` → `fb67c81` → `3b368fd` → docs commit):**
+- **Schema:** `EditorGuide` (`types/editor.ts`) — v1 = `EditorGuideLine { start, end, stamp (default off), extend none/start/end/both, tickSpacing? (absent → patch edgeLength), ticksEnabled? (absent → true), manualAnchors: number[] (parametric t — UI arrives slice 3, schema ships now) }`. On `EditorPatch.guides?` (optional additive, no version bump — presetId/decoration precedent). `migrations.ts` validates per-Guide, drops bad entries, empty → undefined.
+- **Pure geometry** `editor/guides.ts`: fixed system colours (`GUIDE_COLOUR_STATIC` slate `#4a7fb5` / `GUIDE_COLOUR_STAMP` violet `#9a5bd2` — colour IS the stamp indicator), `collectSnapPoints` (tile verts + edge midpoints w/ edgeAngle + Boundary corners + Guide anchors/intersections, Patch-local), `snapToPoint`, `snapAngle` (references horizontal + start-edge dir so continuation/perpendicular come free; `ANGLE_STEP_PRESETS` 15/30/36/45/72), `guideLineSpan` (Liang–Barsky extend clipping), `guideTickPoints`/`guideManualAnchorPoints`/`guideIntersections` (extend-aware), `createGuideLine`.
+- **Reducer:** `EDITOR_ADD_GUIDE` / `EDITOR_UPDATE_GUIDE` (fails closed on unknown id; never patches id/kind) / `EDITOR_DELETE_GUIDE` (last delete drops the block). All in `DESIGN_MODE_ACTIONS`; `historyCoalesceKey` now also reads `guideId` so endpoint drags coalesce per-Guide.
+- **Construct mode:** `EditorMode = 'place'|'complete'|'construct'` (new, `types/appMode.ts`) threaded through TessellationLabMode/EditorDesignControls/DesignPanel/Canvas. Tool toggle is 3-way; in-mode toolbar in DesignPanel = angle-step select + "Snap while drawing" checkbox + hint (zero permanent chrome).
+- **Drawing (Canvas):** two-click segments. **Key mechanism:** empty-canvas clicks detected by WRAPPING the `usePanZoom` svg handlers (pointerdown→up ≤5px slop) — an in-layer capture rect would lose the pointerup to the svg's `setPointerCapture`. Point snap wins over angle snap; Shift = freehand; Esc cancels draft; snap tolerance 14px/zoom. `screenToWorld` added to `rendering/screenSpace.ts` (inverse of worldToScreen, rotation-aware).
+- **Layer** `EditorGuideLayer.tsx`: solid drawn segment + dashed extension, passive Anchor dots (endpoint/tick/manual/× intersections), draft preview + snap ring, wide invisible hit stroke (onPointerDown per `feedback_editor_svg_overlay_events`), endpoint drag handles (element pointer capture) on the selected Guide. Passive (`pointerEvents: none`) outside Construct.
+- **Popup** `GuidePopupOverlay.tsx` (picker-style, anchored at segment midpoint): stamp toggle w/ colour swatch, extend segmented, tick spacing, typed angle (buffered, Enter/blur commits, rotates end about start), show-ticks, delete. Canvas swallows the click that dismisses it (400ms window) so it doesn't double as a draw point.
+- **Lifecycle:** Guides render in ALL Design modes (scaffolding for Place/Complete), Composition hidden by default behind CompositionPanel "Show guides" toggle (only offered when guides exist), never in Decoration (v1). Export strip free via editorOverlay `data-export="exclude"`. Saved/reloaded via config JSON + library (migrateEditorConfig path).
+- **Tests +40 → 964 vitest green**, tsc clean. Docs: CONTEXT.md (Construct/Guide/Anchor entries), CLAUDE.md Builder bullet.
+
+**⏳ BROWSER-VERIFY OWED:** (a) Construct appears in Tool toggle, toolbar in-mode only; (b) two-click line snaps to tile vertex/midpoint (ring marker); (c) angle snap 15° + edge-reference continuation; Shift freehand; (d) Esc cancels draft; (e) click a Guide → popup: stamp flips colour slate↔violet, extend dashes to viewport edge, tick spacing changes dots, typed angle rotates, delete removes; (f) endpoint drag snaps + coalesces into one undo step; (g) undo/redo across draw/edit/delete; (h) pan/zoom still works in Construct (drag ≠ click); (i) save/reload keeps Guides; (j) Composition hides Guides, "Show guides" reveals; (k) SVG/PNG export contains no Guides.
+
+**NEXT:** browser-verify above → slice 2 (#27, circles + divided circles) or slice 3 (#28, Anchors → Place/Complete pickable set). Slice 4 symmetry-orbit (#29), slice 5 stamp-under-Lattice (#30), polish (#31).
+
+---
 ### ▶ 2026-07-15 (later still) — ✅ GUIDES (construction lines) GRILLED + SPECCED + TICKETED
 
 **Goal:** grill-with-docs session on the construction-lines idea (feature shaping only, no implementation).

@@ -5,6 +5,18 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-16 (library save-overwrite) — ⏸ HANDOFF, NOT STARTED (rec: Sonnet; user switching)
+
+**Goal:** overwrite a currently loaded save instead of always saving a new entry — on Save with a loaded entry, offer **Save (overwrite)** vs **Save as new**.
+
+**Plan (scoped, nothing written yet):**
+- `src/state/configLibrary.ts` — add `update(id, config): SaveResult` to `ConfigLibrary` + `createConfigLibrary` (replace entry's `config` via `structuredCloneSafe`, refresh `sourceCategory`, bump `createdAt` so the panel's "Saved …" footer reflects last save; keep name). Mirror in `src/state/patternLibrary.ts` wrapper.
+- `src/components/ConfigLibraryPanel.tsx` — when `activeEntry` set, Save overwrites it (then `onSaved?.()`); add a **Save As** button (always name-prompts, current `handleSave` body). No active entry → Save = current name-prompt flow. Button row grows to 5 (flex-wrap already).
+- Tests: configLibrary update (happy, missing id, quota) + panel behaviour if panel tests exist.
+
+**Next:** implement above in a Sonnet session; vitest + tsc; commit.
+
+---
 ### ▶ 2026-07-16 (generator ML, part 2) — ✅ #36 ERAS + RANDOM-ONLY EVAL + EXPLORE SLIDER + HELP SHIPPED (Fable, matched rec)
 
 **Goal:** ticket #36 — score-drift eras, honest evaluation, exploration control, in-UI help (user design discussion same day). **1019 vitest green** (+6), tsc + build clean.

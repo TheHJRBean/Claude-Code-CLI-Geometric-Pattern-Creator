@@ -6,7 +6,7 @@ import { faithfulRenderFlags } from '../rendering/faithfulRender'
 import { sampleRandomPattern, type GeneratedPattern } from '../generator/randomPattern'
 import { sampleGuidedPattern, GUIDED_CANDIDATES, EXPLORE_MAX } from '../generator/guidedPattern'
 import { trainTasteModel, MIN_TRAINING_SAMPLES, type TasteModel } from '../generator/tasteModel'
-import { addRecord, allRecords, countRecords, SCORE_SCHEMA_VERSION, type NewDatasetRecord } from '../generator/datasetStore'
+import { addRecord, allRecords, SCORE_SCHEMA_VERSION, type NewDatasetRecord } from '../generator/datasetStore'
 import { downloadDataset } from '../generator/datasetExport'
 import { patternLibrary } from '../state/patternLibrary'
 import { editAvailabilityFor } from './gallery/galleryBrowser.logic'
@@ -56,7 +56,10 @@ export function GeneratorMode({ onOpenInLab }: Props) {
   const svgRef = useRef<SVGSVGElement>(null)
   const segmentsRef = useRef<Segment[]>([])
   const [sample, setSample] = useState<GeneratedPattern>(() => sampleRandomPattern(randomSeed()))
-  const [ratedCount, setRatedCount] = useState(0)
+  // Per-source tallies (absent source = random, pre-#35 records). The split
+  // is surfaced so the user can police their Random share — guided-heavy
+  // rating starves the model of unbiased coverage.
+  const [counts, setCounts] = useState({ random: 0, guided: 0 })
   const [saveModalOpen, setSaveModalOpen] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
   // 0–10 slider position; recentred to the neutral midpoint on every new
@@ -77,11 +80,17 @@ export function GeneratorMode({ onOpenInLab }: Props) {
   const [era, setEra] = useState(loadEra)
   const [helpOpen, setHelpOpen] = useState(false)
 
-  useEffect(() => { void countRecords().then(setRatedCount) }, [])
   // Retrain whenever the era changes too — the intercept re-anchors to the
-  // new era (starting at the global mean until it accrues ratings).
+  // new era (starting at the global mean until it accrues ratings). The
+  // same fetch seeds the per-source tallies.
   useEffect(() => {
-    void allRecords().then(records => setModel(trainTasteModel(records, era)))
+    void allRecords().then(records => {
+      setModel(trainTasteModel(records, era))
+      setCounts({
+        random: records.filter(r => (r.source ?? 'random') === 'random').length,
+        guided: records.filter(r => r.source === 'guided').length,
+      })
+    })
   }, [era])
   useEffect(() => { setSliderValue(5) }, [sample])
 
@@ -122,7 +131,10 @@ export function GeneratorMode({ onOpenInLab }: Props) {
       source: sampleSourceRef.current,
       era,
     }
-    void addRecord(record).then(() => setRatedCount(c => c + 1))
+    const recorded = sampleSourceRef.current
+    void addRecord(record).then(() =>
+      setCounts(c => ({ ...c, [recorded]: c[recorded] + 1 })),
+    )
     advance()
   }, [sample, advance, era])
 
@@ -191,7 +203,15 @@ export function GeneratorMode({ onOpenInLab }: Props) {
   return (
     <div className="generator-view">
       <div className="generator-view__bar">
-        <span className="generator-view__count">Rated: {ratedCount}</span>
+        <span
+          className="generator-view__count"
+          title={`${counts.random} random / ${counts.guided} guided — keep the random share healthy (30–50%+) so the model keeps seeing unbiased coverage`}
+        >
+          Rated: {counts.random + counts.guided}
+          {counts.random + counts.guided > 0 && (
+            <> · {Math.round((counts.random / (counts.random + counts.guided)) * 100)}% R / {Math.round((counts.guided / (counts.random + counts.guided)) * 100)}% G</>
+          )}
+        </span>
         <div className="generator-source" role="group" aria-label="Sample source">
           <button
             className={`generator-source__btn${source === 'random' ? ' generator-source__btn--on' : ''}`}

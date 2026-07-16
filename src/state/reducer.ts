@@ -998,11 +998,15 @@ function placeTileOnGuideAnchor(
   // World-space vertex arrays of every existing Tile (all Cells) + prior
   // world-space completions (frame + guide), for the overlap probe.
   const probeCell = worldProbeCell(patch, patchRot)
+  // Size to the active Cell's own Tiles, not `patch.edgeLength` — in a
+  // multi-cell Patch the latter is the lattice constant after the
+  // boundary-size slider, which would make placements far too large (mirrors
+  // vertex placement).
+  const placeEdge = cellPlacementEdgeLength(active, patch.edgeLength, patch.cells)
   // The Anchor is a free point (no boundary corner), so the full-2π sector +
-  // body-overlap probe in `isVertexPlacementViable` is the whole gate. Sized at
-  // the Patch edge length — the Anchor is defined in Patch space, not a Cell's.
+  // body-overlap probe in `isVertexPlacementViable` is the whole gate.
   const anchorVertex = { p: guideAnchor.p, key: '', incidentTiles: [], openSectors: [] }
-  if (!force && !isVertexPlacementViable(anchorVertex, sides, rotation, patch.edgeLength, probeCell)) return state
+  if (!force && !isVertexPlacementViable(anchorVertex, sides, rotation, placeEdge, probeCell)) return state
 
   if (guideAnchor.stamp) {
     // Patch-relative Anchor → ordinary Cell Tile. Convert the world-frame
@@ -1010,7 +1014,7 @@ function placeTileOnGuideAnchor(
     // `applyCellTransform`): centre inverse-transforms, rotation subtracts the
     // Cell + Patch rotations.
     const worldTile = placeRegularNGonOnVertex(
-      sides, patch.edgeLength, anchorVertex, rotation,
+      sides, placeEdge, anchorVertex, rotation,
       `guide-stamp-${active.tiles.length}-${Date.now()}`,
     )
     const localTile = {
@@ -1023,7 +1027,7 @@ function placeTileOnGuideAnchor(
 
   // Non-stamping Anchor → world-space one-off Tile.
   const tile = placeRegularNGonOnVertex(
-    sides, patch.edgeLength, anchorVertex, rotation,
+    sides, placeEdge, anchorVertex, rotation,
     `guide-${(patch.guideTiles?.length ?? 0)}-${Date.now()}`,
   )
   const guideTiles = [...(patch.guideTiles ?? []), tile]

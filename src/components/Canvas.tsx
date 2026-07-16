@@ -696,9 +696,18 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     return worldProbeCell(config.editor, patchRot)
   }, [selectedIsGuideAnchor, config.editor, patchRot])
   // Effective probe Cell + edge length used by every viability / preview memo —
-  // the world probe Cell for a Guide Anchor, else the host Cell.
+  // the world probe Cell for a Guide Anchor, else the host Cell. Anchor
+  // placements size to the ACTIVE Cell's Tiles (`cellPlacementEdgeLength`, not
+  // the raw lattice constant) — must match the reducer's
+  // `placeTileOnGuideAnchor` so preview and commit agree.
   const effectiveVertexCell = selectedIsGuideAnchor ? guideProbeCell : selectedVertexCell
-  const effectiveEdgeLength = selectedIsGuideAnchor ? (config.editor?.edgeLength ?? 0) : placementEdgeLength
+  const anchorEdgeLength = (() => {
+    if (!selectedIsGuideAnchor || !config.editor) return 0
+    const patch = config.editor
+    const active = patch.cells.find(c => c.id === patch.activeCellId) ?? patch.cells[0]
+    return cellPlacementEdgeLength(active, patch.edgeLength, patch.cells)
+  })()
+  const effectiveEdgeLength = selectedIsGuideAnchor ? anchorEdgeLength : placementEdgeLength
   const vertexPickerViableSides = useMemo<number[]>(() => {
     if (!selectedVertexData || !effectiveVertexCell || !config.editor) return []
     // Orbit-aware: under symmetry a size is only "clean" if its full orbit

@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { reducer } from './reducer'
 import { DEFAULT_CONFIG } from './defaults'
-import { createDefaultEditorConfig } from '../editor/createDefault'
+import { createDefaultEditorConfig, createDefault488EditorConfig } from '../editor/createDefault'
 import type { PatternConfig } from '../types/pattern'
-import type { EditorGuideLine, EditorTile } from '../types/editor'
+import type { EditorGuideLine, EditorRegularTile, EditorTile } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import { DESIGN_MODE_ACTIONS, historyCoalesceKey } from '../editor/history'
 import { frameSelectablePoints } from '../editor/patchSelectable'
@@ -169,6 +169,42 @@ describe('Guides — Place on Anchors (slice 3 / #33)', () => {
 
   it('the action is Design-mode undoable', () => {
     expect(DESIGN_MODE_ACTIONS.has('EDITOR_PLACE_TILE_ON_ANCHOR')).toBe(true)
+  })
+
+  it('multi-cell: Anchor placements size to the Cell\'s Tiles, not the raw lattice constant', () => {
+    // #33 review finding 1: after the boundary-size slider grows
+    // `patch.edgeLength` (the lattice constant) away from the Tiles' true
+    // scale, Anchor placements must still mint at the Cell-Tile edge length
+    // (`cellPlacementEdgeLength`) — in BOTH the stamping and world-space
+    // branches. 4.8.8 seed with edgeLength forced 2.5× the seed Tiles'.
+    const FAR = { x: 900, y: 900 }
+    const s: PatternConfig = {
+      ...structuredClone(DEFAULT_CONFIG),
+      tiling: { type: 'editor', scale: 1 },
+      editor: createDefault488EditorConfig(),
+    }
+    const activeId = s.editor!.activeCellId
+    const activeBefore = s.editor!.cells.find(c => c.id === activeId) ?? s.editor!.cells[0]
+    const seedEdge = (activeBefore.tiles[0] as EditorRegularTile).edgeLength
+    s.editor!.edgeLength = seedEdge * 2.5
+    const farGuide = (id: string, stamp: boolean): EditorGuideLine => ({
+      id, kind: 'line', start: FAR, end: { x: FAR.x + 100, y: FAR.y },
+      stamp, extend: 'none', ticksEnabled: false, manualAnchors: [],
+    })
+
+    // Stamping branch → Cell Tile at seedEdge.
+    let st = reducer(s, { type: 'EDITOR_ADD_GUIDE', payload: { guide: farGuide('fs', true) } })
+    st = reducer(st, { type: 'EDITOR_PLACE_TILE_ON_ANCHOR', payload: { anchor: FAR, sides: 4, rotation: 0 } })
+    const activeAfter = st.editor!.cells.find(c => c.id === activeId) ?? st.editor!.cells[0]
+    const stamped = activeAfter.tiles[activeAfter.tiles.length - 1] as EditorRegularTile
+    expect(activeAfter.tiles.length).toBeGreaterThan(activeBefore.tiles.length)
+    expect(stamped.edgeLength).toBeCloseTo(seedEdge)
+
+    // World-space branch → guideTile at seedEdge.
+    let sw = reducer(s, { type: 'EDITOR_ADD_GUIDE', payload: { guide: farGuide('fw', false) } })
+    sw = reducer(sw, { type: 'EDITOR_PLACE_TILE_ON_ANCHOR', payload: { anchor: FAR, sides: 4, rotation: 0 } })
+    expect(sw.editor!.guideTiles).toHaveLength(1)
+    expect((sw.editor!.guideTiles![0] as EditorRegularTile).edgeLength).toBeCloseTo(seedEdge)
   })
 })
 

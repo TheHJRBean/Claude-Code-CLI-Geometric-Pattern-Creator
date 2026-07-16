@@ -5,6 +5,31 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-16 (review) — ✅ #33 CODE-REVIEWED (high effort, Fable) — 10 verified findings, ⛏ FIXES NOT STARTED
+
+**Goal:** user asked for a review of commit `264e349` (Place-on-Anchors, #33) since it ran on Opus against a Fable recommendation. 8-angle multi-agent review + verify pass complete. **No code changed this session** — this entry IS the fix handoff.
+
+**Verdict:** world-space plumbing + inverse-transform math verified correct. The **stamping branch** of `placeTileOnGuideAnchor` (reducer.ts) carries the real bugs.
+
+**Findings (ranked; file:line = working tree @ `23e52ef`):**
+1. **[CONFIRMED, worst] `reducer.ts:1039`+`1052` — stamped/world Tiles sized at raw `patch.edgeLength`**, not `cellPlacementEdgeLength(active, patch.edgeLength, patch.cells)`. Multi-cell Patch ⇒ Tile mints at the lattice constant, oversized vs the Cell's Tiles (the exact regression the `EDITOR_PLACE_TILE_ON_VERTEX` case at reducer.ts:454 avoids). **Fix in BOTH reducer branches + Canvas `effectiveEdgeLength` (Canvas.tsx:714)** so preview matches; add a multi-cell reducer test (e.g. 4.8.8 seed + stamping anchor → placed Tile edgeLength ≈ sibling Tile edge, not patch.edgeLength).
+2. **[CONFIRMED] `reducer.ts:1047` — stamping branch skips symmetry-orbit propagation** (`placeTilesOnVertexOrbit`); vertex Place AND stamping Complete both orbit. Decide: propagate orbit (consistent) or document single-Tile as v1 (then at least make the overlap-confirm `symmetry` flag honest). Recommend propagate — mirrors `EDITOR_PLACE_TILE_ON_VERTEX`; note the anchor is world-space so orbit must run in the active Cell's local frame AFTER the world→local convert.
+3. **[CONFIRMED, PRE-EXISTING #28] `reducer.ts:906` — frame-completion branch of `multiPickCompleteAcrossPatch` omits `patch.guideTiles` from its overlap probe** (other 4 world-tile collections include them; routing guard at :880 sends frame+anchor mixed picks into this blind branch). Fix lands free with finding 5's helper.
+4. **[CONFIRMED, latent] `Canvas.tsx:1299` — anchor commit is `onPlaceTileOnAnchor?.()` but dots/picker are gated on `onPlaceTileOnVertex` only** → silent dead-click if a consumer wires one prop not the other. Fix: include `onPlaceTileOnAnchor` in the anchor-injection gate (only inject anchors when the handler exists).
+5. **[CONFIRMED, reuse] `reducer.ts:1014` + `Canvas.tsx:697` — 4th+5th hand-inlined copy of the world-tiles collection; `worldTileVertexArrays` ALREADY EXISTS (private) at `patchSelectable.ts:339`.** Fix: export it, add `worldProbeCell(patch, patchRot)` beside it, call from all 5 sites (reducer.ts:902/972/1014, Canvas.tsx:697, patchSelectable.ts:305) — fixes finding 3 and the probe-base drift (Canvas spreads `cells[0]`, reducer `activeCell`) in one move.
+6. **[PLAUSIBLE] `reducer.ts:1046` — stamped Tile stored in `activeCell` regardless of the anchor's geometric host Cell**; rendering unaffected (lattice stamps = uniform translations, verified) but later placements in OTHER Cells probe only their own `cell.tiles` → unwarned overlap. Fix idea: resolve host Cell by point-in-Cell containment (helper doesn't exist yet). OK to defer to a ticket.
+7. **[PLAUSIBLE] `Canvas.tsx:621` — anchor-vs-real-vertex drop uses `EDITOR_EPS` (1e-6) vs the 1e-4 grid of `dedupeAnchors`/`vertexKeyOf`** → conceptually-coincident anchor from a different float path escapes the drop, duplicate dot. Fix: use the same 1e-4 rounded-key comparison.
+8. **[cleanup] `reducer.ts:1030` — untyped `anchorVertex` literal with `openSectors: []`** (Canvas twin has full-2π) — latent zero-orientations trap. Fix: shared `makeAnchorVertex(p)` factory in `vertexPlacement.ts` emitting the truthful full-2π sector, used by both.
+9. **[cleanup] `Canvas.tsx:615` — `realWorld` transform pass duplicated by `renderedVertices`** + O(anchors×real) dedupe. Fix: one shared world-position pass + rounded-key Set.
+10. **[cleanup] `Canvas.tsx:685` — raw `selectedVertexCell`/`placementEdgeLength` still in scope beside `effective*`** — future memos will grab the wrong pair. Optional: collapse to one placement-context object; fine to ride #31 polish.
+
+**Recommended fix order:** 5 (helper) → 1 (sizing + test) → 2 (orbit + test) → 3 (falls out of 5, add frame×guideTile overlap test) → 4 → 7 → 8 → 9; defer 6 (ticket) + 10 (#31). Suggested slices: one commit for 5+3, one for 1, one for 2, one for 4+7+8+9. Full finding details in this session's ReportFindings output; verify with `npx vitest run` (997 green baseline) + `npx tsc --noEmit` + `npm run build`.
+
+**Model for the fix: Fable** (it's PIC/geometry-adjacent reducer surgery per the original ticket rec) — or Opus acceptable for findings 4/7/8/9 alone. **Per feedback_model_recommendations: confirm model with user if mismatched.**
+
+**Blockers:** none. Browser-verify from the two entries below still owed (unchanged by the review).
+
+---
 ### ▶ 2026-07-16 (implementation) — ✅ GUIDES #33 (Place-on-Anchors) SHIPPED
 
 **Goal:** ticket #33 — the Place-on-Anchors workstream split off #28. Model: **Fable** per ticket (ran on Opus this session). Guide Anchors are now single-n-gon **Place**-mode vertex targets, not just Complete pick points. Commit **`264e349`** (pushed to `main`).

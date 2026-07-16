@@ -5,7 +5,26 @@
 ## ▶ RESUME HERE
 
 ---
-### ▶ 2026-07-16 (review) — ✅ #33 CODE-REVIEWED (high effort, Fable) — 10 verified findings, ⛏ FIXES NOT STARTED
+### ▶ 2026-07-16 (fixes) — ✅ #33 REVIEW FIXES SHIPPED (8 of 10 findings; Fable per handoff rec)
+
+**Goal:** implement the fix handoff from the review entry below. Model: **Fable** (matched rec). 4 commits on `main`, all pushed; **1001 vitest green** (+4 on the 997 baseline), tsc + `npm run build` clean.
+
+**Done (finding # → commit):**
+- **F5+F3 `a32d5c1`** — `worldTileVertexArrays` exported + new `worldProbeCell(patch, patchRot, worldTiles?)` (identity transform, sym `none`, base `activeCell`) in `editor/patchSelectable.ts`; all 5 hand-inlined world-tiles collections replaced (reducer frame-completion / `guideCompleteWorldSpace` / `placeTileOnGuideAnchor`, Canvas `guideProbeCell`, `validateMultiPick`). Frame-node Completes now probe `patch.guideTiles` (F3 fell out) + regression test (frame Complete rejected through a guideTile, force overrides).
+- **F1 `e33699b`** — Anchor placements (both stamping + world-space branches) sized at `cellPlacementEdgeLength(active, patch.edgeLength, patch.cells)`, not raw `patch.edgeLength`; Canvas `effectiveEdgeLength` matches (`anchorEdgeLength`). Multi-cell 4.8.8 test with edgeLength forced 2.5× the seed edge.
+- **F2 `cdf17aa`** — stamping-Anchor placement now propagates the active Cell's **symmetry orbit** all-or-nothing (bespoke loop in `placeTileOnGuideAnchor` — `placeTilesOnVertexOrbit` can't be reused, it requires orbit images on real exposed vertices; `transformVertexRotation` exported from `orbit.ts`; orbit in Cell-local frame, overlap probed in world frame against the cumulative probe). Canvas overlap-confirm `symmetry` flag now honest for Anchors (active-Cell mode when stamping, false when world-space). Test: D4 full + off-axis Anchor → 4 Tiles; non-stamping stays a single.
+- **F4+F7+F8+F9 `c9faf89`** — Canvas Anchor injection gated on `onPlaceTileOnAnchor` (no dead-click dots); shared `makeAnchorVertex(p)` factory (`vertexPlacement.ts`, truthful full-2π sector) used by Canvas + both reducer sites; `cellLocalVertices`/`renderedVertices` collapsed to one shared world-pass memo with a `vertexKeyOf` rounded-key Set (1e-4 grid matches `dedupeAnchors`) for the Anchor-vs-real-vertex drop.
+
+**Deferred:** F6 → **ticket #34** (stamped Anchor Tile lands in activeCell not the geometric host Cell; Sonnet rec). F10 → rides #31 polish (collapse raw `selectedVertexCell`/`placementEdgeLength` into one placement-context object).
+
+**⚠ Known gap (accepted):** the Place picker's orbit-aware viability for a stamping Anchor runs against the world probe Cell (sym `none`), so an orbit-mate collision isn't badged ⚠ — the reducer then all-or-nothing no-ops. Same "silently no-ops" trap `vertexOrientationsWithOrbit` solves for real vertices; fold Anchor orbit awareness into **#29** (Guides symmetry-orbit).
+
+**⏳ BROWSER-VERIFY OWED:** the #33 list below (unchanged) **plus**: (i) multi-cell preset (4.8.8) after boundary-size growth — Anchor-placed Tile matches sibling Tile size, preview agrees; (ii) stamping Anchor on a Cell with symmetry ≠ none → whole orbit appears, undo removes all; (iii) frame + guideTile overlap rejected without force.
+
+**NEXT — #29 symmetry-orbit (Opus; fold in the Anchor orbit-badging gap)** → #30 stamp-under-Lattice (Opus) → #31 polish/vocab (Sonnet, incl. F10) → #32 Girih reveal → #34 host-Cell resolution (Sonnet). Slice-2/-3/#33 browser-verifies still owed.
+
+---
+### ▶ 2026-07-16 (review) — ✅ #33 CODE-REVIEWED (high effort, Fable) — 10 verified findings, ⛏ FIXES DONE (see entry above)
 
 **Goal:** user asked for a review of commit `264e349` (Place-on-Anchors, #33) since it ran on Opus against a Fable recommendation. 8-angle multi-agent review + verify pass complete. **No code changed this session** — this entry IS the fix handoff.
 

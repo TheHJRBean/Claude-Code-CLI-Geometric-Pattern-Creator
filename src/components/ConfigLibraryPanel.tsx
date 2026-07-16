@@ -82,7 +82,7 @@ export function ConfigLibraryPanel({
     return TILINGS[t]?.label ?? 'Untitled'
   })()
 
-  const handleSave = () => {
+  const handleSaveAsNew = () => {
     setTextModal({
       title: `Name this ${nounSingular}`,
       confirmLabel: 'Save',
@@ -99,6 +99,20 @@ export function ConfigLibraryPanel({
         onSaved?.()
       },
     })
+  }
+
+  const handleSave = () => {
+    if (!activeEntry) {
+      handleSaveAsNew()
+      return
+    }
+    const result = library.update(activeEntry.id, currentConfig)
+    if (result.error) {
+      flashError(result.error.message)
+      return
+    }
+    refresh()
+    onSaved?.()
   }
 
   const handleRename = () => {
@@ -142,6 +156,7 @@ export function ConfigLibraryPanel({
 
   const buttons = [
     { label: 'Save', onClick: handleSave, disabled: !currentConfig.tiling.type },
+    { label: 'Save As', onClick: handleSaveAsNew, disabled: !currentConfig.tiling.type || !activeEntry },
     { label: 'Rename', onClick: handleRename, disabled: !activeEntry },
     { label: 'Duplicate', onClick: handleDuplicate, disabled: !activeEntry },
     { label: 'Delete', onClick: handleDelete, disabled: !activeEntry, danger: true },

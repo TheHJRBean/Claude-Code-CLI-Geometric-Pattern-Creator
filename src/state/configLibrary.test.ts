@@ -127,6 +127,36 @@ describe('createConfigLibrary — rename / delete / duplicate / get', () => {
   it('get returns null for an unknown id', () => {
     expect(createConfigLibrary(KEY).get('nope')).toBeNull()
   })
+
+  it('updates an entry in place, keeping its id and name', () => {
+    const lib = createConfigLibrary(KEY)
+    const id = lib.save('keeper', minimalConfig()).entry!.id
+    const res = lib.update(id, minimalConfig('3.12.12'))
+    expect(res.error).toBeUndefined()
+    expect(res.entry?.id).toBe(id)
+    expect(res.entry?.name).toBe('keeper')
+    expect(lib.list()).toHaveLength(1)
+    expect(lib.get(id)?.config.tiling.type).toBe('3.12.12')
+  })
+
+  it('update refreshes sourceCategory and createdAt', () => {
+    const lib = createConfigLibrary(KEY)
+    const original = lib.save('cat-check', minimalConfig())
+    const id = original.entry!.id
+    const before = original.entry!.createdAt
+    const editorCfg = minimalConfig('editor')
+    editorCfg.editor = { version: 3, cells: [], activeCellId: 'main', edgeLength: 40 } as PatternConfig['editor']
+    const res = lib.update(id, editorCfg)
+    expect(res.entry?.sourceCategory).toBe('editor')
+    expect(res.entry!.createdAt).toBeGreaterThanOrEqual(before)
+  })
+
+  it('returns a corrupt error when updating a missing id', () => {
+    const lib = createConfigLibrary(KEY)
+    const res = lib.update('nope', minimalConfig())
+    expect(res.entry).toBeUndefined()
+    expect(res.error?.kind).toBe('corrupt')
+  })
 })
 
 describe('createConfigLibrary — resilient reads', () => {

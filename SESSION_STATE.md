@@ -5,16 +5,17 @@
 ## ▶ RESUME HERE
 
 ---
-### ▶ 2026-07-16 (library save-overwrite) — ⏸ HANDOFF, NOT STARTED (rec: Sonnet; user switching)
+### ▶ 2026-07-16 (library save-overwrite) — ✅ SHIPPED, ✅ browser-verified (Sonnet, matched rec)
 
-**Goal:** overwrite a currently loaded save instead of always saving a new entry — on Save with a loaded entry, offer **Save (overwrite)** vs **Save as new**.
+**Goal:** overwrite a currently loaded save instead of always saving a new entry — Save now overwrites the loaded entry in place; Save As always name-prompts a new one.
 
-**Plan (scoped, nothing written yet):**
-- `src/state/configLibrary.ts` — add `update(id, config): SaveResult` to `ConfigLibrary` + `createConfigLibrary` (replace entry's `config` via `structuredCloneSafe`, refresh `sourceCategory`, bump `createdAt` so the panel's "Saved …" footer reflects last save; keep name). Mirror in `src/state/patternLibrary.ts` wrapper.
-- `src/components/ConfigLibraryPanel.tsx` — when `activeEntry` set, Save overwrites it (then `onSaved?.()`); add a **Save As** button (always name-prompts, current `handleSave` body). No active entry → Save = current name-prompt flow. Button row grows to 5 (flex-wrap already).
-- Tests: configLibrary update (happy, missing id, quota) + panel behaviour if panel tests exist.
+**Done:**
+- `src/state/configLibrary.ts` — `update(id, config): SaveResult` on `ConfigLibrary` + `createConfigLibrary` (replaces `config` via `structuredCloneSafe`, refreshes `sourceCategory`, bumps `createdAt`, keeps `id`/`name`). Mirrored in `src/state/patternLibrary.ts`.
+- `src/components/ConfigLibraryPanel.tsx` — `handleSave`: no active entry → falls through to `handleSaveAsNew` (name-prompt, unchanged behaviour); active entry → calls `library.update` directly, no modal. New **Save As** button (always name-prompts via `handleSaveAsNew`), disabled with no active entry (that case is already covered by Save).
+- Tests: `configLibrary.test.ts` +3 (`update` happy path keeping id/name, sourceCategory + createdAt refresh, missing-id corrupt error). 1022 vitest green (1 pre-existing unrelated flake — SSR smoke test timeout under full-suite parallelism, passes standalone).
+- **Browser-verified** via a scratch Playwright script (system chromium had no system deps + no root; unblocked by `apt-get download` + `dpkg-deb -x` of libnspr4/libnss3/libasound2t64 into a local dir on `LD_LIBRARY_PATH`, no install/root needed): loaded Square{4,4} preset → Save (no active entry) opens name modal → saved → edited `strand.width` via the real Strand-style slider → Save (active entry) overwrites in place, no modal, same id/name, entries count unchanged, timestamp bumped, edited width persisted → Save As opens modal → new distinct entry, dropdown switches to it. Gallery has no save flow to re-check (read-only since the convergence flip, ADR-0006) — `ConfigLibraryPanel` only renders in the Lab.
 
-**Next:** implement above in a Sonnet session; vitest + tsc; commit.
+**Next:** none — feature complete.
 
 ---
 ### ▶ 2026-07-16 (generator ML, part 2) — ✅ #36 ERAS + RANDOM-ONLY EVAL + EXPLORE SLIDER + HELP SHIPPED (Fable, matched rec)

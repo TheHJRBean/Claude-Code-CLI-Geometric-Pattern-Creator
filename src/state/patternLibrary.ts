@@ -33,6 +33,7 @@ export const patternLibrary: ConfigLibrary = {
   storageKey: PATTERN_LIBRARY_KEY,
   list: () => { ensureMigrated(); return lib.list() },
   save: (name: string, config: PatternConfig) => { ensureMigrated(); return lib.save(name, config) },
+  update: (id: string, config: PatternConfig) => { ensureMigrated(); return lib.update(id, config) },
   rename: (id: string, newName: string) => { ensureMigrated(); return lib.rename(id, newName) },
   delete: (id: string) => { ensureMigrated(); return lib.delete(id) },
   duplicate: (id: string) => { ensureMigrated(); return lib.duplicate(id) },

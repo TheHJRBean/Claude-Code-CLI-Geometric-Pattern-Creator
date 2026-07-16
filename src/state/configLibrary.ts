@@ -64,6 +64,8 @@ export interface ConfigLibrary {
   storageKey: string
   list(): SavedConfig[]
   save(name: string, config: PatternConfig): SaveResult
+  /** Overwrite an existing entry's config in place, keeping its id/name. */
+  update(id: string, config: PatternConfig): SaveResult
   rename(id: string, newName: string): LibraryError | null
   delete(id: string): LibraryError | null
   duplicate(id: string): SaveResult
@@ -173,6 +175,25 @@ export function createConfigLibrary(storageKey: string): ConfigLibrary {
     return { entry }
   }
 
+  function update(id: string, config: PatternConfig): SaveResult {
+    const entries = list()
+    const index = entries.findIndex(e => e.id === id)
+    if (index === -1) {
+      return { error: { kind: 'corrupt', message: 'Entry not found.' } }
+    }
+    const updated: SavedConfig = {
+      ...entries[index],
+      createdAt: Date.now(),
+      config: structuredCloneSafe(config),
+      sourceCategory: categoryFor(config),
+    }
+    const next = [...entries]
+    next[index] = updated
+    const error = writeAll(next)
+    if (error) return { error }
+    return { entry: updated }
+  }
+
   function rename(id: string, newName: string): LibraryError | null {
     const trimmed = newName.trim()
     if (!trimmed) return null
@@ -209,5 +230,5 @@ export function createConfigLibrary(storageKey: string): ConfigLibrary {
     return list().find(e => e.id === id) ?? null
   }
 
-  return { storageKey, list, save, rename, delete: deleteEntry, duplicate, get }
+  return { storageKey, list, save, update, rename, delete: deleteEntry, duplicate, get }
 }

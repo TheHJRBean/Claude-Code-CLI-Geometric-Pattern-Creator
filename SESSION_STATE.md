@@ -5,6 +5,21 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-16 (implementation) — ✅ GUIDES #33 (Place-on-Anchors) SHIPPED
+
+**Goal:** ticket #33 — the Place-on-Anchors workstream split off #28. Model: **Fable** per ticket (ran on Opus this session). Guide Anchors are now single-n-gon **Place**-mode vertex targets, not just Complete pick points. Commit **`264e349`** (pushed to `main`).
+
+**Done (tsc + `npm run build` clean, 997 vitest green — +6):**
+- **Geometry** (`editor/vertexPlacement.ts`): optional `ExposedVertex.guideAnchor { guideId, stamp }` marker — Anchor `p` is Patch-world coords, no host Cell.
+- **Reducer** (`state/reducer.ts` + `actions.ts`): `EDITOR_PLACE_TILE_ON_ANCHOR { anchor, sides, rotation, force? }` → `placeTileOnGuideAnchor`, mirrors `guideCompleteWorldSpace`. Re-derives the Anchor from `collectGuideAnchors` (fails closed on a stale pick), overlap-probes against a world probe Cell (`center 0/rot 0/sym none`, tiles = all Cells' + frame + guide tiles as irregular) unless `force`; **non-stamping** → `patch.guideTiles` (world-space one-off), **stamping** → active-Cell Tile (world→Cell-local convert: `inverseCellTransform` centre, rotation − cell.rotation − patchRot). Allowlisted in `history.ts` (undoable) + `presetShelf.ts` (structural edit).
+- **Canvas** (`components/Canvas.tsx`): injects `collectGuideAnchors` into `cellLocalVertices` as synthetic full-2π `ExposedVertex`es (drops those coincident with a real vertex). `selectedIsGuideAnchor` picks an `effectiveVertexCell` (memoised world probe Cell) + `effectiveEdgeLength` (`patch.edgeLength`) that thread through viable/forceable-sides, orientations, preview (skips the Cell transform — Tile already world-space), `vertexPickerWorldPos`, and the commit (routes to `onPlaceTileOnAnchor` vs `onPlaceTileOnVertex`). `EditorVertexPlacementLayer` colours Anchor diamonds by stamp (blue `#4a7fb5` world-space / violet `#9a5bd2` repeats). Wired `onPlaceTileOnAnchor` in `TessellationLabMode`.
+- **Tests** (`state/guides.test.ts`, +6): non-stamping→guideTile / stamping→Cell Tile / figure-seed / stale-anchor fail-closed / no-editor no-op / undoable.
+
+**⏳ BROWSER-VERIFY OWED:** (a) draw a Guide in Construct, switch to **Place** — Anchor diamonds appear (blue non-stamp / violet stamp) on the visible scaffold; (b) click an Anchor → shape grid → orientation preview (translucent n-gon at the Anchor, full-2π so all rotations offered); commit mints a Tile; (c) a **non-stamping** Anchor Tile is world-space (doesn't repeat when you enter Composition/lattice); a **stamping** Anchor Tile becomes a Cell Tile (DOES repeat); (d) overlapping placement shows ⚠ + Accept (force); (e) the minted Tile's Strands render + type editable in Composition; (f) undo/redo; (g) save/reload keeps it; (h) multi-cell: Anchor placement still lands correctly (world coords, `patch.edgeLength` sizing).
+
+**NEXT — #29 symmetry-orbit (Opus)** → #30 stamp-under-Lattice (Opus) → #31 polish/vocab (Sonnet) → #32 Girih reveal. Also still owed: slice-2 circle + slice-3 Complete browser-verifies (below).
+
+---
 ### ▶ 2026-07-15 (implementation) — ✅ GUIDES SLICE 3 (Complete-on-Anchors) SHIPPED (#28); Place split to #33
 
 **Goal:** ticket #28, Guides slice 3 — the payoff slice. Model: **Fable** per ticket (ran on Opus this session). Delivered the **Anchor engine** + **Complete-on-Anchors**; the ticket's third workstream (**Place-on-Anchors**) was split to **#33** per user decision ("land Complete first, Place as follow-up") so the scaffold→Complete flow gets browser-verified before more Place picker UI is built.

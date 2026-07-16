@@ -171,6 +171,24 @@ describe('Guides — Place on Anchors (slice 3 / #33)', () => {
     expect(DESIGN_MODE_ACTIONS.has('EDITOR_PLACE_TILE_ON_ANCHOR')).toBe(true)
   })
 
+  it('stamping Anchor placement propagates the Cell\'s symmetry orbit (all-or-nothing)', () => {
+    // #33 review finding 2: stamping Anchors mint ordinary Cell Tiles, so they
+    // must orbit like every other Design-mode placement. D4 'full' on the
+    // default square Cell + an off-axis Anchor at (250, 250) → 4 distinct
+    // rotation images (reflections collapse onto them by centroid dedupe).
+    const s = withGuide(placeGuide(true))
+    s.editor!.cells[0] = { ...s.editor!.cells[0], symmetryMode: 'full' }
+    const before = s.editor!.cells[0].tiles.length
+    const out = reducer(s, { type: 'EDITOR_PLACE_TILE_ON_ANCHOR', payload: { anchor: START, sides: 4, rotation: 0 } })
+    expect(out.editor!.cells[0].tiles.length).toBe(before + 4)
+    expect(out.editor!.guideTiles).toBeUndefined()
+    // Non-stamping Anchors stay world-space singles regardless of symmetry.
+    const sw = withGuide(placeGuide(false))
+    sw.editor!.cells[0] = { ...sw.editor!.cells[0], symmetryMode: 'full' }
+    const outW = reducer(sw, { type: 'EDITOR_PLACE_TILE_ON_ANCHOR', payload: { anchor: START, sides: 4, rotation: 0 } })
+    expect(outW.editor!.guideTiles).toHaveLength(1)
+  })
+
   it('multi-cell: Anchor placements size to the Cell\'s Tiles, not the raw lattice constant', () => {
     // #33 review finding 1: after the boundary-size slider grows
     // `patch.edgeLength` (the lattice constant) away from the Tiles' true

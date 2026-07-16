@@ -21,7 +21,7 @@ import {
 import { computeExposedEdges } from '../editor/exposedEdges'
 import { BOUNDARY_ROTATION, BOUNDARY_SIDES } from '../editor/buildEditorPolygons'
 import { isPlacementViable, placeRegularNGonOnEdge } from '../editor/placement'
-import { orbitTileIds, placeTilesOnOrbit, placeTilesOnVertexOrbit } from '../editor/orbit'
+import { orbitTileIds, placeTilesOnOrbit, placeTilesOnVertexOrbit, transformVertexRotation } from '../editor/orbit'
 import {
   computeExposedVertices,
   isVertexPlacementViable,
@@ -1009,20 +1009,43 @@ function placeTileOnGuideAnchor(
   if (!force && !isVertexPlacementViable(anchorVertex, sides, rotation, placeEdge, probeCell)) return state
 
   if (guideAnchor.stamp) {
-    // Patch-relative Anchor → ordinary Cell Tile. Convert the world-frame
-    // placement into the active Cell's local frame (inverse of
-    // `applyCellTransform`): centre inverse-transforms, rotation subtracts the
-    // Cell + Patch rotations.
-    const worldTile = placeRegularNGonOnVertex(
-      sides, placeEdge, anchorVertex, rotation,
-      `guide-stamp-${active.tiles.length}-${Date.now()}`,
-    )
-    const localTile = {
-      ...worldTile,
-      center: inverseCellTransform(worldTile.center, active, patchRot),
-      rotation: worldTile.rotation - active.rotation - patchRot,
+    // Patch-relative Anchor → ordinary Cell Tile(s). Mirrors
+    // `EDITOR_PLACE_TILE_ON_VERTEX`'s symmetry-orbit propagation: the orbit
+    // runs in the active Cell's local frame (the Anchor is world-space, so
+    // convert first), each image is overlap-probed back in world space
+    // against the cumulative probe, and placement is all-or-nothing (`force`
+    // overrides — symmetry must never partially break). `placeTilesOnVertexOrbit`
+    // can't be reused directly: it only accepts orbit images landing on real
+    // exposed Cell vertices, and an Anchor is a free point.
+    const localAnchor = inverseCellTransform(guideAnchor.p, active, patchRot)
+    const localRotation = rotation - active.rotation - patchRot
+    const syms = boundarySymmetries(active.shape, active.symmetryMode ?? 'none')
+    const idPrefix = `guide-stamp-${active.tiles.length}-${Date.now()}`
+    const placements: EditorTile[] = []
+    const seenCenters: Vec2[] = []
+    let workingProbe = probeCell
+    for (let i = 0; i < syms.length; i++) {
+      const pLocal = applySym(syms[i], localAnchor)
+      const rLocal = transformVertexRotation(syms[i], localRotation, sides)
+      const imageVertex = { p: applyCellTransform(pLocal, active, patchRot), key: '', incidentTiles: [], openSectors: [] }
+      const rWorld = rLocal + active.rotation + patchRot
+      const candidate = placeRegularNGonOnVertex(sides, placeEdge, imageVertex, rWorld, '__probe__')
+      // Axis-fixed orbit images collapse to one Tile (centroid dedupe).
+      if (seenCenters.some(c => pointsEqual(c, candidate.center, EDITOR_EPS))) continue
+      if (!force && !isVertexPlacementViable(imageVertex, sides, rWorld, placeEdge, workingProbe)) return state
+      const worldTile = placeRegularNGonOnVertex(sides, placeEdge, imageVertex, rWorld, `${idPrefix}-${i}`)
+      // World → Cell-local convert (inverse of `applyCellTransform`): centre
+      // inverse-transforms, rotation subtracts the Cell + Patch rotations.
+      placements.push({
+        ...worldTile,
+        center: inverseCellTransform(worldTile.center, active, patchRot),
+        rotation: worldTile.rotation - active.rotation - patchRot,
+      })
+      seenCenters.push(candidate.center)
+      workingProbe = { ...workingProbe, tiles: [...workingProbe.tiles, worldTile] }
     }
-    return applyWrap(seedFigures(updateCell(state, active.id, cell => ({ ...cell, tiles: [...cell.tiles, localTile] }))))
+    if (placements.length === 0) return state
+    return applyWrap(seedFigures(updateCell(state, active.id, cell => ({ ...cell, tiles: [...cell.tiles, ...placements] }))))
   }
 
   // Non-stamping Anchor → world-space one-off Tile.

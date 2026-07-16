@@ -1307,9 +1307,17 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
                 })
             closeVertexPicker()
             if (!orientation.overlaps) { place(false); return }
+            // Stamping Anchors orbit under the ACTIVE Cell's symmetry in the
+            // reducer (world probe Cell is always 'none'); non-stamping
+            // Anchors place as world-space singles.
+            const anchorSymmetry = !!selectedVertexData.guideAnchor?.stamp
+              && config.editor != null
+              && ((config.editor.cells.find(c => c.id === config.editor!.activeCellId) ?? config.editor.cells[0]).symmetryMode ?? 'none') !== 'none'
             setOverlapConfirm({
               sides,
-              symmetry: (effectiveVertexCell?.symmetryMode ?? 'none') !== 'none',
+              symmetry: selectedIsGuideAnchor
+                ? anchorSymmetry
+                : (effectiveVertexCell?.symmetryMode ?? 'none') !== 'none',
               pos: anchor ?? { x: 0, y: 0 },
               commit: () => place(true),
             })

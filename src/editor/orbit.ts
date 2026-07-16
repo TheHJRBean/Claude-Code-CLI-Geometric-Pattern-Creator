@@ -227,7 +227,7 @@ export function viableSidesForEdge(edge: ExposedEdge, cell: EditorCell, _edgeLen
  * The closed-form result is `2β - rotation + 2π/n + π` where β is the
  * reflection axis angle.
  */
-function transformVertexRotation(s: Sym, rotation: number, sides: number): number {
+export function transformVertexRotation(s: Sym, rotation: number, sides: number): number {
   const det = s.a * s.d - s.b * s.c
   if (det > 0) {
     // Pure rotation by α = atan2(c, a).

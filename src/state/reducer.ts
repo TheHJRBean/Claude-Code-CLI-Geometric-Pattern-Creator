@@ -45,6 +45,8 @@ import {
   isSelectable,
   neighbourStampsNear,
   retargetTile,
+  worldProbeCell,
+  worldTileVertexArrays,
 } from '../editor/patchSelectable'
 import { patchRotation } from '../editor/compositionLattice'
 import { overlapsExisting } from '../editor/tileOverlap'
@@ -897,17 +899,10 @@ function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[], force
   // the Tile is built directly in world coords.
   if (patch.frame && picks.some(p => isSelectable(p, frameSelectablePoints(patch)))) {
     // World-space vertex arrays of every existing Tile (all Cells) + prior
-    // frame completions, for completeNGap's centroid-inside check and the
-    // overlap guard.
-    const worldTiles: Vec2[][] = []
-    for (const cell of patch.cells) {
-      for (const t of cell.tiles) worldTiles.push(tileVertices(t).map(v => applyCellTransform(v, cell, patchRot)))
-    }
-    for (const ft of patch.frame.completedTiles ?? []) worldTiles.push(tileVertices(ft))
-    const probeCell: EditorCell = {
-      ...active,
-      tiles: worldTiles.map((vs, i): EditorTile => ({ id: `world-${i}`, kind: 'irregular', vertices: vs, source: 'completed' })),
-    }
+    // world-space completions (frame + guide), for completeNGap's
+    // centroid-inside check and the overlap guard.
+    const worldTiles = worldTileVertexArrays(patch, patchRot)
+    const probeCell = worldProbeCell(patch, patchRot, worldTiles)
     const id = `frame-${(patch.frame.completedTiles?.length ?? 0)}-${Date.now()}`
     const tile = completeNGap(probeCell, picks, id, force)
     if (!tile) return state
@@ -964,21 +959,12 @@ function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[], force
 function guideCompleteWorldSpace(state: PatternConfig, picks: Vec2[], force: boolean): PatternConfig {
   if (!state.editor) return state
   const patch = state.editor
-  const active = activeCell(patch)
   const patchRot = patchRotation(patch)
   // World-space vertex arrays of every existing Tile (all Cells) + prior
   // world-space completions (frame + guide), for the centroid-inside check and
   // the overlap guard.
-  const worldTiles: Vec2[][] = []
-  for (const cell of patch.cells) {
-    for (const t of cell.tiles) worldTiles.push(tileVertices(t).map(v => applyCellTransform(v, cell, patchRot)))
-  }
-  for (const ft of patch.frame?.completedTiles ?? []) worldTiles.push(tileVertices(ft))
-  for (const gt of patch.guideTiles ?? []) worldTiles.push(tileVertices(gt))
-  const probeCell: EditorCell = {
-    ...active,
-    tiles: worldTiles.map((vs, i): EditorTile => ({ id: `world-${i}`, kind: 'irregular', vertices: vs, source: 'completed' })),
-  }
+  const worldTiles = worldTileVertexArrays(patch, patchRot)
+  const probeCell = worldProbeCell(patch, patchRot, worldTiles)
   const id = `guide-${(patch.guideTiles?.length ?? 0)}-${Date.now()}`
   const tile = completeNGap(probeCell, picks, id, force)
   if (!tile) return state
@@ -1011,19 +997,7 @@ function placeTileOnGuideAnchor(
   const active = activeCell(patch)
   // World-space vertex arrays of every existing Tile (all Cells) + prior
   // world-space completions (frame + guide), for the overlap probe.
-  const worldTiles: Vec2[][] = []
-  for (const cell of patch.cells) {
-    for (const t of cell.tiles) worldTiles.push(tileVertices(t).map(v => applyCellTransform(v, cell, patchRot)))
-  }
-  for (const ft of patch.frame?.completedTiles ?? []) worldTiles.push(tileVertices(ft))
-  for (const gt of patch.guideTiles ?? []) worldTiles.push(tileVertices(gt))
-  const probeCell: EditorCell = {
-    ...active,
-    center: { x: 0, y: 0 },
-    rotation: 0,
-    symmetryMode: 'none',
-    tiles: worldTiles.map((vs, i): EditorTile => ({ id: `world-${i}`, kind: 'irregular', vertices: vs, source: 'completed' })),
-  }
+  const probeCell = worldProbeCell(patch, patchRot)
   // The Anchor is a free point (no boundary corner), so the full-2π sector +
   // body-overlap probe in `isVertexPlacementViable` is the whole gate. Sized at
   // the Patch edge length — the Anchor is defined in Patch space, not a Cell's.

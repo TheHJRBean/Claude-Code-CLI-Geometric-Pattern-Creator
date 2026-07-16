@@ -3,8 +3,11 @@ import { reducer } from './reducer'
 import { DEFAULT_CONFIG } from './defaults'
 import { createDefaultEditorConfig } from '../editor/createDefault'
 import type { PatternConfig } from '../types/pattern'
-import type { EditorGuideLine } from '../types/editor'
+import type { EditorGuideLine, EditorTile } from '../types/editor'
+import type { Vec2 } from '../utils/math'
 import { DESIGN_MODE_ACTIONS, historyCoalesceKey } from '../editor/history'
+import { frameSelectablePoints } from '../editor/patchSelectable'
+import { tileVertices } from '../editor/exposedEdges'
 
 const base = (): PatternConfig => ({
   ...structuredClone(DEFAULT_CONFIG),
@@ -166,6 +169,55 @@ describe('Guides — Place on Anchors (slice 3 / #33)', () => {
 
   it('the action is Design-mode undoable', () => {
     expect(DESIGN_MODE_ACTIONS.has('EDITOR_PLACE_TILE_ON_ANCHOR')).toBe(true)
+  })
+})
+
+describe('Guides — frame completion overlap probe includes guideTiles', () => {
+  // #33 review finding 3: the frame-scoped completion branch built its
+  // world-tiles probe without `patch.guideTiles`, so a frame-node Complete
+  // could silently mint a Tile through an existing world-space guide Tile.
+  // Fixture: default square-seed Patch + square Shape Frame; picks = the
+  // seed's rightmost vertex + the two right-edge Frame nodes nearest y=0.
+  const withFrame = (): PatternConfig => {
+    const s = base()
+    s.editor!.frame = { type: 'shape', shape: 'square', size: 300, boundaryTreatment: 'complete' }
+    return s
+  }
+  const picksFor = (s: PatternConfig): Vec2[] => {
+    const seedVerts = tileVertices(s.editor!.cells[0].tiles[0])
+    const seedV = seedVerts.reduce((a, b) => (b.x > a.x ? b : a))
+    const nodes = frameSelectablePoints(s.editor!)
+    const maxX = Math.max(...nodes.map(p => p.x))
+    const right = nodes
+      .filter(p => Math.abs(p.x - maxX) < 1e-6)
+      .sort((a, b) => Math.abs(a.y) - Math.abs(b.y))
+    return [seedV, right[0], right[1]]
+  }
+  // World-space guide Tile squarely inside the completion triangle's span,
+  // clear of the Seed and the Frame outline.
+  const blockingGuideTile = (): EditorTile => ({
+    id: 'gt-block',
+    kind: 'irregular',
+    vertices: [
+      { x: 120, y: -80 }, { x: 280, y: -80 }, { x: 280, y: 80 }, { x: 120, y: 80 },
+    ],
+    source: 'completed',
+  })
+
+  it('sanity: the frame-node Complete succeeds with no guideTiles present', () => {
+    const s = withFrame()
+    const out = reducer(s, { type: 'EDITOR_COMPLETE_N_GAP', payload: { picks: picksFor(s) } })
+    expect(out.editor!.frame!.completedTiles).toHaveLength(1)
+  })
+
+  it('rejects a frame-node Complete overlapping an existing guideTile (force still overrides)', () => {
+    const s = withFrame()
+    s.editor!.guideTiles = [blockingGuideTile()]
+    const picks = picksFor(s)
+    const rejected = reducer(s, { type: 'EDITOR_COMPLETE_N_GAP', payload: { picks } })
+    expect(rejected).toBe(s)
+    const forced = reducer(s, { type: 'EDITOR_COMPLETE_N_GAP', payload: { picks, force: true } })
+    expect(forced.editor!.frame!.completedTiles).toHaveLength(1)
   })
 })
 

@@ -14,14 +14,14 @@ import type { PaintVoid } from '../decoration/resolve'
 import { RotationDial } from './RotationDial'
 import { ZoomControl } from './ZoomControl'
 import type { ExposedEdge } from '../editor/exposedEdges'
-import type { EditorCell, EditorTile } from '../types/editor'
-import { computeExposedEdges, tileVertices } from '../editor/exposedEdges'
+import type { EditorCell } from '../types/editor'
+import { computeExposedEdges } from '../editor/exposedEdges'
 import { computeAllCycles, computeBoundaryCycle, type BoundaryVertex } from '../editor/boundary'
 import { EDITOR_EPS } from '../editor/exposedEdges'
 import { applyStamp } from '../editor/lattice'
 import { patchRotation } from '../editor/compositionLattice'
 import { viableSidesForEdge, viableSidesForVertexOrbit, vertexOrientationsWithOrbit } from '../editor/orbit'
-import { applyCellTransform } from '../editor/patchSelectable'
+import { applyCellTransform, worldProbeCell } from '../editor/patchSelectable'
 import { cellPlacementEdgeLength } from '../editor/active'
 import { EditorEdgeLayer } from './EditorEdgeLayer'
 import { EditorPickerOverlay } from './EditorPickerOverlay'
@@ -693,20 +693,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   const selectedIsGuideAnchor = !!selectedVertexData?.guideAnchor
   const guideProbeCell = useMemo<EditorCell | null>(() => {
     if (!selectedIsGuideAnchor || !config.editor) return null
-    const patch = config.editor
-    const worldTiles: Vec2[][] = []
-    for (const cell of patch.cells) {
-      for (const t of cell.tiles) worldTiles.push(tileVertices(t).map(v => applyCellTransform(v, cell, patchRot)))
-    }
-    for (const ft of patch.frame?.completedTiles ?? []) worldTiles.push(tileVertices(ft))
-    for (const gt of patch.guideTiles ?? []) worldTiles.push(tileVertices(gt))
-    return {
-      ...patch.cells[0],
-      center: { x: 0, y: 0 },
-      rotation: 0,
-      symmetryMode: 'none',
-      tiles: worldTiles.map((vs, i): EditorTile => ({ id: `world-${i}`, kind: 'irregular', vertices: vs, source: 'completed' })),
-    }
+    return worldProbeCell(config.editor, patchRot)
   }, [selectedIsGuideAnchor, config.editor, patchRot])
   // Effective probe Cell + edge length used by every viability / preview memo —
   // the world probe Cell for a Guide Anchor, else the host Cell.

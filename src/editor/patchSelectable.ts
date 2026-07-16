@@ -10,6 +10,7 @@ import { validateNGapPolygon } from './completeN'
 import { overlapsExistingDetail, type OverlapDetail } from './tileOverlap'
 import { frameOutlinePolygon, computeFrameSections, frameNodePoints } from './frame'
 import { collectGuideAnchors, type GuideAnchor } from './guides'
+import { activeCell } from './active'
 
 /**
  * Patch-frame helpers for Complete mode.
@@ -303,10 +304,7 @@ export function validateMultiPick(patch: EditorPatch, picks: Vec2[]): MultiPickV
   })
   if (worldSpaceGuide && !(patch.frame && picks.some(p => isSelectable(p, frameSelectablePoints(patch))))) {
     const worldTiles = worldTileVertexArrays(patch, patchRot)
-    const probe: EditorCell = {
-      ...(patch.cells.find(c => c.id === patch.activeCellId) ?? patch.cells[0]),
-      tiles: worldTiles.map((vs, i): EditorTile => ({ id: `world-${i}`, kind: 'irregular', vertices: vs, source: 'completed' })),
-    }
+    const probe = worldProbeCell(patch, patchRot, worldTiles)
     const ngap = validateNGapPolygon(picks, probe)
     if (ngap.kind === 'too-few') return { kind: 'too-few' }
     if (ngap.kind === 'duplicate-vertex') return { kind: 'duplicate-vertex' }
@@ -335,8 +333,9 @@ export function validateMultiPick(patch: EditorPatch, picks: Vec2[]): MultiPickV
 
 /** World-space vertex arrays of every existing Tile across all Cells, plus
  *  prior world-space completions (frame + guide). Shared by the world-space
- *  Guide-completion preview + overlap check. */
-function worldTileVertexArrays(patch: EditorPatch, patchRot: number): Vec2[][] {
+ *  Guide-completion preview + overlap check and the reducer's world-space
+ *  placement / completion paths. */
+export function worldTileVertexArrays(patch: EditorPatch, patchRot: number): Vec2[][] {
   const out: Vec2[][] = []
   for (const cell of patch.cells) {
     for (const t of cell.tiles) out.push(tileVertices(t).map(v => applyCellTransform(v, cell, patchRot)))
@@ -344,4 +343,26 @@ function worldTileVertexArrays(patch: EditorPatch, patchRot: number): Vec2[][] {
   for (const ft of patch.frame?.completedTiles ?? []) out.push(tileVertices(ft))
   for (const gt of patch.guideTiles ?? []) out.push(tileVertices(gt))
   return out
+}
+
+/**
+ * Identity-transform probe Cell holding EVERY world Tile (all Cells' Tiles
+ * lifted to world space + frame + guide completions) as irregular Tiles.
+ * World-space validation (`completeNGap` / `validateNGapPolygon` /
+ * `isVertexPlacementViable`) runs against it directly in Patch-world coords —
+ * none of those read the Cell transform, and `symmetryMode: 'none'` keeps
+ * orbit-aware callers from fanning out.
+ */
+export function worldProbeCell(
+  patch: EditorPatch,
+  patchRot: number,
+  worldTiles: Vec2[][] = worldTileVertexArrays(patch, patchRot),
+): EditorCell {
+  return {
+    ...activeCell(patch),
+    center: { x: 0, y: 0 },
+    rotation: 0,
+    symmetryMode: 'none',
+    tiles: worldTiles.map((vs, i): EditorTile => ({ id: `world-${i}`, kind: 'irregular', vertices: vs, source: 'completed' })),
+  }
 }

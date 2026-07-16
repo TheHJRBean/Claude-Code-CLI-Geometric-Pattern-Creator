@@ -19,6 +19,10 @@ export interface TrainingDataset {
   y: number[]
   /** Source record ids, aligned with `X`/`y` rows, for tracing outliers. */
   ids: number[]
+  /** Training era per row (record.era, absent = 0) — see datasetStore. */
+  eras: number[]
+  /** Sampler source per row (record.source, absent = 'random'). */
+  sources: ('random' | 'guided')[]
 }
 
 /**
@@ -47,14 +51,18 @@ export function preprocessRecords(records: DatasetRecord[]): TrainingDataset {
   const X: number[][] = []
   const y: number[] = []
   const ids: number[] = []
+  const eras: number[] = []
+  const sources: ('random' | 'guided')[] = []
   for (const record of records) {
     const score = normalizeScore(record)
     if (score === null) continue
     X.push(extractFeatures(record.config))
     y.push(score)
     ids.push(record.id)
+    eras.push(record.era ?? 0)
+    sources.push(record.source ?? 'random')
   }
-  return { featureNames, X, y, ids }
+  return { featureNames, X, y, ids, eras, sources }
 }
 
 /**

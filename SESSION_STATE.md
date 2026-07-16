@@ -5,6 +5,22 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-16 (generator ML, part 2) — ✅ #36 ERAS + RANDOM-ONLY EVAL + EXPLORE SLIDER + HELP SHIPPED (Fable, matched rec)
+
+**Goal:** ticket #36 — score-drift eras, honest evaluation, exploration control, in-UI help (user design discussion same day). **1019 vitest green** (+6), tsc + build clean.
+
+**Done:**
+- **Eras** — additive `DatasetRecord.era` (absent = 0); current era in localStorage `generator-current-era`; **New era** button (confirm + flash) in the bar; every rating stamps the live era. Training centres y per era (`fitEraStats` + `eraIntercept`, shrinkage k=10 toward global mean), ridge fits residuals; `trainTasteModel(records, currentEra?)` anchors `intercept` to the CURRENT era (fresh bumped era with no rows = global mean); CV fits era means on fold-train rows only (no leakage). Era change retrains (effect keyed on `era`).
+- **Random-only eval** — `preprocessRecords` now surfaces `eras` + `sources`; CV pools carry a random-flag; **λ picked on random-only RMSE** (fallback: full pool if zero random rows); artifact cv = `{ pearsonR, rmse, randomPearsonR, randomCount }`; UI headline shows `randomPearsonR` (+ era number).
+- **Explore (UCB)** — DECISION locked in #36: exploration lives in Guided, NOT the random sampler (Random = max exploration already; SAMPLER_TUNING widening would bump GENERATOR_VERSION). Artifact persists `covInverse = (XsᵀXs+λI)⁻¹`; `predictWithUncertainty` = cv.rmse × √leverage; `sampleGuidedPattern(model, seeds, explore)` bids `predicted + explore × uncertainty` (returns `uncertainty` too; predicted chip stays raw score). Dock gains an **Explore** slider (0–`EXPLORE_MAX`=2, step 0.25, visible only on Guided).
+- **Help** — `?` toggle in the bar → `.generator-help` overlay panel: rating flow, what the model/r is (below ~0.3 = guessing), Random vs Guided + keep 30–50% Random guidance, Explore semantics, when to press New era.
+- Tests: tasteModel 13 (era-drift absorption r>0.85 with a −3 era shift, era intercept ordering, fresh-era = global mean, guided rows out of randomCount, uncertainty ↑ off-distribution) + guidedPattern 5 (explore-0 argmax, explore-max = argmax of bid, determinism incl. explore).
+
+**⏳ BROWSER-VERIFY OWED (#35 + #36 together):** open Generator @457 → r plausible + `era 0` shown; Guided skews toward taste; Explore 2 → visibly weirder/unseen samples; `?` panel reads well; New era → confirm → era 1 badge + rating stamps `era:1` in export; export carries `source`.
+
+**NEXT (ML arc):** browser-verify; keep rating (watch random-only r). Future: pairwise ranking model, auto ε-mix, palette/frame loops, v2 sampler. Guides arc unchanged: #29 → #30 → #31 → #32 → #34.
+
+---
 ### ▶ 2026-07-16 (generator ML) — ✅ #35 TASTE MODEL + GUIDED SAMPLING SHIPPED (Fable, matched rec)
 
 **Goal:** ticket #35 — the ADR-0007 ML arc's model slice, at 457 rated samples (past the 300–500 gate). Model: **Fable** (borderline numerics+design → lean Fable; active matched). 1 commit on `main`; **1013 vitest green** (+12), tsc + `npm run build` clean.

@@ -3,6 +3,7 @@ import {
   MIN_TRAINING_SAMPLES,
   LAMBDA_GRID,
   predictScore,
+  predictWithUncertainty,
   trainTasteModel,
   type TasteModel,
 } from './tasteModel'
@@ -54,8 +55,11 @@ describe('trainTasteModel', () => {
     expect(model!.featureNames).toEqual([...FEATURE_NAMES])
     expect(model!.weights).toHaveLength(FEATURE_NAMES.length)
     expect(LAMBDA_GRID).toContain(model!.lambda)
-    // Linear signal + mild clamping: r should be near-perfect.
+    // Linear signal + mild clamping: r should be near-perfect. All rows are
+    // random-sourced (no source field), so both metrics see all 200.
     expect(model!.cv.pearsonR).toBeGreaterThan(0.9)
+    expect(model!.cv.randomPearsonR).toBeGreaterThan(0.9)
+    expect(model!.cv.randomCount).toBe(200)
     expect(model!.cv.rmse).toBeLessThan(1.5)
   })
 
@@ -73,6 +77,44 @@ describe('trainTasteModel', () => {
     const model = trainTasteModel(records)!
     expect(model.cv.pearsonR).toBe(0)
     expect(Number.isFinite(model.cv.rmse)).toBe(true)
+  })
+
+  it('scores guided-sourced rows out of the honest metric', () => {
+    const records = syntheticRecords(120).map((r, i) =>
+      i % 2 === 0 ? { ...r, source: 'guided' as const } : r,
+    )
+    const model = trainTasteModel(records)!
+    expect(model.cv.randomCount).toBe(60)
+  })
+
+  it('absorbs per-era grading drift in the intercept, keeping r high', () => {
+    // Same taste throughout, but era 1 grades a flat 3 points harsher.
+    // Pooled naively, that shift is unexplainable noise; era centring
+    // absorbs it and the correlation stays near-perfect.
+    const records = syntheticRecords(200).map((r, i) =>
+      i >= 100
+        ? { ...r, era: 1, score: Math.max(0, r.score! - 3) }
+        : r,
+    )
+    const model = trainTasteModel(records)!
+    expect(model.cv.randomPearsonR).toBeGreaterThan(0.85)
+
+    // The prediction anchor follows the requested era: era 1's (harsher)
+    // intercept sits below era 0's.
+    const era0 = trainTasteModel(records, 0)!
+    const era1 = trainTasteModel(records, 1)!
+    expect(era1.currentEra).toBe(1)
+    expect(era1.intercept).toBeLessThan(era0.intercept)
+    // Default currentEra = newest era in the data.
+    expect(model.currentEra).toBe(1)
+  })
+
+  it('a freshly bumped era with no ratings anchors at the global mean', () => {
+    const records = syntheticRecords(80)
+    const scores = records.map(r => r.score!)
+    const globalMean = scores.reduce((s, v) => s + v, 0) / scores.length
+    const model = trainTasteModel(records, 5)!
+    expect(model.intercept).toBeCloseTo(globalMean, 10)
   })
 })
 
@@ -123,7 +165,31 @@ describe('predictScore', () => {
         std: order.map(i => model.standardizer.std[i]),
       },
       weights: order.map(i => model.weights[i]),
+      covInverse: order.map(r => order.map(c => model.covInverse[r][c])),
     }
     expect(predictScore(reordered, config)).toBeCloseTo(baseline, 10)
+  })
+})
+
+describe('predictWithUncertainty', () => {
+  it('matches predictScore and is non-negative', () => {
+    const model = trainTasteModel(syntheticRecords(120))!
+    const config = sampleRandomPattern(77).config
+    const { score, uncertainty } = predictWithUncertainty(model, config)
+    expect(score).toBeCloseTo(predictScore(model, config), 10)
+    expect(uncertainty).toBeGreaterThanOrEqual(0)
+  })
+
+  it('is higher in feature regions the training data never covered', () => {
+    const model = trainTasteModel(syntheticRecords(200))!
+    const typical = sampleRandomPattern(3).config
+    // Scale far outside the sampler band [70, 160] — unseen territory.
+    const outlandish = {
+      ...typical,
+      tiling: { ...typical.tiling, scale: 2000 },
+    }
+    const near = predictWithUncertainty(model, typical)
+    const far = predictWithUncertainty(model, outlandish)
+    expect(far.uncertainty).toBeGreaterThan(near.uncertainty)
   })
 })

@@ -38,6 +38,10 @@ export interface DatasetRecord {
    * are model-biased (best-of-K), so training/analysis may want to weight or
    * split on this. */
   source?: 'random' | 'guided'
+  /** Training era (ticket #36) — bumped by the user when their grading
+   * standards consciously recalibrate. Absent = era 0. Scores are only
+   * comparable WITHIN an era; training centres per era to absorb drift. */
+  era?: number
 }
 
 export type NewDatasetRecord = Omit<DatasetRecord, 'id'>

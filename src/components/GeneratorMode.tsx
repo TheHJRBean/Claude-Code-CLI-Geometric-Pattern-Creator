@@ -4,6 +4,8 @@ import type { PatternConfig } from '../types/pattern'
 import { Canvas } from './Canvas'
 import { faithfulRenderFlags } from '../rendering/faithfulRender'
 import { sampleRandomPattern, type GeneratedPattern } from '../generator/randomPattern'
+import { sampleGuidedPattern, GUIDED_CANDIDATES } from '../generator/guidedPattern'
+import { trainTasteModel, MIN_TRAINING_SAMPLES, type TasteModel } from '../generator/tasteModel'
 import { addRecord, allRecords, countRecords, SCORE_SCHEMA_VERSION, type NewDatasetRecord } from '../generator/datasetStore'
 import { downloadDataset } from '../generator/datasetExport'
 import { patternLibrary } from '../state/patternLibrary'
@@ -17,6 +19,8 @@ import { TextPromptModal } from './TextPromptModal'
 function randomSeed(): number {
   return Math.floor(Math.random() * 0x100000000) >>> 0
 }
+
+type SampleSource = 'random' | 'guided'
 
 interface Props {
   /** Hand off the current sample to the Lab, converting + switching
@@ -44,8 +48,18 @@ export function GeneratorMode({ onOpenInLab }: Props) {
   // 0–10 slider position; recentred to the neutral midpoint on every new
   // sample so it never shows the previous pattern's score.
   const [sliderValue, setSliderValue] = useState(5)
+  // Guided source (ticket #35): the taste model retrains from IndexedDB once
+  // per mode open (the closed-form ridge is instant at this dataset size).
+  // undefined = still training, null = too few scored samples; either way
+  // the Guided toggle stays disabled.
+  const [model, setModel] = useState<TasteModel | null | undefined>(undefined)
+  const [source, setSource] = useState<SampleSource>('random')
+  // The model's estimate for the CURRENT sample when it came from Guided;
+  // shown so the user can calibrate the model against their own reaction.
+  const [predicted, setPredicted] = useState<number | null>(null)
 
   useEffect(() => { void countRecords().then(setRatedCount) }, [])
+  useEffect(() => { void allRecords().then(records => setModel(trainTasteModel(records))) }, [])
   useEffect(() => { setSliderValue(5) }, [sample])
 
   const flashMessage = (msg: string) => {
@@ -53,9 +67,23 @@ export function GeneratorMode({ onOpenInLab }: Props) {
     window.setTimeout(() => setFlash(f => (f === msg ? null : f)), 1600)
   }
 
+  // The source that produced the CURRENT sample — captured at generation time
+  // so a mid-sample toggle flip can't mislabel the record.
+  const sampleSourceRef = useRef<SampleSource>('random')
+
   const advance = useCallback(() => {
-    setSample(sampleRandomPattern(randomSeed()))
-  }, [])
+    if (source === 'guided' && model) {
+      const seeds = Array.from({ length: GUIDED_CANDIDATES }, randomSeed)
+      const guided = sampleGuidedPattern(model, seeds)
+      sampleSourceRef.current = 'guided'
+      setPredicted(guided.predictedScore)
+      setSample(guided.sample)
+    } else {
+      sampleSourceRef.current = 'random'
+      setPredicted(null)
+      setSample(sampleRandomPattern(randomSeed()))
+    }
+  }, [source, model])
 
   // Score (0–10) or flag the CURRENT sample, persist it, then advance. Skips
   // never reach here — an unrated sample carries no taste signal.
@@ -68,6 +96,7 @@ export function GeneratorMode({ onOpenInLab }: Props) {
       score,
       flagged,
       timestamp: Date.now(),
+      source: sampleSourceRef.current,
     }
     void addRecord(record).then(() => setRatedCount(c => c + 1))
     advance()
@@ -126,6 +155,31 @@ export function GeneratorMode({ onOpenInLab }: Props) {
     <div className="generator-view">
       <div className="generator-view__bar">
         <span className="generator-view__count">Rated: {ratedCount}</span>
+        <div className="generator-source" role="group" aria-label="Sample source">
+          <button
+            className={`generator-source__btn${source === 'random' ? ' generator-source__btn--on' : ''}`}
+            onClick={() => setSource('random')}
+          >
+            Random
+          </button>
+          <button
+            className={`generator-source__btn${source === 'guided' ? ' generator-source__btn--on' : ''}`}
+            onClick={() => setSource('guided')}
+            disabled={!model}
+            title={model
+              ? `Best of ${GUIDED_CANDIDATES} candidates by your taste model`
+              : `Needs at least ${MIN_TRAINING_SAMPLES} scored samples`}
+          >
+            Guided
+          </button>
+        </div>
+        <span className="generator-view__count generator-view__model" title="Taste model fit — 5-fold cross-validated correlation between predicted and actual scores">
+          {model
+            ? `Model r=${model.cv.pearsonR.toFixed(2)} · n=${model.nSamples}`
+            : model === undefined
+              ? 'Model: training…'
+              : `Model: needs ≥${MIN_TRAINING_SAMPLES} scored`}
+        </span>
         <div className="generator-view__spacer" />
         <button className="gallery-detail__btn" onClick={() => setSaveModalOpen(true)}>
           Save to library
@@ -152,6 +206,11 @@ export function GeneratorMode({ onOpenInLab }: Props) {
           {...flags}
         />
         <div className="generator-dock" role="toolbar" aria-label="Rate this pattern">
+          {predicted !== null && (
+            <span className="generator-dock__predicted" title="The taste model's estimate for this sample">
+              ≈{predicted.toFixed(1)}
+            </span>
+          )}
           <span className="generator-dock__slider-value">{sliderValue}</span>
           <input
             type="range"

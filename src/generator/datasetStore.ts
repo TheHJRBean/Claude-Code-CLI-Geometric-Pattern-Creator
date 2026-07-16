@@ -33,6 +33,11 @@ export interface DatasetRecord {
   score: number | null
   flagged: boolean
   timestamp: number
+  /** Which sampler produced the sample (ticket #35). Absent on records from
+   * before the Guided source existed — treat as 'random'. Guided-era ratings
+   * are model-biased (best-of-K), so training/analysis may want to weight or
+   * split on this. */
+  source?: 'random' | 'guided'
 }
 
 export type NewDatasetRecord = Omit<DatasetRecord, 'id'>

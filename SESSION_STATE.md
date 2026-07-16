@@ -5,6 +5,22 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-16 (generator ML) — ✅ #35 TASTE MODEL + GUIDED SAMPLING SHIPPED (Fable, matched rec)
+
+**Goal:** ticket #35 — the ADR-0007 ML arc's model slice, at 457 rated samples (past the 300–500 gate). Model: **Fable** (borderline numerics+design → lean Fable; active matched). 1 commit on `main`; **1013 vitest green** (+12), tsc + `npm run build` clean.
+
+**Done:**
+- `src/generator/tasteModel.ts` — pure in-browser **ridge regression**: closed-form normal-equations solve (Gaussian elimination w/ partial pivot), z-scored features (reuses `fitStandardizer`), centred target + unpenalised intercept, λ from `LAMBDA_GRID` [0.01…100] by **5-fold CV** (deterministic fold shuffle). Artifact `{ featureNames, standardizer, weights, intercept, lambda, nSamples, cv:{pearsonR,rmse} }` — persists its own featureNames; `predictScore` re-indexes by name, vanished features fall back to training mean (standardize to 0). Gate: `MIN_TRAINING_SAMPLES = 30` → null. **CV pooled out-of-fold r doubles as the learnability probe** (subsumed the planned offline JSONL script — no export round-trip needed) and shows live in the UI.
+- `src/generator/guidedPattern.ts` — `sampleGuidedPattern(model, seeds)`: **best-of-K** (`GUIDED_CANDIDATES = 16`) over the v1 random sampler; winner keeps its own seed provenance; returns `predictedScore` for UI calibration.
+- `datasetStore.ts` — additive optional `source?: 'random' | 'guided'` on `DatasetRecord` (absent = random; guided-era ratings are model-biased best-of-K, so later training can split/weight). No scoreSchemaVersion bump (score shape unchanged); flows through JSONL export automatically.
+- `GeneratorMode.tsx` — **Random | Guided** segmented toggle in the bar (user decision 2026-07-14: option not replacement); model trains once at mode open from IndexedDB (tri-state: undefined=training / null=<30 scored / model); status readout `Model r=0.xx · n=NNN`; Guided disabled until trained; `≈x.x` predicted chip in the dock on guided samples; record's `source` captured at generation time (ref) so a mid-sample toggle can't mislabel. + CSS (`.generator-source*`, `.generator-dock__predicted`).
+- Tests +12: tasteModel (gate, synthetic-linear-taste recovery r>0.9, determinism, constant-y r=0 not NaN, name re-index + reorder invariance) + guidedPattern (argmax, determinism, provenance, empty throws).
+
+**⏳ BROWSER-VERIFY OWED:** open Generator at 457 samples → status shows plausible r; toggle Guided → samples skew toward taste, predicted chip ≈ own reaction; rate a guided sample → record carries `source:'guided'` in export.
+
+**NEXT (ML arc):** rate more (watch r move); future = palette loop, frame loop, v2 Patch sampler, model persistence if retrain-at-open ever feels slow. Guides arc unchanged: #29 → #30 → #31 → #32 → #34.
+
+---
 ### ▶ 2026-07-16 (fixes) — ✅ #33 REVIEW FIXES SHIPPED (8 of 10 findings; Fable per handoff rec)
 
 **Goal:** implement the fix handoff from the review entry below. Model: **Fable** (matched rec). 4 commits on `main`, all pushed; **1001 vitest green** (+4 on the 997 baseline), tsc + `npm run build` clean.

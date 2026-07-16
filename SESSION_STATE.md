@@ -17,9 +17,9 @@
 - **Source-mix badge (`73f7318`, follow-up)** — Rated count now `Rated: N · x% R / y% G` (tooltip: raw counts + keep-random-healthy guidance); per-source tallies seed from the training fetch (absent source = random), increment per rating; `countRecords` no longer used in GeneratorMode.
 - Tests: tasteModel 13 (era-drift absorption r>0.85 with a −3 era shift, era intercept ordering, fresh-era = global mean, guided rows out of randomCount, uncertainty ↑ off-distribution) + guidedPattern 5 (explore-0 argmax, explore-max = argmax of bid, determinism incl. explore).
 
-**⏳ BROWSER-VERIFY OWED (#35 + #36 together):** open Generator @457 → r plausible + `era 0` shown; Guided skews toward taste; Explore 2 → visibly weirder/unseen samples; `?` panel reads well; New era → confirm → era 1 badge + rating stamps `era:1` in export; export carries `source`.
+**✅ BROWSER-VERIFIED (user, 2026-07-16):** full #35 + #36 + source-mix badge list confirmed — r readout, era badge, Guided taste skew, Explore-2 novelty, help panel, New era flow, source/era in export.
 
-**NEXT (ML arc):** browser-verify; keep rating (watch random-only r). Future: pairwise ranking model, auto ε-mix, palette/frame loops, v2 sampler. Guides arc unchanged: #29 → #30 → #31 → #32 → #34.
+**NEXT (ML arc):** keep rating (healthy Random share, watch random-only r). Future: pairwise ranking model, auto ε-mix, palette/frame loops, v2 sampler. Guides arc unchanged: #29 → #30 → #31 → #32 → #34.
 
 ---
 ### ▶ 2026-07-16 (generator ML) — ✅ #35 TASTE MODEL + GUIDED SAMPLING SHIPPED (Fable, matched rec)
@@ -33,7 +33,7 @@
 - `GeneratorMode.tsx` — **Random | Guided** segmented toggle in the bar (user decision 2026-07-14: option not replacement); model trains once at mode open from IndexedDB (tri-state: undefined=training / null=<30 scored / model); status readout `Model r=0.xx · n=NNN`; Guided disabled until trained; `≈x.x` predicted chip in the dock on guided samples; record's `source` captured at generation time (ref) so a mid-sample toggle can't mislabel. + CSS (`.generator-source*`, `.generator-dock__predicted`).
 - Tests +12: tasteModel (gate, synthetic-linear-taste recovery r>0.9, determinism, constant-y r=0 not NaN, name re-index + reorder invariance) + guidedPattern (argmax, determinism, provenance, empty throws).
 
-**⏳ BROWSER-VERIFY OWED:** open Generator at 457 samples → status shows plausible r; toggle Guided → samples skew toward taste, predicted chip ≈ own reaction; rate a guided sample → record carries `source:'guided'` in export.
+**✅ BROWSER-VERIFIED (user, 2026-07-16)** — see the #36 entry above; whole list confirmed.
 
 **NEXT (ML arc):** rate more (watch r move); future = palette loop, frame loop, v2 Patch sampler, model persistence if retrain-at-open ever feels slow. Guides arc unchanged: #29 → #30 → #31 → #32 → #34.
 

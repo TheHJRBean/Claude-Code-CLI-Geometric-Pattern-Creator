@@ -32,6 +32,7 @@ import { EditorVertexPlacementLayer, vertexUid } from './EditorVertexPlacementLa
 import { computeBoundarySections, viableSidesForBoundarySection, type BoundarySection } from '../editor/boundaryInward'
 import {
   computeExposedVertices,
+  makeAnchorVertex,
   placeRegularNGonOnVertex,
   placeableSidesForVertex,
   vertexKeyOf,
@@ -601,40 +602,45 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   )
   // Real Cell vertices (Cell-local coords, tagged with host Cell) plus Guide
   // Anchors injected as synthetic full-2π vertices (Guides slice 3 / #33).
-  // Anchor `p` is Patch-world coords with NO host Cell — `renderedVertices`
-  // leaves it untransformed, and the picker runs viability against a world
-  // probe Cell. Anchors coinciding with a real vertex are dropped so the
-  // real-vertex placement (with proper open sectors) wins there.
-  const cellLocalVertices = useMemo<ExposedVertex[]>(() => {
-    if (!vertexPlacementActive || !config.editor) return []
+  // Anchor `p` is Patch-world coords with NO host Cell, and the picker runs
+  // viability against a world probe Cell. One shared pass computes both the
+  // Cell-local set (picker round-trips) and the world-position set (dot
+  // rendering); the Anchor-vs-real-vertex drop uses the same 1e-4 rounded-key
+  // grid as `vertexKeyOf` / `dedupeAnchors`, so a conceptually-coincident
+  // Anchor arriving via a different float path still collapses onto the real
+  // vertex (whose proper open sectors win). Anchors only appear when the
+  // commit handler is wired — a consumer wiring `onPlaceTileOnVertex` alone
+  // must not render dead-click Anchor targets.
+  const { cellLocalVertices, renderedVertices } = useMemo(() => {
+    if (!vertexPlacementActive || !config.editor) {
+      return { cellLocalVertices: [] as ExposedVertex[], renderedVertices: [] as ExposedVertex[] }
+    }
     const patch = config.editor
-    const real: ExposedVertex[] = []
+    const cellLocal: ExposedVertex[] = []
+    const rendered: ExposedVertex[] = []
+    const worldKeys = new Set<string>()
     for (const cell of patch.cells) {
-      for (const v of computeExposedVertices(cell)) real.push({ ...v, hostCellId: cell.id })
+      for (const v of computeExposedVertices(cell)) {
+        const local = { ...v, hostCellId: cell.id }
+        cellLocal.push(local)
+        const w = applyCellTransform(v.p, cell, patchRot)
+        rendered.push({ ...local, p: w })
+        worldKeys.add(vertexKeyOf(w))
+      }
     }
-    const realWorld = real.map(v => {
-      const cell = cellById.get(v.hostCellId!)
-      return cell ? applyCellTransform(v.p, cell, patchRot) : v.p
-    })
-    const anchors: ExposedVertex[] = []
-    for (const a of collectGuideAnchors(patch, patchRot)) {
-      if (realWorld.some(w => pointsEqual(w, a.p, EDITOR_EPS))) continue
-      anchors.push({
-        p: a.p,
-        key: vertexKeyOf(a.p),
-        incidentTiles: [],
-        openSectors: [{ startAngle: 0, sweep: 2 * Math.PI }],
-        guideAnchor: { guideId: a.guideId, stamp: a.stamp },
-      })
+    if (onPlaceTileOnAnchor) {
+      for (const a of collectGuideAnchors(patch, patchRot)) {
+        if (worldKeys.has(vertexKeyOf(a.p))) continue
+        const anchorVertex: ExposedVertex = {
+          ...makeAnchorVertex(a.p),
+          guideAnchor: { guideId: a.guideId, stamp: a.stamp },
+        }
+        cellLocal.push(anchorVertex)
+        rendered.push(anchorVertex)
+      }
     }
-    return [...real, ...anchors]
-  }, [vertexPlacementActive, config.editor, cellById, patchRot])
-  const renderedVertices = useMemo<ExposedVertex[]>(() => {
-    return cellLocalVertices.map(v => {
-      const cell = v.hostCellId ? cellById.get(v.hostCellId) : undefined
-      return cell ? { ...v, p: applyCellTransform(v.p, cell, patchRot) } : v
-    })
-  }, [cellLocalVertices, cellById, patchRot])
+    return { cellLocalVertices: cellLocal, renderedVertices: rendered }
+  }, [vertexPlacementActive, config.editor, patchRot, onPlaceTileOnAnchor])
   // Selection / hover tracked by composite uid (host Cell + Cell-local key)
   // since keys can collide between Cells.
   const [selectedVertex, setSelectedVertex] = useState<{ key: VertexKey; hostCellId?: string } | null>(null)

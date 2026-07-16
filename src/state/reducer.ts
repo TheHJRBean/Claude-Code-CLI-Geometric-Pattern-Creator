@@ -25,6 +25,7 @@ import { orbitTileIds, placeTilesOnOrbit, placeTilesOnVertexOrbit, transformVert
 import {
   computeExposedVertices,
   isVertexPlacementViable,
+  makeAnchorVertex,
   placeRegularNGonOnVertex,
 } from '../editor/vertexPlacement'
 import { completeGap } from '../editor/complete'
@@ -1005,7 +1006,7 @@ function placeTileOnGuideAnchor(
   const placeEdge = cellPlacementEdgeLength(active, patch.edgeLength, patch.cells)
   // The Anchor is a free point (no boundary corner), so the full-2π sector +
   // body-overlap probe in `isVertexPlacementViable` is the whole gate.
-  const anchorVertex = { p: guideAnchor.p, key: '', incidentTiles: [], openSectors: [] }
+  const anchorVertex = makeAnchorVertex(guideAnchor.p)
   if (!force && !isVertexPlacementViable(anchorVertex, sides, rotation, placeEdge, probeCell)) return state
 
   if (guideAnchor.stamp) {
@@ -1027,7 +1028,7 @@ function placeTileOnGuideAnchor(
     for (let i = 0; i < syms.length; i++) {
       const pLocal = applySym(syms[i], localAnchor)
       const rLocal = transformVertexRotation(syms[i], localRotation, sides)
-      const imageVertex = { p: applyCellTransform(pLocal, active, patchRot), key: '', incidentTiles: [], openSectors: [] }
+      const imageVertex = makeAnchorVertex(applyCellTransform(pLocal, active, patchRot))
       const rWorld = rLocal + active.rotation + patchRot
       const candidate = placeRegularNGonOnVertex(sides, placeEdge, imageVertex, rWorld, '__probe__')
       // Axis-fixed orbit images collapse to one Tile (centroid dedupe).

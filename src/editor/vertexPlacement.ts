@@ -96,6 +96,23 @@ export interface ExposedVertex {
   guideAnchor?: { guideId: string; stamp: boolean }
 }
 
+/**
+ * Synthetic `ExposedVertex` for a **Guide Anchor** (Guides slice 3 / #33) — a
+ * free point in Patch-world coords with no incident Tiles and the truthful
+ * full-2π open sector (every rotation is angularly admissible; the body-
+ * overlap probe is the whole gate). Shared by the Canvas Place-picker
+ * injection and the reducer's `placeTileOnGuideAnchor` so the two can't
+ * drift. Callers tag `guideAnchor` on top where the marker is needed.
+ */
+export function makeAnchorVertex(p: Vec2): ExposedVertex {
+  return {
+    p,
+    key: vertexKeyOf(p),
+    incidentTiles: [],
+    openSectors: [{ startAngle: 0, sweep: 2 * Math.PI }],
+  }
+}
+
 /** One viable orientation for a candidate n-gon at a vertex. */
 export interface VertexOrientation {
   /** Index of the open sector this orientation lives in. */

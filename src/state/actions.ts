@@ -63,6 +63,13 @@ export type Action =
   // — picked from `vertexPlacementOrientations`. Symmetry-orbit aware:
   // propagates under the Cell's `symmetryMode` via `placeTilesOnVertexOrbit`.
   | { type: 'EDITOR_PLACE_TILE_ON_VERTEX'; payload: { vertexKey: string; sides: number; rotation: number; force?: boolean; hostCellId?: string } }
+  // Guides slice 3 / #33 — place a single regular n-gon at a **Guide Anchor**
+  // (Patch-world coords, full-2π sector). `anchor` is the world point picked
+  // in the Place picker; the reducer re-derives the Anchor's stamp flag from
+  // `collectGuideAnchors` and routes: non-stamping → world-space
+  // `patch.guideTiles` (never repeats under the Lattice); stamping → an
+  // ordinary Cell Tile in the active Cell. Overlap rides the flexible `force`.
+  | { type: 'EDITOR_PLACE_TILE_ON_ANCHOR'; payload: { anchor: Vec2; sides: number; rotation: number; force?: boolean } }
   // Toggle the auto-placed Seed Tile on/off for the active Cell. When on
   // (default), the Cell carries a Seed Tile at the centre. When off, the
   // Cell starts empty and the user builds from the boundary inward (or via

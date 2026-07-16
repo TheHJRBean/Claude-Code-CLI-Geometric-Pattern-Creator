@@ -1,5 +1,6 @@
 import { memo } from 'react'
 import type { ExposedVertex } from '../editor/vertexPlacement'
+import { GUIDE_COLOUR_STAMP, GUIDE_COLOUR_STATIC } from '../editor/guides'
 
 /** Composite identity for a vertex across a multi-cell Patch — Cell-local keys
  *  can collide between Cells, so selection/hover are tracked by host Cell + key. */
@@ -53,11 +54,17 @@ export const EditorVertexPlacementLayer = memo(function EditorVertexPlacementLay
         const isSelected = uid === selectedKey
         const isHovered = uid === hoveredKey
         const isBoundary = v.boundaryCornerIndex !== undefined
-        const stroke = isSelected || isHovered ? 'var(--accent)' : 'var(--accent)'
+        // Guide Anchors (slice 3 / #33) carry a fixed system colour signalling
+        // their stamp state — blue = world-space one-off, violet = repeats under
+        // the Lattice (matches Complete mode + the Guide strokes themselves).
+        const guideColour = v.guideAnchor
+          ? (v.guideAnchor.stamp ? GUIDE_COLOUR_STAMP : GUIDE_COLOUR_STATIC)
+          : null
+        const stroke = guideColour ?? 'var(--accent)'
         const fill = isSelected
-          ? 'var(--accent)'
+          ? (guideColour ?? 'var(--accent)')
           : isHovered
-            ? 'var(--accent-bg, rgba(230,201,122,0.18))'
+            ? (guideColour ?? 'var(--accent-bg, rgba(230,201,122,0.18))')
             : isBoundary
               ? 'transparent'
               : 'var(--bg)'

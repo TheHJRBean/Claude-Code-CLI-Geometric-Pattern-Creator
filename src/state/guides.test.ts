@@ -118,6 +118,57 @@ describe('Guides — Complete on Anchors (slice 3)', () => {
   })
 })
 
+describe('Guides — Place on Anchors (slice 3 / #33)', () => {
+  // A single horizontal Guide line clear of the Seed Tile (ticks off so the
+  // only self-Anchors are the two endpoints); the start endpoint is the target.
+  const START = { x: 250, y: 250 }
+  const placeGuide = (stamp = false): EditorGuideLine => ({
+    id: 'p1', kind: 'line', start: START, end: { x: 350, y: 250 },
+    stamp, extend: 'none', ticksEnabled: false, manualAnchors: [],
+  })
+  const withGuide = (g: EditorGuideLine): PatternConfig =>
+    reducer(base(), { type: 'EDITOR_ADD_GUIDE', payload: { guide: g } })
+
+  it('non-stamping Anchor → world-space guideTile (Cell untouched)', () => {
+    const s = withGuide(placeGuide(false))
+    const before = s.editor!.cells[0].tiles.length
+    const out = reducer(s, { type: 'EDITOR_PLACE_TILE_ON_ANCHOR', payload: { anchor: START, sides: 4, rotation: 0 } })
+    expect(out.editor!.guideTiles).toHaveLength(1)
+    expect(out.editor!.guideTiles![0].kind).toBe('regular')
+    expect(out.editor!.cells[0].tiles).toHaveLength(before) // Seed untouched
+  })
+
+  it('minted world-space Tile seeds a Figure recipe', () => {
+    const s = withGuide(placeGuide(false))
+    const out = reducer(s, { type: 'EDITOR_PLACE_TILE_ON_ANCHOR', payload: { anchor: START, sides: 4, rotation: 0 } })
+    expect(out.figures['4']).toBeDefined()
+  })
+
+  it('stamping Anchor → ordinary Cell Tile (repeats under the Lattice)', () => {
+    const s = withGuide(placeGuide(true))
+    const before = s.editor!.cells[0].tiles.length
+    const out = reducer(s, { type: 'EDITOR_PLACE_TILE_ON_ANCHOR', payload: { anchor: START, sides: 4, rotation: 0 } })
+    expect(out.editor!.cells[0].tiles).toHaveLength(before + 1)
+    expect(out.editor!.guideTiles).toBeUndefined()
+  })
+
+  it('fails closed on an Anchor point that matches no Guide Anchor', () => {
+    const s = withGuide(placeGuide(false))
+    const out = reducer(s, { type: 'EDITOR_PLACE_TILE_ON_ANCHOR', payload: { anchor: { x: -999, y: -999 }, sides: 4, rotation: 0 } })
+    expect(out).toBe(s)
+  })
+
+  it('no-ops without an editor patch', () => {
+    const s: PatternConfig = { ...structuredClone(DEFAULT_CONFIG) }
+    delete s.editor
+    expect(reducer(s, { type: 'EDITOR_PLACE_TILE_ON_ANCHOR', payload: { anchor: START, sides: 4, rotation: 0 } })).toBe(s)
+  })
+
+  it('the action is Design-mode undoable', () => {
+    expect(DESIGN_MODE_ACTIONS.has('EDITOR_PLACE_TILE_ON_ANCHOR')).toBe(true)
+  })
+})
+
 describe('Guides — undo wiring', () => {
   it('all three guide actions are Design-mode undoable', () => {
     expect(DESIGN_MODE_ACTIONS.has('EDITOR_ADD_GUIDE')).toBe(true)

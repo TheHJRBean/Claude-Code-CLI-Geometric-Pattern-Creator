@@ -468,6 +468,15 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         return { ...cell, tiles: [...cell.tiles, ...placements] }
       })))
     }
+    case 'EDITOR_PLACE_TILE_ON_ANCHOR': {
+      // Guides slice 3 / #33 — place a single regular n-gon at a Guide Anchor
+      // (Patch-world coords, full-2π sector). Mirrors `guideCompleteWorldSpace`:
+      // non-stamping Anchor → world-space `patch.guideTiles`; stamping Anchor →
+      // ordinary Cell Tile in the active Cell.
+      if (!state.editor) return state
+      const { anchor, sides, rotation, force } = action.payload
+      return placeTileOnGuideAnchor(state, anchor, sides, rotation, force ?? false)
+    }
     case 'SET_CELL_NO_SEED': {
       // Toggle the Seed Tile on/off for the target Cell. Always allowed (user
       // decision 2026-07-08 — removing the Seed must never be locked): turning
@@ -974,6 +983,75 @@ function guideCompleteWorldSpace(state: PatternConfig, picks: Vec2[], force: boo
   const tile = completeNGap(probeCell, picks, id, force)
   if (!tile) return state
   if (!force && overlapsExisting(tileVertices(tile), worldTiles)) return state
+  const guideTiles = [...(patch.guideTiles ?? []), tile]
+  return seedFigures({ ...state, editor: { ...patch, guideTiles } })
+}
+
+/**
+ * Place a single regular n-gon at a Guide Anchor (Guides slice 3 / #33). The
+ * `anchor` point is Patch-world coords; the reducer re-derives the Anchor from
+ * `collectGuideAnchors` (fails closed on a stale pick) to read its stamp flag.
+ * Non-stamping Anchor → world-space `patch.guideTiles` (never repeats under the
+ * Lattice — the frame-completion model); stamping Anchor → an ordinary Cell
+ * Tile in the active Cell (converted from the world-frame placement). Overlap
+ * against every world Tile rides the flexible-placement `force` gate.
+ */
+function placeTileOnGuideAnchor(
+  state: PatternConfig,
+  anchor: Vec2,
+  sides: number,
+  rotation: number,
+  force: boolean,
+): PatternConfig {
+  if (!state.editor) return state
+  const patch = state.editor
+  const patchRot = patchRotation(patch)
+  const guideAnchor = collectGuideAnchors(patch, patchRot).find(a => pointsEqual(anchor, a.p, EDITOR_EPS))
+  if (!guideAnchor) return state
+  const active = activeCell(patch)
+  // World-space vertex arrays of every existing Tile (all Cells) + prior
+  // world-space completions (frame + guide), for the overlap probe.
+  const worldTiles: Vec2[][] = []
+  for (const cell of patch.cells) {
+    for (const t of cell.tiles) worldTiles.push(tileVertices(t).map(v => applyCellTransform(v, cell, patchRot)))
+  }
+  for (const ft of patch.frame?.completedTiles ?? []) worldTiles.push(tileVertices(ft))
+  for (const gt of patch.guideTiles ?? []) worldTiles.push(tileVertices(gt))
+  const probeCell: EditorCell = {
+    ...active,
+    center: { x: 0, y: 0 },
+    rotation: 0,
+    symmetryMode: 'none',
+    tiles: worldTiles.map((vs, i): EditorTile => ({ id: `world-${i}`, kind: 'irregular', vertices: vs, source: 'completed' })),
+  }
+  // The Anchor is a free point (no boundary corner), so the full-2π sector +
+  // body-overlap probe in `isVertexPlacementViable` is the whole gate. Sized at
+  // the Patch edge length — the Anchor is defined in Patch space, not a Cell's.
+  const anchorVertex = { p: guideAnchor.p, key: '', incidentTiles: [], openSectors: [] }
+  if (!force && !isVertexPlacementViable(anchorVertex, sides, rotation, patch.edgeLength, probeCell)) return state
+
+  if (guideAnchor.stamp) {
+    // Patch-relative Anchor → ordinary Cell Tile. Convert the world-frame
+    // placement into the active Cell's local frame (inverse of
+    // `applyCellTransform`): centre inverse-transforms, rotation subtracts the
+    // Cell + Patch rotations.
+    const worldTile = placeRegularNGonOnVertex(
+      sides, patch.edgeLength, anchorVertex, rotation,
+      `guide-stamp-${active.tiles.length}-${Date.now()}`,
+    )
+    const localTile = {
+      ...worldTile,
+      center: inverseCellTransform(worldTile.center, active, patchRot),
+      rotation: worldTile.rotation - active.rotation - patchRot,
+    }
+    return applyWrap(seedFigures(updateCell(state, active.id, cell => ({ ...cell, tiles: [...cell.tiles, localTile] }))))
+  }
+
+  // Non-stamping Anchor → world-space one-off Tile.
+  const tile = placeRegularNGonOnVertex(
+    sides, patch.edgeLength, anchorVertex, rotation,
+    `guide-${(patch.guideTiles?.length ?? 0)}-${Date.now()}`,
+  )
   const guideTiles = [...(patch.guideTiles ?? []), tile]
   return seedFigures({ ...state, editor: { ...patch, guideTiles } })
 }

@@ -14,8 +14,8 @@ import type { PaintVoid } from '../decoration/resolve'
 import { RotationDial } from './RotationDial'
 import { ZoomControl } from './ZoomControl'
 import type { ExposedEdge } from '../editor/exposedEdges'
-import type { EditorCell } from '../types/editor'
-import { computeExposedEdges } from '../editor/exposedEdges'
+import type { EditorCell, EditorTile } from '../types/editor'
+import { computeExposedEdges, tileVertices } from '../editor/exposedEdges'
 import { computeAllCycles, computeBoundaryCycle, type BoundaryVertex } from '../editor/boundary'
 import { EDITOR_EPS } from '../editor/exposedEdges'
 import { applyStamp } from '../editor/lattice'
@@ -34,6 +34,7 @@ import {
   computeExposedVertices,
   placeRegularNGonOnVertex,
   placeableSidesForVertex,
+  vertexKeyOf,
   type ExposedVertex,
   type VertexKey,
 } from '../editor/vertexPlacement'
@@ -117,6 +118,10 @@ interface Props {
    *  Phase + Place mode (single-cell only). The picker is two-page: shape
    *  grid → orientation arrows + live preview. */
   onPlaceTileOnVertex?: (payload: { vertexKey: VertexKey; sides: number; rotation: number; force?: boolean; hostCellId?: string }) => void
+  /** Guides slice 3 / #33 — place a single regular n-gon at a Guide Anchor
+   *  (Patch-world coords). Shares the Place vertex picker; the reducer routes
+   *  the result to `guideTiles` (non-stamping) or an active-Cell Tile (stamping). */
+  onPlaceTileOnAnchor?: (payload: { anchor: Vec2; sides: number; rotation: number; force?: boolean }) => void
   /** Step 17.5 — Design-Phase tool: 'place' shows the edge picker, 'complete'
    *  the vertex picker, 'construct' the Guide drawing layer (spec Decision 11). */
   editorMode?: EditorMode
@@ -194,7 +199,7 @@ interface Props {
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, editorMode = 'place', constructSnap = true, constructAngleStep = DEFAULT_ANGLE_STEP, constructTool = 'line', showGuides = false, onAddGuide, onUpdateGuide, onDeleteGuide, picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature, onDecorationVoids }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, onPlaceTileOnAnchor, editorMode = 'place', constructSnap = true, constructAngleStep = DEFAULT_ANGLE_STEP, constructTool = 'line', showGuides = false, onAddGuide, onUpdateGuide, onDeleteGuide, picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature, onDecorationVoids }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -594,14 +599,36 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     && !editorStrandMode
     && onPlaceTileOnVertex
   )
+  // Real Cell vertices (Cell-local coords, tagged with host Cell) plus Guide
+  // Anchors injected as synthetic full-2π vertices (Guides slice 3 / #33).
+  // Anchor `p` is Patch-world coords with NO host Cell — `renderedVertices`
+  // leaves it untransformed, and the picker runs viability against a world
+  // probe Cell. Anchors coinciding with a real vertex are dropped so the
+  // real-vertex placement (with proper open sectors) wins there.
   const cellLocalVertices = useMemo<ExposedVertex[]>(() => {
     if (!vertexPlacementActive || !config.editor) return []
-    const out: ExposedVertex[] = []
-    for (const cell of config.editor.cells) {
-      for (const v of computeExposedVertices(cell)) out.push({ ...v, hostCellId: cell.id })
+    const patch = config.editor
+    const real: ExposedVertex[] = []
+    for (const cell of patch.cells) {
+      for (const v of computeExposedVertices(cell)) real.push({ ...v, hostCellId: cell.id })
     }
-    return out
-  }, [vertexPlacementActive, config.editor])
+    const realWorld = real.map(v => {
+      const cell = cellById.get(v.hostCellId!)
+      return cell ? applyCellTransform(v.p, cell, patchRot) : v.p
+    })
+    const anchors: ExposedVertex[] = []
+    for (const a of collectGuideAnchors(patch, patchRot)) {
+      if (realWorld.some(w => pointsEqual(w, a.p, EDITOR_EPS))) continue
+      anchors.push({
+        p: a.p,
+        key: vertexKeyOf(a.p),
+        incidentTiles: [],
+        openSectors: [{ startAngle: 0, sweep: 2 * Math.PI }],
+        guideAnchor: { guideId: a.guideId, stamp: a.stamp },
+      })
+    }
+    return [...real, ...anchors]
+  }, [vertexPlacementActive, config.editor, cellById, patchRot])
   const renderedVertices = useMemo<ExposedVertex[]>(() => {
     return cellLocalVertices.map(v => {
       const cell = v.hostCellId ? cellById.get(v.hostCellId) : undefined
@@ -658,32 +685,60 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   const placementEdgeLength = selectedVertexCell && config.editor
     ? cellPlacementEdgeLength(selectedVertexCell, config.editor.edgeLength, config.editor.cells)
     : 0
+  // Guide Anchor placement (slice 3 / #33): the selected vertex is a synthetic
+  // Anchor in Patch-world coords. Viability + preview run against a probe Cell
+  // holding EVERY world Tile (all Cells + prior world completions) at identity
+  // transform (`center 0, rotation 0, symmetry none`), sized to the Patch edge
+  // length — mirrors the reducer's `placeTileOnGuideAnchor`.
+  const selectedIsGuideAnchor = !!selectedVertexData?.guideAnchor
+  const guideProbeCell = useMemo<EditorCell | null>(() => {
+    if (!selectedIsGuideAnchor || !config.editor) return null
+    const patch = config.editor
+    const worldTiles: Vec2[][] = []
+    for (const cell of patch.cells) {
+      for (const t of cell.tiles) worldTiles.push(tileVertices(t).map(v => applyCellTransform(v, cell, patchRot)))
+    }
+    for (const ft of patch.frame?.completedTiles ?? []) worldTiles.push(tileVertices(ft))
+    for (const gt of patch.guideTiles ?? []) worldTiles.push(tileVertices(gt))
+    return {
+      ...patch.cells[0],
+      center: { x: 0, y: 0 },
+      rotation: 0,
+      symmetryMode: 'none',
+      tiles: worldTiles.map((vs, i): EditorTile => ({ id: `world-${i}`, kind: 'irregular', vertices: vs, source: 'completed' })),
+    }
+  }, [selectedIsGuideAnchor, config.editor, patchRot])
+  // Effective probe Cell + edge length used by every viability / preview memo —
+  // the world probe Cell for a Guide Anchor, else the host Cell.
+  const effectiveVertexCell = selectedIsGuideAnchor ? guideProbeCell : selectedVertexCell
+  const effectiveEdgeLength = selectedIsGuideAnchor ? (config.editor?.edgeLength ?? 0) : placementEdgeLength
   const vertexPickerViableSides = useMemo<number[]>(() => {
-    if (!selectedVertexData || !selectedVertexCell || !config.editor) return []
+    if (!selectedVertexData || !effectiveVertexCell || !config.editor) return []
     // Orbit-aware: under symmetry a size is only "clean" if its full orbit
     // places without force. Mirrors the edge picker's viableSidesForEdge.
+    // (Guide probe Cell is symmetry 'none' → degrades to the base check.)
     return viableSidesForVertexOrbit(
       selectedVertexData,
-      placementEdgeLength,
-      selectedVertexCell,
+      effectiveEdgeLength,
+      effectiveVertexCell,
       PICKER_SIDES,
     )
-  }, [selectedVertexData, selectedVertexCell, config.editor, placementEdgeLength])
+  }, [selectedVertexData, effectiveVertexCell, config.editor, effectiveEdgeLength])
   // Sizes that only produce overlapping orientations — placeable via the
   // skippable warning. The complement of clean within the angularly-placeable
   // set (sizes with no fitting sector at all stay disabled).
   const vertexPickerForceableSides = useMemo<number[]>(() => {
-    if (!selectedVertexData || !selectedVertexCell || !config.editor) return []
+    if (!selectedVertexData || !effectiveVertexCell || !config.editor) return []
     const placeable = placeableSidesForVertex(
       selectedVertexData,
-      placementEdgeLength,
-      selectedVertexCell,
+      effectiveEdgeLength,
+      effectiveVertexCell,
       PICKER_SIDES,
     )
     return placeable.filter(n => !vertexPickerViableSides.includes(n))
-  }, [selectedVertexData, selectedVertexCell, config.editor, placementEdgeLength, vertexPickerViableSides])
+  }, [selectedVertexData, effectiveVertexCell, config.editor, effectiveEdgeLength, vertexPickerViableSides])
   const vertexOrientations = useMemo(() => {
-    if (!selectedVertexData || vertexPickedSides === null || !selectedVertexCell || !config.editor) {
+    if (!selectedVertexData || vertexPickedSides === null || !effectiveVertexCell || !config.editor) {
       return []
     }
     // Orbit-aware overlap flags so page-2 orientation badges + the commit's
@@ -691,10 +746,10 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     return vertexOrientationsWithOrbit(
       selectedVertexData,
       vertexPickedSides,
-      placementEdgeLength,
-      selectedVertexCell,
+      effectiveEdgeLength,
+      effectiveVertexCell,
     )
-  }, [selectedVertexData, vertexPickedSides, selectedVertexCell, config.editor, placementEdgeLength])
+  }, [selectedVertexData, vertexPickedSides, effectiveVertexCell, config.editor, effectiveEdgeLength])
   useEffect(() => {
     // Clamp orientation index if the available orientations shrank.
     if (vertexOrientationIdx >= vertexOrientations.length && vertexOrientations.length > 0) {
@@ -707,24 +762,26 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // Patch-local for rendering via the host Cell's transform — keeps centring +
   // rotation consistent with the Cell the vertex belongs to.
   const vertexPreviewPoints = useMemo<string | null>(() => {
-    if (!selectedVertexData || vertexPickedSides === null || !selectedVertexCell || !config.editor) {
+    if (!selectedVertexData || vertexPickedSides === null || !effectiveVertexCell || !config.editor) {
       return null
     }
     const orientation = vertexOrientations[vertexOrientationIdx]
     if (!orientation) return null
     const tile = placeRegularNGonOnVertex(
       vertexPickedSides,
-      placementEdgeLength,
+      effectiveEdgeLength,
       selectedVertexData,
       orientation.rotation,
       '__preview__',
     )
     const verts = regularPolygonVertices(tile.sides, tile.center, tile.edgeLength, tile.rotation)
     return verts.map(v => {
-      const w = applyCellTransform(v, selectedVertexCell, patchRot)
+      // Guide Anchor tiles are already in Patch-world coords (anchor `p` was
+      // world); real-vertex tiles are Cell-local and lift via the host Cell.
+      const w = selectedIsGuideAnchor ? v : applyCellTransform(v, effectiveVertexCell, patchRot)
       return `${w.x},${w.y}`
     }).join(' ')
-  }, [selectedVertexData, vertexPickedSides, vertexOrientations, vertexOrientationIdx, selectedVertexCell, config.editor, patchRot, placementEdgeLength])
+  }, [selectedVertexData, vertexPickedSides, vertexOrientations, vertexOrientationIdx, effectiveVertexCell, selectedIsGuideAnchor, config.editor, patchRot, effectiveEdgeLength])
 
   // Closing the picker without committing — also clears the page-2 state.
   // useCallback so the memoised EditorVertexPlacementLayer (whose onSelect
@@ -1110,8 +1167,10 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
 
   // Step 17.13c — vertex picker. World pos = anchor vertex transformed into
   // Patch-local coords via the vertex's host Cell transform.
-  const vertexPickerWorldPos = selectedVertexData && selectedVertexCell
-    ? applyCellTransform(selectedVertexData.p, selectedVertexCell, patchRot)
+  const vertexPickerWorldPos = selectedVertexData && effectiveVertexCell
+    ? (selectedIsGuideAnchor
+        ? selectedVertexData.p
+        : applyCellTransform(selectedVertexData.p, effectiveVertexCell, patchRot))
     : null
   const vertexPickerScreenPos = vertexPickerWorldPos && vertexPlacementActive
     ? worldToScreen(vertexPickerWorldPos, viewTransform, size.width, size.height)
@@ -1234,18 +1293,27 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
             if (!orientation || vertexPickedSides === null) return
             const sides = vertexPickedSides
             const anchor = vertexPickerScreenPos
-            const place = (force: boolean) => onPlaceTileOnVertex({
-              vertexKey: selectedVertexData.key,
-              sides,
-              rotation: orientation.rotation,
-              force,
-              hostCellId: selectedVertexData.hostCellId,
-            })
+            // Guide Anchor → world-space Anchor placement; else the ordinary
+            // Cell-vertex placement. Both share the picker + overlap gate.
+            const place = selectedIsGuideAnchor
+              ? (force: boolean) => onPlaceTileOnAnchor?.({
+                  anchor: selectedVertexData.p,
+                  sides,
+                  rotation: orientation.rotation,
+                  force,
+                })
+              : (force: boolean) => onPlaceTileOnVertex({
+                  vertexKey: selectedVertexData.key,
+                  sides,
+                  rotation: orientation.rotation,
+                  force,
+                  hostCellId: selectedVertexData.hostCellId,
+                })
             closeVertexPicker()
             if (!orientation.overlaps) { place(false); return }
             setOverlapConfirm({
               sides,
-              symmetry: (selectedVertexCell?.symmetryMode ?? 'none') !== 'none',
+              symmetry: (effectiveVertexCell?.symmetryMode ?? 'none') !== 'none',
               pos: anchor ?? { x: 0, y: 0 },
               commit: () => place(true),
             })

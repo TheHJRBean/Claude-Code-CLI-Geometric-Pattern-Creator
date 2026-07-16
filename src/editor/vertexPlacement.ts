@@ -87,6 +87,13 @@ export interface ExposedVertex {
    *  so a click round-trips the host Cell (keys are Cell-local and can collide
    *  between Cells). Absent for single-cell. */
   hostCellId?: string
+  /** Set when this ExposedVertex is a **Guide Anchor** injected into the Place
+   *  picker (Guides slice 3 / #33). `p` is then in Patch-world coords (not
+   *  Cell-local — `hostCellId` is absent) with a full-2π open sector, viability
+   *  runs against a probe Cell of every world Tile, and the commit routes to
+   *  `EDITOR_PLACE_TILE_ON_ANCHOR`. `stamp` mirrors the Anchor's stamp flag so
+   *  the dot colour signals world-space (blue) vs Patch-relative (violet). */
+  guideAnchor?: { guideId: string; stamp: boolean }
 }
 
 /** One viable orientation for a candidate n-gon at a vertex. */

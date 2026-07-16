@@ -69,6 +69,8 @@ export const DESIGN_MODE_ACTIONS: ReadonlySet<string> = new Set([
   // Step 17.13b — vertex-anchored placement (Tile mutation + possible orbit
   // multi-place under `symmetryMode`).
   'EDITOR_PLACE_TILE_ON_VERTEX',
+  // Guides slice 3 / #33 — Anchor placement (world-space guideTile or Cell Tile).
+  'EDITOR_PLACE_TILE_ON_ANCHOR',
   'SET_CELL_NO_SEED',
   'EDITOR_DELETE_TILE',
   'EDITOR_COMPLETE_GAP',

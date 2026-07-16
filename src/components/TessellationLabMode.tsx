@@ -190,6 +190,12 @@ export function TessellationLabMode({
   const handlePlaceTileOnVertex = (payload: { vertexKey: string; sides: number; rotation: number; force?: boolean; hostCellId?: string }) => {
     dispatch({ type: 'EDITOR_PLACE_TILE_ON_VERTEX', payload })
   }
+  // Guides slice 3 / #33 — place a single n-gon at a Guide Anchor. Canvas owns
+  // the picker state + resolves the rotation/force; the reducer decides whether
+  // the result is a world-space guideTile or an active-Cell Tile (via stamp).
+  const handlePlaceTileOnAnchor = (payload: { anchor: Vec2; sides: number; rotation: number; force?: boolean }) => {
+    dispatch({ type: 'EDITOR_PLACE_TILE_ON_ANCHOR', payload })
+  }
   const handleDeleteTile = (tileId: string) => {
     dispatch({ type: 'EDITOR_DELETE_TILE', payload: { tileId } })
   }
@@ -821,6 +827,7 @@ export function TessellationLabMode({
         onSelectSection={handleSelectSection}
         onPlaceTileOnBoundarySection={handlePlaceTileOnBoundarySection}
         onPlaceTileOnVertex={handlePlaceTileOnVertex}
+        onPlaceTileOnAnchor={handlePlaceTileOnAnchor}
         editorMode={editorMode}
         constructSnap={constructSnap}
         constructAngleStep={constructAngleStep}

@@ -1006,7 +1006,9 @@ first for the per-commit narrative.
 
 **Status (2026-07-17):** 20.1 Engine SHIPPED (`b9195f2`..`4b62b70`, ticket #37 —
 schema + validation, field evaluation, per-edge θ in PIC, fast-path opt-out,
-probe suite `pic/morphProbe.test.ts`); 20.2 UI not started. Canonical decisions
+probe suite `pic/morphProbe.test.ts`); 20.2 UI SHIPPED + browser-verified
+(`6968b7f`..`9931166`, ticket #38 — sidebar Morph section, on-canvas
+draggable Boundaries/handles, transient bottom position slider). Canonical decisions
 in `docs/adr/0009-morph-boundaries.md`; build spec in `PATTERN_MORPH_SPEC.md`;
 vocabulary in `CONTEXT.md` (**Morph**, **Morph Boundary**). Tickets: see the
 GitHub issues labelled per the spec's slices.
@@ -1027,10 +1029,11 @@ every contact point by construction.
   threading, fast-path opt-out. **Probe suite first** — gradients over the
   fragile `emitStarArms` / `pairAtVertex` branches (tetrakis, irregular
   completions).
-- **20.2 — UI** (Sonnet): sidebar Morph section (enable, mode, add-Boundary,
-  per-stop angle sliders), on-canvas draggable Boundaries/handles, transient
-  bottom position slider on selection, export exclusion, reducer actions
-  (Composition-phase, not Design-undoable).
+- **20.2 — UI** (Sonnet) — SHIPPED + browser-verified: sidebar Morph section
+  (enable, mode, add-Boundary, per-stop angle sliders), on-canvas draggable
+  Boundaries/handles, transient bottom position slider on selection, export
+  exclusion (free via the existing `editorOverlay` mechanism), reducer
+  actions (Composition Phase onward, not Design-undoable).
 - **20.3 — Full capability** (later, Opus): manual `lineLength` + curve
   interpolation, easing.
 - **Phase 2 (parked):** topology morph between Configurations.

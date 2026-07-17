@@ -5,6 +5,21 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-17 (Morph slice 2 — UI, #38) — ✅ SHIPPED + ✅ browser-verified (Sonnet, matched rec)
+
+**Goal:** ticket #38 — sidebar Morph section, on-canvas draggable Boundaries/handles, transient bottom position slider, reducer actions. Builds on slice 1's engine (`pic/morph.ts`) with zero engine changes.
+
+**Done (4 commits on `main`, all pushed; 1086 vitest green, tsc + build clean):**
+- `6968b7f` — authoring state layer: `editor/morph.ts` (`createDefaultMorph`, `buildMorphBoundary` — pre-fills a fresh stop from the field's *current* effective value at its position so adding one is a visual no-op, `defaultMorphBoundaryPosition`, `clipInfiniteLineToBounds`) + 9 reducer actions (`SET_MORPH_ENABLED/MODE/ORIGIN/DIRECTION`, `ADD_MORPH_BOUNDARY`, `SET_MORPH_BOUNDARY_POSITION/ANGLE`, `DELETE_MORPH_BOUNDARY`, `REMOVE_MORPH`) on top-level `config.morph`. None in `DESIGN_MODE_ACTIONS` — same footing as `SET_CONTACT_ANGLE`.
+- `4e3fbfd` — `MorphPanel` sidebar section (enable, Linear/Radial mode, origin/direction, Add Boundary, per-Boundary position + per-tile-type angle sliders, Remove Morph). Visible **Composition Phase onward** (Composition *and* Decoration — the ticket's literal scoping, not frozen in Decoration like Strands/ADR-0005). `EditorDesignControls` now threads the whole `config`, not just `editor`.
+- `d2d098c` — `EditorMorphLayer` on-canvas overlay: Origin handle + Linear-mode direction arrow (both draggable glyphs), each Boundary's own line (Linear)/ring (Radial) doubling as its drag target (1 DOF, unlike Guides' 2-DOF shapes needing separate handles). Wired into Canvas.tsx's existing `editorOverlay` composition — `data-export="exclude"` comes for free.
+- `9931166` — `MorphBoundarySlider`, the spec's transient bottom-docked position slider, shown on canvas Boundary selection (range + `NumberStepper` + Delete, Escape/outside-click closes).
+
+**✅ BROWSER-VERIFIED** (scratch Playwright script, same local-chromium-deps technique as the 2026-07-16 library-save session — `apt-get download` + `dpkg-deb -x` of libnspr4/libnss3/libasound2t64, no root): New patch → Composition → Add Morph → Add Boundary ×2, set angles 20°/80° at positions 300/900 → **visible smooth θ gradient across tiles between the two teal Boundary lines** (blunt octagons → sharp 4-point stars), confirming the full UI→reducer→PIC round trip. Also confirmed: real pointer-drag on a Boundary line moves it (position updates in the sidebar); dragging the direction-arrow handle rotates Direction *and* the Boundary line pivots to stay perpendicular; click-to-select opens the bottom slider, editing it round-trips to both canvas and sidebar; Radial mode relabels correctly (Origin→Centre, Boundary→Ring, "Boundary position"→"Ring radius") and renders a ring; overlay + panel present in Composition and Decoration, correctly absent in Design; Delete Boundary and Remove Morph both work.
+
+**Next:** #39 (slice 3, full-capability interpolation — manual `lineLength`, curve control points, easing; Opus, later). #38 ready to close.
+
+---
 ### ▶ 2026-07-17 (Morph slice 1 — engine, #37) — ✅ SHIPPED (Fable, matched rec)
 
 **Goal:** ticket #37 — MorphConfig schema, field evaluation, per-edge θ in PIC, fast-path opt-out, probe suite FIRST.

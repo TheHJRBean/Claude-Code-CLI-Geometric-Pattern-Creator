@@ -5,6 +5,26 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-17 (Frame identity bug) — ✅ BOTH HALVES FIXED (Fable, matched rec), ⏳ browser-verify
+
+**Goal:** the OPEN "Frame corrupts tile/void identity" bug (memory `project_frame_touching_strands_bug`, 2026-07-08): strand strokes drop out on frame-touching Tiles; paint-all-matching-voids misses voids near the Frame.
+
+**Diagnosis (probe-driven, `src/decoration/frameIdentityProbe.test.ts`):**
+- **Strands** — congruent signatures were chained over the frame-FILTERED stamped field; cross-tile chains truncate at the Frame so near-frame signatures are frame-dependent → painted congruent class misses visually-identical near-frame strands; frame edits orphan records. Single-cell square θ=67.5 is immune (tile-local closed loops) — multi-cell/vertex-line fields chain across tiles (the whole unframed 4.8.8 field is ONE strand), hence "intermittent".
+- **Voids (plain frame)** — NOT broken; the 2e7f8b1 full-field extraction fix holds (test B pins it).
+- **Voids (frame completions)** — extraction field (`decoField`) omitted `frame.completedTiles`/`guideTiles`; off-lattice completions bound visible voids extraction can't see (lattice-aligned ones coincidentally work).
+- Stale memo pointer: `buildInternalEdgeSet` no longer exists (removed with self-contained vertex figures 2026-06-17).
+
+**Done:**
+- `9b4a303` — `decorationExtractionPolygons` (usePattern, exported pure): extraction = full lattice − lattice tiles overlapping a world Tile + world Tiles (completions + guide Tiles); wired into `stampedField.decoField`.
+- `2224286` — `strandIdentitiesFromBase` + `baseSegmentSignatureMap` + `renderedStrandBaseSignatures` (`decoration/strandGroups.ts`): rendered segment → base-fragment twin via `@<stampIndex>` polygon-id suffix (translation + rotation undo, 1e-3 midpoint match); rendered strand takes majority base-chain signature (null → own chain identity, i.e. completion/guide chains). Wired: `nonFastStrandHits` (paint keys) + `StrandLayer.identitySource` prop (stroke resolution) via `PatternData.strandIdentitySource` (both non-fast editor returns) → PatternSVG → Canvas. Matches the fast path's `baseStrandIds` keying, so paints survive Frame/vertex-line toggles + frame resizes.
+- Regression suite `frameIdentityProbe.test.ts` (3 tests, red→green verified for A and C). 1026 vitest green, tsc clean.
+
+**Next:** ⏳ browser-verify — load a framed multi-cell save with painted strands/voids: (1) paint a strand congruent-scope, check near-frame copies colour; (2) resize/move the Frame, colours should survive; (3) frame-node completion + paint-all-matching-voids near it. DEFERRED polish: per-run stroke splitting when a rendered chain spans multiple base classes (only matters for multi-class base fragments; 4.8.8/60° base is 1 class).
+
+**Decisions:** strand identity spec = "same as the frameless periodic fast path" (base-fragment chains are the identity source everywhere); extraction-field spec = "rendered arrangement where Tiles exist, periodic continuation beyond".
+
+---
 ### ▶ 2026-07-16 (library save-overwrite) — ✅ SHIPPED, ✅ browser-verified (Sonnet, matched rec)
 
 **Goal:** overwrite a currently loaded save instead of always saving a new entry — Save now overwrites the loaded entry in place; Save As always name-prompts a new one.

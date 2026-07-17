@@ -231,7 +231,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // stay synchronous for a live preview; the real fix for their cost is the
   // periodicity-PIC lever (cheap recompute), not deferral.
   const deferredVT = useDeferredValue(viewTransform)
-  const { polygons, segments, boundaryOutlines, ghostPolygons, neighbourStamps, seedOutlineCount, ghostPolygonIds, compositionStamps, voidFills, instanceVoidFills, voidStamps, decorationVoids, decorationStrandHits, decorationOrbitStamps, decorationCellFrames } = usePattern(
+  const { polygons, segments, boundaryOutlines, ghostPolygons, neighbourStamps, seedOutlineCount, ghostPolygonIds, compositionStamps, voidFills, instanceVoidFills, voidStamps, decorationVoids, decorationStrandHits, decorationOrbitStamps, decorationCellFrames, strandIdentitySource } = usePattern(
     config,
     deferredVT,
     size.width,
@@ -1222,6 +1222,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         strandRecords={decorationActive ? config.editor?.decoration?.strandColours : undefined}
         orbitStamps={decorationOrbitStamps}
         cellFrames={decorationCellFrames}
+        strandIdentitySource={strandIdentitySource}
       />
       {pickerScreenPos && onPlaceTile && onSelectEdge && selectedEdgeData && (
         <EditorPickerOverlay

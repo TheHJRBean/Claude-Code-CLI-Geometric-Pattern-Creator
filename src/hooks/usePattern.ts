@@ -26,7 +26,7 @@ import { resolveVoidStamps, type StampPlacement } from '../decoration/stamps'
 import { extractVoids, pairCurvedOutlines, type VoidRegion } from '../decoration/voids'
 import { buildColourIndex, orbitOffset, resolveColour, scopedKey } from '../decoration/scopes'
 import { cellFramesFromOutlines, cellOrbitKey, reduceToOrbit, type CellFrame } from '../decoration/cellScope'
-import { strandIdentities } from '../decoration/strandGroups'
+import { strandIdentities, strandIdentitiesFromBase } from '../decoration/strandGroups'
 import { curvesEnabled, flattenStrandsToSegments } from '../decoration/flatten'
 import { overlapsExisting } from '../editor/tileOverlap'
 
@@ -128,6 +128,16 @@ export interface PatternData {
    * `cell`-scope colour resolution in StrandLayer. Decoration only.
    */
   decorationCellFrames?: CellFrame[]
+  /**
+   * Base-fragment strand-identity source for the NON-fast editor path.
+   * StrandLayer resolves each rendered strand's congruent signature from the
+   * base fragment's chains (majority over its segments' stamp-mapped base
+   * twins) instead of the stamped field's chains — stamped chains merge
+   * across stamps and truncate at the Frame, making their signatures frame-
+   * dependent (near-frame paint dropout). Matches the fast path's
+   * `baseStrandIds` keying. Undefined off the editor non-fast path.
+   */
+  strandIdentitySource?: { baseSegments: Segment[]; stamps: LatticeStamp[] }
 }
 
 /** Translate (and, only off the fast-path, rotate) already-PIC'd base segments
@@ -675,9 +685,15 @@ export function usePattern(
   // keys over the rendered field. Field-keyed so paints and hover reuse it;
   // gated on the Strands target so Voids-mode users don't pay the chaining.
   const nonFastStrandHits = useMemo<StrandHit[] | null>(() => {
-    if (!decorationActive || decorationPaintTarget !== 'strands' || !stampedField || stampedField.fastPath) return null
+    if (!decorationActive || decorationPaintTarget !== 'strands' || !stampedField || stampedField.fastPath || !editorBase) return null
     const segments = stampedField.segments
-    const ids = strandIdentities(segments)
+    // Signatures from the BASE fragment's chains, not the stamped field's —
+    // stamped-field chains merge across stamps and truncate at the Frame, so
+    // their congruent signatures are frame-dependent and near-frame strands
+    // fall out of the painted class ("strand strokes drop out at the Frame").
+    // Matches the periodic fast-path's `baseStrandIds` keying, so paints
+    // survive toggling a Frame / vertex lines on and off.
+    const ids = strandIdentitiesFromBase(segments, editorBase.baseSegments, stampedField.stamps)
     const stampTranslations = stampedField.stamps.map(s => s.translation)
     const frames = decorationCellFrames ?? []
     // Per-strand keys, hoisted OUT of the segment loop. cellOrbitKey
@@ -707,7 +723,7 @@ export function usePattern(
       })
     }
     return hits
-  }, [decorationActive, decorationPaintTarget, stampedField, decorationCellFrames])
+  }, [decorationActive, decorationPaintTarget, stampedField, editorBase, decorationCellFrames])
 
   return useMemo(() => {
     // Step 17 Builder: when a Patch is active, render its Tiles directly.
@@ -937,6 +953,10 @@ export function usePattern(
       // `nonFastStrandHits`. Everything is world-space, so all scope rungs
       // (incl. instance) resolve straight into `voidFills` — only this cheap
       // colouring pass re-runs on a paint or a Paint-target switch.
+      // Both non-fast returns carry the base-identity source: painted strand
+      // colours render in Composition AND Decoration, so StrandLayer must key
+      // strands the same way on both.
+      const strandIdentitySource = { baseSegments: editorBase.baseSegments, stamps: stampedField.stamps }
       if (decorationActive) {
         const keyed = nonFastVoidData?.keyed ?? []
         const stampTranslations = nonFastVoidData?.stampTranslations ?? stamps.map(s => s.translation)
@@ -950,9 +970,10 @@ export function usePattern(
           decorationStrandHits: nonFastStrandHits ?? undefined,
           decorationOrbitStamps: stampTranslations,
           decorationCellFrames: decorationCellFrames ?? [],
+          strandIdentitySource,
         }
       }
-      return { polygons: picPolygons, segments, boundaryOutlines }
+      return { polygons: picPolygons, segments, boundaryOutlines, strandIdentitySource }
     }
 
     const def = TILINGS[config.tiling.type]

@@ -1,5 +1,6 @@
 import type { Vec2 } from '../utils/math'
 import type { Segment } from '../types/geometry'
+import type { LatticeStamp } from '../editor/lattice'
 import { cross, dist, dot, sub } from '../utils/math'
 import { buildStrands, type StrandData } from '../strand/buildStrands'
 import { hash8, minRotation } from './voids'
@@ -134,4 +135,125 @@ export function strandIdentities(segments: Segment[]): StrandIdentities {
     for (const i of strandData[s].segmentIndices) strandOfSegment[i] = s
   }
   return { strands, strandOfSegment, strandData }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Base-fragment strand identity for lattice-stamped fields
+// ─────────────────────────────────────────────────────────────────────────
+//
+// Chaining a stamped field merges strands ACROSS stamps, and a Frame filter
+// truncates chains at the frame — so chain-shape signatures over the rendered
+// field are field- and frame-dependent: painting an interior congruent class
+// misses near-frame strands, and any frame edit orphans painted records
+// ("strand strokes drop out at the Frame"). The periodic fast-path never has
+// this problem because it strokes the BASE fragment's chains and `<use>`-
+// clones them. These helpers give the stamped path the same identity: each
+// rendered segment is mapped back to its base-fragment segment via its stamp
+// (the `@<stampIndex>` suffix on the stamped polygon id), and a rendered
+// strand takes the majority congruent signature of the base chains its
+// segments came from.
+
+/** Per-base-polygon list of segment midpoints with their chain signature. */
+export type BaseSegmentSignatureMap = Map<string, { mid: Vec2; sig: string }[]>
+
+/** Index the base fragment's PIC segments by polygon id → midpoint → the
+ * containing base chain's congruent signature. */
+export function baseSegmentSignatureMap(baseSegments: Segment[]): BaseSegmentSignatureMap {
+  const ids = strandIdentities(baseSegments)
+  const map: BaseSegmentSignatureMap = new Map()
+  for (let i = 0; i < baseSegments.length; i++) {
+    const strandIdx = ids.strandOfSegment[i]
+    if (strandIdx < 0) continue
+    const s = baseSegments[i]
+    let list = map.get(s.polygonId)
+    if (!list) { list = []; map.set(s.polygonId, list) }
+    list.push({
+      mid: { x: (s.from.x + s.to.x) / 2, y: (s.from.y + s.to.y) / 2 },
+      sig: ids.strands[strandIdx].signature,
+    })
+  }
+  return map
+}
+
+/** Match tolerance (world units) between a de-stamped rendered segment
+ * midpoint and its base twin. PIC re-runs per stamp, so coordinates agree
+ * only up to float noise — well under this. */
+const BASE_MATCH_TOL = 1e-3
+
+/** Split a stamped polygon id `<baseId>@<stampIndex>` — null for world-space
+ * one-offs (frame completions, Guide Tiles) whose ids carry no stamp. */
+function parseStampedId(id: string, stampCount: number): { baseId: string; stamp: number } | null {
+  const at = id.lastIndexOf('@')
+  if (at < 0) return null
+  const idx = Number(id.slice(at + 1))
+  if (!Number.isInteger(idx) || idx < 0 || idx >= stampCount) return null
+  return { baseId: id.slice(0, at), stamp: idx }
+}
+
+/**
+ * Per rendered strand: the majority base-chain signature of its segments,
+ * or null when none of its segments map to the base fragment (world-space
+ * completion/Guide Tile chains — those keep their own chain identity).
+ * Deterministic tie-break: lexicographically smallest signature.
+ */
+export function renderedStrandBaseSignatures(
+  strandData: StrandData[],
+  segments: Segment[],
+  baseMap: BaseSegmentSignatureMap,
+  stamps: LatticeStamp[],
+): (string | null)[] {
+  const sigOfSegment = (i: number): string | null => {
+    const parsed = parseStampedId(segments[i].polygonId, stamps.length)
+    if (!parsed) return null
+    const list = baseMap.get(parsed.baseId)
+    if (!list) return null
+    const st = stamps[parsed.stamp]
+    const mx = (segments[i].from.x + segments[i].to.x) / 2 - st.translation.x
+    const my = (segments[i].from.y + segments[i].to.y) / 2 - st.translation.y
+    // Undo the stamp rotation (triangle cells have a rotation-π orientation).
+    let bx = mx, by = my
+    if (st.rotation !== 0) {
+      const cos = Math.cos(-st.rotation)
+      const sin = Math.sin(-st.rotation)
+      bx = mx * cos - my * sin
+      by = mx * sin + my * cos
+    }
+    for (const e of list) {
+      if (Math.abs(e.mid.x - bx) < BASE_MATCH_TOL && Math.abs(e.mid.y - by) < BASE_MATCH_TOL) return e.sig
+    }
+    return null
+  }
+  return strandData.map(sd => {
+    const votes = new Map<string, number>()
+    for (const i of sd.segmentIndices) {
+      const sig = sigOfSegment(i)
+      if (sig) votes.set(sig, (votes.get(sig) ?? 0) + 1)
+    }
+    let best: string | null = null
+    let bestN = 0
+    for (const [sig, n] of votes) {
+      if (n > bestN || (n === bestN && best !== null && sig < best)) { best = sig; bestN = n }
+    }
+    return best
+  })
+}
+
+/**
+ * `strandIdentities` over a lattice-stamped rendered field, with each
+ * strand's SIGNATURE taken from the base fragment's chains (majority over
+ * the strand's segments). Centroid / closed / chains stay those of the
+ * rendered field — only the congruent identity is field-independent.
+ */
+export function strandIdentitiesFromBase(
+  segments: Segment[],
+  baseSegments: Segment[],
+  stamps: LatticeStamp[],
+): StrandIdentities {
+  const ids = strandIdentities(segments)
+  const baseSigs = renderedStrandBaseSignatures(
+    ids.strandData, segments, baseSegmentSignatureMap(baseSegments), stamps)
+  return {
+    ...ids,
+    strands: ids.strands.map((s, i) => (baseSigs[i] ? { ...s, signature: baseSigs[i]! } : s)),
+  }
 }

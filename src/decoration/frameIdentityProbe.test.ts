@@ -1,13 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { createDefault488EditorConfig, createDefaultEditorConfig } from '../editor/createDefault'
-import { editorTilesToPolygons } from '../editor/buildEditorPolygons'
-import { editorLatticeStamps } from '../editor/lattice'
+import { createDefault488EditorConfig } from '../editor/createDefault'
 import { compositionToPolygons, compositionLatticeStamps } from '../editor/compositionLattice'
 import { seedFiguresForEditor } from '../editor/tileTypes'
 import { frameOutlinePolygon } from '../editor/frame'
 import { runPIC } from '../pic/index'
 import { decorationExtractionPolygons } from '../hooks/usePattern'
-import { strandIdentities } from './strandGroups'
+import { strandIdentitiesFromBase } from './strandGroups'
 import { extractVoids } from './voids'
 import { pointInPolygon, dist } from '../utils/math'
 import type { Vec2 } from '../utils/math'
@@ -16,21 +14,28 @@ import type { Polygon } from '../types/geometry'
 import type { FrameConfig } from '../types/editor'
 
 /**
- * [DEBUG-fid1] Diagnosis probe — "Frame corrupts tile/void identity"
- * (memory: project_frame_touching_strands_bug, 2026-07-08).
+ * Regression suite for "Frame corrupts tile/void identity" (reported
+ * 2026-07-08, diagnosed + fixed 2026-07-17).
  *
- * Mirrors usePattern's `stampedField` non-fast-path frame flow EXACTLY:
- *   polygons   = lattice-stamped basePolys over the frame field box
+ * Mirrors usePattern's `stampedField` non-fast-path frame flow:
+ *   polygons    = lattice-stamped basePolys over the frame field box
  *   picPolygons = polygons filtered to centre-inside-frame (+ completedTiles)
- *   segments   = runPIC(picPolygons)     ← the RENDERED field
- *   decoField  = runPIC(polygons)        ← the Void-extraction field
+ *   segments    = runPIC(picPolygons)     ← the RENDERED field
+ *   decoField   = extraction-field PIC    ← the Void hit-test/fill field
  *
- * Symptom A (strands): painting an interior congruent strand class misses
- * frame-adjacent strands — their chains are truncated by the frame filter so
- * their signatures leave the interior class.
+ * A (strands): chaining the frame-FILTERED field truncates cross-tile chains
+ * at the frame, so near-frame strand signatures were frame-dependent and left
+ * the painted congruent class. Fixed by `strandIdentitiesFromBase` — the
+ * signature comes from the base fragment's chains via stamp-mapping, matching
+ * the periodic fast path.
  *
- * Symptom B (voids): paint-all-matching-voids misses voids near the Frame —
- * their extracted signature differs from the interior congruent class.
+ * B (voids, held fix `2e7f8b1`): extraction must not clip at the frame
+ * outline — frame-straddling voids keep their periodic congruent signature.
+ *
+ * C (voids at frame completions): the extraction field must swap in
+ * world-space completion Tiles for the lattice tiles they replace
+ * (`decorationExtractionPolygons`), or completion-bounded voids don't exist
+ * in the hit-test/fill set.
  */
 
 // Half-diagonal (circumradius) of the square frame. Big enough that the
@@ -39,27 +44,21 @@ import type { FrameConfig } from '../types/editor'
 // classes and the assertions go red for the wrong reason.
 const FRAME_SIZE = 800
 
-function buildFrameField(kind: 'square' | '488' = '488') {
-  // 4.8.8 multi-cell Patch — cross-Cell strands (single-cell square fields
-  // have only tile-local closed-loop strands, structurally immune to frame
-  // truncation). The square variant is kept as the immune control.
-  const ed = kind === '488'
-    ? createDefault488EditorConfig()
-    : createDefaultEditorConfig({ boundarySize: 100 })
+function buildFrameField() {
+  // 4.8.8 multi-cell Patch — its strands chain ACROSS tiles, which is what
+  // the frame truncates. (Single-cell square fields at θ=67.5 have only
+  // tile-local closed-loop strands and are structurally immune.)
+  const ed = createDefault488EditorConfig()
   const frame: FrameConfig = { type: 'shape', shape: 'square', size: FRAME_SIZE }
   ed.frame = frame
   const config: PatternConfig = {
     tiling: { type: 'editor', scale: 100 },
-    // θ=67.5 — the classic 4.8.8 star pattern, whose strands close into
-    // small local loops (the default 60° chains the entire field into one
-    // giant strand, which drowns the frame-adjacency signal).
     figures: Object.fromEntries(Object.entries(seedFiguresForEditor({}, ed))
       .map(([k, f]) => [k, { ...f, contactAngle: 67.5 }])),
     strand: { width: 4, color: '#1a1a2e', background: '#f5f0e8' },
     editor: ed,
   }
   const cell = ed.cells[0]
-  const multiCell = ed.cells.length > 1
   const outline = frameOutlinePolygon(frame)!
 
   // Field box = frame bbox + margin (mirrors frameFieldBox / nonFastVoidData).
@@ -70,10 +69,8 @@ function buildFrameField(kind: 'square' | '488' = '488') {
     width: 2 * (FRAME_SIZE + margin),
     height: 2 * (FRAME_SIZE + margin),
   }
-  const stamps = multiCell
-    ? compositionLatticeStamps(ed, box)
-    : editorLatticeStamps(cell, box)!
-  const basePolys = multiCell ? compositionToPolygons(ed) : editorTilesToPolygons(cell)
+  const stamps = compositionLatticeStamps(ed, box)
+  const basePolys = compositionToPolygons(ed)
 
   const polygons: Polygon[] = []
   for (let s = 0; s < stamps.length; s++) {
@@ -101,7 +98,8 @@ function buildFrameField(kind: 'square' | '488' = '488') {
   const picPolygons = polygons.filter(p => pointInPolygon(p.center, outline))
   const segments = runPIC(picPolygons, config)
   const decoField = runPIC(polygons, config)
-  return { config, ed, cell, outline, margin, stamps, polygons, picPolygons, segments, decoField }
+  const baseSegments = runPIC(basePolys, config)
+  return { config, ed, cell, outline, margin, stamps, polygons, picPolygons, segments, decoField, baseSegments }
 }
 
 /** Min distance from a point to the (square, axis-aligned) frame outline. */
@@ -120,38 +118,15 @@ function distToOutline(p: Vec2, outline: Vec2[]): number {
   return best
 }
 
-describe('[DEBUG-fid1] frame identity corruption', () => {
-  it('[DEBUG-fid1] field stats', () => {
-    const { segments, picPolygons, polygons, decoField, ed } = buildFrameField()
-    const report = (label: string, segs: typeof segments) => {
-      const ids = strandIdentities(segs)
-      const sizes = new Map<number, number>()
-      const sigCount = new Map<string, number>()
-      let crossTile = 0
-      for (let s = 0; s < ids.strandData.length; s++) {
-        const segIdx = ids.strandData[s].segmentIndices
-        sizes.set(segIdx.length, (sizes.get(segIdx.length) ?? 0) + 1)
-        const polys = new Set(segIdx.map(i => segs[i].polygonId))
-        if (polys.size > 1) crossTile++
-        const sig = ids.strands[s].signature
-        sigCount.set(sig, (sigCount.get(sig) ?? 0) + 1)
-      }
-      console.log(`[DEBUG-fid1] ${label}: strands`, ids.strands.length, 'crossTile:', crossTile,
-        'chain sizes:', [...sizes.entries()].sort((a, b) => a[0] - b[0]),
-        'classes:', sigCount.size, [...sigCount.values()].sort((a, b) => b - a).slice(0, 10))
-    }
-    console.log('[DEBUG-fid1] tiles kept:', picPolygons.length, 'of', polygons.length, 'edge:', ed.edgeLength)
-    report('rendered (frame-filtered)', segments)
-    report('full field (decoField)  ', decoField)
-  })
-
-  // `.fails` — pins the OPEN strand half of the bug (fix in progress): strand
-  // identity is chained over the frame-FILTERED field, so near-frame chains
-  // truncate and their congruent signatures leave the interior class. Flip to
-  // a plain `it` when the strand-identity fix lands.
-  it.fails('A: congruent strand paint reaches the same motif element near the frame', () => {
-    const { outline, segments, stamps } = buildFrameField()
-    const ids = strandIdentities(segments)
+describe('frame identity corruption (regression)', () => {
+  it('A: congruent strand paint reaches the same motif element near the frame', () => {
+    const { outline, segments, stamps, baseSegments } = buildFrameField()
+    // The production identity derivation (StrandLayer + nonFastStrandHits):
+    // signatures from the BASE fragment's chains via stamp-mapping. Chaining
+    // the frame-filtered field directly (plain `strandIdentities(segments)`)
+    // truncates chains at the frame and near-frame strands leave the painted
+    // congruent class — the original bug.
+    const ids = strandIdentitiesFromBase(segments, baseSegments, stamps)
 
     // "Paint" the strand that owns a deep-interior segment, congruent scope:
     // reach = every segment of every strand sharing that signature.
@@ -289,16 +264,7 @@ describe('[DEBUG-fid1] frame identity corruption', () => {
         for (const p of a.polygon) { ax += p.x; ay += p.y }
         return dist({ x: ax / a.polygon.length, y: ay / a.polygon.length }, c) < 1
       })
-      if (!match) {
-        const nearSame = appVoids.filter(a => {
-          let ax = 0, ay = 0
-          for (const p of a.polygon) { ax += p.x; ay += p.y }
-          return dist({ x: ax / a.polygon.length, y: ay / a.polygon.length }, c) < 20
-        }).map(a => `${a.signature} area=${a.area.toFixed(0)}`)
-        console.log('[DEBUG-fid1] C orphan', v.signature, `@${c.x.toFixed(0)},${c.y.toFixed(0)}`,
-          'area=', v.area.toFixed(0), 'compCenter=', comp.center, 'nearApp=', nearSame)
-        misses.push(`${v.signature}@${c.x.toFixed(0)},${c.y.toFixed(0)}`)
-      }
+      if (!match) misses.push(`${v.signature}@${c.x.toFixed(0)},${c.y.toFixed(0)}`)
     }
     expect(checked).toBeGreaterThan(0)
     expect(misses).toEqual([])

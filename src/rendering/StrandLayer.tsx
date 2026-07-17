@@ -11,7 +11,8 @@ import { weaveCapWedgeD, wovenPath, wovenPathD } from '../strand/wovenPathD'
 import { strandStyleAttrs } from './strandStyle'
 import { buildColourIndex, orbitOffset, resolveColour } from '../decoration/scopes'
 import { cellOrbitKey, reduceToOrbit, type CellFrame } from '../decoration/cellScope'
-import { strandIdentity } from '../decoration/strandGroups'
+import { baseSegmentSignatureMap, renderedStrandBaseSignatures, strandIdentity } from '../decoration/strandGroups'
+import type { LatticeStamp } from '../editor/lattice'
 import { recordPerf } from '../utils/perf'
 
 interface Props {
@@ -45,6 +46,13 @@ interface Props {
    * the cell rung never matches.
    */
   cellFrames?: CellFrame[]
+  /**
+   * Base-fragment identity source (editor non-fast path). When set, each
+   * strand's congruent signature comes from the base fragment's chains via
+   * stamp-mapping — see `PatternData.strandIdentitySource`. Undefined ⇒
+   * signatures from the rendered chains (fast path / Gallery).
+   */
+  identitySource?: { baseSegments: Segment[]; stamps: LatticeStamp[] }
 }
 
 /** Default extra gap (px) each side of the over thread at an under crossing. */
@@ -60,7 +68,7 @@ const DEFAULT_WEAVE_GAP = 2
  * through. This is the Lacing effect; the legacy two-pass renderer it
  * replaces was removed in Phase 6 of the context refactor.
  */
-export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPolygonIds, strandRecords, orbitStamps, cellFrames }: Props) {
+export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPolygonIds, strandRecords, orbitStamps, cellFrames, identitySource }: Props) {
   const { strand } = config
   const stroke = strand.color
 
@@ -70,6 +78,14 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
     recordPerf({ strandMs: performance.now() - t0 })
     return r
   }, [segments])
+
+  // Base-fragment congruent signature per strand (editor non-fast path) —
+  // null entries fall back to the rendered chain's own identity.
+  const baseSigs = useMemo<(string | null)[] | null>(() => {
+    if (!identitySource) return null
+    return renderedStrandBaseSignatures(
+      strandData, segments, baseSegmentSignatureMap(identitySource.baseSegments), identitySource.stamps)
+  }, [strandData, segments, identitySource])
 
   // Stage 2 — per-strand stroke from the Decoration colour ladder. Null when
   // no records apply (single global colour, the common/Gallery case) or when
@@ -81,18 +97,19 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
     const idx = buildColourIndex(strandRecords)
     if (idx.starColour === null && idx.bySignature.size === 0 && !idx.hasPositioned) return null
     const ring = orbitStamps ?? []
-    return strandData.map(sd => {
+    return strandData.map((sd, si) => {
       const id = strandIdentity(sd.points)
+      const sig = baseSigs?.[si] ?? id.signature
       const off = orbitOffset(id.centroid, ring)
       // Cell-rung key only when cell records exist (saves the 2n-image walk).
       const cellKey = idx.cell.size > 0 && cellFrames
-        ? cellOrbitKey(id.signature, reduceToOrbit(sd.points, id.centroid, off), id.closed, off, cellFrames)
+        ? cellOrbitKey(sig, reduceToOrbit(sd.points, id.centroid, off), id.closed, off, cellFrames)
         : null
       // World-instance strand records aren't produced by the UI (a "single"
       // strand is its patch orbit), so no world centroid is passed here.
-      return resolveColour(idx, id.signature, off, null, cellKey) ?? stroke
+      return resolveColour(idx, sig, off, null, cellKey) ?? stroke
     })
-  }, [strandData, strandRecords, orbitStamps, cellFrames, ghostPolygonIds, stroke])
+  }, [strandData, strandRecords, orbitStamps, cellFrames, ghostPolygonIds, stroke, baseSigs])
   const curvedStrands = useMemo(() => {
     const raw = computeCurves(strandData, segments, config)
     return config.smoothTransitions ? raw.map(smoothCurves) : raw

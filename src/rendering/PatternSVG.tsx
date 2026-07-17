@@ -131,10 +131,13 @@ interface Props {
   orbitStamps?: Vec2[]
   /** Stage 2b — per-Cell symmetry frames for StrandLayer's `cell` rung. */
   cellFrames?: CellFrame[]
+  /** Base-fragment strand-identity source for StrandLayer (editor non-fast
+   * path) — see `PatternData.strandIdentitySource`. */
+  strandIdentitySource?: { baseSegments: Segment[]; stamps: LatticeStamp[] }
 }
 
 export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
-  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, compositionStamps, editorOverlay, clipEditorOverlayToFrame = false, frameOutline, clipToFrame = true, frameNodes, frameStroke, voidFills, instanceVoidFills, voidStamps, strandRecords, orbitStamps, cellFrames },
+  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, compositionStamps, editorOverlay, clipEditorOverlayToFrame = false, frameOutline, clipToFrame = true, frameNodes, frameStroke, voidFills, instanceVoidFills, voidStamps, strandRecords, orbitStamps, cellFrames, strandIdentitySource },
   ref
 ) {
   const { x, y, zoom, rotation } = viewTransform
@@ -251,7 +254,7 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
               <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
               {voidFills && <VoidFillLayer fills={voidFills} />}
               {voidStamps && <VoidStampLayer placements={voidStamps} idPrefix="void-stamp-world" />}
-              {showLines && <StrandLayer segments={segments} config={config} ghostPolygonIds={ghostPolygonIds} strandRecords={strandRecords} orbitStamps={orbitStamps} cellFrames={cellFrames} />}
+              {showLines && <StrandLayer segments={segments} config={config} ghostPolygonIds={ghostPolygonIds} strandRecords={strandRecords} orbitStamps={orbitStamps} cellFrames={cellFrames} identitySource={strandIdentitySource} />}
               <ControlPointLayer
                 segments={segments}
                 config={config}

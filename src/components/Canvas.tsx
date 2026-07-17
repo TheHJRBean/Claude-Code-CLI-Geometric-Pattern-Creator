@@ -59,6 +59,8 @@ import {
 import { EditorGuideLayer, type GuideHandle } from './EditorGuideLayer'
 import { GuidePopupOverlay } from './GuidePopupOverlay'
 import { midpoint as vecMidpoint, pointsEqual } from '../utils/math'
+import { EditorMorphLayer } from './EditorMorphLayer'
+import { morphDistance } from '../pic/morph'
 
 /**
  * Each **Cell** in a Patch lives in Patch-local coords via its own `center` +
@@ -196,11 +198,18 @@ interface Props {
   /** Stamp target — surfaces the current Void hit-targets so the Decoration
    * panel's "Export all shapes" can enumerate every distinct shape. */
   onDecorationVoids?: (voids: PaintVoid[]) => void
+  /** Step 20 slice 2 (#38) — Morph overlay live: Composition Phase onward
+   *  (not frozen in Decoration, per the spec's literal scoping). */
+  showMorphOverlay?: boolean
+  onSetMorphOrigin?: (p: Vec2) => void
+  onSetMorphDirection?: (d: Vec2) => void
+  onSetMorphBoundaryPosition?: (boundaryId: string, position: number) => void
+  onDeleteMorphBoundary?: (boundaryId: string) => void
 }
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, onPlaceTileOnAnchor, editorMode = 'place', constructSnap = true, constructAngleStep = DEFAULT_ANGLE_STEP, constructTool = 'line', showGuides = false, onAddGuide, onUpdateGuide, onDeleteGuide, picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature, onDecorationVoids }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, onPlaceTileOnAnchor, editorMode = 'place', constructSnap = true, constructAngleStep = DEFAULT_ANGLE_STEP, constructTool = 'line', showGuides = false, onAddGuide, onUpdateGuide, onDeleteGuide, picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature, onDecorationVoids, showMorphOverlay = false, onSetMorphOrigin, onSetMorphDirection, onSetMorphBoundaryPosition }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -1017,6 +1026,58 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     ? worldToScreen(guidePopupAnchor, viewTransform, size.width, size.height)
     : null
 
+  // ── Morph overlay (Step 20 slice 2, #38) ────────────────
+  // Selected Boundary drives the transient bottom position slider. Local —
+  // like `selectedGuideId`, not persisted, not synced with the sidebar's own
+  // expand/collapse (the spec only ties canvas selection to the bottom
+  // slider).
+  const [selectedMorphBoundaryId, setSelectedMorphBoundaryId] = useState<string | null>(null)
+  useEffect(() => {
+    if (!showMorphOverlay) setSelectedMorphBoundaryId(null)
+  }, [showMorphOverlay])
+  // Drop a stale selection if the Boundary vanished (delete / undo / new patch).
+  useEffect(() => {
+    if (selectedMorphBoundaryId && !config.morph?.boundaries.some(b => b.id === selectedMorphBoundaryId)) {
+      setSelectedMorphBoundaryId(null)
+    }
+  }, [config.morph, selectedMorphBoundaryId])
+
+  const handleDragMorphOrigin = useCallback((screen: Vec2) => {
+    onSetMorphOrigin?.(screenToWorld(screen, viewTransform, size.width, size.height))
+  }, [viewTransform, size.width, size.height, onSetMorphOrigin])
+
+  const handleDragMorphDirection = useCallback((screen: Vec2) => {
+    if (!config.morph) return
+    const w = screenToWorld(screen, viewTransform, size.width, size.height)
+    const dx = w.x - config.morph.origin.x
+    const dy = w.y - config.morph.origin.y
+    const len = Math.hypot(dx, dy)
+    if (len < 1e-6) return
+    onSetMorphDirection?.({ x: dx / len, y: dy / len })
+  }, [config.morph, viewTransform, size.width, size.height, onSetMorphDirection])
+
+  const handleDragMorphBoundary = useCallback((id: string, screen: Vec2) => {
+    if (!config.morph) return
+    const w = screenToWorld(screen, viewTransform, size.width, size.height)
+    let position = morphDistance(config.morph, w)
+    if (config.morph.mode === 'radial') position = Math.max(0, position)
+    onSetMorphBoundaryPosition?.(id, position)
+  }, [config.morph, viewTransform, size.width, size.height, onSetMorphBoundaryPosition])
+
+  const morphLayer = showMorphOverlay && config.morph ? (
+    <EditorMorphLayer
+      morph={config.morph}
+      bounds={guideBounds}
+      interactive
+      zoom={viewTransform.zoom}
+      selectedBoundaryId={selectedMorphBoundaryId}
+      onSelectBoundary={setSelectedMorphBoundaryId}
+      onDragOrigin={handleDragMorphOrigin}
+      onDragDirection={handleDragMorphDirection}
+      onDragBoundary={handleDragMorphBoundary}
+    />
+  ) : null
+
   // Composition Phase hides every Design-Phase overlay — the canvas is the
   // lattice preview only, and Strand controls in the side panel drive what
   // changes. Multi-Cell Design Phase keeps the picker live: edges are
@@ -1201,12 +1262,13 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         compositionStamps={compositionStamps}
         editorOverlay={
           decorationActive
-            ? decorationOverlay
+            ? (decorationOverlay || morphLayer) ? <g>{decorationOverlay}{morphLayer}</g> : null
             // Guide layer first — passive scaffolding renders UNDER the
             // interactive Place/Complete layers; in Construct mode
             // editorOverlay is null and the Guide layer takes the events.
-            : (guideLayer || editorOverlay)
-              ? <g>{guideLayer}{editorOverlay}</g>
+            // Morph is Composition-only here (Decoration is handled above).
+            : (guideLayer || editorOverlay || morphLayer)
+              ? <g>{guideLayer}{editorOverlay}{morphLayer}</g>
               : null
         }
         clipEditorOverlayToFrame={decorationActive}

@@ -60,6 +60,7 @@ import { EditorGuideLayer, type GuideHandle } from './EditorGuideLayer'
 import { GuidePopupOverlay } from './GuidePopupOverlay'
 import { midpoint as vecMidpoint, pointsEqual } from '../utils/math'
 import { EditorMorphLayer } from './EditorMorphLayer'
+import { MorphBoundarySlider } from './MorphBoundarySlider'
 import { morphDistance } from '../pic/morph'
 
 /**
@@ -209,7 +210,7 @@ interface Props {
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, onPlaceTileOnAnchor, editorMode = 'place', constructSnap = true, constructAngleStep = DEFAULT_ANGLE_STEP, constructTool = 'line', showGuides = false, onAddGuide, onUpdateGuide, onDeleteGuide, picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature, onDecorationVoids, showMorphOverlay = false, onSetMorphOrigin, onSetMorphDirection, onSetMorphBoundaryPosition }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, onPlaceTileOnAnchor, editorMode = 'place', constructSnap = true, constructAngleStep = DEFAULT_ANGLE_STEP, constructTool = 'line', showGuides = false, onAddGuide, onUpdateGuide, onDeleteGuide, picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature, onDecorationVoids, showMorphOverlay = false, onSetMorphOrigin, onSetMorphDirection, onSetMorphBoundaryPosition, onDeleteMorphBoundary }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -1078,6 +1079,10 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     />
   ) : null
 
+  const selectedMorphBoundary = selectedMorphBoundaryId
+    ? config.morph?.boundaries.find(b => b.id === selectedMorphBoundaryId) ?? null
+    : null
+
   // Composition Phase hides every Design-Phase overlay — the canvas is the
   // lattice preview only, and Strand controls in the side panel drive what
   // changes. Multi-Cell Design Phase keeps the picker live: edges are
@@ -1409,6 +1414,16 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
             swallowClickUntil.current = performance.now() + 400
             setSelectedGuideId(null)
           }}
+        />
+      )}
+      {selectedMorphBoundary && config.morph && onSetMorphBoundaryPosition && onDeleteMorphBoundary && (
+        <MorphBoundarySlider
+          key={selectedMorphBoundary.id}
+          boundary={selectedMorphBoundary}
+          mode={config.morph.mode}
+          onChange={position => onSetMorphBoundaryPosition(selectedMorphBoundary.id, position)}
+          onDelete={() => { onDeleteMorphBoundary(selectedMorphBoundary.id); setSelectedMorphBoundaryId(null) }}
+          onClose={() => setSelectedMorphBoundaryId(null)}
         />
       )}
       {overlapConfirm && (

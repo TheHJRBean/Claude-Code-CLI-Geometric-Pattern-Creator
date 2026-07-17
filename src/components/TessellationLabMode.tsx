@@ -868,6 +868,7 @@ export function TessellationLabMode({
         onSetMorphOrigin={p => dispatch({ type: 'SET_MORPH_ORIGIN', payload: p })}
         onSetMorphDirection={d => dispatch({ type: 'SET_MORPH_DIRECTION', payload: d })}
         onSetMorphBoundaryPosition={(boundaryId, position) => dispatch({ type: 'SET_MORPH_BOUNDARY_POSITION', payload: { boundaryId, position } })}
+        onDeleteMorphBoundary={boundaryId => dispatch({ type: 'DELETE_MORPH_BOUNDARY', payload: { boundaryId } })}
       />
       </div>
       {/* One-time structural-edit note (Q5) — first place / delete / Complete

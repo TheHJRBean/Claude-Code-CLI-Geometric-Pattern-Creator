@@ -139,6 +139,20 @@ describe('periodicFastPathEligible', () => {
     expect(periodicFastPathEligible(c, false, false, [T(0, 0)])).toBe(true)
   })
 
+  it('is ineligible under an active morph, eligible when the morph is disabled or stop-less', () => {
+    const morph = {
+      enabled: true,
+      mode: 'linear' as const,
+      origin: { x: 0, y: 0 },
+      direction: { x: 1, y: 0 },
+      easing: 'linear' as const,
+      boundaries: [{ id: 'b0', position: 100, figures: {} }],
+    }
+    expect(periodicFastPathEligible({ ...cfg(), morph }, false, false, [T(0, 0)])).toBe(false)
+    expect(periodicFastPathEligible({ ...cfg(), morph: { ...morph, enabled: false } }, false, false, [T(0, 0)])).toBe(true)
+    expect(periodicFastPathEligible({ ...cfg(), morph: { ...morph, boundaries: [] } }, false, false, [T(0, 0)])).toBe(true)
+  })
+
   it('is ineligible when any stamp carries a non-zero rotation', () => {
     expect(periodicFastPathEligible(cfg(), false, false, [T(0, 0), T(10, 0, Math.PI / 3)])).toBe(false)
   })

@@ -19,6 +19,7 @@ import { activeCell } from '../editor/active'
 import { frameOutlinePolygon } from '../editor/frame'
 import { pointInPolygon, centroid } from '../utils/math'
 import { runPIC } from '../pic/index'
+import { morphActive } from '../pic/morph'
 import { runRosettePIC } from '../pic/rosettePatch'
 import { recordPerf, periodicityEnabled } from '../utils/perf'
 import { colourVoids, keyVoids, type PaintVoid, type StrandHit, type VoidFill } from '../decoration/resolve'
@@ -186,6 +187,10 @@ export function periodicFastPathEligible(
   return periodicityEnabled()
     && !editorFrame
     && !showBoundaryLattice
+    // Step 20 Morph: θ varies with world position, so every stamped Patch
+    // copy has genuinely different Figures — <use>-stamping one base domain
+    // would repeat the origin copy everywhere.
+    && !morphActive(config)
     // World-space Guide-scoped Tiles don't repeat under the Lattice, so the
     // per-domain <use> tiling would either drop or falsely repeat them.
     && !(config.editor?.guideTiles?.length)
@@ -299,7 +304,7 @@ export function usePattern(
   // `baseSegments` is the PIC over the unstamped Patch only; the Composition
   // and neighbour-ghost paths still run their own viewport-dependent PIC.
   // Re-keyed (19.4 snag #1) on the geometry sub-fields + runPIC's full config
-  // read-set (`figures` — verified) instead of the whole `config`, so
+  // read-set (`figures` + `morph` — verified) instead of the whole `config`, so
   // Decoration paints (which only touch `editor.decoration`) no longer
   // re-run PIC. The reducer's paint actions preserve the `cells` ref.
   // ⚠ Contract: the returned `patch` is a snapshot from the last GEOMETRY
@@ -325,7 +330,7 @@ export function usePattern(
     // swap removed it only ever changes alongside `cells` (updateCell re-aims
     // it as it mutates), and re-keying on it made every selection click re-run
     // the full PIC.
-  }, [ed?.cells, ed?.edgeLength, ed?.configuration, ed?.alternateOrientation, config.figures])
+  }, [ed?.cells, ed?.edgeLength, ed?.configuration, ed?.alternateOrientation, config.figures, config.morph])
 
   // A representative Void in the fundamental domain, enriched with its
   // centroid (= Lattice-orbit offset, since reps live in the origin stamp's

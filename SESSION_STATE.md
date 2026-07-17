@@ -21,7 +21,7 @@
 1. Centroid-V mixed-regime C1 kinks at branch-transition bands (e.g. θ≈45° squares) — uniform-θ behaviour exposed by spatial sweep; probe bounds them to a minority of edges.
 2. Decoupled vertex lines leak past polygons at uniform θ<45° on squares TODAY (1800/3600 endpoints at 40°) — pre-existing clip bug (`t>ε` rejects the at-vertex exit); probe sweeps θ≥50°. Fix idea captured in the research log.
 
-**Next:** #38 (Morph slice 2 — UI, Sonnet rec) builds on `pic/morph.ts` primitives; no browser-verify possible until it lands (engine has no authoring surface). Consider a ticket for the vertex-line leak (pre-existing).
+**Next:** #38 (Morph slice 2 — UI, Sonnet rec) builds on `pic/morph.ts` primitives; no browser-verify possible until it lands (engine has no authoring surface). #37 CLOSED. Probe findings ticketed: **#40** vertex-line leak at α > interior half-angle (pre-existing, Sonnet rec) + **#41** centroid-V mixed-regime kinks (polish, decide after #38, Fable rec).
 
 ---
 ### ▶ 2026-07-17 (Morph — planning only) — ✅ GRILLED + DOCS + TICKETS FILED (Fable)

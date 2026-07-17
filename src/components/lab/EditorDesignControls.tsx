@@ -9,9 +9,13 @@ import { FieldLabel, segmentedButtonStyle } from './labShared'
 import { CompositionPanel } from './CompositionPanel'
 import { DecorationPanel } from './DecorationPanel'
 import { FramePanel } from './FramePanel'
+import { MorphPanel } from './MorphPanel'
 import { DesignPanel } from './DesignPanel'
 
 export interface EditorDesignControlsProps {
+  /** Whole config — most panels only need `editor`, but Morph (Composition
+   *  Phase onward) also needs `config.figures` + `config.morph`. */
+  config: PatternConfig
   editor: NonNullable<PatternConfig['editor']>
   dispatch: React.Dispatch<Action>
   onClear: () => void
@@ -64,6 +68,7 @@ export interface EditorDesignControlsProps {
  */
 export function EditorDesignControls(props: EditorDesignControlsProps) {
   const {
+    config,
     editor,
     dispatch,
     onClear,
@@ -191,6 +196,12 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
       )}
 
       <FramePanel editor={editor} dispatch={dispatch} />
+
+      {/* Morph (Step 20 slice 2, #38) — Composition Phase onward, same as the
+          spec's literal scoping (not frozen in Decoration like Strands). */}
+      {(inStrand || inDecoration) && (
+        <MorphPanel config={config} dispatch={dispatch} />
+      )}
 
       {editorPhase === 'design' && (
         <DesignPanel

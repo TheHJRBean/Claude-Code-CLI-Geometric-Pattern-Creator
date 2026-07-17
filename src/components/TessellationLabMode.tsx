@@ -469,6 +469,7 @@ export function TessellationLabMode({
             <SectionTitle open={isOpen('editor')} onToggle={() => toggleSection('editor')}>Editor</SectionTitle>
             {isOpen('editor') && (config.tiling.type === 'editor' && config.editor ? (
               <EditorDesignControls
+                config={config}
                 editor={config.editor}
                 dispatch={dispatch}
                 onClear={() => {

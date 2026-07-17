@@ -167,3 +167,70 @@ describe('loadPatternConfig — editor payload', () => {
       .toThrow(/Editor patch is malformed/)
   })
 })
+
+describe('loadPatternConfig — morph (Step 20)', () => {
+  const validMorph = () => ({
+    enabled: true,
+    mode: 'linear',
+    origin: { x: 10, y: -5 },
+    direction: { x: 0, y: 2 },
+    easing: 'linear',
+    boundaries: [
+      { id: 'b1', position: 200, figures: { '4': { contactAngle: 80 } } },
+      { id: 'b0', position: 100, figures: {} },
+    ],
+  })
+
+  it('reads a valid morph, normalising direction and sorting stops', () => {
+    const out = loadPatternConfig({ ...minimalRaw(), morph: validMorph() })
+    expect(out.morph).toBeDefined()
+    expect(out.morph!.mode).toBe('linear')
+    expect(out.morph!.direction).toEqual({ x: 0, y: 1 })
+    expect(out.morph!.boundaries.map(b => b.id)).toEqual(['b0', 'b1'])
+    expect(out.morph!.boundaries[1].figures['4']).toEqual({ contactAngle: 80 })
+  })
+
+  it('radial morph carries no direction', () => {
+    const out = loadPatternConfig({ ...minimalRaw(), morph: { ...validMorph(), mode: 'radial' } })
+    expect(out.morph!.mode).toBe('radial')
+    expect(out.morph!.direction).toBeUndefined()
+  })
+
+  it('drops the morph silently on unknown mode / bad origin / missing boundaries', () => {
+    expect(loadPatternConfig({ ...minimalRaw(), morph: { ...validMorph(), mode: 'spiral' } }).morph).toBeUndefined()
+    expect(loadPatternConfig({ ...minimalRaw(), morph: { ...validMorph(), origin: { x: NaN, y: 0 } } }).morph).toBeUndefined()
+    expect(loadPatternConfig({ ...minimalRaw(), morph: { ...validMorph(), boundaries: 'nope' } }).morph).toBeUndefined()
+    expect(loadPatternConfig({ ...minimalRaw(), morph: 42 }).morph).toBeUndefined()
+  })
+
+  it('drops malformed stops but keeps the rest; defaults missing ids', () => {
+    const out = loadPatternConfig({
+      ...minimalRaw(),
+      morph: {
+        ...validMorph(),
+        boundaries: [
+          { position: 50, figures: { '4': { contactAngle: 30 }, bad: 7 } },
+          { id: 'x', position: Infinity, figures: {} },
+          { id: 'y', figures: {} },
+          'garbage',
+        ],
+      },
+    })
+    expect(out.morph!.boundaries).toHaveLength(1)
+    expect(out.morph!.boundaries[0].id).toBe('morph-0')
+    expect(out.morph!.boundaries[0].figures).toEqual({ '4': { contactAngle: 30 } })
+  })
+
+  it('forces easing to linear and coerces enabled to a strict boolean', () => {
+    const out = loadPatternConfig({ ...minimalRaw(), morph: { ...validMorph(), easing: 'bounce', enabled: 'yes' } })
+    expect(out.morph!.easing).toBe('linear')
+    expect(out.morph!.enabled).toBe(false)
+  })
+
+  it('defaults a missing/degenerate linear direction to +x', () => {
+    const noDir = loadPatternConfig({ ...minimalRaw(), morph: { ...validMorph(), direction: undefined } })
+    expect(noDir.morph!.direction).toEqual({ x: 1, y: 0 })
+    const zeroDir = loadPatternConfig({ ...minimalRaw(), morph: { ...validMorph(), direction: { x: 0, y: 0 } } })
+    expect(zeroDir.morph!.direction).toEqual({ x: 1, y: 0 })
+  })
+})

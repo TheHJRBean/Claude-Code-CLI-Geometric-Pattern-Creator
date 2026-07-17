@@ -1,4 +1,4 @@
-import type { PatternConfig, StrandStyle } from '../types/pattern'
+import type { MorphConfig, PatternConfig, StrandStyle } from '../types/pattern'
 import type { BoundaryShape, ConfigurationId, EditorConfig, EditorGuide, EditorGuidePatch, FrameConfig, GroupingScope, SymmetryMode, VoidStampRecord } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import type { ClickedTargetKeys } from '../decoration/scopes'
@@ -124,3 +124,24 @@ export type Action =
   | { type: 'SET_DECORATION_VOID_STAMP'; payload: VoidStampRecord }
   | { type: 'REMOVE_DECORATION_VOID_STAMP'; payload: { scope: GroupingScope; key: string } }
   | { type: 'CLEAR_DECORATION' }
+  // Step 20 (slice 2, #38) — Morph authoring. Top-level `config.morph`
+  // (mirrors SET_GALLERY_FRAME's plain-prefix naming — the target isn't
+  // `editor.*`). None of these are Design-Phase-undoable (same footing as
+  // SET_CONTACT_ANGLE etc. — see PATTERN_MORPH_SPEC.md §UI).
+  // Absent + true creates a fresh `createDefaultMorph()`; otherwise just
+  // flips `enabled` without discarding Boundaries.
+  | { type: 'SET_MORPH_ENABLED'; payload: boolean }
+  | { type: 'SET_MORPH_MODE'; payload: MorphConfig['mode'] }
+  | { type: 'SET_MORPH_ORIGIN'; payload: Vec2 }
+  // Normalized by the reducer — `pic/morph.ts` assumes a unit vector.
+  | { type: 'SET_MORPH_DIRECTION'; payload: Vec2 }
+  // Builds via `editor/morph.ts::buildMorphBoundary` (pre-filled from the
+  // field's current effective values at `position` so adding one is a
+  // visual no-op until dragged) and inserts sorted by position.
+  | { type: 'ADD_MORPH_BOUNDARY'; payload: { position: number } }
+  | { type: 'SET_MORPH_BOUNDARY_POSITION'; payload: { boundaryId: string; position: number } }
+  | { type: 'SET_MORPH_BOUNDARY_ANGLE'; payload: { boundaryId: string; tileTypeId: string; field: 'contactAngle' | 'vertexContactAngle'; angle: number } }
+  | { type: 'DELETE_MORPH_BOUNDARY'; payload: { boundaryId: string } }
+  // Fully clears `config.morph` (distinct from SET_MORPH_ENABLED(false),
+  // which keeps the Boundaries around for later re-enabling).
+  | { type: 'REMOVE_MORPH' }

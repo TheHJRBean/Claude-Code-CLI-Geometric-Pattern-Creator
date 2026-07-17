@@ -34,6 +34,7 @@ import { boundarySymmetries, applySym } from '../editor/symmetry'
 import { autoCompleteCell, fitBoundarySize } from '../editor/autoComplete'
 import { computeBoundarySections, isBoundarySectionPlacementViable, placeRegularNGonOnBoundarySection, placeTilesOnBoundarySectionOrbit } from '../editor/boundaryInward'
 import { DEFAULT_EDITOR_FIGURE, seedFiguresForEditor } from '../editor/tileTypes'
+import { buildMorphBoundary, createDefaultMorph, insertMorphBoundary } from '../editor/morph'
 import { activeCell, allCells, cellPlacementEdgeLength } from '../editor/active'
 import { clearMaskingRecords } from '../decoration/scopes'
 import {
@@ -599,6 +600,67 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       // it. Independent of the Builder's `editor.frame`.
       const frame = action.payload ?? undefined
       return { ...state, frame }
+    }
+    case 'SET_MORPH_ENABLED': {
+      // Absent + enabling → create fresh; otherwise just flip the flag
+      // without discarding Boundaries (the "keep authoring while previewing
+      // off" model — mirrors how Frame stays configured while hidden by
+      // nothing in particular; here it's explicit via `enabled`).
+      const morph = state.morph ?? createDefaultMorph()
+      return { ...state, morph: { ...morph, enabled: action.payload } }
+    }
+    case 'SET_MORPH_MODE': {
+      if (!state.morph) return state
+      return { ...state, morph: { ...state.morph, mode: action.payload } }
+    }
+    case 'SET_MORPH_ORIGIN': {
+      if (!state.morph) return state
+      return { ...state, morph: { ...state.morph, origin: action.payload } }
+    }
+    case 'SET_MORPH_DIRECTION': {
+      if (!state.morph) return state
+      const { x, y } = action.payload
+      const len = Math.hypot(x, y)
+      if (len < 1e-9) return state
+      return { ...state, morph: { ...state.morph, direction: { x: x / len, y: y / len } } }
+    }
+    case 'ADD_MORPH_BOUNDARY': {
+      if (!state.morph) return state
+      const boundary = buildMorphBoundary(state, action.payload.position)
+      return {
+        ...state,
+        morph: { ...state.morph, boundaries: insertMorphBoundary(state.morph.boundaries, boundary) },
+      }
+    }
+    case 'SET_MORPH_BOUNDARY_POSITION': {
+      if (!state.morph) return state
+      const { boundaryId, position } = action.payload
+      if (!state.morph.boundaries.some(b => b.id === boundaryId)) return state
+      const boundaries = state.morph.boundaries
+        .map(b => (b.id === boundaryId ? { ...b, position } : b))
+        .sort((a, b) => a.position - b.position)
+      return { ...state, morph: { ...state.morph, boundaries } }
+    }
+    case 'SET_MORPH_BOUNDARY_ANGLE': {
+      if (!state.morph) return state
+      const { boundaryId, tileTypeId, field, angle } = action.payload
+      const idx = state.morph.boundaries.findIndex(b => b.id === boundaryId)
+      if (idx === -1) return state
+      const boundaries = [...state.morph.boundaries]
+      const b = boundaries[idx]
+      boundaries[idx] = { ...b, figures: { ...b.figures, [tileTypeId]: { ...b.figures[tileTypeId], [field]: angle } } }
+      return { ...state, morph: { ...state.morph, boundaries } }
+    }
+    case 'DELETE_MORPH_BOUNDARY': {
+      if (!state.morph) return state
+      const boundaries = state.morph.boundaries.filter(b => b.id !== action.payload.boundaryId)
+      if (boundaries.length === state.morph.boundaries.length) return state
+      return { ...state, morph: { ...state.morph, boundaries } }
+    }
+    case 'REMOVE_MORPH': {
+      if (!state.morph) return state
+      const { morph: _drop, ...rest } = state
+      return rest
     }
     case 'SET_DECORATION_VOID_FILL': {
       // Scoped Void Fill (Stage 2): "paint what you see" — clear finer-scope

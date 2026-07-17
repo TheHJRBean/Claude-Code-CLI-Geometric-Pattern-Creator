@@ -20,7 +20,16 @@
 - `2224286` — `strandIdentitiesFromBase` + `baseSegmentSignatureMap` + `renderedStrandBaseSignatures` (`decoration/strandGroups.ts`): rendered segment → base-fragment twin via `@<stampIndex>` polygon-id suffix (translation + rotation undo, 1e-3 midpoint match); rendered strand takes majority base-chain signature (null → own chain identity, i.e. completion/guide chains). Wired: `nonFastStrandHits` (paint keys) + `StrandLayer.identitySource` prop (stroke resolution) via `PatternData.strandIdentitySource` (both non-fast editor returns) → PatternSVG → Canvas. Matches the fast path's `baseStrandIds` keying, so paints survive Frame/vertex-line toggles + frame resizes.
 - Regression suite `frameIdentityProbe.test.ts` (3 tests, red→green verified for A and C). 1026 vitest green, tsc clean.
 
-**Next:** ⏳ browser-verify — load a framed multi-cell save with painted strands/voids: (1) paint a strand congruent-scope, check near-frame copies colour; (2) resize/move the Frame, colours should survive; (3) frame-node completion + paint-all-matching-voids near it. DEFERRED polish: per-run stroke splitting when a rendered chain spans multiple base classes (only matters for multi-class base fragments; 4.8.8/60° base is 1 class).
+**Next: ⏳ BROWSER-VERIFY (user, `npm run dev`) — the only outstanding step. Protocol:**
+1. **Strand paint reach at the Frame** — Lab → 4.8.8 preset (or any multi-cell) → add a square Shape Frame → Decoration → Paint Strands, congruent scope → click an interior strand. EXPECT: visually-identical strands right up against the Frame edge also colour (pre-fix: near-frame strands stayed uncoloured).
+2. **Paint survives Frame edits** — with strands painted, resize AND move the Frame. EXPECT: painted colours persist (pre-fix: any frame edit orphaned the records → colours vanished).
+3. **Paint survives mode flips** — paint strands with NO frame (fast path), then add a Frame; also toggle vertex lines on/off. EXPECT: same strands stay painted (identities now shared with the fast path).
+4. **Voids at frame completions** — Design → Complete onto a frame node (tile flush at the Frame edge) → Decoration → Paint Voids → paint-all-matching on a void bounded by that completion tile. EXPECT: it hit-tests + fills, and congruent siblings fill with it (pre-fix: extraction couldn't see completion-bounded voids, esp. off-lattice ones).
+5. **No regression on plain frame voids** — framed field WITHOUT completions: paint-all-matching near the Frame edge still reaches frame-straddling voids (2e7f8b1 behaviour, pinned by test B).
+
+On pass: delete memory `project_frame_touching_strands_bug` + its MEMORY.md line (per memory-hygiene rule). On fail: `src/decoration/frameIdentityProbe.test.ts` is the feedback loop — extend it with the failing scenario first.
+
+DEFERRED polish: per-run stroke splitting when a rendered chain spans multiple base classes (only matters for multi-class base fragments; 4.8.8/60° base is 1 class).
 
 **Decisions:** strand identity spec = "same as the frameless periodic fast path" (base-fragment chains are the identity source everywhere); extraction-field spec = "rendered arrangement where Tiles exist, periodic continuation beyond".
 

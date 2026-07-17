@@ -92,6 +92,45 @@ export interface StrandStyle {
   lineStyle?: StrandLineStyle
 }
 
+/**
+ * A **Morph Boundary** — one gradient stop of a Morph (ADR-0009). Carries a
+ * partial per-tile-type `FigureConfig` overlay; a stop's *effective* value for
+ * a field is the start recipe's value overridden by the overlay, so an
+ * untouched stop reproduces the start recipe. v1 reads `contactAngle` (and
+ * `vertexContactAngle` when decoupled) from the overlay; other fields are
+ * stored but held from the start recipe until slice 3.
+ */
+export interface MorphBoundary {
+  id: string
+  /** World-space distance from the Morph origin (along `direction` for
+   * linear, radially for radial). Boundaries are kept sorted ascending. */
+  position: number
+  /** Partial overlay per tileTypeId. */
+  figures: Record<string, Partial<FigureConfig>>
+}
+
+/**
+ * A **Morph** (ADR-0009, PATTERN_MORPH_SPEC.md) spatially interpolates
+ * Figure-recipe angles across the canvas. Top-level on `PatternConfig`
+ * (mirrors `figures` / `frame`); absent ⇒ no morph. Field evaluation is in
+ * world/Patch space so pan/zoom never changes the pattern:
+ * `d ≤ first stop` → first stop's effective values; between stops →
+ * piecewise-linear blend; `d ≥ last stop` → last stop's values.
+ */
+export interface MorphConfig {
+  enabled: boolean
+  mode: 'linear' | 'radial'
+  /** World/Patch space. Linear: d = dot(p − origin, direction); radial:
+   * d = |p − origin|. */
+  origin: { x: number; y: number }
+  /** Linear mode only; unit vector. */
+  direction?: { x: number; y: number }
+  /** Reserved; only 'linear' in v1. */
+  easing: 'linear'
+  /** Ordered by `position` ascending. */
+  boundaries: MorphBoundary[]
+}
+
 export interface PatternConfig {
   tiling: TilingConfig
   /** keyed by tile type ID (e.g. "6", "6.1", "6.2") */
@@ -117,4 +156,10 @@ export interface PatternConfig {
    * the Gallery's infinite field. Absent ⇒ no Frame.
    */
   frame?: FrameConfig
+  /**
+   * Step 20 — **Morph** (spatial Figure-recipe interpolation). Builder-only
+   * authoring (Composition Phase onwards) but rendered wherever the save is
+   * loaded. Absent ⇒ no morph.
+   */
+  morph?: MorphConfig
 }

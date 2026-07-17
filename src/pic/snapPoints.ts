@@ -39,6 +39,14 @@ function autoTForPolygon(poly: Polygon, contactAngle: number): number {
  *       (targetLL ≈ otherLL), i.e. symmetric extensions meet.
  *
  * Returns lineLength values (fractions of inradius) sorted ascending.
+ *
+ * Single-θ assumption (audited for Step 20 Morph, 2026-07-17): the synthetic
+ * patch uses one contact angle per tile type, so these snap positions would
+ * be approximate under a morph's spatially varying θ. In v1 the two paths
+ * never meet: this runs only for Gallery `TILINGS` types (the Builder route
+ * returns [] — no `TILINGS['editor']`), morphs are Builder-authored, and the
+ * Gallery view of a morphed save is read-only. Revisit if the snap slider
+ * ever reaches morphed Builder configs.
  */
 export function computeSnapPoints(
   tilingType: string,

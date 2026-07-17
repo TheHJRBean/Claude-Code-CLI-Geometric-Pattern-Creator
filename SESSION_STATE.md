@@ -5,6 +5,25 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-17 (Morph slice 1 — engine, #37) — ✅ SHIPPED (Fable, matched rec)
+
+**Goal:** ticket #37 — MorphConfig schema, field evaluation, per-edge θ in PIC, fast-path opt-out, probe suite FIRST.
+
+**Done (all committed + pushed, 1065 vitest green, tsc + build clean):**
+- `b9195f2` — `MorphConfig`/`MorphBoundary` on `PatternConfig` (types/pattern.ts) + `pic/morph.ts` (activeMorph/morphActive, morphDistance, morphFieldValue/morphValueAt) + 11 unit tests. **Implemented stop semantics** (spec ambiguity resolved, now recorded in PATTERN_MORPH_SPEC.md): CSS-gradient-style — below first stop = first stop's *effective* values (start ∪ overlay; untouched stop ≡ start), piecewise blend between stops, clamp beyond last. Start recipe = base every overlay patches, NOT an implicit stop.
+- `5c1a744` — `computeContactRaysPerEdge` / `computeVertexRaysPerVertex` (stellation.ts, uniform fns delegate) + `runPIC` threading: θ per edge midpoint; vertex lines per vertex (decoupled → `vertexContactAngle` field, coupled → `contactAngle`).
+- `fed9e3a` — probe suite `pic/morphProbe.test.ts` (22 tests): uniform-field equivalence (exact), shared-edge C1 continuity, containment, double-emission, baseline-relative stub storms; square/hex/tri/4.8.8 + tetrakis/cairo/floret/kisrhombille, linear + radial.
+- `ef26e0b` — load validation `readMorphConfig` (configValidation.ts, degrade-silently like Gallery frame; sorts stops, normalises direction, forces easing) + tests.
+- `4b62b70` — `periodicFastPathEligible && !morphActive` + `config.morph` in `editorBase` deps + eligibility tests. Non-fast `stampedField` path PICs world-space polygons, so morph renders correctly through the existing pipeline (incl. Gallery/faithfulRender — they call runPIC directly).
+- Audit (ticket bullet): auto line-length is per-pair from actual rays ⇒ per-edge-safe by construction; fixed lengths held from start recipe in v1; `computeSnapPoints` single-θ assumption documented in snapPoints.ts (never meets the morph path in v1 — Builder returns [], Gallery is read-only); `edgeAngles` is a dead pass-through.
+
+**Probe findings (inherited artifacts, NOT morph regressions — logged in RESEARCH-TILING-CONFIGURATIONS.md working log 2026-07-17):**
+1. Centroid-V mixed-regime C1 kinks at branch-transition bands (e.g. θ≈45° squares) — uniform-θ behaviour exposed by spatial sweep; probe bounds them to a minority of edges.
+2. Decoupled vertex lines leak past polygons at uniform θ<45° on squares TODAY (1800/3600 endpoints at 40°) — pre-existing clip bug (`t>ε` rejects the at-vertex exit); probe sweeps θ≥50°. Fix idea captured in the research log.
+
+**Next:** #38 (Morph slice 2 — UI, Sonnet rec) builds on `pic/morph.ts` primitives; no browser-verify possible until it lands (engine has no authoring surface). Consider a ticket for the vertex-line leak (pre-existing).
+
+---
 ### ▶ 2026-07-17 (Morph — planning only) — ✅ GRILLED + DOCS + TICKETS FILED (Fable)
 
 **Goal:** grill the Pattern Morph idea (`project_pattern_morph_idea.md`) and produce docs + tickets. **No implementation yet.**

@@ -1,6 +1,8 @@
 # Pattern Morph — Spec (v1)
 
-**Status:** Grilled + signed off 2026-07-17. Decisions in `docs/adr/0009-morph-boundaries.md`; vocabulary in `CONTEXT.md` (**Morph**, **Morph Boundary**). Idea provenance: memory `project_pattern_morph_idea.md`.
+**Status:** Grilled + signed off 2026-07-17; **slice 1 (Engine, #37) shipped same day** — `pic/morph.ts` field evaluation, per-edge θ variants in `pic/stellation.ts`, `runPIC` threading, load validation, fast-path opt-out, probe suite `pic/morphProbe.test.ts`. Slices 2 (UI, #38) and 3 (#39) open. Decisions in `docs/adr/0009-morph-boundaries.md`; vocabulary in `CONTEXT.md` (**Morph**, **Morph Boundary**). Idea provenance: memory `project_pattern_morph_idea.md`.
+
+**Field-evaluation clarification (implemented semantics):** CSS-gradient-style stops — below the first Boundary the field takes the *first stop's effective values* (start recipe overridden by that stop's overlay, so an untouched first stop ≡ pure start recipe there), piecewise-linear blend between consecutive stops, clamp to the last stop beyond the band. The start recipe is the base every stop's overlay patches, not an implicit stop of its own.
 
 A **Morph** spatially interpolates Figure-recipe parameters across the canvas of a Builder Composition. The start state is the Patch's ordinary `figures` map; the user adds one or more **Morph Boundaries** — draggable lines (Linear mode) or rings (Radial mode) — each carrying its own per-Tile-type values that the pattern reaches at that position. Parameters blend piecewise between consecutive stops, so an intermediate Boundary lets a pattern morph out and back.
 

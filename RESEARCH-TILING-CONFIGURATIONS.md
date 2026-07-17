@@ -1574,3 +1574,25 @@ or constructed-figure engine).
   triangular). §11 groups every open candidate by pathway: A Taprats
   block (no engine work) / B Figure-layer only / C BFS orbit extension
   / D rosette-pathway-gated / E new engines.
+- **2026-07-17** — Morph engine probe findings (#37, `pic/morphProbe.test.ts`).
+  Two artifact classes surfaced by sweeping spatial θ gradients turn out to be
+  *inherited* uniform-θ behaviour, not morph regressions:
+  (1) **Centroid-V mixed-regime kinks** — `emitStarArms`' convex outside-tip
+  branch replaces the natural ray direction with midpoint→centre. Under a
+  gradient, a contact point in a branch-transition band (e.g. θ crossing 45°
+  on squares) can have one polygon emit a natural ray arm and its neighbour a
+  centroid arm → a real C1 kink at that midpoint. Uniform θ has the same
+  regime switch but flips the whole field at once (and square symmetry makes
+  the centroid arms accidentally collinear), so it was never visible. The
+  probe skips mixed-regime midpoints but bounds them to a minority of edges.
+  Candidate refinement if it bothers users visually: blend the two regimes
+  near the transition, or prefer Kaplan-trim clipping over centroid routing
+  when the neighbour is in the natural regime (would change shipped looks).
+  (2) **Vertex-ray leaks at α > interior half-angle** — decoupled vertex
+  lines at θ < 45° on squares leak past the polygon at UNIFORM θ today
+  (1800/3600 endpoints at θ=40°): the vertex ray points outside, the exit
+  crossing is at the ray's own origin vertex and `clipSegmentToPolygon`'s
+  t>ε guard rejects it, so the natural (far) endpoint survives. Pre-existing
+  Gallery/Builder bug independent of the morph; the probe sweeps vertex
+  gradients in the leak-free regime (θ ≥ 50°). Fix idea: clip vertex arms
+  with a t≥−ε entry test against edges not incident to the origin vertex.

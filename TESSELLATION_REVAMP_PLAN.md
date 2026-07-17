@@ -1004,7 +1004,9 @@ first for the per-commit narrative.
 
 ## ⭐ Step 20 — Morph (spatial Figure-recipe interpolation)
 
-**Status (2026-07-17):** Grilled + signed off; not started. Canonical decisions
+**Status (2026-07-17):** 20.1 Engine SHIPPED (`b9195f2`..`4b62b70`, ticket #37 —
+schema + validation, field evaluation, per-edge θ in PIC, fast-path opt-out,
+probe suite `pic/morphProbe.test.ts`); 20.2 UI not started. Canonical decisions
 in `docs/adr/0009-morph-boundaries.md`; build spec in `PATTERN_MORPH_SPEC.md`;
 vocabulary in `CONTEXT.md` (**Morph**, **Morph Boundary**). Tickets: see the
 GitHub issues labelled per the spec's slices.

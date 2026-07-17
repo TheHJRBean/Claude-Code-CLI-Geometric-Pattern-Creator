@@ -28,6 +28,7 @@ import { buildColourIndex, orbitOffset, resolveColour, scopedKey } from '../deco
 import { cellFramesFromOutlines, cellOrbitKey, reduceToOrbit, type CellFrame } from '../decoration/cellScope'
 import { strandIdentities } from '../decoration/strandGroups'
 import { curvesEnabled, flattenStrandsToSegments } from '../decoration/flatten'
+import { overlapsExisting } from '../editor/tileOverlap'
 
 export interface PatternData {
   polygons: Polygon[]
@@ -201,6 +202,22 @@ function extractDecorationVoids(field: Segment[], bound: Vec2[], config: Pattern
   if (!curvesEnabled(config)) return straight
   const curved = extractVoids(flattenStrandsToSegments(field, config), bound)
   return pairCurvedOutlines(straight, curved)
+}
+
+/**
+ * Polygon set the framed Decoration extraction field is PIC'd over. The
+ * extraction must NOT clip at the frame outline (a clipping bound changes a
+ * frame-touching Void's congruent signature — `2e7f8b1`), so it extends past
+ * the rendered field with the full `lattice`. But world-space Tiles (frame
+ * completions + Guide-scoped Tiles) DO bound the visible faces near the
+ * frame, and the periodic continuation they replace does not — so lattice
+ * tiles overlapping a world Tile are dropped and the world Tiles added.
+ * Edge-sharing neighbours are not overlaps (`overlapsExisting` semantics).
+ */
+export function decorationExtractionPolygons(lattice: Polygon[], worldTiles: Polygon[]): Polygon[] {
+  if (worldTiles.length === 0) return lattice
+  const bodies = worldTiles.map(t => t.vertices)
+  return [...lattice.filter(p => !overlapsExisting(p.vertices, bodies)), ...worldTiles]
 }
 
 export function usePattern(
@@ -591,10 +608,17 @@ export function usePattern(
     // to the frame outline (frame-touching Voids would change congruent
     // signature — "voids lose colour at the frame"), so when a frame is
     // filtering the rendered strands, re-PIC the FULL unfiltered field for
-    // extraction only. Geometry-priced ⇒ lives here, not in the main memo.
+    // extraction only — swapping in the world-space Tiles (frame completions
+    // + Guide Tiles) for the lattice tiles they replace, so faces near a
+    // completion match what's rendered ("paint-all-matching misses voids
+    // near the Frame"). Geometry-priced ⇒ lives here, not in the main memo.
     let decoField = segments
     if (decorationActive && editorFrame && patch.frame && picPolygons !== polygons) {
-      decoField = runPIC(polygons, config)
+      const worldPolys = [
+        ...(patch.frame.completedTiles?.length ? tilesToPolygons(patch.frame.completedTiles) : []),
+        ...(patch.guideTiles?.length ? tilesToPolygons(patch.guideTiles) : []),
+      ]
+      decoField = runPIC(decorationExtractionPolygons(polygons, worldPolys), config)
     }
     return { fastPath: false as const, stamps, polygons, picPolygons, segments, boundaryOutlines, decoField }
     // eslint-disable-next-line react-hooks/exhaustive-deps

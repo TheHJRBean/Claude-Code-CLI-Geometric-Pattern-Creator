@@ -5,6 +5,19 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-17 (Morph — planning only) — ✅ GRILLED + DOCS + TICKETS FILED (Fable)
+
+**Goal:** grill the Pattern Morph idea (`project_pattern_morph_idea.md`) and produce docs + tickets. **No implementation yet.**
+
+**Done:** ADR-0009 (`docs/adr/0009-morph-boundaries.md`), build spec `PATTERN_MORPH_SPEC.md`, plan Step 20 in `TESSELLATION_REVAMP_PLAN.md`, CONTEXT.md vocab (**Morph** / **Morph Boundary**, `c083016`), memory upgraded RAW→GRILLED, spin-off memory `project_decoration_box_select_idea.md`.
+
+**Tickets:** #37 engine (Fable — per-edge θ in PIC, probe suite FIRST) → #38 UI (Sonnet) → #39 full-capability (Opus, later). Dependencies wired.
+
+**Key decisions:** one Patch not two patterns; gradient-stop Morph Boundaries (Linear lines / Radial rings, world-space, clamped band); θ evaluated per edge midpoint for Strand continuity; angles-only v1, `Partial<FigureConfig>` overlays for later; Decoration congruence degradation accepted; topology morph = Phase 2 parked.
+
+**Next:** start #37 in a fresh session (Fable recommended — fragile `emitStarArms`/`pairAtVertex` branches).
+
+---
 ### ▶ 2026-07-17 (Frame identity bug) — ✅ BOTH HALVES FIXED (Fable, matched rec), ⏳ browser-verify
 
 **Goal:** the OPEN "Frame corrupts tile/void identity" bug (memory `project_frame_touching_strands_bug`, 2026-07-08): strand strokes drop out on frame-touching Tiles; paint-all-matching-voids misses voids near the Frame.

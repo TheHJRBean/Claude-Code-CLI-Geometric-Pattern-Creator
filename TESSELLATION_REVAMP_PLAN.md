@@ -1002,6 +1002,43 @@ first for the per-commit narrative.
 
 ---
 
+## ⭐ Step 20 — Morph (spatial Figure-recipe interpolation)
+
+**Status (2026-07-17):** Grilled + signed off; not started. Canonical decisions
+in `docs/adr/0009-morph-boundaries.md`; build spec in `PATTERN_MORPH_SPEC.md`;
+vocabulary in `CONTEXT.md` (**Morph**, **Morph Boundary**). Tickets: see the
+GitHub issues labelled per the spec's slices.
+
+One-paragraph summary: a **Morph** interpolates Figure-recipe angles across
+the canvas of a Builder Composition (Composition Phase onwards). Start state =
+the Patch's `figures`; the user adds **Morph Boundaries** (gradient stops —
+draggable lines in Linear mode, rings in Radial mode), each carrying its own
+per-Tile-type angles; piecewise blend between stops, clamped beyond the band,
+defined in world space. The crux: **θ is evaluated per edge midpoint**, so
+both polygons at a shared edge agree on θ and Strands stay straight through
+every contact point by construction.
+
+### Sub-steps
+
+- **20.1 — Engine** (Fable): `MorphConfig` schema + load validation, field
+  evaluation, per-edge θ variant of `computeContactRays` + `runPIC`
+  threading, fast-path opt-out. **Probe suite first** — gradients over the
+  fragile `emitStarArms` / `pairAtVertex` branches (tetrakis, irregular
+  completions).
+- **20.2 — UI** (Sonnet): sidebar Morph section (enable, mode, add-Boundary,
+  per-stop angle sliders), on-canvas draggable Boundaries/handles, transient
+  bottom position slider on selection, export exclusion, reducer actions
+  (Composition-phase, not Design-undoable).
+- **20.3 — Full capability** (later, Opus): manual `lineLength` + curve
+  interpolation, easing.
+- **Phase 2 (parked):** topology morph between Configurations.
+
+### Known interactions
+
+Decoration Congruent-scope degrades under a morph (accepted; box-select idea
+captured as recovery). Perf Lever A fast-path is incompatible (every Figure
+unique). Frame/Guide world-space Tiles ride the same per-edge evaluation.
+
 ## Future / parked steps
 
 - **Step 15 (parked) — k-uniform tessellation generator.** Generalise
@@ -1184,3 +1221,7 @@ first for the per-commit narrative.
   modal commit used a non-existent `--bg` variable that fell through
   to transparent; `9ddb1d5` fixed by switching the dialog to
   `--bg-elevated` and the input to `--bg-input`.
+- **2026-07-17** — Morph grilled + signed off (Step 20 added). Gradient-stop
+  Morph Boundaries on one Patch, Linear/Radial, per-edge-midpoint θ for
+  Strand continuity, angles-only v1 with full-capability-shaped schema.
+  ADR-0009 + PATTERN_MORPH_SPEC.md + CONTEXT.md vocabulary + tickets filed.

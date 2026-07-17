@@ -1,6 +1,7 @@
 import type { Polygon, RaySide, Segment, SegmentKind } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
-import { computeContactRays, computeVertexRays, type ContactRay, type VertexRay } from './stellation'
+import { computeContactRays, computeContactRaysPerEdge, computeVertexRays, computeVertexRaysPerVertex, type ContactRay, type VertexRay } from './stellation'
+import { activeMorph, morphValueAt } from './morph'
 import { rayRayIntersect, type IntersectResult } from './intersect'
 import { EPSILON, dist, midpoint, pointInPolygon, isConvexPolygon, type Vec2 } from '../utils/math'
 
@@ -479,6 +480,12 @@ export function dedupPolygonSegments(segments: Segment[], startIdx: number): voi
 
 export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
   const segments: Segment[] = []
+  // Step 20 Morph — with an active morph, θ is evaluated per edge midpoint
+  // (and per vertex for vertex lines) through the world-space morph field
+  // instead of once per tile type. Polygons must be in world space here (they
+  // are on every runPIC path; the periodic fast-path, which PICs a base
+  // domain and stamps copies, is gated off by `morphActive`).
+  const morph = activeMorph(config)
 
   for (const poly of polygons) {
     const fig = config.figures[poly.tileTypeId]
@@ -486,7 +493,10 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
     const polyStartIdx = segments.length
 
     const edgeEnabled = fig.edgeLinesEnabled !== false
-    const rays = computeContactRays(poly, fig.contactAngle)
+    const rays = morph
+      ? computeContactRaysPerEdge(poly, (_i, mid) =>
+          morphValueAt(morph, poly.tileTypeId, 'contactAngle', fig.contactAngle, mid))
+      : computeContactRays(poly, fig.contactAngle)
     const n = poly.sides
     const inradius = n > 0 ? dist(poly.center, rays[0].origin) : 0
     const starCtx: PolyCtx = { polygonId: poly.id, tileTypeId: poly.tileTypeId, polygonCenter: poly.center, polygonSides: n, kind: 'star-arm' }
@@ -545,7 +555,18 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
         ? (fig.vertexLineLength ?? fig.lineLength)
         : fig.lineLength
 
-      const vertexRays = computeVertexRays(poly, vtxAngle)
+      // Decoupled vertex lines interpolate their own `vertexContactAngle`
+      // overlay field; coupled ones ride `contactAngle` (matching the uniform
+      // path's fallbacks — `vtxAngle` is the resolved start value either way).
+      const vertexRays = morph
+        ? computeVertexRaysPerVertex(poly, (_k, v) => morphValueAt(
+            morph,
+            poly.tileTypeId,
+            fig.vertexLinesDecoupled ? 'vertexContactAngle' : 'contactAngle',
+            vtxAngle,
+            v,
+          ))
+        : computeVertexRays(poly, vtxAngle)
       const circumradius = n > 0 ? dist(poly.center, poly.vertices[0]) : 0
 
       // Emit vertex lines on EVERY edge of any shape with them enabled — a

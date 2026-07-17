@@ -19,7 +19,20 @@ export interface ContactRay {
  * The useful Islamic range is roughly 30°–80°.
  */
 export function computeContactRays(poly: Polygon, contactAngleDeg: number): ContactRay[] {
-  const theta = degToRad(contactAngleDeg)
+  return computeContactRaysPerEdge(poly, () => contactAngleDeg)
+}
+
+/**
+ * Per-edge-θ variant for the Morph engine (ADR-0009 §2): `angleDegForEdge`
+ * is called once per edge with the edge index and midpoint, so a spatial
+ * field can assign each edge its own contact angle. Because a shared edge
+ * has one midpoint, both adjacent polygons derive the same θ there and
+ * Strands stay straight through the contact point by construction.
+ */
+export function computeContactRaysPerEdge(
+  poly: Polygon,
+  angleDegForEdge: (edgeIndex: number, edgeMidpoint: Vec2) => number,
+): ContactRay[] {
   const rays: ContactRay[] = []
 
   for (let i = 0; i < poly.sides; i++) {
@@ -27,6 +40,7 @@ export function computeContactRays(poly: Polygon, contactAngleDeg: number): Cont
     const B = poly.vertices[(i + 1) % poly.sides]
     const origin = midpoint(A, B)
     const edgeDir = normalize({ x: B.x - A.x, y: B.y - A.y })
+    const theta = degToRad(angleDegForEdge(i, origin))
 
     // Two rays symmetrically about the inward normal at angle (π/2 - θ) from it.
     // For a CW polygon in SVG (y-down), the inward normal is perp(edgeDir)
@@ -72,12 +86,24 @@ export interface VertexRay {
  * mirroring the edge-midpoint convention.
  */
 export function computeVertexRays(poly: Polygon, contactAngleDeg: number): VertexRay[] {
-  const theta = degToRad(contactAngleDeg)
-  const alpha = Math.PI / 2 - theta
+  return computeVertexRaysPerVertex(poly, () => contactAngleDeg)
+}
+
+/**
+ * Per-vertex-θ variant for the Morph engine: `angleDegForVertex` is called
+ * once per vertex, so a spatial field can assign each vertex its own contact
+ * angle. A shared vertex is one world point, so every polygon meeting there
+ * derives the same θ (the vertex-line analogue of the per-edge-midpoint rule).
+ */
+export function computeVertexRaysPerVertex(
+  poly: Polygon,
+  angleDegForVertex: (vertexIndex: number, vertex: Vec2) => number,
+): VertexRay[] {
   const rays: VertexRay[] = []
 
   for (let k = 0; k < poly.sides; k++) {
     const V = poly.vertices[k]
+    const alpha = Math.PI / 2 - degToRad(angleDegForVertex(k, V))
     const prev = poly.vertices[(k - 1 + poly.sides) % poly.sides]
     const next = poly.vertices[(k + 1) % poly.sides]
 

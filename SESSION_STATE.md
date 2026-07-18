@@ -5,6 +5,21 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-18 (Multi line sets #42 — BOTH SLICES SHIPPED) — ✅ Opus, ⏳ user browser-verify
+
+**Goal:** implement ticket #42 (multi line sets) — additional edge/vertex line families per Figure recipe, from the same origins, with independent θ/length/curve.
+
+**Done (2 commits on `main`, pushed; 1116 vitest green, tsc + build clean, dev-server smoke ok):**
+- **Slice 1 engine `68c1b00`** (Opus, matched rec): additive `FigureConfig.extraSets: FigureLineSet[]` (flat fields stay = primary set 0, no migration) + `Segment.setId`. `runPIC` per-poly body extracted into `emitEdgePass`/`emitVertexPass`, reused by the primary figure (morph-aware per-edge θ) and each extra set (uniform θ). Extra sets run independent passes with their own emitted/orphan bookkeeping ⇒ no cross-set trimming. `dedupPolygonSegments` keyed by `setId` (coincident twin lines survive; within-set collinear collapse intact). `buildStrands` chains within-set only (setId-scoped junction keys). `computeCurves.resolveSegmentCurve()` + `flatten.curvesEnabled()` honour per-set curves. Morph drives PRIMARY set only in v1. Setless output byte-identical (golden `runPIC.characterization` unchanged). New `pic/multiSet.test.ts` (11 tests).
+- **Slice 2 UI `7488b29`** (Opus — user chose "stay on Opus" over the Sonnet rec via AskUserQuestion): `ADD_FIGURE_SET` (seeds a twin from the primary's current θ/length/curve) / `UPDATE_FIGURE_SET` (patch by id; id+kind re-pinned via `mergeFigureSet`) / `REMOVE_FIGURE_SET` (clears `extraSets`→undefined when last set goes), cap `MAX_FIGURE_SETS=4`. FigureControls advanced "Line sets" block: per-set card (kind badge, enable, θ, auto/manual length, per-set `CurveShapeEditor`), "+ Edge/Vertex set" buttons. Extra-set curves patch the whole `curve` object (SET_CURVE_* stays primary-only). Wired at the ONE live call site (Lab Strands panel, `TessellationLabMode.tsx`). 8 new reducer tests (`figureMutations`).
+
+**Deviations from plan (both benign):** (a) only one live `FigureControls` call site — Gallery Sidebar no longer hosts editable figure controls post-convergence; (b) `configValidation` untouched — `coerceLegacyFigures`' `{...rest}` already carries `extraSets` through load (round-trip test confirms).
+
+**v1 scope cuts (deliberate, documented in #42):** morphing extra sets, per-set colour, generator/sampler support, snap points, cross-set trim toggle; on-canvas control-point dragging is primary-only (sets edit curve shape via panel sliders).
+
+**Next (cold start):** **user browser-verify** — new/loaded Patch → Composition → expand a tile type's Strands card (Show advanced) → "+ Edge set" / "+ Vertex set" → confirm layered star families render on canvas and per-set θ/length/curve reshape live; confirm delete + the 4-set cap; check a loaded save with extra sets. If good, prune `project_multi_ray_sets_idea.md`. Possible v2 follow-ups: per-set colour (StrandLayer by majority-set per chain), morph extra sets, sampler emission.
+
+---
 ### ▶ 2026-07-18 (Multi line sets — planning only) — ✅ TICKET FILED (Fable), no code
 
 **Goal:** capture the user's idea ("option to add additional sets of vertex and edge lines coming from the same origin but with different properties") and produce an implementation plan before switching to Opus to build it.

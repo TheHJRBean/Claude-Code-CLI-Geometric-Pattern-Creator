@@ -5,6 +5,24 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-18 (HANDOFF — Morph Boundary line "very short", troubleshoot) — 🔴 OPEN, unreproduced
+
+**Report (user, 2026-07-18, day after #38 ship):** the on-canvas Morph Boundary line is "very short". No screenshot yet; clarifying question (which element / zoom / Frame active?) went unanswered before handoff. NOT reproduced in the #38 Playwright verify — screenshots there showed teal Boundary lines spanning the full viewport (Composition, no Frame, zoom 23–40%).
+
+**Model rec: Sonnet** (UI/SVG geometry debug over known code); Fable fine if active.
+
+**First step:** reproduce with the user or via Playwright (technique + deps recipe in the #38 entry below). Ask for / take a screenshot before touching code.
+
+**Ranked suspects:**
+1. **Decoration Phase + Shape Frame clip (most likely real repro).** `Canvas.tsx` passes `clipEditorOverlayToFrame={decorationActive}` → in Decoration, PatternSVG wraps the whole `editorOverlay` (incl. `morphLayer`) in the Frame `clipPath`. A small Frame ⇒ the Boundary line renders only inside the Frame outline ⇒ "very short". In Composition there's no such clip. If confirmed: decide whether the morph layer should be exempt from the Frame clip (probably yes — it's an authoring overlay, same logic as excluding it from exports). Fix shape: split morphLayer out of the clipped `<g>` in `PatternSVG.tsx` (new sibling prop) or wrap it outside the clip in `Canvas.tsx`'s `editorOverlay` composition.
+2. **Gold direction arrow mistaken for the Boundary.** The arrow is ~46 screen-px by design (`ARROW_PX` in `EditorMorphLayer.tsx`) and sits at the origin; the actual Boundary is the TEAL line (`BOUNDARY_COLOUR = '#3f9e8f'`). If this is it: no bug, but consider making the arrow visually more distinct or longer.
+3. **Genuine bounds bug** (least likely — Guides share the same `guideBounds` memo and span fine): check view ROTATION + extreme zoom combos. Code map: `Canvas.tsx` `guideBounds` memo (viewport world-rect padded to the view diagonal) → `EditorMorphLayer.tsx` `renderBoundary` → `editor/morph.ts::clipInfiniteLineToBounds` (Liang–Barsky, unit-tested in `editor/morph.test.ts`).
+
+**Repro protocol:** `npm run dev` → Lab → New patch → Composition → +Add Morph → +Add Boundary. Boundary at default position 400 (4×edgeLength). Then: (a) check line span in Composition at several zooms + rotations; (b) add a Shape Frame, switch to Decoration, check span again — expect suspect-1 truncation there.
+
+**State:** all #38 work committed/pushed (`6968b7f`..`bdb9118`), 1086 vitest green, ticket #38 CLOSED (reopen or file a new bug ticket once reproduced — new ticket cleaner, reference #38).
+
+---
 ### ▶ 2026-07-17 (Morph slice 2 — UI, #38) — ✅ SHIPPED + ✅ browser-verified (Sonnet, matched rec)
 
 **Goal:** ticket #38 — sidebar Morph section, on-canvas draggable Boundaries/handles, transient bottom position slider, reducer actions. Builds on slice 1's engine (`pic/morph.ts`) with zero engine changes.

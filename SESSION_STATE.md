@@ -5,6 +5,27 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-18 (Multi line sets — planning only) — ✅ TICKET FILED (Fable), no code
+
+**Goal:** capture the user's idea ("option to add additional sets of vertex and edge lines coming from the same origin but with different properties") and produce an implementation plan before switching to Opus to build it.
+
+**Done (no repo changes — planning artifacts only):**
+- Idea memory `project_multi_ray_sets_idea.md` (RAW→**PLANNED**) + MEMORY.md pointer under Ideas/Future.
+- **Ticket #42** filed with the full plan (grounded in a code read of `types/pattern.ts`, `pic/index.ts::runPIC`, `pic/stellation.ts`, `strand/buildStrands.ts`, `strand/computeCurves.ts`, `components/strands/FigureControls.tsx`, `state/reducer.ts`, `configValidation.ts`).
+
+**Plan shape (see #42 for detail):**
+- **Additive schema, no migration** — flat `FigureConfig` fields stay = primary set (set 0); new `extraSets?: FigureLineSet[]` (`{id, kind:'edge'|'vertex', enabled?, contactAngle, lineLength, autoLineLength, curve?}`). `Segment.setId?` stamped via `PolyCtx`.
+- **Engine** — refactor `runPIC`'s per-poly body into edge/vertex pass helpers; each extra set runs the same machinery with uniform θ, its OWN `emittedRays` + OWN ray pool for the orphan fallback (no cross-set trim). `dedupPolygonSegments` key includes `setId` so equal-θ twin sets survive. rosettePatch.ts imports must stay valid.
+- **Chaining/curves** — `buildStrands` `ptKey` suffixed with `setId` (within-set chaining only, else mispairing at shared origins); `computeCurves` + `decoration/flatten` get a setId-aware curve resolver.
+- **v1 out of scope (documented):** morph drives PRIMARY set only (overlay stays flat); no per-set colour; no sampler/snap support; no cross-set trim toggle.
+- **UI** — 3 actions (`ADD/REMOVE/UPDATE_FIGURE_SET`, patch-based — not a per-field zoo) + "Line sets" block in FigureControls advanced section, wired at both call sites (Gallery Sidebar + Lab Strands panel).
+- **Tests** — new `pic/multiSet.test.ts` (count scaling, no cross-set chains, equal-θ dedup survives, byte-identical regression for setless configs, save/load round-trip); ~600 existing must stay green.
+
+**Slices:** (1) engine — **Opus**; (2) UI — Sonnet adequate.
+
+**Next (cold start):** implement **#42 slice 1 (engine)** on a feature branch. User has switched to **Opus 4.8 / xhigh effort** for exactly this. Start: `gh issue view 42`, then types → runPIC refactor → buildStrands partition → dedup key → curve lookup → tests. Watch the figures-map-pollution failure mode when testing on loaded saves (`feedback_figures_map_pollution`).
+
+---
 ### ▶ 2026-07-18 (Morph Boundary "very short" / "no teal line") — ✅ DIAGNOSED + FIXED (Fable, handoff said Fable-fine), ✅ USER-VERIFIED ("all good now")
 
 **Diagnosis (Playwright-reproduced, both user reports explained in one frame):**

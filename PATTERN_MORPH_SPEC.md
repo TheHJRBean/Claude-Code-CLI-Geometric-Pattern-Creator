@@ -11,7 +11,7 @@ A **Morph** spatially interpolates Figure-recipe parameters across the canvas of
 - **v1:** angles only — `contactAngle`, plus `vertexContactAngle` where vertex lines are decoupled. All other recipe fields (lengths, toggles, curves) are held from the start recipe.
 - **Later (schema-ready now):** full `FigureConfig` interpolation — manual `lineLength`, curve control points. Stops store partial-overlay objects so this needs no migration.
 - **Phase 2 (deferred, separate effort):** topology morph — the underlying Tiling transitions between Configurations.
-- Builder-only, configured from the **Composition Phase onwards**. Design Phase renders bare Tiles and is unaffected. The Gallery renders whatever a save carries (a saved morph must render faithfully in `faithfulRender.ts`).
+- Builder-only, authored in the **Composition Phase only** (amended 2026-07-18 — originally "Composition onwards"): the Decoration Phase **freezes** the Morph like Strand geometry (ADR-0005 idiom) — the morphed field still renders, but the overlay + sidebar section hide. Design Phase renders bare Tiles and is unaffected. The Gallery renders whatever a save carries (a saved morph must render faithfully in `faithfulRender.ts`).
 
 ## Data model
 

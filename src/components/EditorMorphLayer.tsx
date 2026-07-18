@@ -13,8 +13,9 @@ import type { WorldBounds } from '../editor/guides'
  * arrow tip get small drag-handle glyphs, same pattern as
  * `EditorGuideLayer`'s `dragHandle`.
  *
- * Passive (`pointerEvents: none`) when `interactive` is false — shown but
- * inert outside the Composition/Decoration phases where it's authored.
+ * Passive (`pointerEvents: none`) when `interactive` is false. Shown only
+ * in the Composition Phase — Decoration freezes the Morph (field applies,
+ * overlay hidden).
  */
 
 /** Boundaries — teal, distinct from Guides' blue/violet and the accent gold

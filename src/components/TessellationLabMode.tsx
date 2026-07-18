@@ -869,7 +869,7 @@ export function TessellationLabMode({
         editorNeighbourPreview={editorPhase === 'design' && showNeighbours && !(config.editor && activeCell(config.editor).wrapBoundary)}
         editorNeighbourBoundaries={showNeighbourBoundaries}
         editorNeighbourStrands={showNeighbourStrands}
-        showMorphOverlay={editorPhase !== 'design'}
+        showMorphOverlay={editorPhase === 'strand'}
         onSetMorphOrigin={p => dispatch({ type: 'SET_MORPH_ORIGIN', payload: p })}
         onSetMorphDirection={d => dispatch({ type: 'SET_MORPH_DIRECTION', payload: d })}
         onSetMorphBoundaryPosition={(boundaryId, position) => dispatch({ type: 'SET_MORPH_BOUNDARY_POSITION', payload: { boundaryId, position } })}

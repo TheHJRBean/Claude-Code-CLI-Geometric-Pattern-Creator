@@ -199,8 +199,9 @@ interface Props {
   /** Stamp target — surfaces the current Void hit-targets so the Decoration
    * panel's "Export all shapes" can enumerate every distinct shape. */
   onDecorationVoids?: (voids: PaintVoid[]) => void
-  /** Step 20 slice 2 (#38) — Morph overlay live: Composition Phase onward
-   *  (not frozen in Decoration, per the spec's literal scoping). */
+  /** Step 20 slice 2 (#38) — Morph overlay live: Composition Phase only.
+   *  Frozen in Decoration like Strand geometry (user decision 2026-07-18) —
+   *  the morphed field still renders there, only authoring hides. */
   showMorphOverlay?: boolean
   onSetMorphOrigin?: (p: Vec2) => void
   onSetMorphDirection?: (d: Vec2) => void
@@ -1295,9 +1296,9 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
               : null
         }
         clipEditorOverlayToFrame={decorationActive}
-        // Morph Boundaries span the canvas regardless of the Frame — inside
-        // the clipped Decoration overlay a small Frame would truncate the
-        // Boundary line to a stub.
+        // Morph overlay renders via the never-Frame-clipped slot so Boundary
+        // lines always span the canvas. (Composition-only since 2026-07-18,
+        // where no clip applies anyway — the slot keeps that guaranteed.)
         editorOverlayUnclipped={morphLayer}
         frameOutline={frameOutline}
         clipToFrame={config.tiling.type !== 'editor' || editorStrandMode}

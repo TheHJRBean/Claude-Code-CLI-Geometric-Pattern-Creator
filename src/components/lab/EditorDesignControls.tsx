@@ -200,9 +200,10 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
 
       <FramePanel editor={editor} dispatch={dispatch} />
 
-      {/* Morph (Step 20 slice 2, #38) — Composition Phase onward, same as the
-          spec's literal scoping (not frozen in Decoration like Strands). */}
-      {(inStrand || inDecoration) && (
+      {/* Morph (Step 20 slice 2, #38) — authored in Composition only; frozen
+          in Decoration like Strand geometry (user decision 2026-07-18). The
+          morphed field itself still renders there. */}
+      {inStrand && (
         <MorphPanel config={config} dispatch={dispatch} viewBoundsRef={viewBoundsRef} />
       )}
 

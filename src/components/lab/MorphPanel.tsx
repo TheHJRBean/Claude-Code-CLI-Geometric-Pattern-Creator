@@ -80,7 +80,8 @@ const deleteRowButtonStyle: React.CSSProperties = {
 
 /**
  * Morph section — sidebar authoring for a Morph (Step 20 slice 2,
- * PATTERN_MORPH_SPEC.md §UI). Visible Composition Phase onward. Needs
+ * PATTERN_MORPH_SPEC.md §UI). Composition Phase only — frozen in
+ * Decoration like Strand geometry (the field still applies there). Needs
  * `config.figures` + `config.editor` + `config.morph` together (unlike the
  * editor-only phase panels), so it takes the whole `PatternConfig` rather
  * than just `editor`.

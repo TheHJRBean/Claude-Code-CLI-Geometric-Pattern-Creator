@@ -1,7 +1,7 @@
 import type { PatternConfig } from '../../types/pattern'
 import type { Action } from '../../state/actions'
 import type { EditorMode } from '../../types/appMode'
-import type { GuideTool } from '../../editor/guides'
+import type { GuideTool, WorldBounds } from '../../editor/guides'
 import type { PaintTarget, StrandPaintScope, VoidPaintScope } from '../../rendering/DecorationPaintLayer'
 import type { PaintVoid } from '../../decoration/resolve'
 import type { Vec2 } from '../../utils/math'
@@ -18,6 +18,8 @@ export interface EditorDesignControlsProps {
   config: PatternConfig
   editor: NonNullable<PatternConfig['editor']>
   dispatch: React.Dispatch<Action>
+  /** Canvas's live visible world-rect — MorphPanel's view-aware defaults. */
+  viewBoundsRef?: React.RefObject<WorldBounds | null>
   onClear: () => void
   editorMode: EditorMode
   onSetEditorMode: (m: EditorMode) => void
@@ -71,6 +73,7 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
     config,
     editor,
     dispatch,
+    viewBoundsRef,
     onClear,
     editorMode,
     onSetEditorMode,
@@ -200,7 +203,7 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
       {/* Morph (Step 20 slice 2, #38) — Composition Phase onward, same as the
           spec's literal scoping (not frozen in Decoration like Strands). */}
       {(inStrand || inDecoration) && (
-        <MorphPanel config={config} dispatch={dispatch} />
+        <MorphPanel config={config} dispatch={dispatch} viewBoundsRef={viewBoundsRef} />
       )}
 
       {editorPhase === 'design' && (

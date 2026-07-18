@@ -70,13 +70,60 @@ export function insertMorphBoundary(boundaries: MorphBoundary[], b: MorphBoundar
   return [...boundaries, b].sort((a, c) => a.position - c.position)
 }
 
-/** Default position offered to a fresh "Add Boundary" click — spaces
- *  successive Boundaries out along the axis so they don't stack on the
- *  origin (the user drags them into place afterward). */
-export function defaultMorphBoundaryPosition(config: PatternConfig): number {
+/** The interval of `position` values whose Boundary is on screen. */
+export interface MorphBand {
+  min: number
+  max: number
+}
+
+/**
+ * Projection of the visible world-rect onto the Morph's distance axis — a
+ * Linear Boundary's line intersects `bounds` iff its position lies between
+ * the corner projections; a Radial ring iff its radius lies between the
+ * rect's nearest and farthest distance from the Centre.
+ */
+export function visibleMorphBand(morph: MorphConfig, bounds: WorldBounds): MorphBand {
+  const { origin } = morph
+  const corners: Vec2[] = [
+    { x: bounds.minX, y: bounds.minY },
+    { x: bounds.maxX, y: bounds.minY },
+    { x: bounds.minX, y: bounds.maxY },
+    { x: bounds.maxX, y: bounds.maxY },
+  ]
+  if (morph.mode === 'radial') {
+    const nearest = {
+      x: Math.min(Math.max(origin.x, bounds.minX), bounds.maxX),
+      y: Math.min(Math.max(origin.y, bounds.minY), bounds.maxY),
+    }
+    const far = Math.max(...corners.map(c => Math.hypot(c.x - origin.x, c.y - origin.y)))
+    return { min: Math.hypot(nearest.x - origin.x, nearest.y - origin.y), max: far }
+  }
+  const dir = morph.direction ?? { x: 1, y: 0 }
+  const ts = corners.map(c => (c.x - origin.x) * dir.x + (c.y - origin.y) * dir.y)
+  return { min: Math.min(...ts), max: Math.max(...ts) }
+}
+
+/**
+ * Default position offered to a fresh "Add Boundary" click. The spacing rule
+ * (4 edge-lengths per existing Boundary, so successive stops don't stack on
+ * the origin) holds while it lands well inside the visible band; when the
+ * view is panned/zoomed so that rule would drop the new Boundary off screen
+ * — the "no teal line" trap — it lands at the centre of the visible band
+ * instead, stepping aside from any Boundary already sitting there.
+ */
+export function defaultMorphBoundaryPosition(config: PatternConfig, band?: MorphBand | null): number {
   const edgeLength = config.editor?.edgeLength ?? 100
   const count = config.morph?.boundaries.length ?? 0
-  return 4 * edgeLength * (count + 1)
+  const spaced = 4 * edgeLength * (count + 1)
+  const span = band ? band.max - band.min : 0
+  if (!band || !(span > 0)) return spaced
+  const lo = band.min + span * 0.1
+  const hi = band.max - span * 0.1
+  if (spaced >= lo && spaced <= hi) return spaced
+  const positions = config.morph?.boundaries.map(b => b.position) ?? []
+  let p = band.min + span / 2
+  while (p < hi && positions.some(q => Math.abs(q - p) < span * 0.05)) p += span * 0.1
+  return Math.min(p, hi)
 }
 
 /** Liang–Barsky clip of the infinite line `p = origin + t·dir` to `bounds`.

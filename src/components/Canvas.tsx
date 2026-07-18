@@ -206,11 +206,14 @@ interface Props {
   onSetMorphDirection?: (d: Vec2) => void
   onSetMorphBoundaryPosition?: (boundaryId: string, position: number) => void
   onDeleteMorphBoundary?: (boundaryId: string) => void
+  /** Written (never read) by Canvas: the current visible world-rect, for
+   *  view-aware defaults outside the canvas (MorphPanel's Add Boundary). */
+  viewBoundsRef?: React.MutableRefObject<WorldBounds | null>
 }
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, onPlaceTileOnAnchor, editorMode = 'place', constructSnap = true, constructAngleStep = DEFAULT_ANGLE_STEP, constructTool = 'line', showGuides = false, onAddGuide, onUpdateGuide, onDeleteGuide, picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature, onDecorationVoids, showMorphOverlay = false, onSetMorphOrigin, onSetMorphDirection, onSetMorphBoundaryPosition, onDeleteMorphBoundary }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, onPlaceTileOnAnchor, editorMode = 'place', constructSnap = true, constructAngleStep = DEFAULT_ANGLE_STEP, constructTool = 'line', showGuides = false, onAddGuide, onUpdateGuide, onDeleteGuide, picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature, onDecorationVoids, showMorphOverlay = false, onSetMorphOrigin, onSetMorphDirection, onSetMorphBoundaryPosition, onDeleteMorphBoundary, viewBoundsRef }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -887,6 +890,19 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     const half = Math.hypot(vw, vh) / 2
     return { minX: cx - half, minY: cy - half, maxX: cx + half, maxY: cy + half }
   }, [size.width, size.height, viewTransform])
+  // UNPADDED viewport rect (vs guideBounds' rotation padding) — view-aware
+  // defaults should reflect what's actually on screen; under view rotation
+  // its centre still coincides with the view centre.
+  if (viewBoundsRef) {
+    const vw = size.width / viewTransform.zoom
+    const vh = size.height / viewTransform.zoom
+    viewBoundsRef.current = {
+      minX: viewTransform.x,
+      minY: viewTransform.y,
+      maxX: viewTransform.x + vw,
+      maxY: viewTransform.y + vh,
+    }
+  }
 
   /** Resolve a screen-px pointer position into a (possibly snapped) world
    *  point. Point snap wins; else, with a draft in progress, angle snap from
@@ -1267,16 +1283,19 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         compositionStamps={compositionStamps}
         editorOverlay={
           decorationActive
-            ? (decorationOverlay || morphLayer) ? <g>{decorationOverlay}{morphLayer}</g> : null
+            ? decorationOverlay
             // Guide layer first — passive scaffolding renders UNDER the
             // interactive Place/Complete layers; in Construct mode
             // editorOverlay is null and the Guide layer takes the events.
-            // Morph is Composition-only here (Decoration is handled above).
-            : (guideLayer || editorOverlay || morphLayer)
-              ? <g>{guideLayer}{editorOverlay}{morphLayer}</g>
+            : (guideLayer || editorOverlay)
+              ? <g>{guideLayer}{editorOverlay}</g>
               : null
         }
         clipEditorOverlayToFrame={decorationActive}
+        // Morph Boundaries span the canvas regardless of the Frame — inside
+        // the clipped Decoration overlay a small Frame would truncate the
+        // Boundary line to a stub.
+        editorOverlayUnclipped={morphLayer}
         frameOutline={frameOutline}
         clipToFrame={config.tiling.type !== 'editor' || editorStrandMode}
         // Frame nodes are Design-phase Complete pick targets; in Decoration

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import type { PatternConfig } from '../../types/pattern'
 import type { Action } from '../../state/actions'
-import { defaultMorphBoundaryPosition } from '../../editor/morph'
+import { defaultMorphBoundaryPosition, visibleMorphBand } from '../../editor/morph'
+import type { WorldBounds } from '../../editor/guides'
 import { editorTileTypes } from '../../editor/tileTypes'
 import { FieldLabel, NumberStepper, NudgePad, SectionTitle } from './labShared'
 import { Toggle } from '../ui/Toggle'
@@ -77,9 +78,13 @@ const deleteRowButtonStyle: React.CSSProperties = {
 export function MorphPanel({
   config,
   dispatch,
+  viewBoundsRef,
 }: {
   config: PatternConfig
   dispatch: React.Dispatch<Action>
+  /** Canvas's live visible world-rect — keeps Add Boundary's default
+   *  position on screen at any pan/zoom. */
+  viewBoundsRef?: React.RefObject<WorldBounds | null>
 }) {
   const morph = config.morph
   // Which Boundary row is expanded — local, independent of the on-canvas
@@ -201,7 +206,11 @@ export function MorphPanel({
       </>)}
 
       <button
-        onClick={() => dispatch({ type: 'ADD_MORPH_BOUNDARY', payload: { position: defaultMorphBoundaryPosition(config) } })}
+        onClick={() => {
+          const bounds = viewBoundsRef?.current
+          const band = bounds ? visibleMorphBand(morph, bounds) : null
+          dispatch({ type: 'ADD_MORPH_BOUNDARY', payload: { position: defaultMorphBoundaryPosition(config, band) } })
+        }}
         style={addButtonStyle}
       >
         + Add Boundary

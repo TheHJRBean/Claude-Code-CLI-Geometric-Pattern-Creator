@@ -34,7 +34,7 @@ import { EditorDesignControls } from './lab/EditorDesignControls'
 import { buildExportMenuItems } from '../export/exportActions'
 import type { AppMode, EditorMode } from '../types/appMode'
 import type { EditorGuide, EditorGuidePatch } from '../types/editor'
-import { DEFAULT_ANGLE_STEP, type GuideTool } from '../editor/guides'
+import { DEFAULT_ANGLE_STEP, type GuideTool, type WorldBounds } from '../editor/guides'
 
 
 /**
@@ -69,6 +69,9 @@ export function TessellationLabMode({
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null)
   const segmentsRef = useRef<Segment[]>([])
+  // Canvas keeps this current with its visible world-rect; MorphPanel reads
+  // it on Add Boundary so the default position lands on screen.
+  const viewBoundsRef = useRef<WorldBounds | null>(null)
   const [pngTransparent, setPngTransparent] = useState(false)
   const [cpVisible, setCpVisible] = useState<Record<string, boolean>>({})
   const [cpActive, setCpActive] = useState<Record<string, number>>({})
@@ -472,6 +475,7 @@ export function TessellationLabMode({
                 config={config}
                 editor={config.editor}
                 dispatch={dispatch}
+                viewBoundsRef={viewBoundsRef}
                 onClear={() => {
                   setActiveSavedId('')
                   dispatch({ type: 'EDITOR_CLEAR' })
@@ -817,6 +821,7 @@ export function TessellationLabMode({
         showLines={showStrands}
         svgRef={svgRef}
         segmentsRef={segmentsRef}
+        viewBoundsRef={viewBoundsRef}
         cpVisible={cpVisible}
         cpActive={cpActive}
         outlineWidth={outlineWidth}

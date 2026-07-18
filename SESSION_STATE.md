@@ -5,22 +5,20 @@
 ## ▶ RESUME HERE
 
 ---
-### ▶ 2026-07-18 (HANDOFF — Morph Boundary line "very short", troubleshoot) — 🔴 OPEN, unreproduced
+### ▶ 2026-07-18 (Morph Boundary "very short" / "no teal line") — ✅ DIAGNOSED + FIXED (Fable, handoff said Fable-fine), ⏳ browser-verify by user
 
-**Report (user, 2026-07-18, day after #38 ship):** the on-canvas Morph Boundary line is "very short". No screenshot yet; clarifying question (which element / zoom / Frame active?) went unanswered before handoff. NOT reproduced in the #38 Playwright verify — screenshots there showed teal Boundary lines spanning the full viewport (Composition, no Frame, zoom 23–40%).
+**Diagnosis (Playwright-reproduced, both user reports explained in one frame):**
+- The "very short line" = the **gold Origin/Direction arrow** (~46 px by design) — handoff suspect 2.
+- "No teal line" (user's 2026-07-18 follow-up) = the default Boundary position `4×edgeLength = 400` lands at the **extreme right canvas edge** at the default view (screen x≈1520/1600) and **fully off-screen at any zoom-in** — `clipInfiniteLineToBounds` then returns null and the line leaves the DOM. Defaults/discoverability bug, not geometry; suspect 3 cleared (clip + bounds behave correctly).
+- Handoff suspect 1 (Decoration Frame clip truncating the morph layer) confirmed real as well and fixed in the same pass.
 
-**Model rec: Sonnet** (UI/SVG geometry debug over known code); Fable fine if active.
+**Fixes (committed with this entry):**
+1. **View-aware Add Boundary default** — `editor/morph.ts`: new `visibleMorphBand(morph, bounds)` (projection of the visible world-rect onto the Morph axis; radial = nearest/farthest rect distance) + `defaultMorphBoundaryPosition(config, band?)` keeps the 4L spacing rule while it lands well inside the band (10% inset), else lands at the **band centre**, stepping +10%·span aside from any Boundary already there. Wired via new `viewBoundsRef` (Canvas writes its UNPADDED viewport world-rect — not the rotation-padded `guideBounds`, whose ~22% overshoot was letting edge positions count as "visible"; under view rotation the unpadded rect's centre still equals the view centre) → TessellationLabMode → EditorDesignControls → MorphPanel.
+2. **Morph layer exempt from the Decoration Frame clip** — new `editorOverlayUnclipped` prop on PatternSVG (sibling `<g data-export="exclude">` after the clipped overlay group); Canvas passes `morphLayer` there in both phases. Z-order unchanged (morph was already last in the group).
 
-**First step:** reproduce with the user or via Playwright (technique + deps recipe in the #38 entry below). Ask for / take a screenshot before touching code.
+**Verified:** 1094 vitest green (8 new unit tests: band-aware default + `visibleMorphBand` linear/radial), tsc clean, Playwright re-verify — 1st Boundary lands dead-centre at default view, 2nd steps aside, add-while-zoomed-in lands on-screen, Decoration+Frame leaves all Boundary lines full-span (clipPath active).
 
-**Ranked suspects:**
-1. **Decoration Phase + Shape Frame clip (most likely real repro).** `Canvas.tsx` passes `clipEditorOverlayToFrame={decorationActive}` → in Decoration, PatternSVG wraps the whole `editorOverlay` (incl. `morphLayer`) in the Frame `clipPath`. A small Frame ⇒ the Boundary line renders only inside the Frame outline ⇒ "very short". In Composition there's no such clip. If confirmed: decide whether the morph layer should be exempt from the Frame clip (probably yes — it's an authoring overlay, same logic as excluding it from exports). Fix shape: split morphLayer out of the clipped `<g>` in `PatternSVG.tsx` (new sibling prop) or wrap it outside the clip in `Canvas.tsx`'s `editorOverlay` composition.
-2. **Gold direction arrow mistaken for the Boundary.** The arrow is ~46 screen-px by design (`ARROW_PX` in `EditorMorphLayer.tsx`) and sits at the origin; the actual Boundary is the TEAL line (`BOUNDARY_COLOUR = '#3f9e8f'`). If this is it: no bug, but consider making the arrow visually more distinct or longer.
-3. **Genuine bounds bug** (least likely — Guides share the same `guideBounds` memo and span fine): check view ROTATION + extreme zoom combos. Code map: `Canvas.tsx` `guideBounds` memo (viewport world-rect padded to the view diagonal) → `EditorMorphLayer.tsx` `renderBoundary` → `editor/morph.ts::clipInfiniteLineToBounds` (Liang–Barsky, unit-tested in `editor/morph.test.ts`).
-
-**Repro protocol:** `npm run dev` → Lab → New patch → Composition → +Add Morph → +Add Boundary. Boundary at default position 400 (4×edgeLength). Then: (a) check line span in Composition at several zooms + rotations; (b) add a Shape Frame, switch to Decoration, check span again — expect suspect-1 truncation there.
-
-**State:** all #38 work committed/pushed (`6968b7f`..`bdb9118`), 1086 vitest green, ticket #38 CLOSED (reopen or file a new bug ticket once reproduced — new ticket cleaner, reference #38).
+**⏳ Next: user browser-verify** — Composition → +Add Morph → +Add Boundary at your usual zoom: teal line should appear mid-view immediately. Optional polish if the gold arrow still reads as "the morph": make it longer/labelled (not done — with the line now visible the confusion likely evaporates).
 
 ---
 ### ▶ 2026-07-17 (Morph slice 2 — UI, #38) — ✅ SHIPPED + ✅ browser-verified (Sonnet, matched rec)

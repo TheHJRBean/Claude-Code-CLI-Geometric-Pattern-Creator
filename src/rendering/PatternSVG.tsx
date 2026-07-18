@@ -72,6 +72,13 @@ interface Props {
    */
   clipEditorOverlayToFrame?: boolean
   /**
+   * Editor overlay rendered ABOVE `editorOverlay` and never Frame-clipped —
+   * for authoring scaffolding whose reach must not depend on the Frame (the
+   * Morph layer: a Boundary line spans the whole canvas even when the
+   * Decoration Paint overlay under it clips to a small Frame).
+   */
+  editorOverlayUnclipped?: React.ReactNode
+  /**
    * Shape **Frame** outline (world space). When present the outline is stroked
    * on top and its nodes drawn. Whether the pattern content is *clipped* to it
    * is controlled separately by `clipToFrame`. Undefined / null ⇒ no Frame.
@@ -137,7 +144,7 @@ interface Props {
 }
 
 export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
-  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, compositionStamps, editorOverlay, clipEditorOverlayToFrame = false, frameOutline, clipToFrame = true, frameNodes, frameStroke, voidFills, instanceVoidFills, voidStamps, strandRecords, orbitStamps, cellFrames, strandIdentitySource },
+  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, compositionStamps, editorOverlay, clipEditorOverlayToFrame = false, editorOverlayUnclipped, frameOutline, clipToFrame = true, frameNodes, frameStroke, voidFills, instanceVoidFills, voidStamps, strandRecords, orbitStamps, cellFrames, strandIdentitySource },
   ref
 ) {
   const { x, y, zoom, rotation } = viewTransform
@@ -312,6 +319,9 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
           clipActive && clipEditorOverlayToFrame
             ? <g data-export="exclude" clipPath={`url(#${frameClipId})`}>{editorOverlay}</g>
             : <g data-export="exclude">{editorOverlay}</g>
+        )}
+        {editorOverlayUnclipped && (
+          <g data-export="exclude">{editorOverlayUnclipped}</g>
         )}
       </g>
     </svg>

@@ -8,6 +8,7 @@ import {
   createDefaultMorph,
   defaultMorphBoundaryPosition,
   insertMorphBoundary,
+  visibleMorphBand,
 } from './morph'
 import { morphFieldValue } from '../pic/morph'
 
@@ -108,6 +109,69 @@ describe('defaultMorphBoundaryPosition', () => {
     config.morph = linearMorph([{ id: 'a', position: p0, figures: {} }])
     const p1 = defaultMorphBoundaryPosition(config)
     expect(p1).toBeGreaterThan(p0)
+  })
+
+  it('keeps the spaced position when it is well inside the visible band', () => {
+    const config = editorConfig()
+    config.morph = linearMorph([])
+    const spaced = defaultMorphBoundaryPosition(config)
+    const p = defaultMorphBoundaryPosition(config, { min: 0, max: spaced * 4 })
+    expect(p).toBe(spaced)
+  })
+
+  it('lands at the visible-band centre when the spaced position is off screen', () => {
+    const config = editorConfig()
+    config.morph = linearMorph([])
+    const band = { min: -100, max: 100 } // spaced default (4×edgeLength) way outside
+    const p = defaultMorphBoundaryPosition(config, band)
+    expect(p).toBe(0) // band centre
+  })
+
+  it('steps aside from a Boundary already sitting at the band centre', () => {
+    const config = editorConfig()
+    config.morph = linearMorph([{ id: 'a', position: 0, figures: {} }])
+    const band = { min: -100, max: 100 }
+    const p = defaultMorphBoundaryPosition(config, band)
+    expect(p).toBeGreaterThan(0)
+    expect(p).toBeLessThanOrEqual(band.max)
+  })
+
+  it('ignores a degenerate band', () => {
+    const config = editorConfig()
+    config.morph = linearMorph([])
+    const spaced = defaultMorphBoundaryPosition(config)
+    expect(defaultMorphBoundaryPosition(config, { min: 5, max: 5 })).toBe(spaced)
+  })
+})
+
+describe('visibleMorphBand', () => {
+  const bounds = { minX: -100, minY: -50, maxX: 300, maxY: 50 }
+
+  it('linear: projects the rect corners onto the direction axis', () => {
+    const band = visibleMorphBand(linearMorph([]), bounds)
+    expect(band.min).toBeCloseTo(-100)
+    expect(band.max).toBeCloseTo(300)
+  })
+
+  it('linear: respects a non-axis direction and a shifted origin', () => {
+    const m = linearMorph([], { origin: { x: 100, y: 0 }, direction: { x: 0, y: 1 } })
+    const band = visibleMorphBand(m, bounds)
+    expect(band.min).toBeCloseTo(-50)
+    expect(band.max).toBeCloseTo(50)
+  })
+
+  it('radial: centre inside the rect spans 0 → farthest corner', () => {
+    const m = linearMorph([], { mode: 'radial' })
+    const band = visibleMorphBand(m, bounds)
+    expect(band.min).toBe(0)
+    expect(band.max).toBeCloseTo(Math.hypot(300, 50))
+  })
+
+  it('radial: centre outside the rect starts at the nearest rect point', () => {
+    const m = linearMorph([], { mode: 'radial', origin: { x: -300, y: 0 } })
+    const band = visibleMorphBand(m, bounds)
+    expect(band.min).toBeCloseTo(200) // distance to the minX edge
+    expect(band.max).toBeCloseTo(Math.hypot(600, 50))
   })
 })
 

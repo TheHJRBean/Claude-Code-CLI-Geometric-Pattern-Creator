@@ -1049,9 +1049,12 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // expand/collapse (the spec only ties canvas selection to the bottom
   // slider).
   const [selectedMorphBoundaryId, setSelectedMorphBoundaryId] = useState<string | null>(null)
+  // Disabled ⇒ fully hidden ("keep authoring while previewing off" keeps the
+  // CONFIG, not the overlay — a disabled Morph leaves no arrow behind).
+  const morphOverlayVisible = showMorphOverlay && config.morph?.enabled === true
   useEffect(() => {
-    if (!showMorphOverlay) setSelectedMorphBoundaryId(null)
-  }, [showMorphOverlay])
+    if (!morphOverlayVisible) setSelectedMorphBoundaryId(null)
+  }, [morphOverlayVisible])
   // Drop a stale selection if the Boundary vanished (delete / undo / new patch).
   useEffect(() => {
     if (selectedMorphBoundaryId && !config.morph?.boundaries.some(b => b.id === selectedMorphBoundaryId)) {
@@ -1081,7 +1084,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     onSetMorphBoundaryPosition?.(id, position)
   }, [config.morph, viewTransform, size.width, size.height, onSetMorphBoundaryPosition])
 
-  const morphLayer = showMorphOverlay && config.morph ? (
+  const morphLayer = morphOverlayVisible && config.morph ? (
     <EditorMorphLayer
       morph={config.morph}
       bounds={guideBounds}
@@ -1435,7 +1438,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
           }}
         />
       )}
-      {selectedMorphBoundary && config.morph && onSetMorphBoundaryPosition && onDeleteMorphBoundary && (
+      {morphOverlayVisible && selectedMorphBoundary && config.morph && onSetMorphBoundaryPosition && onDeleteMorphBoundary && (
         <MorphBoundarySlider
           key={selectedMorphBoundary.id}
           boundary={selectedMorphBoundary}

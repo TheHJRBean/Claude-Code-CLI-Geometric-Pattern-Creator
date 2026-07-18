@@ -18,7 +18,13 @@
 
 **Verified:** 1094 vitest green (8 new unit tests: band-aware default + `visibleMorphBand` linear/radial), tsc clean, Playwright re-verify — 1st Boundary lands dead-centre at default view, 2nd steps aside, add-while-zoomed-in lands on-screen, Decoration+Frame leaves all Boundary lines full-span (clipPath active).
 
-**⏳ Next: user browser-verify** — Composition → +Add Morph → +Add Boundary at your usual zoom: teal line should appear mid-view immediately. Optional polish if the gold arrow still reads as "the morph": make it longer/labelled (not done — with the line now visible the confusion likely evaporates).
+**Follow-up (same day, user direction):**
+1. **Morph gated on a Frame** — "+ Add Morph" only offered when `editor.frame` exists; without one the Morph section shows a "needs a Frame" hint. An EXISTING Morph stays fully editable if its Frame is later removed (live config never hidden behind the gate) with a "Frame was removed" warning note. UI-level gate only — reducer/engine unchanged, saved no-frame morphs still load + render.
+2. **Disabled Morph hides the whole overlay** — `morphOverlayVisible = showMorphOverlay && morph.enabled` in Canvas now gates the on-canvas layer (gold Origin/Direction arrow included — the user's report), the transient bottom slider, and the selection-clear effect. Config is kept (the "keep authoring while previewing off" model), only the overlay leaves.
+
+Playwright-verified end-to-end (gate note → Frame → add → disable removes arrow+lines → re-enable restores → Remove Frame keeps panel + warning). 1094 vitest green, tsc clean.
+
+**⏳ Next: user browser-verify** — (a) Composition → add a Frame → +Add Morph → +Add Boundary at your usual zoom: teal line should appear mid-view immediately; (b) toggle Enabled off: arrow + lines vanish. Optional polish if the gold arrow still reads as "the morph": make it longer/labelled.
 
 ---
 ### ▶ 2026-07-17 (Morph slice 2 — UI, #38) — ✅ SHIPPED + ✅ browser-verified (Sonnet, matched rec)

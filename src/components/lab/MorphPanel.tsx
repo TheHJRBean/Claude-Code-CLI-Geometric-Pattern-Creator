@@ -43,6 +43,16 @@ const removeButtonStyle: React.CSSProperties = {
   border: '1px solid var(--border-subtle)',
 }
 
+const hintStyle: React.CSSProperties = {
+  marginTop: 0,
+  marginBottom: 10,
+  fontFamily: "'EB Garamond', Georgia, serif",
+  fontStyle: 'italic',
+  fontSize: 12,
+  color: 'var(--text-muted)',
+  lineHeight: 1.4,
+}
+
 const rowHeaderButtonStyle: React.CSSProperties = {
   flex: 1,
   textAlign: 'left',
@@ -87,6 +97,10 @@ export function MorphPanel({
   viewBoundsRef?: React.RefObject<WorldBounds | null>
 }) {
   const morph = config.morph
+  // Morph pairs with a bounded artifact — creation is gated on a Frame
+  // (user decision 2026-07-18). An existing Morph stays editable if its
+  // Frame is later removed (never hide live config behind the gate).
+  const hasFrame = !!config.editor?.frame
   // Which Boundary row is expanded — local, independent of the on-canvas
   // selection (only the transient bottom slider syncs with canvas selection;
   // the spec ties the sidebar list to nothing but its own click).
@@ -95,15 +109,22 @@ export function MorphPanel({
   if (!morph) {
     return (
       <div style={{ marginTop: 0, marginBottom: 14 }}>
-        <SectionTitle tooltip="A Morph interpolates each Tile type's contact angle across the canvas between Morph Boundaries — gradient stops you place as draggable lines (Linear) or rings (Radial). Composition Phase onward.">
+        <SectionTitle tooltip="A Morph interpolates each Tile type's contact angle across the canvas between Morph Boundaries — gradient stops you place as draggable lines (Linear) or rings (Radial). Composition Phase onward. Needs a Frame.">
           Morph
         </SectionTitle>
-        <button
-          onClick={() => dispatch({ type: 'SET_MORPH_ENABLED', payload: true })}
-          style={addButtonStyle}
-        >
-          + Add Morph
-        </button>
+        {hasFrame ? (
+          <button
+            onClick={() => dispatch({ type: 'SET_MORPH_ENABLED', payload: true })}
+            style={addButtonStyle}
+          >
+            + Add Morph
+          </button>
+        ) : (
+          <p style={hintStyle}>
+            A Morph needs a Frame — add a Shape or n-Ring Frame in the Frame
+            section first.
+          </p>
+        )}
       </div>
     )
   }
@@ -122,6 +143,13 @@ export function MorphPanel({
       <SectionTitle tooltip="A Morph interpolates each Tile type's contact angle across the canvas between Morph Boundaries — gradient stops you place as draggable lines (Linear) or rings (Radial).">
         Morph
       </SectionTitle>
+
+      {!hasFrame && (
+        <p style={hintStyle}>
+          This Morph's Frame was removed — a Morph is meant to pair with a
+          Frame. Add one in the Frame section, or Remove Morph below.
+        </p>
+      )}
 
       <Toggle
         checked={morph.enabled}
@@ -217,15 +245,7 @@ export function MorphPanel({
       </button>
 
       {morph.boundaries.length === 0 ? (
-        <p style={{
-          marginTop: 0,
-          marginBottom: 10,
-          fontFamily: "'EB Garamond', Georgia, serif",
-          fontStyle: 'italic',
-          fontSize: 12,
-          color: 'var(--text-muted)',
-          lineHeight: 1.4,
-        }}>
+        <p style={hintStyle}>
           No Boundaries yet — add one, then drag it on canvas (or set its
           position below) to shape the gradient.
         </p>

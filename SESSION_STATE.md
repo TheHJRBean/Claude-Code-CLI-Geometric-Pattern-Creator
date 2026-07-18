@@ -32,6 +32,8 @@ Playwright-verified end-to-end (gate note → Frame → add → disable removes 
 
 **Follow-up 4 (same day, user request): overlay visibility toggle.** "Show on canvas" Toggle in MorphPanel (shown when Morph enabled) — hides/shows the whole on-canvas overlay (Boundary lines + Origin/Direction handles + bottom slider) while the Morph stays enabled and rendering. Lab-level UI state (`showMorphBoundaries` in TessellationLabMode, not persisted, default on — mirrors the Guides `showGuides` pattern), ANDed into Canvas's `showMorphOverlay`. "+ Add Boundary" flips it back on so a fresh Boundary can't land invisibly. Playwright-verified (hide → show → add-while-hidden auto-shows). 1097 vitest green, tsc clean.
 
+**Next (cold start):** nothing open on Morph slice 2 — session ended clean, all five commits (`3321fec`..`16e6e35`) pushed + user-verified. Remaining Morph work: **#39** full-capability interpolation (Opus rec, later). Optional polish idea: longer/labelled gold Origin arrow. Elsewhere: tickets **#40** (vertex-ray leak) + **#41** (centroid-V kinks) open from the #37 probe findings; other ⏳ browser-verifies listed in MEMORY.md (frame identity, vertex strands, stamps focus mode, UI revamp).
+
 ---
 ### ▶ 2026-07-17 (Morph slice 2 — UI, #38) — ✅ SHIPPED + ✅ browser-verified (Sonnet, matched rec)
 

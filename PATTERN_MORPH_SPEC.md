@@ -2,7 +2,7 @@
 
 **Status:** Grilled + signed off 2026-07-17; **slice 1 (Engine, #37) shipped same day** — `pic/morph.ts` field evaluation, per-edge θ variants in `pic/stellation.ts`, `runPIC` threading, load validation, fast-path opt-out, probe suite `pic/morphProbe.test.ts`. **Slice 2 (UI, #38) shipped + browser-verified 2026-07-17** — sidebar Morph section, on-canvas draggable Boundaries/handles, transient bottom position slider, reducer actions; zero engine changes. Slice 3 (#39) open. Decisions in `docs/adr/0009-morph-boundaries.md`; vocabulary in `CONTEXT.md` (**Morph**, **Morph Boundary**). Idea provenance: memory `project_pattern_morph_idea.md`.
 
-**Field-evaluation clarification (implemented semantics):** CSS-gradient-style stops — below the first Boundary the field takes the *first stop's effective values* (start recipe overridden by that stop's overlay, so an untouched first stop ≡ pure start recipe there), piecewise-linear blend between consecutive stops, clamp to the last stop beyond the band. The start recipe is the base every stop's overlay patches, not an implicit stop of its own.
+**Field-evaluation clarification (implemented semantics, amended 2026-07-18):** gradient stops = the explicit Boundaries **plus an implicit stop at position 0 carrying the live start recipe** (an explicit stop exactly at 0 replaces it). Below the first stop the field clamps to that stop's effective values, piecewise-linear blend between consecutive stops, clamp beyond the last. Consequences: the Origin line/Centre always holds the ordinary `figures` values (the usual Composition sliders stay live under an active Morph — they drive the Origin side), and a **single Boundary already yields a real gradient** (base at the Origin → its values at its line). *History:* #37 first shipped CSS-gradient semantics with no implicit stop ("start recipe = base every overlay patches, NOT a stop"), which made one Boundary apply uniformly everywhere and left the base sliders inert — reversed on user report 2026-07-18; this also restores the original §Field-evaluation intent ("the plain `figures` map applies at the origin side").
 
 A **Morph** spatially interpolates Figure-recipe parameters across the canvas of a Builder Composition. The start state is the Patch's ordinary `figures` map; the user adds one or more **Morph Boundaries** — draggable lines (Linear mode) or rings (Radial mode) — each carrying its own per-Tile-type values that the pattern reaches at that position. Parameters blend piecewise between consecutive stops, so an intermediate Boundary lets a pattern morph out and back.
 
@@ -42,9 +42,9 @@ interface MorphBoundary {
 Field evaluation at a world point `p`:
 
 - Linear: `d = dot(p − origin, direction)`; Radial: `d = |p − origin|`.
-- `d ≤ boundaries[0].position` → start recipe (the plain `figures` map applies **at the origin side**; the first Boundary is the first stop *away* from pure-start).
+- Stop sequence = explicit Boundaries + an **implicit stop at `d = 0`** holding the start recipe (the plain `figures` map applies **at the origin side**; an explicit stop exactly at 0 replaces the implicit one).
 - Between consecutive stops → piecewise-linear blend of the two stops' effective values (a stop's effective value = start value overridden by its overlay).
-- `d ≥ last.position` → last stop's values. (Clamped band — beyond the span the pattern is pure first/last stop; the morph is a controllable band, not viewport-relative.)
+- Below the first / beyond the last stop of the merged sequence → clamp to that stop's values. (Clamped band — the morph is a controllable band, not viewport-relative.)
 
 World-space means pan/zoom never changes the pattern and the field saves deterministically. Under the Lattice, each stamped Patch copy sees a different `t` — that is the point.
 

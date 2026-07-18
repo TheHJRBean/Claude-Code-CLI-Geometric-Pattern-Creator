@@ -7,8 +7,16 @@ import type { Vec2 } from '../utils/math'
  * A Morph interpolates Figure-recipe angles across the canvas in world/Patch
  * space. The scalar field is a distance `d` from the Morph origin (along the
  * direction for linear mode, radial distance for radial mode); the value at a
- * point blends piecewise-linearly between consecutive Morph Boundaries
- * (gradient stops), clamped to the first/last stop's values beyond the band.
+ * point blends piecewise-linearly between consecutive stops, clamped to the
+ * first/last stop's values beyond the band.
+ *
+ * The stop sequence = the explicit Morph Boundaries plus an IMPLICIT stop at
+ * position 0 carrying the start recipe (amended 2026-07-18 — originally the
+ * start recipe was only the value stops patch, which made a single Boundary
+ * apply uniformly and left the ordinary angle sliders inert while a Morph was
+ * active). The Origin line/Centre therefore always holds the live base
+ * recipe, one Boundary already yields a real gradient, and an explicit stop
+ * placed exactly at 0 replaces the implicit one.
  *
  * A stop's *effective* value = the start recipe's value overridden by the
  * stop's partial `FigureConfig` overlay — so a freshly added stop (empty
@@ -72,22 +80,36 @@ export function morphFieldValue(
 ): number {
   const bs = morph.boundaries
   if (bs.length === 0) return startValue
-  if (d <= bs[0].position) return effectiveValue(bs[0], tileTypeId, field, startValue)
-  const last = bs[bs.length - 1]
-  if (d >= last.position) return effectiveValue(last, tileTypeId, field, startValue)
-  for (let i = 0; i < bs.length - 1; i++) {
-    const b = bs[i + 1]
-    if (d > b.position) continue
-    const a = bs[i]
-    const span = b.position - a.position
-    const vb = effectiveValue(b, tileTypeId, field, startValue)
-    // Coincident stops: no interior to blend across — the later stop wins.
-    if (span <= 1e-9) return vb
-    const va = effectiveValue(a, tileTypeId, field, startValue)
-    const u = (d - a.position) / span
-    return va * (1 - u) + vb * u
+
+  // Merged stop sequence: explicit Boundaries (sorted ascending, invariant
+  // maintained by the reducer + load validation) with the implicit Origin
+  // stop spliced in at position 0. An explicit stop numerically at 0
+  // replaces the implicit one.
+  const stops: Array<{ position: number; value: number }> = []
+  let implicitPlaced = false
+  for (const b of bs) {
+    if (!implicitPlaced && b.position >= 0) {
+      if (b.position > 1e-9) stops.push({ position: 0, value: startValue })
+      implicitPlaced = true
+    }
+    stops.push({ position: b.position, value: effectiveValue(b, tileTypeId, field, startValue) })
   }
-  return effectiveValue(last, tileTypeId, field, startValue)
+  if (!implicitPlaced) stops.push({ position: 0, value: startValue })
+
+  if (d <= stops[0].position) return stops[0].value
+  const last = stops[stops.length - 1]
+  if (d >= last.position) return last.value
+  for (let i = 0; i < stops.length - 1; i++) {
+    const b = stops[i + 1]
+    if (d > b.position) continue
+    const a = stops[i]
+    const span = b.position - a.position
+    // Coincident stops: no interior to blend across — the later stop wins.
+    if (span <= 1e-9) return b.value
+    const u = (d - a.position) / span
+    return a.value * (1 - u) + b.value * u
+  }
+  return last.value
 }
 
 /** Evaluate one overlay field at a world point. */

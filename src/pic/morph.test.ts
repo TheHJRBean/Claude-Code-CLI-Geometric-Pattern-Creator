@@ -54,12 +54,37 @@ describe('morphDistance', () => {
 })
 
 describe('morphFieldValue', () => {
-  it('clamps to the first stop before the band and the last beyond it', () => {
+  it('holds the start recipe at/below the Origin and clamps to the last stop beyond the band', () => {
     const m = linearMorph([stop('a', 100, 40), stop('b', 200, 80)])
-    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, -50)).toBe(40)
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, -50)).toBe(67.5) // below implicit Origin stop
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 0)).toBe(67.5)
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 50)).toBeCloseTo(53.75) // Origin → first stop blend
     expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 100)).toBe(40)
     expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 200)).toBe(80)
     expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 350)).toBe(80)
+  })
+
+  it('a SINGLE stop yields a real gradient from the Origin (implicit start stop)', () => {
+    const m = linearMorph([stop('a', 200, 30)])
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, -100)).toBe(67.5)
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 0)).toBe(67.5)
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 100)).toBeCloseTo(48.75)
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 200)).toBe(30)
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 300)).toBe(30)
+  })
+
+  it('an explicit stop exactly at 0 replaces the implicit Origin stop', () => {
+    const m = linearMorph([stop('a', 0, 30), stop('b', 100, 60)])
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, -50)).toBe(30)
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 50)).toBeCloseTo(45)
+  })
+
+  it('a negative-position stop blends back to the start recipe at the Origin', () => {
+    const m = linearMorph([stop('a', -200, 20)])
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, -300)).toBe(20)
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, -100)).toBeCloseTo(43.75)
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 0)).toBe(67.5)
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 100)).toBe(67.5) // implicit stop is last — clamp
   })
 
   it('blends piecewise-linearly between consecutive stops', () => {
@@ -88,11 +113,11 @@ describe('morphFieldValue', () => {
     expect(morphFieldValue(m, '4', 'vertexContactAngle', 55, 50)).toBe(55)
   })
 
-  it('coincident stops: the later stop wins at the shared position', () => {
+  it('coincident stops: the later stop wins just past the shared position', () => {
     const m = linearMorph([stop('a', 100, 40), stop('b', 100, 80), stop('c', 200, 20)])
-    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 99)).toBe(40)
-    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 100)).toBe(40) // d <= first clamp
-    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 150)).toBeCloseTo(50)
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 99)).toBeCloseTo(40.275) // Origin→a blend
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 100)).toBe(40) // a wins AT its position
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 150)).toBeCloseTo(50) // b→c blend past it
   })
 })
 

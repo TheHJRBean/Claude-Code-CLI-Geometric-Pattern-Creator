@@ -213,6 +213,11 @@ export function TessellationLabMode({
   const [constructSnap, setConstructSnap] = useState(true)
   // Composition-Phase Guides overlay toggle — hidden by default (Decision 9).
   const [showGuides, setShowGuides] = useState(false)
+  // Morph overlay visibility toggle (2026-07-18) — shown by default; lets the
+  // user view the Composition without the Boundary lines/handles while the
+  // Morph stays enabled. MorphPanel flips it back on when adding a Boundary
+  // so a fresh Boundary can't land invisibly.
+  const [showMorphBoundaries, setShowMorphBoundaries] = useState(true)
   const handleAddGuide = useCallback((guide: EditorGuide) => {
     dispatch({ type: 'EDITOR_ADD_GUIDE', payload: { guide } })
   }, [dispatch])
@@ -476,6 +481,8 @@ export function TessellationLabMode({
                 editor={config.editor}
                 dispatch={dispatch}
                 viewBoundsRef={viewBoundsRef}
+                showMorphBoundaries={showMorphBoundaries}
+                onSetShowMorphBoundaries={setShowMorphBoundaries}
                 onClear={() => {
                   setActiveSavedId('')
                   dispatch({ type: 'EDITOR_CLEAR' })
@@ -869,7 +876,7 @@ export function TessellationLabMode({
         editorNeighbourPreview={editorPhase === 'design' && showNeighbours && !(config.editor && activeCell(config.editor).wrapBoundary)}
         editorNeighbourBoundaries={showNeighbourBoundaries}
         editorNeighbourStrands={showNeighbourStrands}
-        showMorphOverlay={editorPhase === 'strand'}
+        showMorphOverlay={editorPhase === 'strand' && showMorphBoundaries}
         onSetMorphOrigin={p => dispatch({ type: 'SET_MORPH_ORIGIN', payload: p })}
         onSetMorphDirection={d => dispatch({ type: 'SET_MORPH_DIRECTION', payload: d })}
         onSetMorphBoundaryPosition={(boundaryId, position) => dispatch({ type: 'SET_MORPH_BOUNDARY_POSITION', payload: { boundaryId, position } })}

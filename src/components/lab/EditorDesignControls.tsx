@@ -20,6 +20,9 @@ export interface EditorDesignControlsProps {
   dispatch: React.Dispatch<Action>
   /** Canvas's live visible world-rect — MorphPanel's view-aware defaults. */
   viewBoundsRef?: React.RefObject<WorldBounds | null>
+  /** Morph overlay visibility (Lab state) — MorphPanel's "Show on canvas". */
+  showMorphBoundaries?: boolean
+  onSetShowMorphBoundaries?: (v: boolean) => void
   onClear: () => void
   editorMode: EditorMode
   onSetEditorMode: (m: EditorMode) => void
@@ -74,6 +77,8 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
     editor,
     dispatch,
     viewBoundsRef,
+    showMorphBoundaries,
+    onSetShowMorphBoundaries,
     onClear,
     editorMode,
     onSetEditorMode,
@@ -204,7 +209,13 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
           in Decoration like Strand geometry (user decision 2026-07-18). The
           morphed field itself still renders there. */}
       {inStrand && (
-        <MorphPanel config={config} dispatch={dispatch} viewBoundsRef={viewBoundsRef} />
+        <MorphPanel
+          config={config}
+          dispatch={dispatch}
+          viewBoundsRef={viewBoundsRef}
+          showBoundaries={showMorphBoundaries}
+          onSetShowBoundaries={onSetShowMorphBoundaries}
+        />
       )}
 
       {editorPhase === 'design' && (

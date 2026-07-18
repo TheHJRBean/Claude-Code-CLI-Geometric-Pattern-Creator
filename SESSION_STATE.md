@@ -5,7 +5,7 @@
 ## ▶ RESUME HERE
 
 ---
-### ▶ 2026-07-18 (Morph Boundary "very short" / "no teal line") — ✅ DIAGNOSED + FIXED (Fable, handoff said Fable-fine), ⏳ browser-verify by user
+### ▶ 2026-07-18 (Morph Boundary "very short" / "no teal line") — ✅ DIAGNOSED + FIXED (Fable, handoff said Fable-fine), ✅ USER-VERIFIED ("all good now")
 
 **Diagnosis (Playwright-reproduced, both user reports explained in one frame):**
 - The "very short line" = the **gold Origin/Direction arrow** (~46 px by design) — handoff suspect 2.
@@ -28,7 +28,9 @@ Playwright-verified end-to-end (gate note → Frame → add → disable removes 
 
 **Follow-up 3 (same day, user direction): Morph frozen in Decoration.** The #38 "Composition onwards" scoping reversed — overlay (`showMorphOverlay={editorPhase === 'strand'}`) + sidebar MorphPanel (`inStrand` only) now hide in Decoration, matching the Strand-geometry freeze idiom (ADR-0005); the morphed field itself still renders there. The `editorOverlayUnclipped` PatternSVG slot stays (guarantees no Frame clip regardless of scoping). Spec §Scope + ADR-0009 UI amendment updated. Playwright-verified: overlay+panel present in Composition → absent in Decoration (morphed asymmetric figure still drawn) → restored on switch back. 1097 vitest green, tsc clean.
 
-**⏳ Next: user browser-verify** — (a) Composition → add a Frame → +Add Morph → +Add Boundary at your usual zoom: teal line appears mid-view; (b) drag the Boundary's angle: gradient between Origin and the line (NOT uniform); (c) usual Contact-angle slider still works with Morph active; (d) toggle Enabled off: arrow + lines vanish; (e) Decoration: no morph overlay/panel, morphed pattern intact. Optional polish: make the gold arrow longer/labelled.
+**✅ User verified all of the above 2026-07-18 ("all good now").**
+
+**Follow-up 4 (same day, user request): overlay visibility toggle.** "Show on canvas" Toggle in MorphPanel (shown when Morph enabled) — hides/shows the whole on-canvas overlay (Boundary lines + Origin/Direction handles + bottom slider) while the Morph stays enabled and rendering. Lab-level UI state (`showMorphBoundaries` in TessellationLabMode, not persisted, default on — mirrors the Guides `showGuides` pattern), ANDed into Canvas's `showMorphOverlay`. "+ Add Boundary" flips it back on so a fresh Boundary can't land invisibly. Playwright-verified (hide → show → add-while-hidden auto-shows). 1097 vitest green, tsc clean.
 
 ---
 ### ▶ 2026-07-17 (Morph slice 2 — UI, #38) — ✅ SHIPPED + ✅ browser-verified (Sonnet, matched rec)

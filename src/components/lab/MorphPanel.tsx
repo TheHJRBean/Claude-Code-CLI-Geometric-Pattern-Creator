@@ -90,12 +90,18 @@ export function MorphPanel({
   config,
   dispatch,
   viewBoundsRef,
+  showBoundaries = true,
+  onSetShowBoundaries,
 }: {
   config: PatternConfig
   dispatch: React.Dispatch<Action>
   /** Canvas's live visible world-rect — keeps Add Boundary's default
    *  position on screen at any pan/zoom. */
   viewBoundsRef?: React.RefObject<WorldBounds | null>
+  /** On-canvas overlay visibility (Lab state, not persisted). Adding a
+   *  Boundary switches it back on so the new line can't land invisibly. */
+  showBoundaries?: boolean
+  onSetShowBoundaries?: (v: boolean) => void
 }) {
   const morph = config.morph
   // Morph pairs with a bounded artifact — creation is gated on a Frame
@@ -157,6 +163,14 @@ export function MorphPanel({
         onChange={v => dispatch({ type: 'SET_MORPH_ENABLED', payload: v })}
         label="Enabled"
       />
+
+      {onSetShowBoundaries && morph.enabled && (
+        <Toggle
+          checked={showBoundaries}
+          onChange={onSetShowBoundaries}
+          label="Show on canvas"
+        />
+      )}
 
       <FieldLabel
         label="Mode"
@@ -239,6 +253,7 @@ export function MorphPanel({
           const bounds = viewBoundsRef?.current
           const band = bounds ? visibleMorphBand(morph, bounds) : null
           dispatch({ type: 'ADD_MORPH_BOUNDARY', payload: { position: defaultMorphBoundaryPosition(config, band) } })
+          onSetShowBoundaries?.(true)
         }}
         style={addButtonStyle}
       >

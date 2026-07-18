@@ -18,7 +18,9 @@ import { computeCurves, smoothCurves } from '../strand/computeCurves'
 const SAMPLES = 8
 
 export function curvesEnabled(config: PatternConfig): boolean {
-  return Object.values(config.figures).some(f => f?.curve?.enabled || f?.vertexCurve?.enabled)
+  return Object.values(config.figures).some(f =>
+    f?.curve?.enabled || f?.vertexCurve?.enabled || f?.extraSets?.some(s => s.curve?.enabled),
+  )
 }
 
 export function flattenStrandsToSegments(

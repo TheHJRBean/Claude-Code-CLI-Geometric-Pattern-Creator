@@ -22,6 +22,35 @@ export interface CurveConfig {
   direction?: 'left' | 'right'
 }
 
+/**
+ * An **additional line set** on a Figure recipe (ticket #42, `multi-ray-sets`).
+ * A set emits the same PIC line family (edge star-arms or vertex lines) from
+ * the same origins as the primary figure, but with its own contact angle,
+ * length, and curve — layering rosettes / multiple star families onto one
+ * Tiling. The primary figure is the flat `FigureConfig` fields (set 0);
+ * `extraSets` are additive.
+ *
+ * Extra sets hold **uniform θ** and are **not morphed** in v1 — only the
+ * primary set responds to an active `MorphConfig`.
+ */
+export interface FigureLineSet {
+  /** Stable id; also stamped on emitted `Segment`s as `setId` so this set's
+   *  Rays chain/dedup only among themselves. */
+  id: string
+  /** Which PIC family this set emits. */
+  kind: 'edge' | 'vertex'
+  /** Default true; `false` suppresses emission without deleting the set. */
+  enabled?: boolean
+  /** Contact angle θ (degrees), uniform across the set. */
+  contactAngle: number
+  /** Line length as a fraction of the auto-computed length (1.0 = meet neighbours). */
+  lineLength: number
+  /** When true, `lineLength` is ignored and lines extend to meet neighbours. */
+  autoLineLength: boolean
+  /** Optional curve recipe for this set's lines (mirrors `FigureConfig.curve`). */
+  curve?: CurveConfig
+}
+
 export interface FigureConfig {
   type: 'star'
   contactAngle: number  // degrees
@@ -51,6 +80,10 @@ export interface FigureConfig {
    *  Applies to edge (star-arm) lines, and to vertex lines too unless
    *  `vertexLinesDecoupled` is set (then they use `vertexCurve`). */
   curve?: CurveConfig
+  /** Additional line sets (ticket #42) emitted from the same origins as the
+   *  primary figure, each with independent θ / length / curve. Additive:
+   *  absent or empty ⇒ single-set behaviour identical to pre-#42. */
+  extraSets?: FigureLineSet[]
 }
 
 /**

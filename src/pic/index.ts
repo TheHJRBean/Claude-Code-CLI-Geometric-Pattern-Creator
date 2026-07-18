@@ -182,6 +182,8 @@ interface PolyCtx {
   polygonCenter: Vec2
   polygonSides: number
   kind: SegmentKind
+  /** Figure line set id (ticket #42); undefined ⇒ primary figure (set 0). */
+  setId?: string
 }
 
 /** Push one `Segment`, filling the per-polygon fields from `ctx`. */
@@ -193,7 +195,7 @@ function pushSegment(
   edgeMidpoint: Vec2,
   side: RaySide,
 ): void {
-  segments.push({
+  const seg: Segment = {
     from,
     to,
     edgeMidpoint,
@@ -203,7 +205,11 @@ function pushSegment(
     tileTypeId: ctx.tileTypeId,
     kind: ctx.kind,
     side,
-  })
+  }
+  // Omit the property entirely for the primary figure so setless output stays
+  // byte-identical to the pre-#42 pipeline.
+  if (ctx.setId !== undefined) seg.setId = ctx.setId
+  segments.push(seg)
 }
 
 /** Push a centroid-routed V — each ray's origin to the polygon centre — and
@@ -428,9 +434,10 @@ export function emitVertexArms(
   edgeMid: Vec2,
   polyVertices: Vec2[],
   segments: Segment[],
+  setId?: string,
 ): void {
   const { ray1, ray2, result } = pair
-  const ctx: PolyCtx = { polygonId, tileTypeId, polygonCenter, polygonSides, kind: 'vertex-line' }
+  const ctx: PolyCtx = { polygonId, tileTypeId, polygonCenter, polygonSides, kind: 'vertex-line', setId }
 
   const to1Natural = autoLineLength
     ? result.point
@@ -466,9 +473,14 @@ export function dedupPolygonSegments(segments: Segment[], startIdx: number): voi
     const s = segments[i]
     const ax = Math.round(s.from.x * f), ay = Math.round(s.from.y * f)
     const bx = Math.round(s.to.x * f), by = Math.round(s.to.y * f)
+    // Scope the dedup key by line set (ticket #42): two sets producing a
+    // coincident line are both kept, but within one set the collinear
+    // double-emission (e.g. triangles at θ=60°) still collapses. Primary
+    // segments (setId undefined) share the '' scope, matching pre-#42.
+    const sid = s.setId ?? ''
     const key = ax < bx || (ax === bx && ay <= by)
-      ? `${ax},${ay}|${bx},${by}`
-      : `${bx},${by}|${ax},${ay}`
+      ? `${sid}|${ax},${ay}|${bx},${by}`
+      : `${sid}|${bx},${by}|${ax},${ay}`
     if (seen.has(key)) continue
     seen.add(key)
     keep.push(s)
@@ -478,72 +490,114 @@ export function dedupPolygonSegments(segments: Segment[], startIdx: number): voi
   }
 }
 
+/**
+ * Emit one edge-line family (star arms) for a polygon: the vertex-pair pass
+ * plus the per-ray orphan fallback. Extracted (ticket #42) so the primary
+ * figure and each extra edge set share identical geometry — they differ only
+ * in the rays fed in (morph-aware per-edge θ for the primary; uniform θ for
+ * extra sets) and the `ctx.setId` stamped on the output. Each call keeps its
+ * own `emittedRays` + orphan bookkeeping, so sets never trim one another.
+ */
+function emitEdgePass(
+  rays: ContactRay[],
+  poly: Polygon,
+  autoLineLength: boolean,
+  lineLength: number,
+  ctx: PolyCtx,
+  segments: Segment[],
+): void {
+  const n = poly.sides
+  const inradius = n > 0 ? dist(poly.center, rays[0].origin) : 0
+  const emittedRays = new Set<string>()
+
+  for (let k = 0; k < n; k++) {
+    const prevEdge = (k - 1 + n) % n
+    const pair = pairAtVertex(rays, prevEdge, k, poly.vertices)
+    if (!pair) continue
+    emitStarArms(pair, autoLineLength, lineLength, inradius, ctx, poly.vertices, segments, emittedRays)
+  }
+
+  // Per-ray fallback for orphan rays (no successful vertex pair).
+  //
+  // Common in two regimes:
+  //  - Irregular polygons in degenerate θ bands (e.g. Cairo short edge
+  //    at 25-32°), where multiple adjacent pairs fail asymmetrically.
+  //  - User-authored Lab polygons whose vertex angles fall outside the
+  //    PIC contact-angle range.
+  //
+  // Each unemitted ray's endpoint is its nearest valid crossing with
+  // any other-edge ray (Kaplan's trim). Drop the emission only when
+  // the endpoint is implausibly close to the origin (a "stub from the
+  // edge midpoint" artifact). Regular polygons emit every ray through the
+  // pair pass so this loop is a no-op for them.
+  const ORPHAN_MIN_LEN_FRACTION = 0.25
+  const fallbackLen = autoLineLength ? inradius : lineLength * inradius
+  const minLen = inradius * ORPHAN_MIN_LEN_FRACTION
+  for (const ray of rays) {
+    if (emittedRays.has(`${ray.edgeIndex}-${ray.side}`)) continue
+    const endpoint = findOrphanRayEndpoint(ray, rays, poly.vertices, fallbackLen)
+    if (!endpoint) continue
+    const len = dist(ray.origin, endpoint)
+    if (len < minLen) continue
+    pushSegment(segments, ctx, ray.origin, endpoint, ray.origin, ray.side)
+  }
+}
+
+/**
+ * Emit one vertex-line family for a polygon (ticket #42 extraction). Vertex
+ * lines are drawn on EVERY edge of any shape with them enabled — a shape's
+ * figure is self-contained, so enabling vertex lines shows them across the
+ * whole shape (user decision 2026-06-17). They are NOT gated on shared/internal
+ * edges: that gate produced partial figures (strands on only the edges that
+ * happened to abut a neighbour) and was the source of the appear/disappear-as-
+ * tiles-slide behaviour. Overlap stays a non-issue: PIC iterates real tiles
+ * only, so an overlap region is never its own tile.
+ */
+function emitVertexPass(
+  vertexRays: VertexRay[],
+  poly: Polygon,
+  autoLineLength: boolean,
+  lineLength: number,
+  setId: string | undefined,
+  segments: Segment[],
+): void {
+  const n = poly.sides
+  const circumradius = n > 0 ? dist(poly.center, poly.vertices[0]) : 0
+  for (let k = 0; k < n; k++) {
+    const eMid = midpoint(poly.vertices[k], poly.vertices[(k + 1) % n])
+    const nextV = (k + 1) % n
+    const pair = pairVertexAtEdge(vertexRays, k, nextV, poly.vertices)
+    if (!pair) continue
+    emitVertexArms(pair, autoLineLength, lineLength, circumradius, poly.id, poly.tileTypeId, poly.center, n, eMid, poly.vertices, segments, setId)
+  }
+}
+
 export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
   const segments: Segment[] = []
   // Step 20 Morph — with an active morph, θ is evaluated per edge midpoint
   // (and per vertex for vertex lines) through the world-space morph field
   // instead of once per tile type. Polygons must be in world space here (they
   // are on every runPIC path; the periodic fast-path, which PICs a base
-  // domain and stamps copies, is gated off by `morphActive`).
+  // domain and stamps copies, is gated off by `morphActive`). The Morph drives
+  // only the PRIMARY figure; extra sets (ticket #42) hold uniform θ.
   const morph = activeMorph(config)
 
   for (const poly of polygons) {
     const fig = config.figures[poly.tileTypeId]
     if (!fig) continue
     const polyStartIdx = segments.length
-
-    const edgeEnabled = fig.edgeLinesEnabled !== false
-    const rays = morph
-      ? computeContactRaysPerEdge(poly, (_i, mid) =>
-          morphValueAt(morph, poly.tileTypeId, 'contactAngle', fig.contactAngle, mid))
-      : computeContactRays(poly, fig.contactAngle)
     const n = poly.sides
-    const inradius = n > 0 ? dist(poly.center, rays[0].origin) : 0
-    const starCtx: PolyCtx = { polygonId: poly.id, tileTypeId: poly.tileTypeId, polygonCenter: poly.center, polygonSides: n, kind: 'star-arm' }
 
-    const emittedRays = new Set<string>()
-
-    for (let k = 0; k < n; k++) {
-      const prevEdge = (k - 1 + n) % n
-      const pair = pairAtVertex(rays, prevEdge, k, poly.vertices)
-      if (!pair) continue
-
-      if (edgeEnabled) {
-        emitStarArms(pair, fig.autoLineLength, fig.lineLength, inradius, starCtx, poly.vertices, segments, emittedRays)
-      }
+    // ── Primary figure (set 0) ──
+    if (fig.edgeLinesEnabled !== false) {
+      const rays = morph
+        ? computeContactRaysPerEdge(poly, (_i, mid) =>
+            morphValueAt(morph, poly.tileTypeId, 'contactAngle', fig.contactAngle, mid))
+        : computeContactRays(poly, fig.contactAngle)
+      const ctx: PolyCtx = { polygonId: poly.id, tileTypeId: poly.tileTypeId, polygonCenter: poly.center, polygonSides: n, kind: 'star-arm' }
+      emitEdgePass(rays, poly, fig.autoLineLength, fig.lineLength, ctx, segments)
     }
 
-    // Per-ray fallback for orphan rays (no successful vertex pair).
-    //
-    // Common in two regimes:
-    //  - Irregular polygons in degenerate θ bands (e.g. Cairo short edge
-    //    at 25-32°), where multiple adjacent pairs fail asymmetrically.
-    //  - User-authored Lab polygons whose vertex angles fall outside the
-    //    PIC contact-angle range.
-    //
-    // Each unemitted ray's endpoint is its nearest valid crossing with
-    // any other-edge ray (Kaplan's trim). Drop the emission only when
-    // the endpoint is implausibly close to the origin (a "stub from the
-    // edge midpoint" artifact). The longer asymmetric forwards meeting
-    // just inside an in-between edge are preserved — that's the
-    // "rays joining before the edge" behavior the user wants. Regular
-    // polygons emit every ray through the pair pass so this loop is a
-    // no-op for them.
-    const ORPHAN_MIN_LEN_FRACTION = 0.25
-    if (edgeEnabled) {
-      const fallbackLen = fig.autoLineLength ? inradius : fig.lineLength * inradius
-      const minLen = inradius * ORPHAN_MIN_LEN_FRACTION
-      for (const ray of rays) {
-        if (emittedRays.has(`${ray.edgeIndex}-${ray.side}`)) continue
-        const endpoint = findOrphanRayEndpoint(ray, rays, poly.vertices, fallbackLen)
-        if (!endpoint) continue
-        const len = dist(ray.origin, endpoint)
-        if (len < minLen) continue
-        pushSegment(segments, starCtx, ray.origin, endpoint, ray.origin, ray.side)
-      }
-    }
-
-    // Vertex lines: rays from polygon vertices
     if (fig.vertexLinesEnabled) {
       const vtxAngle = fig.vertexLinesDecoupled
         ? (fig.vertexContactAngle ?? fig.contactAngle)
@@ -567,22 +621,24 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
             v,
           ))
         : computeVertexRays(poly, vtxAngle)
-      const circumradius = n > 0 ? dist(poly.center, poly.vertices[0]) : 0
+      emitVertexPass(vertexRays, poly, vtxAutoLen, vtxLineLen, undefined, segments)
+    }
 
-      // Emit vertex lines on EVERY edge of any shape with them enabled — a
-      // shape's figure is self-contained, so enabling vertex lines shows them
-      // across the whole shape (user decision 2026-06-17). They are NOT gated
-      // on shared/internal edges: that gate produced partial figures (strands
-      // on only the edges that happened to abut a neighbour) and was the source
-      // of the appear/disappear-as-tiles-slide behaviour. Overlap stays a
-      // non-issue: PIC iterates real tiles only, so an overlap region is never
-      // its own tile — each tile keeps its own distinct strands and they cross.
-      for (let k = 0; k < n; k++) {
-        const eMid = midpoint(poly.vertices[k], poly.vertices[(k + 1) % n])
-        const nextV = (k + 1) % n
-        const pair = pairVertexAtEdge(vertexRays, k, nextV, poly.vertices)
-        if (!pair) continue
-        emitVertexArms(pair, vtxAutoLen, vtxLineLen, circumradius, poly.id, poly.tileTypeId, poly.center, n, eMid, poly.vertices, segments)
+    // ── Extra line sets (ticket #42) — uniform θ, independent emission ──
+    // Each set runs the same pass machinery with its own rays; the pass helpers
+    // keep per-call emitted/orphan bookkeeping, so sets never trim one another,
+    // and their coincident lines survive the setId-scoped dedup.
+    if (fig.extraSets) {
+      for (const set of fig.extraSets) {
+        if (set.enabled === false) continue
+        if (set.kind === 'edge') {
+          const rays = computeContactRays(poly, set.contactAngle)
+          const ctx: PolyCtx = { polygonId: poly.id, tileTypeId: poly.tileTypeId, polygonCenter: poly.center, polygonSides: n, kind: 'star-arm', setId: set.id }
+          emitEdgePass(rays, poly, set.autoLineLength, set.lineLength, ctx, segments)
+        } else {
+          const vertexRays = computeVertexRays(poly, set.contactAngle)
+          emitVertexPass(vertexRays, poly, set.autoLineLength, set.lineLength, set.id, segments)
+        }
       }
     }
 

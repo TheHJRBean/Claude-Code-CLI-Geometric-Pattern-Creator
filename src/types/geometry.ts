@@ -29,4 +29,8 @@ export interface Segment {
   kind: SegmentKind
   /** which ±α ray this segment originated from. Stable across regenerations; used for alternating-curve parity even when cross-product heuristic is degenerate (e.g. triangles at θ=60°). */
   side?: RaySide
+  /** Which Figure line set emitted this segment (ticket #42). `undefined` = the
+   *  primary figure (set 0); otherwise a `FigureLineSet.id`. Keeps an extra
+   *  set's Rays from chaining or deduping into the primary figure. */
+  setId?: string
 }

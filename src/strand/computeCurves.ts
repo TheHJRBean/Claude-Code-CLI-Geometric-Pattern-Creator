@@ -1,5 +1,5 @@
 import type { Segment } from '../types/geometry'
-import type { PatternConfig } from '../types/pattern'
+import type { CurveConfig, FigureConfig, PatternConfig } from '../types/pattern'
 import type { StrandData } from './buildStrands'
 import { sub, normalize, perp, scale, add, dist, lerp, dot, len, type Vec2 } from '../utils/math'
 
@@ -7,6 +7,21 @@ export interface CurvedStrand {
   points: Vec2[]
   /** curves[i] holds control points for the edge points[i] → points[i+1], or null for straight */
   curves: (Vec2[] | null)[]
+}
+
+/**
+ * Resolve the `CurveConfig` a segment renders with (ticket #42). An extra
+ * line set uses its own `curve`; a primary vertex line uses `vertexCurve` when
+ * decoupled; everything else uses the primary `curve`. A setless primary
+ * segment falls straight through to the pre-#42 edge/vertex branch.
+ */
+export function resolveSegmentCurve(fig: FigureConfig | undefined, seg: Segment): CurveConfig | undefined {
+  if (!fig) return undefined
+  if (seg.setId !== undefined) {
+    return fig.extraSets?.find(s => s.id === seg.setId)?.curve
+  }
+  const decoupledVertex = (fig.vertexLinesDecoupled ?? false) && seg.kind === 'vertex-line'
+  return decoupledVertex ? fig.vertexCurve : fig.curve
 }
 
 /**
@@ -51,10 +66,7 @@ export function computeCurves(
       const seg = segments[segmentIndices[i]]
 
       const fig = config.figures[seg.tileTypeId]
-      // Vertex lines use their own `vertexCurve` recipe when decoupled;
-      // everything else (edge lines, or coupled vertex lines) uses `curve`.
-      const decoupledVertex = (fig?.vertexLinesDecoupled ?? false) && seg.kind === 'vertex-line'
-      const curve = decoupledVertex ? fig?.vertexCurve : fig?.curve
+      const curve = resolveSegmentCurve(fig, seg)
       if (!curve?.enabled || !curve.points.length) {
         curves.push(null)
         continue

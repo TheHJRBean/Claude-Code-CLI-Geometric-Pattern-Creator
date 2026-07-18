@@ -7,8 +7,15 @@ export interface StrandData {
   segmentIndices: number[]
 }
 
-function ptKey(p: Vec2): string {
-  return `${p.x.toFixed(4)},${p.y.toFixed(4)}`
+/**
+ * Junction key. Scoped by line set (ticket #42): two segments only ever chain
+ * when they belong to the same set, so an extra set that shares an origin point
+ * with the primary figure (both emanate from the same edge midpoint / vertex)
+ * doesn't mis-pair across sets. Setless input gets a uniform `'|'` prefix, so
+ * the adjacency structure — and every resulting strand — is unchanged.
+ */
+function ptKey(p: Vec2, setId: string | undefined): string {
+  return `${setId ?? ''}|${p.x.toFixed(4)},${p.y.toFixed(4)}`
 }
 
 /**
@@ -23,7 +30,7 @@ export function buildStrands(segments: Segment[]): StrandData[] {
   for (let i = 0; i < segments.length; i++) {
     const s = segments[i]
     for (const [pt, other] of [[s.from, s.to], [s.to, s.from]] as [Vec2, Vec2][]) {
-      const k = ptKey(pt)
+      const k = ptKey(pt, s.setId)
       const angle = Math.atan2(other.y - pt.y, other.x - pt.x)
       if (!adj.has(k)) adj.set(k, [])
       adj.get(k)!.push({ segIdx: i, other, angle })
@@ -63,13 +70,17 @@ export function buildStrands(segments: Segment[]): StrandData[] {
   for (let i = 0; i < segments.length; i++) {
     if (visited.has(i)) continue
     visited.add(i)
+    // A strand chains within a single line set; its junction keys carry that
+    // set's scope (ticket #42). The set-scoped pairing map already prevents
+    // cross-set hops, so tracking the seed segment's setId is sufficient.
+    const strandSetId = segments[i].setId
     const points: Vec2[] = [segments[i].from, segments[i].to]
     const segIdxs: number[] = [i]
 
     let fwdSeg = i
     for (;;) {
       const tail = points[points.length - 1]
-      const vk = ptKey(tail)
+      const vk = ptKey(tail, strandSetId)
       const pairMap = pairing.get(vk)
       if (!pairMap) break
       const nextSeg = pairMap.get(fwdSeg)
@@ -85,7 +96,7 @@ export function buildStrands(segments: Segment[]): StrandData[] {
     let bwdSeg = i
     for (;;) {
       const head = points[0]
-      const vk = ptKey(head)
+      const vk = ptKey(head, strandSetId)
       const pairMap = pairing.get(vk)
       if (!pairMap) break
       const prevSeg = pairMap.get(bwdSeg)

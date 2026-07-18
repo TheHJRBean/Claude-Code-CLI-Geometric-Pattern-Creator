@@ -1,4 +1,4 @@
-import type { MorphConfig, PatternConfig, StrandStyle } from '../types/pattern'
+import type { FigureLineSet, MorphConfig, PatternConfig, StrandStyle } from '../types/pattern'
 import type { BoundaryShape, ConfigurationId, EditorConfig, EditorGuide, EditorGuidePatch, FrameConfig, GroupingScope, SymmetryMode, VoidStampRecord } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import type { ClickedTargetKeys } from '../decoration/scopes'
@@ -27,6 +27,15 @@ export type Action =
   | { type: 'SET_CURVE_ALTERNATING'; payload: { tileTypeId: string; alternating: boolean; target?: CurveTarget } }
   | { type: 'SET_CURVE_DIRECTION'; payload: { tileTypeId: string; direction: 'left' | 'right'; target?: CurveTarget } }
   | { type: 'SET_SMOOTH_TRANSITIONS'; payload: boolean }
+  // Ticket #42 — multi line sets. Extra edge/vertex line families on a Figure
+  // recipe (`FigureConfig.extraSets`). ADD seeds a fresh set from the primary's
+  // current θ/length/curve; UPDATE patches one set by id (θ/length/auto/enable,
+  // or a whole `curve` object — do NOT route extra-set curves through the
+  // CurveTarget-based SET_CURVE_* actions); REMOVE deletes it. Not
+  // Design-mode-undoable — same footing as SET_CONTACT_ANGLE.
+  | { type: 'ADD_FIGURE_SET'; payload: { tileTypeId: string; kind: FigureLineSet['kind'] } }
+  | { type: 'UPDATE_FIGURE_SET'; payload: { tileTypeId: string; setId: string; patch: Partial<FigureLineSet> } }
+  | { type: 'REMOVE_FIGURE_SET'; payload: { tileTypeId: string; setId: string } }
   // Reset every FigureConfig in `figures` back to its tiling default
   // (TILINGS[type].defaultConfig.figures) for Gallery mode, or to
   // DEFAULT_EDITOR_FIGURE for Builder Patches. Wipes the user's per-Tile-type

@@ -694,6 +694,7 @@ export function TessellationLabMode({
                           dispatch={dispatch}
                           onCurvePointActivity={setCpActiveIndex}
                           advanced={advancedActive}
+                          extraSets={fig.extraSets}
                         />
                       )
                     })}

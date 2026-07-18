@@ -1,4 +1,4 @@
-import type { CurveConfig, CurvePoint, FigureConfig, PatternConfig } from '../types/pattern'
+import type { CurveConfig, CurvePoint, FigureConfig, FigureLineSet, PatternConfig } from '../types/pattern'
 import type { CurveTarget } from './actions'
 import type { EditorCell, EditorConfig, EditorGuide, EditorGuidePatch, EditorRegularTile, EditorTile } from '../types/editor'
 import type { Vec2 } from '../utils/math'
@@ -133,6 +133,24 @@ function updateCurve(
   return updateFigure(state, tileTypeId, { [curveField(target)]: mutate(base) })
 }
 
+/** Max extra line sets per Figure recipe (ticket #42) — enforced here so the
+ *  UI cap is authoritative even if a hand-edited config exceeds it. */
+const MAX_FIGURE_SETS = 4
+
+/** A collision-free set id within one figure's existing `extraSets`. */
+function nextSetId(fig: FigureConfig): string {
+  const existing = new Set((fig.extraSets ?? []).map(s => s.id))
+  let n = (fig.extraSets?.length ?? 0) + 1
+  while (existing.has(`set-${n}`)) n++
+  return `set-${n}`
+}
+
+/** Merge a patch into a line set, re-pinning `id`/`kind` so a patch can never
+ *  rewrite the identity or the emission family (mirrors `mergeGuide`). */
+function mergeFigureSet(s: FigureLineSet, patch: Partial<FigureLineSet>): FigureLineSet {
+  return { ...s, ...patch, id: s.id, kind: s.kind }
+}
+
 /** Apply a Guide popup/drag patch, re-pinning `id`/`kind` so the discriminant
  *  can't be widened and the patch's cross-kind optional fields drop out. */
 function mergeGuide(g: EditorGuide, patch: EditorGuidePatch): EditorGuide {
@@ -246,6 +264,38 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     case 'SET_CURVE_DIRECTION':
       return updateCurve(state, action.payload.tileTypeId, action.payload.target, true,
         curve => ({ ...curve, direction: action.payload.direction }))
+    case 'ADD_FIGURE_SET': {
+      const fig = getFigure(state, action.payload.tileTypeId)
+      const existing = fig.extraSets ?? []
+      if (existing.length >= MAX_FIGURE_SETS) return state
+      // Seed from the primary figure's current θ/length so a fresh set starts
+      // as a twin of the primary edge figure; the user then diverges θ. Copy
+      // the curve too so a curved primary yields a curved (seamless) twin.
+      const seed: FigureLineSet = {
+        id: nextSetId(fig),
+        kind: action.payload.kind,
+        contactAngle: fig.contactAngle,
+        lineLength: fig.lineLength,
+        autoLineLength: fig.autoLineLength,
+      }
+      if (fig.curve) seed.curve = { ...fig.curve, points: fig.curve.points.map(p => ({ ...p })) }
+      return updateFigure(state, action.payload.tileTypeId, { extraSets: [...existing, seed] })
+    }
+    case 'UPDATE_FIGURE_SET': {
+      const fig = getFigure(state, action.payload.tileTypeId)
+      if (!fig.extraSets) return state
+      const next = fig.extraSets.map(s =>
+        s.id === action.payload.setId ? mergeFigureSet(s, action.payload.patch) : s)
+      return updateFigure(state, action.payload.tileTypeId, { extraSets: next })
+    }
+    case 'REMOVE_FIGURE_SET': {
+      const fig = getFigure(state, action.payload.tileTypeId)
+      if (!fig.extraSets) return state
+      const next = fig.extraSets.filter(s => s.id !== action.payload.setId)
+      // Drop the array entirely when empty so the config returns to the
+      // byte-identical setless shape.
+      return updateFigure(state, action.payload.tileTypeId, { extraSets: next.length ? next : undefined })
+    }
     case 'SET_SMOOTH_TRANSITIONS':
       return { ...state, smoothTransitions: action.payload }
     case 'LOAD_CONFIG': {

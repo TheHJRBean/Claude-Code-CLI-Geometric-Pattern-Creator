@@ -1,6 +1,10 @@
 import { useMemo, useState } from 'react'
 import type { Action, CurveTarget } from '../../state/actions'
+import type { CurveConfig, FigureLineSet } from '../../types/pattern'
 import { computeSnapPoints, snapToNearest } from '../../pic/snapPoints'
+
+/** UI cap on extra line sets per Figure recipe (mirrors reducer MAX_FIGURE_SETS). */
+const MAX_FIGURE_SETS = 4
 
 /**
  * Generic per-tile-type strand controls. Takes a `dispatch` and an `allFigures`
@@ -45,6 +49,9 @@ interface FigureControlsProps {
    * Gallery gates it on the Show-advanced toggle.
    */
   advanced?: boolean
+  /** Extra line sets for this tile type (ticket #42), edited in-place via the
+   *  ADD/UPDATE/REMOVE_FIGURE_SET actions. */
+  extraSets?: FigureLineSet[]
 }
 
 export function FigureControls({
@@ -54,7 +61,7 @@ export function FigureControls({
   vertexCurveEnabled, vertexCurvePoints, vertexCurveAlternating, vertexCurveDirection,
   cpShown, onToggleCpShown,
   tilingType, allFigures, dispatch, onCurvePointActivity,
-  advanced = false,
+  advanced = false, extraSets = [],
 }: FigureControlsProps) {
   // Which strand type the curve-shape editor is currently editing. Only
   // meaningful when decoupled; coupled always targets the (shared) edge curve.
@@ -432,7 +439,286 @@ export function FigureControls({
           ))}
         </div>
       )}
+
+      {advanced && (
+        <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border-subtle)' }}>
+          <FieldLabel
+            label="Line sets"
+            tooltip="Extra Ray families emitted from the same edges / vertices as the primary Figure, each with its own contact angle, length and curve. Layer multiple star families onto one Tiling."
+          />
+          {extraSets.map(set => (
+            <ExtraSetCard
+              key={set.id}
+              tileTypeId={tileTypeId}
+              sides={sides}
+              set={set}
+              dispatch={dispatch}
+            />
+          ))}
+          {extraSets.length < MAX_FIGURE_SETS ? (
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <AddSetButton label="+ Edge set" onClick={() => dispatch({ type: 'ADD_FIGURE_SET', payload: { tileTypeId, kind: 'edge' } })} />
+              <AddSetButton label="+ Vertex set" onClick={() => dispatch({ type: 'ADD_FIGURE_SET', payload: { tileTypeId, kind: 'vertex' } })} />
+            </div>
+          ) : (
+            <div style={{
+              fontFamily: "'EB Garamond', Georgia, serif",
+              fontSize: 12,
+              color: 'var(--text-muted)',
+              marginTop: 8,
+            }}>
+              Maximum of {MAX_FIGURE_SETS} line sets.
+            </div>
+          )}
+        </div>
+      )}
     </div>
+  )
+}
+
+/**
+ * One extra line set (ticket #42): kind badge + delete, enable, contact angle,
+ * auto/manual length, and an optional per-set curve. All edits route through
+ * UPDATE_FIGURE_SET (curves as a whole-object patch — not the CurveTarget-based
+ * SET_CURVE_* actions, which only address the primary figure). On-canvas
+ * control-point dragging is primary-only for now; sets edit their curve shape
+ * through the sliders below.
+ */
+function ExtraSetCard({ tileTypeId, sides, set, dispatch }: {
+  tileTypeId: string
+  sides: number
+  set: FigureLineSet
+  dispatch: React.Dispatch<Action>
+}) {
+  const patch = (p: Partial<FigureLineSet>) =>
+    dispatch({ type: 'UPDATE_FIGURE_SET', payload: { tileTypeId, setId: set.id, patch: p } })
+  const enabled = set.enabled !== false
+  const curve = set.curve
+  const curveEnabled = curve?.enabled ?? false
+  const defaultCurve: CurveConfig = { enabled: true, points: [{ position: 0.5, offset: 0.2 }] }
+
+  return (
+    <div style={{
+      marginTop: 8,
+      padding: '8px 10px',
+      border: '1px solid var(--border)',
+      opacity: enabled ? 1 : 0.6,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{
+          fontFamily: "'Cinzel', Georgia, serif",
+          fontSize: 8.5,
+          fontWeight: 600,
+          letterSpacing: '0.16em',
+          textTransform: 'uppercase' as const,
+          color: 'var(--accent)',
+        }}>
+          {set.kind} set
+        </span>
+        <button
+          onClick={() => dispatch({ type: 'REMOVE_FIGURE_SET', payload: { tileTypeId, setId: set.id } })}
+          aria-label="Delete line set"
+          title="Delete line set"
+          style={{
+            border: 'none',
+            background: 'transparent',
+            color: 'var(--text-muted)',
+            cursor: 'pointer',
+            fontSize: 15,
+            lineHeight: 1,
+            padding: '0 2px',
+          }}
+        >
+          ×
+        </button>
+      </div>
+
+      <div style={{ marginTop: 6 }}>
+        <Toggle checked={enabled} onChange={v => patch({ enabled: v })} label="Enabled" />
+      </div>
+
+      <FieldLabel label="Contact angle" value={set.contactAngle.toFixed(1)} unit="°" />
+      <input
+        type="range"
+        className="pattern-slider"
+        min={10} max={85} step={0.5}
+        value={set.contactAngle}
+        onChange={e => patch({ contactAngle: Number(e.target.value) })}
+      />
+
+      <div style={{ marginTop: 8, marginBottom: 8 }}>
+        <Toggle checked={set.autoLineLength} onChange={v => patch({ autoLineLength: v })} label="Auto Ray length" />
+      </div>
+      {!set.autoLineLength && (
+        <>
+          <FieldLabel label="Ray length" value={(set.lineLength * 100).toFixed(0)} unit="%" />
+          <input
+            type="range"
+            className="pattern-slider"
+            min={10} max={500} step={1}
+            value={Math.round(set.lineLength * 100)}
+            onChange={e => patch({ lineLength: Number(e.target.value) / 100 })}
+          />
+        </>
+      )}
+
+      <div style={{ marginTop: 10 }}>
+        <Toggle
+          checked={curveEnabled}
+          onChange={v => patch({ curve: { ...(curve ?? defaultCurve), enabled: v } })}
+          label="Curve"
+        />
+      </div>
+      {curveEnabled && curve && (
+        <CurveShapeEditor sides={sides} curve={curve} onChange={next => patch({ curve: next })} />
+      )}
+    </div>
+  )
+}
+
+/**
+ * Panel curve-shape editor over a whole `CurveConfig` (ticket #42 extra sets).
+ * Mode / direction / control-point count + per-point position/offset sliders —
+ * the same knobs the primary figure exposes, but driven by one `onChange`
+ * callback instead of the granular SET_CURVE_* actions.
+ */
+function CurveShapeEditor({ sides, curve, onChange }: {
+  sides: number
+  curve: CurveConfig
+  onChange: (c: CurveConfig) => void
+}) {
+  const alternating = curve.alternating ?? false
+  const direction = curve.direction ?? 'left'
+  const setCount = (n: number) => {
+    const count = Math.max(1, Math.min(3, n))
+    const pts: { position: number; offset: number }[] = []
+    for (let i = 0; i < count; i++) {
+      pts.push(curve.points[i] ?? { position: (i + 1) / (count + 1), offset: 0.2 })
+    }
+    onChange({ ...curve, points: pts })
+  }
+  const setPoint = (i: number, p: Partial<{ position: number; offset: number }>) => {
+    onChange({ ...curve, points: curve.points.map((cp, j) => (j === i ? { ...cp, ...p } : cp)) })
+  }
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      {sides !== 3 && (
+        <>
+          <FieldLabel label="Curve mode" />
+          <SegmentedButtons
+            options={[
+              { key: 'same', label: 'same', active: !alternating },
+              { key: 'alternating', label: 'alternating', active: alternating },
+            ]}
+            onPick={k => onChange({ ...curve, alternating: k === 'alternating' })}
+          />
+        </>
+      )}
+      {sides !== 3 && alternating && (
+        <>
+          <FieldLabel label="Direction" />
+          <SegmentedButtons
+            options={[
+              { key: 'left', label: 'L', active: direction === 'left' },
+              { key: 'right', label: 'R', active: direction === 'right' },
+            ]}
+            onPick={k => onChange({ ...curve, direction: k as 'left' | 'right' })}
+          />
+        </>
+      )}
+      <FieldLabel label="Control points" value={String(curve.points.length)} />
+      <SegmentedButtons
+        options={[1, 2, 3].map(n => ({ key: String(n), label: String(n), active: curve.points.length === n }))}
+        onPick={k => setCount(Number(k))}
+      />
+      {curve.points.map((cp, i) => (
+        <div key={i} style={{ marginBottom: i < curve.points.length - 1 ? 10 : 0 }}>
+          {curve.points.length > 1 && (
+            <span style={{
+              fontFamily: "'EB Garamond', Georgia, serif",
+              fontSize: 12,
+              color: 'var(--text-muted)',
+              letterSpacing: '0.02em',
+            }}>
+              Point {i + 1}
+            </span>
+          )}
+          <FieldLabel label="Position" value={(cp.position * 100).toFixed(0)} unit="%" />
+          <input
+            type="range"
+            className="pattern-slider"
+            min={5} max={95} step={1}
+            value={Math.round(cp.position * 100)}
+            onChange={e => setPoint(i, { position: Number(e.target.value) / 100 })}
+          />
+          <FieldLabel label="Offset" value={(cp.offset * 100).toFixed(0)} unit="%" />
+          <input
+            type="range"
+            className="pattern-slider"
+            min={-100} max={100} step={1}
+            value={Math.round(cp.offset * 100)}
+            onChange={e => setPoint(i, { offset: Number(e.target.value) / 100 })}
+          />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function SegmentedButtons({ options, onPick }: {
+  options: { key: string; label: string; active: boolean }[]
+  onPick: (key: string) => void
+}) {
+  return (
+    <div style={{ display: 'flex', gap: 0, marginBottom: 8 }}>
+      {options.map(o => (
+        <button
+          key={o.key}
+          onClick={() => onPick(o.key)}
+          style={{
+            flex: 1,
+            padding: '5px 0',
+            fontFamily: "'Cinzel', Georgia, serif",
+            fontSize: 9,
+            fontWeight: 600,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase' as const,
+            cursor: 'pointer',
+            border: `1px solid ${o.active ? 'var(--accent)' : 'var(--border)'}`,
+            background: o.active ? 'var(--accent-bg)' : 'transparent',
+            color: o.active ? 'var(--accent)' : 'var(--text-muted)',
+            transition: 'all 0.15s',
+          }}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function AddSetButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        flex: 1,
+        padding: '6px 0',
+        fontFamily: "'Cinzel', Georgia, serif",
+        fontSize: 9,
+        fontWeight: 600,
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase' as const,
+        cursor: 'pointer',
+        border: '1px dashed var(--border)',
+        background: 'transparent',
+        color: 'var(--text-secondary)',
+        transition: 'all 0.15s',
+      }}
+    >
+      {label}
+    </button>
   )
 }
 

@@ -164,6 +164,80 @@ describe('curve mutations (vertex target)', () => {
   })
 })
 
+describe('multi line sets — ADD/UPDATE/REMOVE_FIGURE_SET (#42)', () => {
+  it('ADD seeds a new set from the primary figure’s current θ/length', () => {
+    let s = gallery()
+    s = reducer(s, { type: 'SET_CONTACT_ANGLE', payload: { tileTypeId: '4', angle: 40 } } as Action)
+    s = reducer(s, { type: 'SET_LINE_LENGTH', payload: { tileTypeId: '4', lineLength: 0.7 } } as Action)
+    s = reducer(s, { type: 'SET_AUTO_LINE_LENGTH', payload: { tileTypeId: '4', auto: false } } as Action)
+    s = reducer(s, { type: 'ADD_FIGURE_SET', payload: { tileTypeId: '4', kind: 'edge' } } as Action)
+    const sets = s.figures['4'].extraSets!
+    expect(sets).toHaveLength(1)
+    expect(sets[0]).toMatchObject({ kind: 'edge', contactAngle: 40, lineLength: 0.7, autoLineLength: false })
+    expect(sets[0].id).toBe('set-1')
+  })
+
+  it('ADD deep-copies the primary curve into the new set', () => {
+    let s = gallery()
+    s = reducer(s, { type: 'SET_CURVE_ENABLED', payload: { tileTypeId: '4', enabled: true } } as Action)
+    s = reducer(s, { type: 'ADD_FIGURE_SET', payload: { tileTypeId: '4', kind: 'vertex' } } as Action)
+    const set = s.figures['4'].extraSets![0]
+    expect(set.curve).toEqual(s.figures['4'].curve)
+    expect(set.curve!.points).not.toBe(s.figures['4'].curve!.points)
+  })
+
+  it('ADD assigns unique ids and accumulates sets', () => {
+    let s = gallery()
+    s = reducer(s, { type: 'ADD_FIGURE_SET', payload: { tileTypeId: '4', kind: 'edge' } } as Action)
+    s = reducer(s, { type: 'ADD_FIGURE_SET', payload: { tileTypeId: '4', kind: 'vertex' } } as Action)
+    const ids = s.figures['4'].extraSets!.map(x => x.id)
+    expect(ids).toEqual(['set-1', 'set-2'])
+  })
+
+  it('ADD is capped at 4 sets', () => {
+    let s = gallery()
+    for (let i = 0; i < 6; i++) {
+      s = reducer(s, { type: 'ADD_FIGURE_SET', payload: { tileTypeId: '4', kind: 'edge' } } as Action)
+    }
+    expect(s.figures['4'].extraSets).toHaveLength(4)
+  })
+
+  it('UPDATE patches a set by id and cannot rewrite id or kind', () => {
+    let s = gallery()
+    s = reducer(s, { type: 'ADD_FIGURE_SET', payload: { tileTypeId: '4', kind: 'edge' } } as Action)
+    s = reducer(s, {
+      type: 'UPDATE_FIGURE_SET',
+      payload: { tileTypeId: '4', setId: 'set-1', patch: { contactAngle: 30, id: 'hacked', kind: 'vertex' } },
+    } as Action)
+    const set = s.figures['4'].extraSets![0]
+    expect(set).toMatchObject({ id: 'set-1', kind: 'edge', contactAngle: 30 })
+  })
+
+  it('UPDATE with no matching set / no extraSets is a no-op (same reference)', () => {
+    const s0 = gallery()
+    expect(reducer(s0, {
+      type: 'UPDATE_FIGURE_SET', payload: { tileTypeId: '4', setId: 'set-1', patch: { contactAngle: 12 } },
+    } as Action)).toBe(s0)
+  })
+
+  it('REMOVE drops the set; removing the last one clears extraSets to undefined', () => {
+    let s = gallery()
+    s = reducer(s, { type: 'ADD_FIGURE_SET', payload: { tileTypeId: '4', kind: 'edge' } } as Action)
+    s = reducer(s, { type: 'ADD_FIGURE_SET', payload: { tileTypeId: '4', kind: 'vertex' } } as Action)
+    s = reducer(s, { type: 'REMOVE_FIGURE_SET', payload: { tileTypeId: '4', setId: 'set-1' } } as Action)
+    expect(s.figures['4'].extraSets!.map(x => x.id)).toEqual(['set-2'])
+    s = reducer(s, { type: 'REMOVE_FIGURE_SET', payload: { tileTypeId: '4', setId: 'set-2' } } as Action)
+    expect(s.figures['4'].extraSets).toBeUndefined()
+  })
+
+  it('does not mutate the previous state (immutability)', () => {
+    const s0 = gallery()
+    const snapshot = structuredClone(s0)
+    reducer(s0, { type: 'ADD_FIGURE_SET', payload: { tileTypeId: '4', kind: 'edge' } } as Action)
+    expect(s0).toEqual(snapshot)
+  })
+})
+
 describe('RESET_FIGURES', () => {
   it('resets a tweaked gallery figure to its tiling default', () => {
     let s = gallery()

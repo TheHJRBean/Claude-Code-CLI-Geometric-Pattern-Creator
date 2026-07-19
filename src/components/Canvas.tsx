@@ -1201,6 +1201,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         strandScope={paintStrandScope}
         activeColor={paintColor}
         zoom={viewTransform.zoom}
+        strandWidth={config.strand.width}
         onPaintVoid={onPaintVoid}
         onPaintStrand={onPaintStrand}
         onSelectStampVoid={onSelectStampVoid}

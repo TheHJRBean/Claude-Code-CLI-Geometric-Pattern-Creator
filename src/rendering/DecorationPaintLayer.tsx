@@ -53,6 +53,7 @@ export function DecorationPaintLayer({
   strandScope,
   activeColor,
   zoom,
+  strandWidth = 0,
   onPaintVoid,
   onPaintStrand,
   // Stamp target: a Void click selects its congruent shape for the panel's
@@ -68,6 +69,14 @@ export function DecorationPaintLayer({
   strandScope: StrandPaintScope
   activeColor: string
   zoom: number
+  /** Rendered Strand stroke width (world units) — widens the strand pick
+   * radius so clicking anywhere on the visible stroke body hits, not just
+   * within a few screen px of the centreline. Matters at the Frame border:
+   * a stroke straddling the frame outline renders only its inner half (the
+   * clip cuts the rest), so the visible sliver can sit up to width/2 from
+   * the centreline — with a fixed screen-px radius those border strokes
+   * were unclickable when zoomed in or with thick strands. */
+  strandWidth?: number
   onPaintVoid: (payload: PaintPayload) => void
   onPaintStrand: (payload: PaintPayload) => void
   onSelectStampVoid?: (v: PaintVoid) => void
@@ -163,8 +172,11 @@ export function DecorationPaintLayer({
   }
 
   const strandIndexAt = (p: Vec2): number | null =>
-    // ~constant screen-space pick radius; a miss falls through to the pan handler.
-    nearestSegmentIndex(p, strandHits, 6 / zoom)
+    // ~constant screen-space pick radius, widened to the stroke body (half
+    // the strand width + slack) so clicks anywhere on a rendered stroke hit
+    // — border strokes half-cut by the Frame clip included. A miss falls
+    // through to the pan handler.
+    nearestSegmentIndex(p, strandHits, Math.max(6 / zoom, strandWidth / 2 + 2 / zoom))
 
   const strandCatcher = strandBBox && (
     <rect

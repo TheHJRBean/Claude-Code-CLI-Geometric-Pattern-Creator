@@ -21,6 +21,8 @@
 
 **Next (cold start):** user browser-verify — framed multi-cell save with vertex lines and/or #42 extra sets → Decoration → Strands target, congruent scope → paint an interior strand → border-touching strands of the same class must take the colour; check hover highlight matches, and weave mode still strokes whole chains. Then update/delete `project_frame_touching_strands_bug` memory.
 
+**Round 3 same day (`da6a106`):** user follow-up "still can't paint some strokes on the border" — AskUserQuestion pinned it: direct click does NOTHING (no hover), scope=All, no completions ⇒ NOT identity, a dead hit-test. Cause: `DecorationPaintLayer.strandIndexAt` used a fixed 6-screen-px radius to the segment CENTRELINE; strokes straddling the Frame outline render only their inner half (content + paint overlay both clip at the outline), so the visible sliver sits up to strand-width/2 from the centreline — outside the radius when zoomed in / thick strands → click fell through to pan. Fix: pick radius = max(6px screen, width/2 + 2px), `strandWidth` prop threaded from Canvas (`config.strand.width`). ⏳ verify: hover/bucket cursor should now appear on border slivers and clicks paint. If STILL dead, get the user's save JSON — next suspect would need a real repro.
+
 ---
 ### ▶ 2026-07-18 (Multi line sets #42 — BOTH SLICES SHIPPED) — ✅ Opus, ⏳ user browser-verify
 

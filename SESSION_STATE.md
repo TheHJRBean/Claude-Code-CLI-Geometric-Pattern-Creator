@@ -5,6 +5,23 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-19 (Frame border strand-paint fix — round 2 of the frame-identity bug) — ✅ Fable (matched rec), ⏳ user browser-verify
+
+**Goal:** user report — "void filling at the frame border was fixed; now the same symptom on strand colouring" (strands touching the Frame border miss congruent paint).
+
+**Root cause (1 commit `2c75592`, pushed; 1117 vitest green, tsc + build clean):** fix `2224286` keyed each rendered chain by the MAJORITY base signature of its segments. In multi-class fields (vertex lines on, or #42 extra line sets) most chains span several base classes — probe on 4.8.8 + vertex lines: 3 base classes, 37/44 rendered chains mixed, one class vanishes from the per-chain majority histogram entirely (unpaintable); with an extra set: 5 classes, 154/271 mixed. Frame-truncated border chains have a different class mix than the interior mega-chain, so majorities flip frame-dependently → border strands leave the painted class. The plain single-class 4.8.8 probe field is immune, which is why test A stayed green.
+
+**Fix (per-SEGMENT congruent resolution — the "per-run stroke split" polish deferred in the 2026-07-17 fix, now required):**
+- `decoration/strandGroups.ts`: new `segmentBaseSignatures` (per-segment base class via stamp-mapping) + `strandIdentitiesFromBase` now also returns `segmentSignatures` (base class, falling back to the owning chain's final signature for unmapped/world-space segments).
+- `usePattern.nonFastStrandHits`: paint keys use the per-segment signature (patch/cell keys stay whole-chain).
+- `StrandLayer`: strokes resolve per edge (memoised per distinct sig per chain); a chain whose edges resolve to different strokes splits into per-run sub-paths via new `curvedPathDSplitBy` (`strand/curvedPathD.ts`). Render body now consumes stroke-carrying `pieces` (mask cuts / caps / triple centre all aligned). **Weave keeps the whole-chain majority stroke** — the over/under cut walk needs the chain in one path (documented limitation).
+- `frameIdentityProbe.test.ts` test D: multi-class frame field (vertex lines), pins per-segment signature == base class for every mapped segment + every base class reachable, and documents that per-chain majorities lose classes.
+
+**Known remaining (out of scope, noted):** `patch`/`cell` scope keys still derive from the rendered truncated chain (centroid + point chain) — border strands under those scopes remain frame-dependent; congruent + all scopes (the common paths) are fixed. File a ticket if the user hits it.
+
+**Next (cold start):** user browser-verify — framed multi-cell save with vertex lines and/or #42 extra sets → Decoration → Strands target, congruent scope → paint an interior strand → border-touching strands of the same class must take the colour; check hover highlight matches, and weave mode still strokes whole chains. Then update/delete `project_frame_touching_strands_bug` memory.
+
+---
 ### ▶ 2026-07-18 (Multi line sets #42 — BOTH SLICES SHIPPED) — ✅ Opus, ⏳ user browser-verify
 
 **Goal:** implement ticket #42 (multi line sets) — additional edge/vertex line families per Figure recipe, from the same origins, with independent θ/length/curve.

@@ -98,6 +98,19 @@ function pruneFigures(figures: Record<string, FigureConfig>, tilingType: string)
   return next
 }
 
+/**
+ * Drop `config.morph` — used by the structural Patch swaps (fresh Cell set:
+ * EDITOR_NEW / EDITOR_CLEAR / SET_BUILDER_CONFIGURATION / multi→single
+ * SET_CELL_SHAPE). A Morph's Boundary overlays are keyed by the OLD Patch's
+ * tileTypeIds and its stop positions are world-space distances tuned to the
+ * old composition, so carrying it across renders stale settings.
+ */
+function dropMorph(state: PatternConfig): PatternConfig {
+  if (!state.morph) return state
+  const { morph: _drop, ...rest } = state
+  return rest
+}
+
 /** Return new state with a single figure field updated. */
 function updateFigure(state: PatternConfig, tileTypeId: string, patch: Partial<FigureConfig>): PatternConfig {
   return {
@@ -307,13 +320,13 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     case 'EDITOR_NEW': {
       const editor = createDefaultEditorConfig()
       return seedFigures({
-        ...state,
+        ...dropMorph(state),
         tiling: { ...state.tiling, type: 'editor' },
         editor,
       })
     }
     case 'EDITOR_CLEAR': {
-      const { editor: _drop, ...rest } = state
+      const { editor: _drop, ...rest } = dropMorph(state)
       void _drop
       return { ...rest, tiling: { ...state.tiling, type: '' } }
     }
@@ -328,7 +341,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
           shape: action.payload,
           boundarySize: DEFAULT_BOUNDARY_SIZE_BY_SHAPE[action.payload],
         })
-        return seedFigures({ ...state, editor: fresh })
+        return seedFigures({ ...dropMorph(state), editor: fresh })
       }
       // Single-cell: Tiles are preserved across boundary-shape changes
       // (single-edge placements remain valid under any Boundary). The Cell's
@@ -839,7 +852,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
           next = createDefaultEditorConfig()
       }
       return seedFigures({
-        ...state,
+        ...dropMorph(state),
         tiling: { ...state.tiling, type: 'editor' },
         editor: next,
       })

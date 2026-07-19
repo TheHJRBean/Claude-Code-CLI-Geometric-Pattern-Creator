@@ -107,6 +107,32 @@ describe('Morph — reducer actions (slice 2, #38)', () => {
     expect(unchanged).toBe(s)
   })
 
+  it('structural Patch swaps drop a stale Morph', () => {
+    const withMorph = (): PatternConfig => {
+      let s = base()
+      s = reducer(s, { type: 'SET_MORPH_ENABLED', payload: true })
+      return reducer(s, { type: 'ADD_MORPH_BOUNDARY', payload: { position: 100 } })
+    }
+    // Configuration swap seeds a fresh Cell set — Boundary overlays keyed by
+    // the old Patch's tileTypeIds must not survive.
+    let s = reducer(withMorph(), { type: 'SET_BUILDER_CONFIGURATION', payload: '4.8.8' })
+    expect(s.morph).toBeUndefined()
+    s = reducer(withMorph(), { type: 'SET_BUILDER_CONFIGURATION', payload: null })
+    expect(s.morph).toBeUndefined()
+    s = reducer(withMorph(), { type: 'EDITOR_NEW' })
+    expect(s.morph).toBeUndefined()
+    s = reducer(withMorph(), { type: 'EDITOR_CLEAR' })
+    expect(s.morph).toBeUndefined()
+    // Multi-cell → single-shape exit also discards the authored Cells.
+    let m = reducer(withMorph(), { type: 'SET_BUILDER_CONFIGURATION', payload: '4.8.8' })
+    m = reducer(m, { type: 'SET_MORPH_ENABLED', payload: true })
+    m = reducer(m, { type: 'SET_CELL_SHAPE', payload: 'hexagon' })
+    expect(m.morph).toBeUndefined()
+    // Single-cell Boundary-shape change preserves Tiles — Morph survives.
+    const single = reducer(withMorph(), { type: 'SET_CELL_SHAPE', payload: 'hexagon' })
+    expect(single.morph).toBeDefined()
+  })
+
   it('REMOVE_MORPH fully clears config.morph', () => {
     let s = base()
     s = reducer(s, { type: 'SET_MORPH_ENABLED', payload: true })

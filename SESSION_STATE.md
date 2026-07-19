@@ -19,6 +19,8 @@
 
 **Next (cold start):** **user browser-verify** — new/loaded Patch → Composition → expand a tile type's Strands card (Show advanced) → "+ Edge set" / "+ Vertex set" → confirm layered star families render on canvas and per-set θ/length/curve reshape live; confirm delete + the 4-set cap; check a loaded save with extra sets. If good, prune `project_multi_ray_sets_idea.md`. Possible v2 follow-ups: per-set colour (StrandLayer by majority-set per chain), morph extra sets, sampler emission.
 
+**Also filed this session (note only, NOT fixed): #43** — Morph settings carry over between compositions. Cause confirmed by code read: `config.morph` is top-level, and the destructive composition-swap reducer cases (`EDITOR_NEW` :307, `EDITOR_CLEAR` :315, `SET_BUILDER_CONFIGURATION` :807, `SET_CELL_SHAPE` multi→single :326) spread `...state` + swap only `editor`, so morph survives. `LOAD_CONFIG` is fine (wholesale replace). Fix = clear `config.morph` on those paths; decide single→single shape semantics + undo/snapshot interaction first (Sonnet rec). No code touched.
+
 ---
 ### ▶ 2026-07-18 (Multi line sets — planning only) — ✅ TICKET FILED (Fable), no code
 

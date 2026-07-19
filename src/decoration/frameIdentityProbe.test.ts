@@ -5,7 +5,7 @@ import { seedFiguresForEditor } from '../editor/tileTypes'
 import { frameOutlinePolygon } from '../editor/frame'
 import { runPIC } from '../pic/index'
 import { decorationExtractionPolygons } from '../hooks/usePattern'
-import { strandIdentitiesFromBase } from './strandGroups'
+import { baseSegmentSignatureMap, segmentBaseSignatures, strandIdentitiesFromBase } from './strandGroups'
 import { extractVoids } from './voids'
 import { pointInPolygon, dist } from '../utils/math'
 import type { Vec2 } from '../utils/math'
@@ -44,7 +44,7 @@ import type { FrameConfig } from '../types/editor'
 // classes and the assertions go red for the wrong reason.
 const FRAME_SIZE = 800
 
-function buildFrameField() {
+function buildFrameField(opts?: { vertexLines?: boolean }) {
   // 4.8.8 multi-cell Patch — its strands chain ACROSS tiles, which is what
   // the frame truncates. (Single-cell square fields at θ=67.5 have only
   // tile-local closed-loop strands and are structurally immune.)
@@ -54,7 +54,11 @@ function buildFrameField() {
   const config: PatternConfig = {
     tiling: { type: 'editor', scale: 100 },
     figures: Object.fromEntries(Object.entries(seedFiguresForEditor({}, ed))
-      .map(([k, f]) => [k, { ...f, contactAngle: 67.5 }])),
+      .map(([k, f]) => [k, {
+        ...f,
+        contactAngle: 67.5,
+        ...(opts?.vertexLines ? { vertexLinesEnabled: true } : {}),
+      }])),
     strand: { width: 4, color: '#1a1a2e', background: '#f5f0e8' },
     editor: ed,
   }
@@ -171,6 +175,51 @@ describe('frame identity corruption (regression)', () => {
     expect(translatesChecked).toBeGreaterThan(0)
     // Desired: congruent paint covers every visible copy of the motif element.
     expect(misses).toEqual([])
+  })
+
+  it('D: congruent strand paint reaches every border segment of the painted base class', () => {
+    // The strand-half fix (`2224286`) keyed each RENDERED chain by the
+    // majority base signature of its segments. But in a multi-class field
+    // (vertex lines / extra line sets) a rendered chain spans multiple base
+    // classes, and a frame-TRUNCATED border chain has a different class mix
+    // than the interior mega-chain — majorities flip frame-dependently and
+    // whole classes can vanish from the per-chain histogram ("strand colour
+    // not applying to strands touching the frame border", 2026-07-19).
+    // Congruent resolution must be per SEGMENT, not per chain majority.
+    const { segments, stamps, baseSegments } = buildFrameField({ vertexLines: true })
+    const ids = strandIdentitiesFromBase(segments, baseSegments, stamps)
+    const segSigs = segmentBaseSignatures(segments, baseSegmentSignatureMap(baseSegments), stamps)
+
+    // The field genuinely has multiple base classes and mixed chains —
+    // otherwise this test can't tell per-segment from per-chain resolution.
+    const classes = new Set(segSigs.filter((s): s is string => s !== null))
+    expect(classes.size).toBeGreaterThan(1)
+
+    // Painting a class congruent-scope must reach every segment whose own
+    // base class matches — visually identical copies of the clicked element.
+    // The production paint keys + stroke resolution use the per-SEGMENT
+    // effective signature; assert it never diverges from the base class.
+    const misses: string[] = []
+    for (let i = 0; i < segments.length; i++) {
+      const sig = segSigs[i]
+      if (sig === null || ids.strandOfSegment[i] < 0) continue
+      if (ids.segmentSignatures[i] !== sig) {
+        const mx = (segments[i].from.x + segments[i].to.x) / 2
+        const my = (segments[i].from.y + segments[i].to.y) / 2
+        misses.push(`${sig}@${mx.toFixed(0)},${my.toFixed(0)} got=${ids.segmentSignatures[i]}`)
+      }
+    }
+    expect(misses).toEqual([])
+
+    // Every base class must be reachable by a congruent paint click. The
+    // per-CHAIN majority (fix `2224286` alone) loses whole classes — 37/44
+    // chains here are mixed and one class vanishes from the chain histogram.
+    const chainSigs = new Set(ids.strands.map(s => s.signature))
+    const segEffSigs = new Set(ids.segmentSignatures)
+    for (const c of classes) expect(segEffSigs.has(c)).toBe(true)
+    // Documents WHY the per-segment path exists: if chains ever become
+    // class-pure, this goes red and the split machinery can be reconsidered.
+    expect([...classes].every(c => chainSigs.has(c))).toBe(false)
   })
 
   it('B: voids near the frame keep an interior congruent signature', () => {

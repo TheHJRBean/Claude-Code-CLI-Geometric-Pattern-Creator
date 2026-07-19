@@ -191,25 +191,23 @@ function parseStampedId(id: string, stampCount: number): { baseId: string; stamp
 }
 
 /**
- * Per rendered strand: the majority base-chain signature of its segments,
- * or null when none of its segments map to the base fragment (world-space
- * completion/Guide Tile chains — those keep their own chain identity).
- * Deterministic tie-break: lexicographically smallest signature.
+ * Per rendered segment: the congruent signature of the base chain its
+ * de-stamped twin belongs to, or null when the segment doesn't map to the
+ * base fragment (world-space completion/Guide Tile segments — no stamp).
  */
-export function renderedStrandBaseSignatures(
-  strandData: StrandData[],
+export function segmentBaseSignatures(
   segments: Segment[],
   baseMap: BaseSegmentSignatureMap,
   stamps: LatticeStamp[],
 ): (string | null)[] {
-  const sigOfSegment = (i: number): string | null => {
-    const parsed = parseStampedId(segments[i].polygonId, stamps.length)
+  return segments.map(s => {
+    const parsed = parseStampedId(s.polygonId, stamps.length)
     if (!parsed) return null
     const list = baseMap.get(parsed.baseId)
     if (!list) return null
     const st = stamps[parsed.stamp]
-    const mx = (segments[i].from.x + segments[i].to.x) / 2 - st.translation.x
-    const my = (segments[i].from.y + segments[i].to.y) / 2 - st.translation.y
+    const mx = (s.from.x + s.to.x) / 2 - st.translation.x
+    const my = (s.from.y + s.to.y) / 2 - st.translation.y
     // Undo the stamp rotation (triangle cells have a rotation-π orientation).
     let bx = mx, by = my
     if (st.rotation !== 0) {
@@ -222,11 +220,34 @@ export function renderedStrandBaseSignatures(
       if (Math.abs(e.mid.x - bx) < BASE_MATCH_TOL && Math.abs(e.mid.y - by) < BASE_MATCH_TOL) return e.sig
     }
     return null
-  }
+  })
+}
+
+/**
+ * Per rendered strand: the majority base-chain signature of its segments,
+ * or null when none of its segments map to the base fragment (world-space
+ * completion/Guide Tile chains — those keep their own chain identity).
+ * Deterministic tie-break: lexicographically smallest signature.
+ *
+ * NB the majority is only a per-STRAND summary — a rendered chain can span
+ * multiple base classes (base chains truncate at the base-fragment edge, so
+ * a field-crossing chain mixes them), and frame-truncated border chains have
+ * a different mix than interior ones. Congruent paint therefore resolves per
+ * SEGMENT via `segmentBaseSignatures`; the majority survives as the fallback
+ * for whole-chain keys (patch / cell scope).
+ */
+export function renderedStrandBaseSignatures(
+  strandData: StrandData[],
+  segments: Segment[],
+  baseMap: BaseSegmentSignatureMap,
+  stamps: LatticeStamp[],
+  precomputedSegSigs?: (string | null)[],
+): (string | null)[] {
+  const segSigs = precomputedSegSigs ?? segmentBaseSignatures(segments, baseMap, stamps)
   return strandData.map(sd => {
     const votes = new Map<string, number>()
     for (const i of sd.segmentIndices) {
-      const sig = sigOfSegment(i)
+      const sig = segSigs[i]
       if (sig) votes.set(sig, (votes.get(sig) ?? 0) + 1)
     }
     let best: string | null = null
@@ -238,22 +259,41 @@ export function renderedStrandBaseSignatures(
   })
 }
 
+export interface StrandIdentitiesWithSegments extends StrandIdentities {
+  /**
+   * Per-SEGMENT effective congruent signature: the segment's own base-chain
+   * class where it maps to the base fragment, else its owning chain's final
+   * signature (majority / rendered fallback). Congruent paint keys + stroke
+   * resolution must use THIS, not the per-chain signature — a rendered chain
+   * spans multiple base classes in multi-class fields (vertex lines / extra
+   * line sets), and frame-truncated border chains have a different class mix
+   * than interior ones, so per-chain majorities are frame-dependent.
+   * `''` for segments not on any chain.
+   */
+  segmentSignatures: string[]
+}
+
 /**
  * `strandIdentities` over a lattice-stamped rendered field, with each
  * strand's SIGNATURE taken from the base fragment's chains (majority over
- * the strand's segments). Centroid / closed / chains stay those of the
- * rendered field — only the congruent identity is field-independent.
+ * the strand's segments) and each SEGMENT carrying its own base class.
+ * Centroid / closed / chains stay those of the rendered field — only the
+ * congruent identity is field-independent.
  */
 export function strandIdentitiesFromBase(
   segments: Segment[],
   baseSegments: Segment[],
   stamps: LatticeStamp[],
-): StrandIdentities {
+): StrandIdentitiesWithSegments {
   const ids = strandIdentities(segments)
-  const baseSigs = renderedStrandBaseSignatures(
-    ids.strandData, segments, baseSegmentSignatureMap(baseSegments), stamps)
-  return {
-    ...ids,
-    strands: ids.strands.map((s, i) => (baseSigs[i] ? { ...s, signature: baseSigs[i]! } : s)),
-  }
+  const baseMap = baseSegmentSignatureMap(baseSegments)
+  const segSigs = segmentBaseSignatures(segments, baseMap, stamps)
+  const baseSigs = renderedStrandBaseSignatures(ids.strandData, segments, baseMap, stamps, segSigs)
+  const strands = ids.strands.map((s, i) => (baseSigs[i] ? { ...s, signature: baseSigs[i]! } : s))
+  const segmentSignatures = segments.map((_, i) => {
+    const si = ids.strandOfSegment[i]
+    if (si < 0) return ''
+    return segSigs[i] ?? strands[si].signature
+  })
+  return { ...ids, strands, segmentSignatures }
 }

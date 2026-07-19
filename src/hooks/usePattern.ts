@@ -722,7 +722,11 @@ export function usePattern(
         from: segments[i].from,
         to: segments[i].to,
         strandId: strandIdx,
-        signature: ids.strands[strandIdx].signature,
+        // Per-SEGMENT effective congruent signature — a chain spans multiple
+        // base classes in multi-class fields (vertex lines / extra sets) and
+        // border chains' majorities are frame-dependent, so keying the chain
+        // majority made congruent paint miss border strands.
+        signature: ids.segmentSignatures[i],
         patchKey: patchKeys[strandIdx],
         cellKey: cellKeys[strandIdx],
       })

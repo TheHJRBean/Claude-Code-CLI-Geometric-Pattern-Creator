@@ -71,6 +71,33 @@ export function curvedPathDSplit(
 }
 
 /**
+ * Generalised multi-way split: classify each edge with `keyOf` and collect
+ * one `d` string per key. Each contiguous same-key run becomes an M-prefixed
+ * sub-path, so a Strand whose edges resolve to different Decoration strokes
+ * splits cleanly at the class change instead of taking one stroke whole.
+ */
+export function curvedPathDSplitBy(
+  strand: CurvedStrand,
+  keyOf: (edgeIndex: number) => string,
+): Map<string, string> {
+  const { points, curves } = strand
+  const parts = new Map<string, string[]>()
+  if (points.length < 2) return new Map()
+  let runKey: string | null = null
+  for (let i = 0; i < points.length - 1; i++) {
+    const k = keyOf(i)
+    let list = parts.get(k)
+    if (!list) { list = []; parts.set(k, list) }
+    if (runKey !== k) {
+      list.push(`M${points[i].x} ${points[i].y}`)
+      runKey = k
+    }
+    list.push(edgeCommand(points[i], points[i + 1], curves[i]))
+  }
+  return new Map([...parts].map(([k, v]) => [k, v.join(' ')]))
+}
+
+/**
  * Generate an SVG path `d` attribute from a flat point array (no curves).
  * Used as a fallback when curve data is unavailable.
  */

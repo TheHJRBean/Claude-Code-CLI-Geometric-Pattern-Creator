@@ -5,6 +5,20 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-19 (Morph reset on composition swap — ticket #43) — ✅ FIXED (Fable; Sonnet-level task), issue #43 CLOSED
+
+**Goal:** user report — Morph settings not reset between composition changes (= ticket #43, filed 2026-07-18).
+
+**Done (1 commit `d80f9e6`, pushed; tsc clean, 1118 vitest green):** `dropMorph` helper in `src/state/reducer.ts` (~:101), applied to the four structural Patch swaps that spread `...state` and let `config.morph` survive: `SET_BUILDER_CONFIGURATION` (both id + null), `EDITOR_NEW`, `EDITOR_CLEAR`, multi→single `SET_CELL_SHAPE`. Regression test in `src/state/morph.test.ts` ("structural Patch swaps drop a stale Morph").
+
+**Decisions:**
+- Single-cell Boundary-shape change KEEPS the Morph — Tiles are preserved there, so overlay tileTypeIds stay valid (pinned in the test).
+- `LOAD_CONFIG` / preset-shelf loads already fine (wholesale state replace).
+- Known limitation, flagged to user: undoing a Configuration swap does NOT restore the dropped Morph — morph was never in the editor history snapshot (`EDITOR_RESTORE_SNAPSHOT` restores `editor` only). File a follow-up only if the user hits it.
+
+**Next (cold start):** nothing for this fix beyond casual browser sanity (switch Configuration with an active Morph → MorphPanel back to empty/disabled). NOTE for the frame border strand-paint save bug (entry below): suspect 1 there was "`config.morph` riding in the save" — this fix stops NEW pollution but existing saves in the user's library may still carry a stale morph; the replay-the-save investigation still stands.
+
+---
 ### ▶ 2026-07-19 (Frame border strand-paint fix — round 2 of the frame-identity bug) — ✅ Fable (matched rec), ⏳ user browser-verify
 
 **Goal:** user report — "void filling at the frame border was fixed; now the same symptom on strand colouring" (strands touching the Frame border miss congruent paint).

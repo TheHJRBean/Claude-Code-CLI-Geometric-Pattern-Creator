@@ -5,6 +5,21 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-20 (Line-set enhancements shipped + Decoration-gradients grill/spec) — ✅ SHIPPED (Fable), ⏳ user browser-verify
+
+**Goal:** (a) four line-set quick asks; (b) grill + spec gradients.
+
+**Done (a) — `898a09b` feat(strands), 1125 vitest green, tsc clean:**
+1. **Set limit removed** — `MAX_FIGURE_SETS` deleted (reducer + FigureControls); add buttons always shown.
+2. **Primary hideable** — Edge/Vertex toggles no longer force each other on when `extraSets` exist (both primaries can go dark); deleting the last set re-lights edge lines (can't strand invisible).
+3. **Tile-to-strand** — new `FigureLineSet.kind: 'boundary'` ("+ Tile edges" button): emits tile outlines as Strands (`runPIC` per-edge emission, field-wide `boundaryEdgeKey` 1e-4 dedupe so shared edges emit once), no θ/length controls, curve + enable + `setId` chaining as any set. Tests in `pic/multiSet.test.ts`.
+4. **Inner fill for double/triple** — `innerFill?: string` on `StrandStyle` + `FrameStroke`: "Fill between lines" toggle + swatch (StrandStyleControls + DecorationPanel), rendered as cut-width underlay the centre mask reveals (StrandLayer + FrameBorder). Survives save/load (configValidation + editor/migrations; Gallery frame stroke now also retains `lineStyle`, previously dropped on load).
+
+**Done (b) — `71190cc` DECORATION_GRADIENTS_SPEC.md + tickets #44 (slice 1 per-shape + focus editor, Fable) / #45 (across-frame underlay + canvas handles, Opus) / #46 (v2 strand gradients w/ per-Ray handles, DEFERRED until #44+#45 verified, Fable).** Key decisions in spec: gradient = 4th PaintTarget; arbitrary draggable stops via ColourPicker; per-shape edited in StampFocusEditor-style modal; across-frame = underlay showing through UNPAINTED Voids only, one per comp, off by default. Memory `project_decoration_gradients_idea.md` (PLANNED). Also captured `project_export_view_fit_idea.md` (RAW — export screen-view vs max-fill toggle).
+
+**Next (cold start):** user browser-verify (a): uncapped sets; hide primary w/ set present; "+ Tile edges" on single- AND multi-cell Patches (dedupe across cell-transformed tiles uses 1e-4 grid — watch for doubled border strokes); inner fill on Strands + Frame border, incl. under weave. Then pick up #44 (Fable) when gradients start. Untracked user data at repo root (`islamic-pattern.json`, `islamic-pattern (6).png`) left for the round-5 verify below.
+
+---
 ### ▶ 2026-07-20 (Frame border strand-paint — round 5: THE saved-comp bug, root-caused via user's JSON) — ✅ FIXED + ✅ Playwright-verified end-to-end (Fable)
 
 **Goal:** round-4 curve fix didn't cover the user's case ("there are no curves"). User supplied the failing comp (`islamic-pattern.json`, repo root): snub square 3.3.4.3.4, θ=10, four extra edge sets, square Frame 471 w/ 8.5 border stroke, strandColours `*`, morph disabled-but-present (#43 stale carry-over, harmless here).

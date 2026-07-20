@@ -95,6 +95,73 @@ describe('canonicalPose', () => {
     expect(canonicalPose([])).toBeNull()
     expect(canonicalPose([{ x: 0, y: 0 }, { x: 1, y: 1 }])).toBeNull()
   })
+
+  // Symmetric-shape tie-break (#44 Matching gradient consistency): every
+  // instance of a symmetric Void must pick the SAME symmetry image, not an
+  // arbitrary tied traversal, or gradients land rotated differently per
+  // congruent instance.
+  describe('symmetric-shape tie-break', () => {
+    const SQUARE: Vec2[] = [
+      { x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 },
+    ]
+    const sameTransform = (a: StampTransform, b: StampTransform, tol = 1e-9) =>
+      Math.abs(a.a - b.a) < tol && Math.abs(a.b - b.b) < tol
+      && Math.abs(a.c - b.c) < tol && Math.abs(a.d - b.d) < tol
+      && Math.abs(a.e - b.e) < tol && Math.abs(a.f - b.f) < tol
+
+    it('vertex-array rotation of the same world polygon gives the same pose', () => {
+      const base = canonicalPose(SQUARE)!
+      for (let k = 1; k < 4; k++) {
+        const cycled = [...SQUARE.slice(k), ...SQUARE.slice(0, k)]
+        const posed = canonicalPose(cycled)!
+        expect(sameTransform(base.toInstance, posed.toInstance)).toBe(true)
+      }
+    })
+
+    it('reversed winding of the same world polygon gives the same pose', () => {
+      const base = canonicalPose(SQUARE)!
+      const reversed = [...SQUARE].reverse()
+      const posed = canonicalPose(reversed)!
+      expect(sameTransform(base.toInstance, posed.toInstance)).toBe(true)
+    })
+
+    it('translated instances differ only in the translation part', () => {
+      const base = canonicalPose(SQUARE)!
+      const moved = SQUARE.map(p => ({ x: p.x + 137.25, y: p.y - 61.75 }))
+      const posed = canonicalPose(moved)!
+      expect(posed.toInstance.a).toBeCloseTo(base.toInstance.a, 9)
+      expect(posed.toInstance.b).toBeCloseTo(base.toInstance.b, 9)
+      expect(posed.toInstance.c).toBeCloseTo(base.toInstance.c, 9)
+      expect(posed.toInstance.d).toBeCloseTo(base.toInstance.d, 9)
+      expect(posed.toInstance.e - base.toInstance.e).toBeCloseTo(137.25, 6)
+      expect(posed.toInstance.f - base.toInstance.f).toBeCloseTo(-61.75, 6)
+    })
+
+    it('a 90°-rotated square (same world footprint) reuses the same pose', () => {
+      // Rotating the square about its centre by its own symmetry angle
+      // yields the identical world polygon (different vertex labels) — the
+      // chosen pose must be identical, so a gradient painted on one lands
+      // pixel-identically on the other.
+      const centre = { x: 5, y: 5 }
+      const rotated = SQUARE.map(p => rot({ x: p.x - centre.x, y: p.y - centre.y }, Math.PI / 2, centre))
+      const base = canonicalPose(SQUARE)!
+      const posed = canonicalPose(rotated)!
+      expect(sameTransform(base.toInstance, posed.toInstance, 1e-6)).toBe(true)
+    })
+
+    it('regular hexagon: cycled vertex arrays agree on the pose', () => {
+      const HEX: Vec2[] = Array.from({ length: 6 }, (_, i) => ({
+        x: 20 * Math.cos((Math.PI / 3) * i),
+        y: 20 * Math.sin((Math.PI / 3) * i),
+      }))
+      const base = canonicalPose(HEX)!
+      for (let k = 1; k < 6; k++) {
+        const cycled = [...HEX.slice(k), ...HEX.slice(0, k)]
+        const posed = canonicalPose(cycled)!
+        expect(sameTransform(base.toInstance, posed.toInstance, 1e-6)).toBe(true)
+      }
+    })
+  })
 })
 
 describe('fitImageRect', () => {

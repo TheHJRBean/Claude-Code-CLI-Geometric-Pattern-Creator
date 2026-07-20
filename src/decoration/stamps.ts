@@ -19,10 +19,12 @@ import { signedArea, simplifyCollinear } from './voids'
  * quantised interior-angle + edge-length tokens over every start vertex and
  * both traversal directions; the lexicographically-smallest token string
  * wins. Congruent instances produce the same token ring, so they pick
- * geometrically-corresponding poses. For a shape with its own symmetries the
- * winning pose is ambiguous up to that symmetry group (several traversals
- * tie); any winner is a correct fit — the stamp may sit in a different
- * symmetric orientation per instance, which is inherent, not a bug.
+ * geometrically-corresponding poses. For a shape with its own symmetries
+ * several traversals tie on the token string; ties are broken by **world
+ * orientation** (smallest first-edge angle, unreflected preferred), so every
+ * instance of a symmetric Void picks the same symmetry image — translated
+ * instances render gradients/stamps identically, rotated ones as world-
+ * aligned as the shape's own symmetry allows (#44 Matching consistency).
  */
 
 /** SVG `matrix(a b c d e f)` affine: (x,y) → (a·x + c·y + e, b·x + d·y + f). */
@@ -87,8 +89,7 @@ export function canonicalPose(polygon: Vec2[]): CanonicalPose | null {
   // from intrinsic quantities, so congruent instances (including reflected
   // ones) enumerate the same candidate set and agree on the minimum.
   let bestSer: string | null = null
-  let bestStart = 0
-  let bestDir: 1 | -1 = 1
+  const candidates: { ser: string; start: number; dir: 1 | -1 }[] = []
   for (const dir of [1, -1] as const) {
     for (let s = 0; s < n; s++) {
       const parts: string[] = []
@@ -98,11 +99,36 @@ export function canonicalPose(polygon: Vec2[]): CanonicalPose | null {
         parts.push(angleTok[vi], `e${Math.round(dist(kp[vi], kp[vj]) / LENGTH_SNAP)}`)
       }
       const ser = parts.join(';')
-      if (bestSer === null || ser < bestSer) {
-        bestSer = ser
-        bestStart = s
-        bestDir = dir
-      }
+      candidates.push({ ser, start: s, dir })
+      if (bestSer === null || ser < bestSer) bestSer = ser
+    }
+  }
+
+  // Symmetric shapes tie on the token string (one candidate per symmetry
+  // image). Break ties by world orientation — the traversal whose first edge
+  // has the smallest world angle, preferring the unreflected direction — so
+  // congruent instances agree on WHICH symmetry image they pose through:
+  // translated instances get identical poses, rotated/mirrored ones the
+  // most world-aligned pose the shape's symmetry group offers.
+  const ANGLE_EPS = 1e-7
+  const TAU = 2 * Math.PI
+  let bestStart = 0
+  let bestDir: 1 | -1 = 1
+  let bestAng = Infinity
+  for (const c of candidates) {
+    if (c.ser !== bestSer) continue
+    const p0 = kp[c.start]
+    const p1 = kp[((c.start + c.dir) % n + n) % n]
+    let ang = Math.atan2(p1.y - p0.y, p1.x - p0.x)
+    if (ang < 0) ang += TAU
+    if (ang > TAU - ANGLE_EPS) ang = 0
+    if (
+      ang < bestAng - ANGLE_EPS
+      || (Math.abs(ang - bestAng) <= ANGLE_EPS && c.dir === 1 && bestDir === -1)
+    ) {
+      bestAng = ang
+      bestStart = c.start
+      bestDir = c.dir
     }
   }
 

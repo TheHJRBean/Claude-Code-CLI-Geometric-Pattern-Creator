@@ -691,7 +691,14 @@ export function usePattern(
   // gated on the Strands target so Voids-mode users don't pay the chaining.
   const nonFastStrandHits = useMemo<StrandHit[] | null>(() => {
     if (!decorationActive || decorationPaintTarget !== 'strands' || !stampedField || stampedField.fastPath || !editorBase) return null
-    const segments = stampedField.segments
+    // Hit-test the EXTRACTION field, not the frame-filtered rendered field.
+    // With a Frame the rendered field stops where a tile's centre leaves the
+    // outline (the completion gap), but the Void fills extract from the FULL
+    // field and paint out to the frame edge — so the user sees strand strips
+    // (the gaps between fills) in the border band with no hit target under
+    // them: border strands were unclickable and unpaintable. Frameless,
+    // `decoField === segments` and nothing changes.
+    const segments = stampedField.decoField
     // Signatures from the BASE fragment's chains, not the stamped field's —
     // stamped-field chains merge across stamps and truncate at the Frame, so
     // their congruent signatures are frame-dependent and near-frame strands
@@ -989,7 +996,11 @@ export function usePattern(
         const stampTranslations = nonFastVoidData?.stampTranslations ?? stamps.map(s => s.translation)
         return {
           polygons: picPolygons,
-          segments,
+          // Strands render from the same EXTRACTION field the Void fills come
+          // from (the frame clip cuts them at the outline), so painted strand
+          // colours cover the border band the fills already paint — matching
+          // `nonFastStrandHits`. Frameless, `decoField === segments`.
+          segments: stampedField.decoField,
           boundaryOutlines,
           voidFills: colourVoids(keyed, patch.decoration),
           voidStamps: resolveVoidStamps(keyed, patch.decoration?.voidStamps),

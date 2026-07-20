@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createDefault488EditorConfig } from '../editor/createDefault'
+import { createDefault488EditorConfig, createDefault33434EditorConfig } from '../editor/createDefault'
 import { compositionToPolygons, compositionLatticeStamps } from '../editor/compositionLattice'
 import { seedFiguresForEditor } from '../editor/tileTypes'
 import { frameOutlinePolygon } from '../editor/frame'
@@ -220,6 +220,82 @@ describe('frame identity corruption (regression)', () => {
     // Documents WHY the per-segment path exists: if chains ever become
     // class-pure, this goes red and the split machinery can be reconsidered.
     expect([...classes].every(c => chainSigs.has(c))).toBe(false)
+  })
+
+  it('E: strand hit/paint field covers the border band the fills paint', () => {
+    // Round 5 ("border strand colour error is still persisting", 2026-07-20):
+    // the RENDERED field keeps only tiles whose centre is inside the outline
+    // (the completion gap), but Void fills extract from the FULL field and
+    // paint out to the frame edge. The strand strips the user sees are the
+    // gaps BETWEEN fills — in the border band they had no rendered segment
+    // under them, so clicks hit nothing and paint never applied there.
+    // nonFastStrandHits + the Decoration StrandLayer field must therefore be
+    // the extraction field (decoField), whose strips match the fills.
+    //
+    // 4.8.8 at θ=67.5 doesn't exhibit the gap (long star arms from kept tiles
+    // cover the excluded band); the reporting field — snub square at θ=10,
+    // shallow arms hugging the tile edges — does. Mirror it.
+    const ed = createDefault33434EditorConfig()
+    const frame: FrameConfig = { type: 'shape', shape: 'square', size: 471 }
+    ed.frame = frame
+    const config: PatternConfig = {
+      tiling: { type: 'editor', scale: 100 },
+      figures: Object.fromEntries(Object.entries(seedFiguresForEditor({}, ed))
+        .map(([k, f]) => [k, { ...f, contactAngle: 10 }])),
+      strand: { width: 1, color: '#1a1a2e', background: '#f5f0e8' },
+      editor: ed,
+    }
+    const outline = frameOutlinePolygon(frame)!
+    const margin = 3 * Math.max(ed.edgeLength, ed.cells[0].boundarySize)
+    const box = { x: -471 - margin, y: -471 - margin, width: 2 * (471 + margin), height: 2 * (471 + margin) }
+    const stamps = compositionLatticeStamps(ed, box)
+    const basePolys = compositionToPolygons(ed)
+    const polygons: Polygon[] = []
+    for (let s = 0; s < stamps.length; s++) {
+      const t = stamps[s].translation
+      for (const p of basePolys) {
+        polygons.push({
+          ...p,
+          id: `${p.id}@${s}`,
+          center: { x: p.center.x + t.x, y: p.center.y + t.y },
+          vertices: p.vertices.map(v => ({ x: v.x + t.x, y: v.y + t.y })),
+        })
+      }
+    }
+    const segments = runPIC(polygons.filter(p => pointInPolygon(p.center, outline)), config)
+    const decoField = runPIC(polygons, config)
+
+    // Motivation: the rendered field genuinely leaves strips uncovered.
+    const sampleCovered = (field: typeof segments): { visible: number; uncovered: number } => {
+      let visible = 0, uncovered = 0
+      for (const s of decoField) {
+        for (let k = 0; k <= 4; k++) {
+          const t = k / 4
+          const p = { x: s.from.x + (s.to.x - s.from.x) * t, y: s.from.y + (s.to.y - s.from.y) * t }
+          if (!pointInPolygon(p, outline)) continue
+          visible++
+          let best = Infinity
+          for (const r of field) {
+            const dx = r.to.x - r.from.x, dy = r.to.y - r.from.y
+            const L2 = dx * dx + dy * dy
+            const tt = Math.max(0, Math.min(1, ((p.x - r.from.x) * dx + (p.y - r.from.y) * dy) / (L2 || 1)))
+            const d = Math.hypot(p.x - (r.from.x + dx * tt), p.y - (r.from.y + dy * tt))
+            if (d < best) best = d
+            if (best === 0) break
+          }
+          if (best > 6) uncovered++
+        }
+      }
+      return { visible, uncovered }
+    }
+    const rendered = sampleCovered(segments)
+    expect(rendered.visible).toBeGreaterThan(0)
+    // Documents WHY hits come from decoField: if the rendered field ever
+    // covers the whole visible band, the field split can be reconsidered.
+    expect(rendered.uncovered).toBeGreaterThan(0)
+    // The fix: the extraction field covers every visible strip (trivially —
+    // the strips ARE its segments; pinned so the fields never diverge again).
+    expect(sampleCovered(decoField).uncovered).toBe(0)
   })
 
   it('B: voids near the frame keep an interior congruent signature', () => {

@@ -5,6 +5,23 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-20 (Frame border strand-paint — round 5: THE saved-comp bug, root-caused via user's JSON) — ✅ FIXED + ✅ Playwright-verified end-to-end (Fable)
+
+**Goal:** round-4 curve fix didn't cover the user's case ("there are no curves"). User supplied the failing comp (`islamic-pattern.json`, repo root): snub square 3.3.4.3.4, θ=10, four extra edge sets, square Frame 471 w/ 8.5 border stroke, strandColours `*`, morph disabled-but-present (#43 stale carry-over, harmless here).
+
+**Root cause (found by headless replay + Playwright DOM inspection):** the RENDERED/hit strand field keeps only tiles whose centre is inside the Frame outline (the completion-gap filter in `stampedField`), but Void fills extract from the FULL unfiltered field (`decoField`) and paint out to the frame edge. Strands are visually the GAPS between fills — so the border band (~half a tile wide) shows strand strips with NO strand segment underneath: no hover, no click, no paint. Replay of the user's exact config: 308/9088 visible strip samples uncovered, worst gap 32 world units; DOM showed the catcher rect receiving events but zero hit targets there. (4.8.8 @ θ=67.5 doesn't exhibit it — long star arms cover the band — which is why every earlier probe field looked clean; shallow-θ fields do.)
+
+**Fix (`usePattern.ts`, 2 lines + comments):** `nonFastStrandHits` and the non-fast Decoration branch's `segments` (the painted StrandLayer field) now use `stampedField.decoField` instead of the filtered `segments` — same field the fills come from; frameless `decoField === segments` so nothing else changes. Frame clip still cuts strokes at the outline. Regression: `frameIdentityProbe.test.ts` test E (snub-square θ=10 field; pins that the rendered field leaves strips uncovered AND decoField covers 100%).
+
+**Verified:** 1122 vitest green, tsc clean. Playwright (headless chromium via scratchpad libs — libnspr4 etc extracted debs at `scratchpad/chromedeps`, system install refused): loaded the save from the library dropdown, Decoration→Strands: border sweep dead points 232→132 (all remaining are ≥6 units off-strip, i.e. inside fills — correct); a previously-dead border strip point (-175.5,-313.4) hovers + paints (Matching reach → "2 Strand colours", stroked path appears).
+
+**Also this session (`4a5f3b1`, round 4):** curved-stroke hit-test/hover follow flattened Bézier polylines (real bug, just not this user's) — StrandHit.poly, pointPolylineDist, flattenSegmentPolylines.
+
+**Notes for later:** `FrameBoundaryTreatment` ('complete'/'clip') is consumed NOWHERE at render time — vestigial; the field always filters centre-inside. `segmentBaseSignatures` midpoint match ignores `setId` (coincident twin-set aliasing — benign). Morph-in-save carry-over confirmed in the wild (#43 fix stops new pollution; old saves keep a disabled stale morph — harmless).
+
+**Next (cold start):** user browser-verify on their real comp (border strand strips should hover+paint; also re-test their SAVED comps — this was almost certainly the saved-comp blocker from 2026-07-19, so the `pattern-library-v1` dump investigation is likely DONE). If confirmed → prune/close `project_frame_touching_strands_bug` memory. Consider deleting `islamic-pattern.json` from the repo root (user data) after verify.
+
+---
 ### ▶ 2026-07-20 (Frame border strand-paint — round 4: curved strokes unclickable) — ✅ FIXED (Fable), ⏳ user browser-verify
 
 **Goal:** user report — border strand-paint error persists ("less severe"): on a FRESH comp with #42 extra line sets, clicking some border strands does nothing (no hover). Screenshot `islamic-pattern (6).png` shows curved petal strands.

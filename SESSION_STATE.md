@@ -5,6 +5,17 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-20 (Gradients #44 — user bug reports: stop colours + Matching inconsistency) — ✅ FIXED (Fable), ⏳ user browser-verify
+
+**Goal:** two user reports on slice 1: (a) gradient stop colours not independently editable ("each colour change needs its own colour picker"); (b) Matching reach paints the gradient inconsistently across congruent Voids.
+
+**Root causes + fixes (2 commits, 1156 vitest green, tsc clean):**
+1. **`50b4365` Matching inconsistency:** `canonicalPose` (`decoration/stamps.ts`) broke token-string ties by scan order — symmetric Voids (squares/hexagons, common!) posed through an ARBITRARY symmetry image per instance, so gradients landed rotated/mirrored differently. Now ties break by world orientation (smallest first-edge world angle, unreflected preferred, 1e-7 snap): translated instances pose identically; rotated/mirrored ones as world-aligned as the symmetry allows. Also affects stamps (doc comment updated — was documented as "inherent, not a bug"). 5 new tests in `stamps.test.ts` (cycled/reversed vertex arrays, translation, 90°-rotated square, hexagon).
+2. **`2d5281b` stop colours:** `GradientStopBar` now renders a per-stop native colour well row under the track (offset order, selects on click) — panel AND focus editor get it; shared themed ColourPicker still binds to the selected stop. Plus **"New gradient"** button (selection detach, prop chain TessellationLabMode → EditorDesignControls → DecorationPanel): draft edits were live-restyling the last-painted group with no way to start a fresh gradient without clobbering it.
+
+**Next (cold start):** user browser-verify: (a) per-stop wells edit only their stop; (b) Matching gradient on a symmetric Void group (e.g. square/hex Voids) — all instances now consistent (translated ones identical); (c) New gradient detach → paint second group with different colours, first keeps its own. Note: old SAVES with stamps on symmetric Voids may render the stamp in a different (now-canonical) orientation — expected side effect. Then #45 slice 2 (Opus).
+
+---
 ### ▶ 2026-07-20 (Decoration gradients slice 1 — #44 per-shape Void gradients) — ✅ SHIPPED (Fable), ⏳ user browser-verify
 
 **Goal:** ticket #44 / `DECORATION_GRADIENTS_SPEC.md` slice 1: GradientSpec data model, per-shape Void gradients, gradient PaintTarget, stop bar, focus editor.

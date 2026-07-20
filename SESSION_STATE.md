@@ -5,6 +5,15 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-20 (Housekeeping: gitignore + memory prune) — ✅ DONE (Fable)
+
+**Goal:** small wins with low usage budget — clean stray exports, prune memory index.
+
+**Done:** `a871c37` gitignore `islamic-pattern*` root exports (files stay on disk, needed for the round-5 verify below). Memory index pruned 33→25: deleted 8 shipped/absorbed memories (gallery-frame, framing-stage, pattern-morph, save-preview, symmetry-guard shelved, pic-edge-slide, lab-export, circular-boundary); remnants folded into survivors (edge-slide refinement candidates → pic-irregular memo; export deferred extensions → export-future-work memo; circular-boundary → Guides memo); Frame deferreds (symmetry-orbit, chord-frame completion) → **issue #47**.
+
+**Next (cold start):** unchanged from the two entries below — user browser-verify backlog is the priority (line-set enhancements incl. tile-to-strand, frame border strand-paint round 5 on the real comp, #42 line sets, Guides #33, stamps, Twins). Each confirmed verify lets its ⏳ memory close. Then #44 gradients slice 1 (Fable).
+
+---
 ### ▶ 2026-07-20 (Line-set enhancements shipped + Decoration-gradients grill/spec) — ✅ SHIPPED (Fable), ⏳ user browser-verify
 
 **Goal:** (a) four line-set quick asks; (b) grill + spec gradients.

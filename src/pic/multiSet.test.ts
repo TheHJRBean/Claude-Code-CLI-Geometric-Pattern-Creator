@@ -27,6 +27,9 @@ const edgeSet = (id: string, contactAngle: number, over: Partial<FigureLineSet> 
 const vertexSet = (id: string, contactAngle: number, over: Partial<FigureLineSet> = {}): FigureLineSet =>
   ({ id, kind: 'vertex', contactAngle, lineLength: 1.0, autoLineLength: true, ...over })
 
+const boundarySet = (id: string, over: Partial<FigureLineSet> = {}): FigureLineSet =>
+  ({ id, kind: 'boundary', contactAngle: 67.5, lineLength: 1.0, autoLineLength: true, ...over })
+
 const withFig = (tiling: PatternConfig['tiling'], figures: Record<string, FigureConfig>): PatternConfig =>
   ({ ...DEFAULT_CONFIG, tiling, figures })
 
@@ -77,6 +80,42 @@ describe('multi line sets (#42) — emission scaling', () => {
     const withVtx = runPIC(polys, withFig(SQUARE, { 4: fig(67.5, { extraSets: [vertexSet('v', 55)] }) }))
     expect(withVtx.length).toBeGreaterThan(base.length)
     expect(withVtx.some(s => s.setId === 'v' && s.kind === 'vertex-line')).toBe(true)
+  })
+})
+
+describe('multi line sets — boundary (tile-to-strand) sets', () => {
+  it('a boundary set emits each tile edge exactly once, tagged with its setId', () => {
+    const polys = squarePolys()
+    const base = runPIC(polys, withFig(SQUARE, { 4: fig(67.5) }))
+    const segs = runPIC(polys, withFig(SQUARE, { 4: fig(67.5, { extraSets: [boundarySet('b')] }) }))
+    const boundary = segs.filter(s => s.setId === 'b')
+    expect(boundary.length).toBeGreaterThan(0)
+    expect(segs.length - boundary.length).toBe(base.length)
+    // Field-wide dedupe: a shared edge between two squares emits once, so no
+    // two boundary segments share the same geometry.
+    const keys = new Set(boundary.map(geomKey))
+    expect(keys.size).toBe(boundary.length)
+    // Every boundary segment lies on a polygon edge (endpoints are vertices).
+    const vertexKeys = new Set<string>()
+    for (const p of polys) for (const v of p.vertices) {
+      vertexKeys.add(`${Math.round(v.x * 1000)},${Math.round(v.y * 1000)}`)
+    }
+    for (const s of boundary) {
+      expect(vertexKeys.has(`${Math.round(s.from.x * 1000)},${Math.round(s.from.y * 1000)}`)).toBe(true)
+      expect(vertexKeys.has(`${Math.round(s.to.x * 1000)},${Math.round(s.to.y * 1000)}`)).toBe(true)
+    }
+  })
+
+  it('boundary segments chain into strands without mixing with the primary', () => {
+    const polys = hexPolys()
+    const segs = runPIC(polys, withFig(HEX, { 6: fig(60, { extraSets: [boundarySet('b')] }) }))
+    const strands = buildStrands(segs)
+    for (const sd of strands) {
+      const setIds = new Set(sd.segmentIndices.map(i => segs[i].setId))
+      expect(setIds.size).toBe(1)
+    }
+    // At least one strand is made purely of boundary segments.
+    expect(strands.some(sd => segs[sd.segmentIndices[0]].setId === 'b')).toBe(true)
   })
 })
 

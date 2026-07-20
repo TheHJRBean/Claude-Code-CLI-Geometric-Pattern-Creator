@@ -243,6 +243,29 @@ export function DecorationPanel({
                   <option value="dashed">Dashed</option>
                   <option value="dotted">Dotted</option>
                 </select>
+                {(stroke.lineStyle === 'double' || stroke.lineStyle === 'triple') && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 8 }}>
+                    <input
+                      type="checkbox"
+                      className="pattern-checkbox"
+                      checked={!!stroke.innerFill}
+                      onChange={e => setStroke(e.target.checked
+                        ? { ...stroke, innerFill: stroke.innerFill ?? decorationColor }
+                        : { ...stroke, innerFill: undefined })}
+                    />
+                    Fill between lines
+                    {stroke.innerFill && (
+                      <input
+                        type="color"
+                        value={/^#[0-9a-fA-F]{6}$/.test(stroke.innerFill) ? stroke.innerFill : '#f5ead6'}
+                        onChange={e => setStroke({ ...stroke, innerFill: e.target.value })}
+                        onClick={e => e.stopPropagation()}
+                        title="Colour of the space between the parallel border lines"
+                        style={{ width: 26, height: 20, padding: 0, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer' }}
+                      />
+                    )}
+                  </label>
+                )}
                 <button
                   onClick={() => setStroke({ ...stroke, colour: decorationColor })}
                   style={{ ...decorationButtonStyle, marginTop: 6 }}

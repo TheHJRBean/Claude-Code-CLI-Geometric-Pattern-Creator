@@ -27,7 +27,7 @@ export type Action =
   | { type: 'SET_CURVE_ALTERNATING'; payload: { tileTypeId: string; alternating: boolean; target?: CurveTarget } }
   | { type: 'SET_CURVE_DIRECTION'; payload: { tileTypeId: string; direction: 'left' | 'right'; target?: CurveTarget } }
   | { type: 'SET_SMOOTH_TRANSITIONS'; payload: boolean }
-  // Ticket #42 — multi line sets. Extra edge/vertex line families on a Figure
+  // Ticket #42 — multi line sets. Extra edge/vertex/boundary line families on a Figure
   // recipe (`FigureConfig.extraSets`). ADD seeds a fresh set from the primary's
   // current θ/length/curve; UPDATE patches one set by id (θ/length/auto/enable,
   // or a whole `curve` object — do NOT route extra-set curves through the

@@ -78,6 +78,9 @@ function readStrandStyle(r: Record<string, unknown>): StrandStyle | null {
       if (STRAND_LINE_STYLES.has(direct.lineStyle as StrandLineStyle)) {
         out.lineStyle = direct.lineStyle as StrandLineStyle
       }
+      if (typeof direct.innerFill === 'string' && direct.innerFill.length > 0) {
+        out.innerFill = direct.innerFill
+      }
       return out
     }
   }
@@ -130,6 +133,12 @@ function readGalleryFrame(v: unknown): FrameConfig | undefined {
     if (typeof s.enabled === 'boolean' && typeof s.colour === 'string' && s.colour.length > 0
       && typeof s.width === 'number' && s.width > 0) {
       out.stroke = { enabled: s.enabled, colour: s.colour, width: s.width }
+      if (STRAND_LINE_STYLES.has(s.lineStyle as StrandLineStyle)) {
+        out.stroke.lineStyle = s.lineStyle as StrandLineStyle
+      }
+      if (typeof s.innerFill === 'string' && s.innerFill.length > 0) {
+        out.stroke.innerFill = s.innerFill
+      }
     }
   }
   return out

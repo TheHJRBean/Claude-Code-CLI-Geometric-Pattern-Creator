@@ -146,10 +146,6 @@ function updateCurve(
   return updateFigure(state, tileTypeId, { [curveField(target)]: mutate(base) })
 }
 
-/** Max extra line sets per Figure recipe (ticket #42) — enforced here so the
- *  UI cap is authoritative even if a hand-edited config exceeds it. */
-const MAX_FIGURE_SETS = 4
-
 /** A collision-free set id within one figure's existing `extraSets`. */
 function nextSetId(fig: FigureConfig): string {
   const existing = new Set((fig.extraSets ?? []).map(s => s.id))
@@ -221,13 +217,17 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     case 'SET_STRAND_STYLE':
       return { ...state, strand: { ...state.strand, ...action.payload } }
     case 'SET_EDGE_LINES_ENABLED': {
+      // Force the counterpart on so the primary figure never goes fully dark —
+      // unless extra line sets exist, which can carry the figure on their own.
+      const fig = getFigure(state, action.payload.tileTypeId)
       const patch: Partial<FigureConfig> = { edgeLinesEnabled: action.payload.enabled }
-      if (!action.payload.enabled) patch.vertexLinesEnabled = true
+      if (!action.payload.enabled && !(fig.extraSets?.length)) patch.vertexLinesEnabled = true
       return updateFigure(state, action.payload.tileTypeId, patch)
     }
     case 'SET_VERTEX_LINES_ENABLED': {
+      const fig = getFigure(state, action.payload.tileTypeId)
       const patch: Partial<FigureConfig> = { vertexLinesEnabled: action.payload.enabled }
-      if (!action.payload.enabled) patch.edgeLinesEnabled = true
+      if (!action.payload.enabled && !(fig.extraSets?.length)) patch.edgeLinesEnabled = true
       return updateFigure(state, action.payload.tileTypeId, patch)
     }
     case 'SET_VERTEX_LINES_DECOUPLED': {
@@ -280,7 +280,6 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     case 'ADD_FIGURE_SET': {
       const fig = getFigure(state, action.payload.tileTypeId)
       const existing = fig.extraSets ?? []
-      if (existing.length >= MAX_FIGURE_SETS) return state
       // Seed from the primary figure's current θ/length so a fresh set starts
       // as a twin of the primary edge figure; the user then diverges θ. Copy
       // the curve too so a curved primary yields a curved (seamless) twin.
@@ -306,8 +305,14 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       if (!fig.extraSets) return state
       const next = fig.extraSets.filter(s => s.id !== action.payload.setId)
       // Drop the array entirely when empty so the config returns to the
-      // byte-identical setless shape.
-      return updateFigure(state, action.payload.tileTypeId, { extraSets: next.length ? next : undefined })
+      // byte-identical setless shape. If the primary was fully hidden behind
+      // the sets, removing the last one re-lights the edge lines so the
+      // figure can't end up invisible with nothing left to toggle.
+      const patch: Partial<FigureConfig> = { extraSets: next.length ? next : undefined }
+      if (!next.length && fig.edgeLinesEnabled === false && !fig.vertexLinesEnabled) {
+        patch.edgeLinesEnabled = true
+      }
+      return updateFigure(state, action.payload.tileTypeId, patch)
     }
     case 'SET_SMOOTH_TRANSITIONS':
       return { ...state, smoothTransitions: action.payload }

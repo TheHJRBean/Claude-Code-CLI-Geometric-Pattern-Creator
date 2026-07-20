@@ -3,9 +3,6 @@ import type { Action, CurveTarget } from '../../state/actions'
 import type { CurveConfig, FigureLineSet } from '../../types/pattern'
 import { computeSnapPoints, snapToNearest } from '../../pic/snapPoints'
 
-/** UI cap on extra line sets per Figure recipe (mirrors reducer MAX_FIGURE_SETS). */
-const MAX_FIGURE_SETS = 4
-
 /**
  * Generic per-tile-type strand controls. Takes a `dispatch` and an `allFigures`
  * map; no hardcoded coupling to any specific reducer. Used by Main's Sidebar
@@ -444,7 +441,7 @@ export function FigureControls({
         <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border-subtle)' }}>
           <FieldLabel
             label="Line sets"
-            tooltip="Extra Ray families emitted from the same edges / vertices as the primary Figure, each with its own contact angle, length and curve. Layer multiple star families onto one Tiling."
+            tooltip="Extra Ray families emitted from the same edges / vertices as the primary Figure, each with its own contact angle, length and curve. Layer multiple star families onto one Tiling. Tile edges traces the Tile outlines themselves as Strands."
           />
           {extraSets.map(set => (
             <ExtraSetCard
@@ -455,21 +452,11 @@ export function FigureControls({
               dispatch={dispatch}
             />
           ))}
-          {extraSets.length < MAX_FIGURE_SETS ? (
-            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <AddSetButton label="+ Edge set" onClick={() => dispatch({ type: 'ADD_FIGURE_SET', payload: { tileTypeId, kind: 'edge' } })} />
-              <AddSetButton label="+ Vertex set" onClick={() => dispatch({ type: 'ADD_FIGURE_SET', payload: { tileTypeId, kind: 'vertex' } })} />
-            </div>
-          ) : (
-            <div style={{
-              fontFamily: "'EB Garamond', Georgia, serif",
-              fontSize: 12,
-              color: 'var(--text-muted)',
-              marginTop: 8,
-            }}>
-              Maximum of {MAX_FIGURE_SETS} line sets.
-            </div>
-          )}
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <AddSetButton label="+ Edge set" onClick={() => dispatch({ type: 'ADD_FIGURE_SET', payload: { tileTypeId, kind: 'edge' } })} />
+            <AddSetButton label="+ Vertex set" onClick={() => dispatch({ type: 'ADD_FIGURE_SET', payload: { tileTypeId, kind: 'vertex' } })} />
+            <AddSetButton label="+ Tile edges" onClick={() => dispatch({ type: 'ADD_FIGURE_SET', payload: { tileTypeId, kind: 'boundary' } })} />
+          </div>
         </div>
       )}
     </div>
@@ -513,7 +500,7 @@ function ExtraSetCard({ tileTypeId, sides, set, dispatch }: {
           textTransform: 'uppercase' as const,
           color: 'var(--accent)',
         }}>
-          {set.kind} set
+          {set.kind === 'boundary' ? 'tile edge' : set.kind} set
         </span>
         <button
           onClick={() => dispatch({ type: 'REMOVE_FIGURE_SET', payload: { tileTypeId, setId: set.id } })}
@@ -537,28 +524,32 @@ function ExtraSetCard({ tileTypeId, sides, set, dispatch }: {
         <Toggle checked={enabled} onChange={v => patch({ enabled: v })} label="Enabled" />
       </div>
 
-      <FieldLabel label="Contact angle" value={set.contactAngle.toFixed(1)} unit="°" />
-      <input
-        type="range"
-        className="pattern-slider"
-        min={10} max={85} step={0.5}
-        value={set.contactAngle}
-        onChange={e => patch({ contactAngle: Number(e.target.value) })}
-      />
-
-      <div style={{ marginTop: 8, marginBottom: 8 }}>
-        <Toggle checked={set.autoLineLength} onChange={v => patch({ autoLineLength: v })} label="Auto Ray length" />
-      </div>
-      {!set.autoLineLength && (
+      {set.kind !== 'boundary' && (
         <>
-          <FieldLabel label="Ray length" value={(set.lineLength * 100).toFixed(0)} unit="%" />
+          <FieldLabel label="Contact angle" value={set.contactAngle.toFixed(1)} unit="°" />
           <input
             type="range"
             className="pattern-slider"
-            min={10} max={500} step={1}
-            value={Math.round(set.lineLength * 100)}
-            onChange={e => patch({ lineLength: Number(e.target.value) / 100 })}
+            min={10} max={85} step={0.5}
+            value={set.contactAngle}
+            onChange={e => patch({ contactAngle: Number(e.target.value) })}
           />
+
+          <div style={{ marginTop: 8, marginBottom: 8 }}>
+            <Toggle checked={set.autoLineLength} onChange={v => patch({ autoLineLength: v })} label="Auto Ray length" />
+          </div>
+          {!set.autoLineLength && (
+            <>
+              <FieldLabel label="Ray length" value={(set.lineLength * 100).toFixed(0)} unit="%" />
+              <input
+                type="range"
+                className="pattern-slider"
+                min={10} max={500} step={1}
+                value={Math.round(set.lineLength * 100)}
+                onChange={e => patch({ lineLength: Number(e.target.value) / 100 })}
+              />
+            </>
+          )}
         </>
       )}
 

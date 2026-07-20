@@ -46,6 +46,28 @@ export function StrandStyleControls({ strand, dispatch }: {
         <option value="dotted">Dotted</option>
       </select>
 
+      {(strand.lineStyle === 'double' || strand.lineStyle === 'triple') && (
+        <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Toggle
+            checked={!!strand.innerFill}
+            onChange={v => dispatch({
+              type: 'SET_STRAND_STYLE',
+              payload: { innerFill: v ? (strand.innerFill ?? '#f5ead6') : undefined },
+            })}
+            label="Fill between lines"
+          />
+          {strand.innerFill && (
+            <input
+              type="color"
+              value={/^#[0-9a-fA-F]{6}$/.test(strand.innerFill) ? strand.innerFill : '#f5ead6'}
+              onChange={e => dispatch({ type: 'SET_STRAND_STYLE', payload: { innerFill: e.target.value } })}
+              title="Colour of the space between the parallel lines"
+              style={{ width: 26, height: 20, padding: 0, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer' }}
+            />
+          )}
+        </div>
+      )}
+
       <div style={{ marginTop: 10 }}>
         <Toggle
           checked={weave}

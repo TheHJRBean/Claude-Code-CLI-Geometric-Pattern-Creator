@@ -572,8 +572,20 @@ function emitVertexPass(
   }
 }
 
+/** Order-independent key for a boundary-set edge (1e-4 grid, matching the
+ *  vertex dedupe convention) so a shared Tile edge emits exactly once per set
+ *  across the whole field instead of twice (once per abutting polygon). */
+function boundaryEdgeKey(setId: string, a: Vec2, b: Vec2): string {
+  const ka = `${a.x.toFixed(4)},${a.y.toFixed(4)}`
+  const kb = `${b.x.toFixed(4)},${b.y.toFixed(4)}`
+  return ka < kb ? `${setId}|${ka}|${kb}` : `${setId}|${kb}|${ka}`
+}
+
 export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
   const segments: Segment[] = []
+  // Field-wide dedupe for `boundary` line sets (shared edges span polygons,
+  // so the per-polygon dedup pass can't catch their duplicates).
+  const boundarySeen = new Set<string>()
   // Step 20 Morph — with an active morph, θ is evaluated per edge midpoint
   // (and per vertex for vertex lines) through the world-space morph field
   // instead of once per tile type. Polygons must be in world space here (they
@@ -635,6 +647,19 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
           const rays = computeContactRays(poly, set.contactAngle)
           const ctx: PolyCtx = { polygonId: poly.id, tileTypeId: poly.tileTypeId, polygonCenter: poly.center, polygonSides: n, kind: 'star-arm', setId: set.id }
           emitEdgePass(rays, poly, set.autoLineLength, set.lineLength, ctx, segments)
+        } else if (set.kind === 'boundary') {
+          // Tile-to-strand: the polygon outline itself, one Ray per edge —
+          // no PIC rays, so θ/length are ignored; curve/chaining apply as
+          // for any set. Alternating side parity by edge index.
+          const ctx: PolyCtx = { polygonId: poly.id, tileTypeId: poly.tileTypeId, polygonCenter: poly.center, polygonSides: n, kind: 'star-arm', setId: set.id }
+          for (let k = 0; k < n; k++) {
+            const a = poly.vertices[k]
+            const b = poly.vertices[(k + 1) % n]
+            const key = boundaryEdgeKey(set.id, a, b)
+            if (boundarySeen.has(key)) continue
+            boundarySeen.add(key)
+            pushSegment(segments, ctx, a, b, midpoint(a, b), k % 2 === 0 ? 'plus' : 'minus')
+          }
         } else {
           const vertexRays = computeVertexRays(poly, set.contactAngle)
           emitVertexPass(vertexRays, poly, set.autoLineLength, set.lineLength, set.id, segments)

@@ -300,6 +300,20 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
           ))}
         </g>
       )}
+      {/* Inner fill for double/triple: a cut-width underlay stroke painted
+          beneath the masked outer stroke, so the mask's centre cut reveals
+          this colour instead of the background / Void fills. */}
+      {masked && strand.innerFill && visiblePieces.map(({ d, i }) => (
+        <path
+          key={`strand-innerfill-${i}`}
+          d={d}
+          fill="none"
+          stroke={strand.innerFill}
+          strokeWidth={cutWidth}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ))}
       {/* `'none'` = the hidden-strand sentinel (Decoration "Remove strand
           colour"): emit nothing so Void fills meet seamlessly underneath. */}
       <g mask={maskRect ? `url(#${maskId})` : undefined}>

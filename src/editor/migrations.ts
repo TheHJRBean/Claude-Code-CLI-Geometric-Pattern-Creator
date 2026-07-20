@@ -164,6 +164,9 @@ function migrateFrame(raw: unknown): FrameConfig | undefined {
       if (FRAME_STROKE_STYLES.has(s.lineStyle as StrandLineStyle)) {
         out.stroke.lineStyle = s.lineStyle as StrandLineStyle
       }
+      if (typeof s.innerFill === 'string' && s.innerFill.length > 0) {
+        out.stroke.innerFill = s.innerFill
+      }
     }
   }
   return out

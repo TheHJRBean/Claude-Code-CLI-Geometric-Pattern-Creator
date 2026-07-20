@@ -194,12 +194,29 @@ describe('multi line sets — ADD/UPDATE/REMOVE_FIGURE_SET (#42)', () => {
     expect(ids).toEqual(['set-1', 'set-2'])
   })
 
-  it('ADD is capped at 4 sets', () => {
+  it('ADD is uncapped', () => {
     let s = gallery()
     for (let i = 0; i < 6; i++) {
       s = reducer(s, { type: 'ADD_FIGURE_SET', payload: { tileTypeId: '4', kind: 'edge' } } as Action)
     }
-    expect(s.figures['4'].extraSets).toHaveLength(4)
+    expect(s.figures['4'].extraSets).toHaveLength(6)
+  })
+
+  it('primary edge+vertex lines can both be disabled once an extra set exists', () => {
+    let s = gallery()
+    // Without sets: disabling edge lines force-enables vertex lines.
+    s = reducer(s, { type: 'SET_EDGE_LINES_ENABLED', payload: { tileTypeId: '4', enabled: false } } as Action)
+    expect(s.figures['4'].vertexLinesEnabled).toBe(true)
+    s = reducer(s, { type: 'SET_EDGE_LINES_ENABLED', payload: { tileTypeId: '4', enabled: true } } as Action)
+    // With a set: both primaries may go dark.
+    s = reducer(s, { type: 'ADD_FIGURE_SET', payload: { tileTypeId: '4', kind: 'edge' } } as Action)
+    s = reducer(s, { type: 'SET_VERTEX_LINES_ENABLED', payload: { tileTypeId: '4', enabled: false } } as Action)
+    s = reducer(s, { type: 'SET_EDGE_LINES_ENABLED', payload: { tileTypeId: '4', enabled: false } } as Action)
+    expect(s.figures['4'].edgeLinesEnabled).toBe(false)
+    expect(s.figures['4'].vertexLinesEnabled).toBe(false)
+    // Removing the last set re-lights the edge lines so the figure isn't stuck invisible.
+    s = reducer(s, { type: 'REMOVE_FIGURE_SET', payload: { tileTypeId: '4', setId: 'set-1' } } as Action)
+    expect(s.figures['4'].edgeLinesEnabled).toBe(true)
   })
 
   it('UPDATE patches a set by id and cannot rewrite id or kind', () => {

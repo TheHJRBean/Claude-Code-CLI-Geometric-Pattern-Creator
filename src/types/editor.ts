@@ -214,6 +214,9 @@ export interface FrameStroke {
    * Double/Triple cut the centre out with a mask so the pattern shows
    * through between the parallel lines. Default solid. */
   lineStyle?: StrandLineStyle
+  /** Fill colour painted in the centre gap of `double`/`triple` styles.
+   * Absent ⇒ the gap stays cut out (the pattern shows through). */
+  innerFill?: string
 }
 
 /**

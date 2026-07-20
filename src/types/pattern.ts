@@ -37,11 +37,13 @@ export interface FigureLineSet {
   /** Stable id; also stamped on emitted `Segment`s as `setId` so this set's
    *  Rays chain/dedup only among themselves. */
   id: string
-  /** Which PIC family this set emits. */
-  kind: 'edge' | 'vertex'
+  /** Which family this set emits. `'boundary'` traces the Tile outlines
+   *  themselves as Strands — no PIC rays, so `contactAngle` / length are
+   *  ignored for it; the curve still applies. */
+  kind: 'edge' | 'vertex' | 'boundary'
   /** Default true; `false` suppresses emission without deleting the set. */
   enabled?: boolean
-  /** Contact angle θ (degrees), uniform across the set. */
+  /** Contact angle θ (degrees), uniform across the set. Unused for `boundary`. */
   contactAngle: number
   /** Line length as a fraction of the auto-computed length (1.0 = meet neighbours). */
   lineLength: number
@@ -123,6 +125,9 @@ export interface StrandStyle {
   weaveGap?: number
   /** Stroke rendering variant. Default `'solid'`. */
   lineStyle?: StrandLineStyle
+  /** Fill colour painted in the centre gap of `double`/`triple` strokes.
+   * Absent ⇒ the gap stays cut out (Void fills / background show through). */
+  innerFill?: string
 }
 
 /**

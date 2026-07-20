@@ -103,7 +103,7 @@ interface Props {
    * `lineStyle` mirrors the Strand vocabulary (solid/double/triple/dashed/
    * dotted).
    */
-  frameStroke?: { colour: string; width: number; lineStyle?: StrandLineStyle } | null
+  frameStroke?: { colour: string; width: number; lineStyle?: StrandLineStyle; innerFill?: string } | null
   /**
    * Step 19.2 — Decoration **Void Fill**s (resolved). Drawn behind the Strands
    * (ADR-0005 layer stack). On the periodic fast-path these are the
@@ -338,7 +338,7 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
 function FrameBorder({ outline, points, stroke }: {
   outline: Vec2[]
   points: string
-  stroke: { colour: string; width: number; lineStyle?: StrandLineStyle }
+  stroke: { colour: string; width: number; lineStyle?: StrandLineStyle; innerFill?: string }
 }) {
   const w = stroke.width
   const style = stroke.lineStyle ?? 'solid'
@@ -369,6 +369,17 @@ function FrameBorder({ outline, points, stroke }: {
             <polygon points={points} fill="none" stroke="black" strokeWidth={cutWidth} strokeLinejoin="round" />
           </mask>
         </defs>
+      )}
+      {/* Inner fill for double/triple: cut-width underlay revealed by the
+          mask's centre cut instead of the pattern/background. */}
+      {masked && stroke.innerFill && (
+        <polygon
+          points={points}
+          fill="none"
+          stroke={stroke.innerFill}
+          strokeWidth={cutWidth}
+          strokeLinejoin="round"
+        />
       )}
       <polygon
         points={points}

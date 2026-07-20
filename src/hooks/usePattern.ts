@@ -22,10 +22,10 @@ import { runPIC } from '../pic/index'
 import { morphActive } from '../pic/morph'
 import { runRosettePIC } from '../pic/rosettePatch'
 import { recordPerf, periodicityEnabled } from '../utils/perf'
-import { colourVoids, keyVoids, type PaintVoid, type StrandHit, type VoidFill } from '../decoration/resolve'
+import { colourVoids, keyVoids, makeVoidFill, type PaintVoid, type StrandHit, type VoidFill } from '../decoration/resolve'
 import { resolveVoidStamps, type StampPlacement } from '../decoration/stamps'
 import { extractVoids, pairCurvedOutlines, type VoidRegion } from '../decoration/voids'
-import { buildColourIndex, orbitOffset, resolveColour, scopedKey } from '../decoration/scopes'
+import { buildColourIndex, orbitOffset, resolveFill, scopedKey } from '../decoration/scopes'
 import { cellFramesFromOutlines, cellOrbitKey, reduceToOrbit, type CellFrame } from '../decoration/cellScope'
 import { strandIdentities, strandIdentitiesFromBase } from '../decoration/strandGroups'
 import { curvesEnabled, flattenStrandsToSegments, flattenSegmentPolylines } from '../decoration/flatten'
@@ -443,8 +443,8 @@ export function usePattern(
     const voidIndex = buildColourIndex(config.editor?.decoration?.voidFills)
     const fills: VoidFill[] = []
     for (const r of decorationReps) {
-      const colour = resolveColour(voidIndex, r.signature, r.centroid, null, r.cellKey)
-      if (colour) fills.push({ polygon: r.polygon, colour })
+      const fill = resolveFill(voidIndex, r.signature, r.centroid, null, r.cellKey)
+      if (fill) fills.push(makeVoidFill(r.polygon, r.keyPolygon, fill))
     }
     // Void Stamps over the same representative set — fragment-space, tiled by
     // <use> exactly like the fills.
@@ -900,10 +900,14 @@ export function usePattern(
                   Math.abs(s.translation.x - t.x) <= 0.06 && Math.abs(s.translation.y - t.y) <= 0.06)
                 if (st) {
                   const tx = st.translation.x, ty = st.translation.y
-                  instanceVoidFills.push({
-                    polygon: r.polygon.map(p => ({ x: p.x + tx, y: p.y + ty })),
-                    colour: rec.colour,
-                  })
+                  // makeVoidFill re-derives the canonical pose off the
+                  // translated straight outline, so a gradient record lands
+                  // world-correct on the reconstructed instance.
+                  instanceVoidFills.push(makeVoidFill(
+                    r.polygon.map(p => ({ x: p.x + tx, y: p.y + ty })),
+                    r.keyPolygon?.map(p => ({ x: p.x + tx, y: p.y + ty })),
+                    rec,
+                  ))
                   break
                 }
               }

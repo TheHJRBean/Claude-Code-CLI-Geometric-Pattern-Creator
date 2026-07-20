@@ -54,8 +54,8 @@ describe('buildColourIndex / resolveColour', () => {
   const idx = buildColourIndex(records)
 
   it('indexes records by rung', () => {
-    expect(idx.starColour).toBe('#aaa')
-    expect(idx.bySignature.get('sigA')).toBe('#bbb')
+    expect(idx.starColour).toEqual({ colour: '#aaa' })
+    expect(idx.bySignature.get('sigA')).toEqual({ colour: '#bbb' })
     expect(idx.patch).toHaveLength(1)
     expect(idx.instance).toHaveLength(1)
     expect(idx.hasPositioned).toBe(true)

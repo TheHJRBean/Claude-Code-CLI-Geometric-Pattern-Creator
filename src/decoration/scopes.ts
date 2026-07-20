@@ -1,5 +1,5 @@
 import type { Vec2 } from '../utils/math'
-import type { ColourRecord, GroupingScope } from '../types/editor'
+import type { ColourRecord, GradientSpec, GroupingScope } from '../types/editor'
 
 /**
  * Step 19 Stage 2 — **Grouping scope** keys + colour resolution (ADR-0005).
@@ -77,8 +77,16 @@ export function orbitOffset(c: Vec2, stamps: Vec2[]): Vec2 {
   return { x: c.x - best.x, y: c.y - best.y }
 }
 
+/** A resolved fill: flat colour plus the optional gradient that wins over it
+ * at render (DECORATION_GRADIENTS_SPEC — `colour` stays representative). */
+export interface FillStyle {
+  colour: string
+  gradient?: GradientSpec
+}
+
 interface PositionedRecord extends ParsedScopedKey {
   colour: string
+  gradient?: GradientSpec
 }
 
 /**
@@ -86,15 +94,15 @@ interface PositionedRecord extends ParsedScopedKey {
  * per record-list change, then `resolve` per target.
  */
 export interface ColourIndex {
-  /** congruent `'*'` colour (all targets), or null. */
-  starColour: string | null
-  /** congruent signature → colour. */
-  bySignature: Map<string, string>
+  /** congruent `'*'` fill (all targets), or null. */
+  starColour: FillStyle | null
+  /** congruent signature → fill. */
+  bySignature: Map<string, FillStyle>
   /** Parsed `patch`-scope records, in record order. */
   patch: PositionedRecord[]
-  /** `cell`-scope records: canonical orbit key → colour (later records win,
+  /** `cell`-scope records: canonical orbit key → fill (later records win,
    * matched by exact equality — see `cellScope.ts`). */
-  cell: Map<string, string>
+  cell: Map<string, FillStyle>
   /** Parsed `instance`-scope records, in record order. */
   instance: PositionedRecord[]
   /** True when any record needs a positioned (patch/cell/instance) match. */
@@ -115,19 +123,20 @@ export function buildColourIndex(records: ColourRecord[] | undefined): ColourInd
   }
   if (!records) return idx
   for (const r of records) {
+    const fill: FillStyle = r.gradient ? { colour: r.colour, gradient: r.gradient } : { colour: r.colour }
     if (r.scope === 'congruent') {
-      if (r.key === '*') idx.starColour = r.colour
-      else idx.bySignature.set(r.key, r.colour)
+      if (r.key === '*') idx.starColour = fill
+      else idx.bySignature.set(r.key, fill)
       continue
     }
     if (r.scope === 'cell') {
       // Map insertion order means later records naturally win.
-      idx.cell.set(r.key, r.colour)
+      idx.cell.set(r.key, fill)
       continue
     }
     const parsed = parseScopedKey(r.key)
     if (!parsed) continue
-    const rec = { ...parsed, colour: r.colour }
+    const rec: PositionedRecord = { ...parsed, ...fill }
     if (r.scope === 'patch') idx.patch.push(rec)
     else idx.instance.push(rec)
   }
@@ -141,31 +150,32 @@ function matchPositioned(
   signature: string,
   p: Vec2,
   tol: number,
-): string | null {
+): FillStyle | null {
   // Later records win (later paints override earlier ones in the same rung).
   for (let i = recs.length - 1; i >= 0; i--) {
     const r = recs[i]
     if (r.signature !== signature) continue
-    if (Math.abs(r.x - p.x) <= tol && Math.abs(r.y - p.y) <= tol) return r.colour
+    if (Math.abs(r.x - p.x) <= tol && Math.abs(r.y - p.y) <= tol) return r
   }
   return null
 }
 
 /**
- * Resolve one target's colour. `orbit` is its Lattice-orbit offset (see
- * `orbitOffset`); `world` its absolute centroid, or null where world-instance
- * records can't apply (e.g. inside the periodic `<use>` fragment); `cellKey`
- * its precomputed `cell`-scope key (`cellScope.ts`), or null to skip the rung.
+ * Resolve one target's fill (flat colour + optional gradient). `orbit` is its
+ * Lattice-orbit offset (see `orbitOffset`); `world` its absolute centroid, or
+ * null where world-instance records can't apply (e.g. inside the periodic
+ * `<use>` fragment); `cellKey` its precomputed `cell`-scope key
+ * (`cellScope.ts`), or null to skip the rung.
  * Precedence (fine wins): instance > patch > cell > congruent sig > `'*'`.
  */
-export function resolveColour(
+export function resolveFill(
   idx: ColourIndex,
   signature: string,
   orbit: Vec2,
   world: Vec2 | null,
   cellKey: string | null = null,
   tol = KEY_TOL,
-): string | null {
+): FillStyle | null {
   if (world && idx.instance.length > 0) {
     const c = matchPositioned(idx.instance, signature, world, tol)
     if (c) return c
@@ -179,6 +189,19 @@ export function resolveColour(
     if (c) return c
   }
   return idx.bySignature.get(signature) ?? idx.starColour
+}
+
+/** Colour-only view of `resolveFill` (Strand records never carry gradients
+ * in v1). */
+export function resolveColour(
+  idx: ColourIndex,
+  signature: string,
+  orbit: Vec2,
+  world: Vec2 | null,
+  cellKey: string | null = null,
+  tol = KEY_TOL,
+): string | null {
+  return resolveFill(idx, signature, orbit, world, cellKey, tol)?.colour ?? null
 }
 
 // ─────────────────────────────────────────────────────────────────────────

@@ -14,6 +14,8 @@ import type {
   FrameConfig,
   FrameShape,
   FrameType,
+  GradientSpec,
+  GradientStop,
   GroupingScope,
   GuideExtend,
   SymmetryMode,
@@ -172,15 +174,48 @@ function migrateFrame(raw: unknown): FrameConfig | undefined {
   return out
 }
 
+/** Validate a persisted `GradientSpec`. Malformed ⇒ null (the record keeps
+ * its flat colour — DECORATION_GRADIENTS_SPEC). */
+function migrateGradient(raw: unknown): GradientSpec | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const r = raw as Record<string, unknown>
+  if (!Array.isArray(r.stops)) return null
+  const stops: GradientStop[] = []
+  for (const s of r.stops) {
+    if (typeof s !== 'object' || s === null) return null
+    const st = s as Record<string, unknown>
+    if (typeof st.offset !== 'number' || !isFinite(st.offset) || st.offset < 0 || st.offset > 1) return null
+    if (typeof st.colour !== 'string' || st.colour.length === 0) return null
+    stops.push({ offset: st.offset, colour: st.colour })
+  }
+  if (stops.length < 2) return null
+  if (r.type === 'linear') {
+    if (!isVec2(r.start) || !isVec2(r.end)) return null
+    return { type: 'linear', stops, start: { x: r.start.x, y: r.start.y }, end: { x: r.end.x, y: r.end.y } }
+  }
+  if (r.type === 'radial') {
+    if (!isVec2(r.centre)) return null
+    if (typeof r.radius !== 'number' || !(r.radius > 0)) return null
+    return { type: 'radial', stops, centre: { x: r.centre.x, y: r.centre.y }, radius: r.radius }
+  }
+  return null
+}
+
 /** Step 19 — validate one persisted `ColourRecord`. Invalid records are
- * dropped (returns null), never crash the load. */
+ * dropped (returns null), never crash the load; a malformed `gradient` is
+ * dropped alone, keeping the flat colour. */
 function migrateColourRecord(raw: unknown): ColourRecord | null {
   if (typeof raw !== 'object' || raw === null) return null
   const r = raw as Record<string, unknown>
   if (!GROUPING_SCOPES.has(r.scope as GroupingScope)) return null
   if (typeof r.key !== 'string' || r.key.length === 0) return null
   if (typeof r.colour !== 'string' || r.colour.length === 0) return null
-  return { scope: r.scope as GroupingScope, key: r.key, colour: r.colour }
+  const out: ColourRecord = { scope: r.scope as GroupingScope, key: r.key, colour: r.colour }
+  if (r.gradient !== undefined) {
+    const gradient = migrateGradient(r.gradient)
+    if (gradient) out.gradient = gradient
+  }
+  return out
 }
 
 /** Step 19 — validate a persisted `DecorationConfig` (ADR-0005). Malformed

@@ -266,6 +266,28 @@ export interface FrameConfig {
  */
 export type GroupingScope = 'congruent' | 'patch' | 'cell' | 'instance'
 
+/** One colour stop of a `GradientSpec`. */
+export interface GradientStop {
+  /** Position along the gradient, 0..1. */
+  offset: number
+  /** CSS colour string. */
+  colour: string
+}
+
+/** Soft cap on gradient stops (DECORATION_GRADIENTS_SPEC decision 2). */
+export const GRADIENT_MAX_STOPS = 8
+
+/**
+ * A gradient fill (DECORATION_GRADIENTS_SPEC). Shared by per-shape Void
+ * records (geometry in **canonical-pose** coordinates — `decoration/stamps.ts`
+ * `canonicalPose`, so one spec lands consistently rotated/mirrored on every
+ * congruent instance) and, in slice 2, the across-frame gradient (geometry in
+ * **world** coordinates). Stops: min 2, soft cap `GRADIENT_MAX_STOPS`.
+ */
+export type GradientSpec =
+  | { type: 'linear'; stops: GradientStop[]; start: Vec2; end: Vec2 }
+  | { type: 'radial'; stops: GradientStop[]; centre: Vec2; radius: number }
+
 /**
  * Step 19 — one Decoration colour assignment (ADR-0005). The same shape backs
  * every rung of the **Grouping scope** ladder; only the meaning of `key`
@@ -289,6 +311,10 @@ export interface ColourRecord {
    * removed strand paint leaves the touching Void fills meeting seamlessly
    * instead of reverting to the global strand colour as a band between them. */
   colour: string
+  /** Optional gradient fill. When present it wins over `colour` at render;
+   * `colour` stays as the representative flat colour (swatches, recents,
+   * legacy fallback). Additive — absent ⇒ pre-gradient behaviour. */
+  gradient?: GradientSpec
 }
 
 /**

@@ -203,7 +203,7 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
                         Void fills are part of the decorated look and must not
                         be covered by the tile fills/outlines. */}
                     <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
-                    {voidFills && <VoidFillLayer fills={voidFills} />}
+                    {voidFills && <VoidFillLayer fills={voidFills} idPrefix="void-fill-frag" />}
                     {voidStamps && <VoidStampLayer placements={voidStamps} idPrefix="void-stamp-frag" />}
                   </g>
                   <g id="composition-fragment-strands">
@@ -213,7 +213,7 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
                 {compositionStamps.map((st, i) => (
                   <use key={`u${i}`} href="#composition-fragment-under" x={st.translation.x} y={st.translation.y} />
                 ))}
-                <VoidFillLayer fills={instanceVoidFills} />
+                <VoidFillLayer fills={instanceVoidFills} idPrefix="void-fill-inst" />
                 {compositionStamps.map((st, i) => (
                   <use key={`s${i}`} href="#composition-fragment-strands" x={st.translation.x} y={st.translation.y} />
                 ))}
@@ -227,7 +227,7 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
                         fragment so <use> tiles them across the whole field.
                         Tiles under fills, matching the non-fast-path order. */}
                     <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
-                    {voidFills && <VoidFillLayer fills={voidFills} />}
+                    {voidFills && <VoidFillLayer fills={voidFills} idPrefix="void-fill-frag" />}
                     {voidStamps && <VoidStampLayer placements={voidStamps} idPrefix="void-stamp-frag" />}
                     {showLines && <StrandLayer segments={segments} config={config} strandRecords={strandRecords} orbitStamps={orbitStamps} cellFrames={cellFrames} />}
                   </g>
@@ -259,7 +259,7 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
                 </g>
               )}
               <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
-              {voidFills && <VoidFillLayer fills={voidFills} />}
+              {voidFills && <VoidFillLayer fills={voidFills} idPrefix="void-fill-world" />}
               {voidStamps && <VoidStampLayer placements={voidStamps} idPrefix="void-stamp-world" />}
               {showLines && <StrandLayer segments={segments} config={config} ghostPolygonIds={ghostPolygonIds} strandRecords={strandRecords} orbitStamps={orbitStamps} cellFrames={cellFrames} identitySource={strandIdentitySource} />}
               <ControlPointLayer

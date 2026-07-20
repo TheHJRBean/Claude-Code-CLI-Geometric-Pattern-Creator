@@ -1,8 +1,9 @@
 import type { Vec2 } from '../utils/math'
 import { centroid } from '../utils/math'
-import type { DecorationConfig } from '../types/editor'
+import type { DecorationConfig, GradientSpec } from '../types/editor'
 import { extractVoids, type VoidRegion } from './voids'
-import { buildColourIndex, orbitOffset, resolveColour, scopedKey } from './scopes'
+import { buildColourIndex, orbitOffset, resolveFill, scopedKey } from './scopes'
+import { canonicalPose, type StampTransform } from './stamps'
 import { cellOrbitKey, reduceToOrbit, type CellFrame } from './cellScope'
 
 /**
@@ -22,8 +23,14 @@ import { cellOrbitKey, reduceToOrbit, type CellFrame } from './cellScope'
 export interface VoidFill {
   /** CCW outline of a Void to paint. */
   polygon: Vec2[]
-  /** CSS colour. */
+  /** CSS colour (flat fill, and fallback when the gradient can't render). */
   colour: string
+  /** Gradient fill — wins over `colour` when present. Geometry lives in the
+   * Void's canonical-pose coordinates; `pose` carries it to this instance. */
+  gradient?: GradientSpec
+  /** Canonical-pose → instance isometry for `gradient` (`decoration/stamps.ts`).
+   * Absent with a gradient ⇒ degenerate outline; render falls back to flat. */
+  pose?: StampTransform
 }
 
 /** A Void enriched with its Grouping-scope identity keys (ADR-0005). */
@@ -123,10 +130,25 @@ export function colourVoids(
   const idx = buildColourIndex(decoration?.voidFills)
   const fills: VoidFill[] = []
   for (const v of keyed) {
-    const colour = resolveColour(idx, v.signature, v.orbit, v.centre, v.cellKey)
-    if (colour) fills.push({ polygon: v.polygon, colour })
+    const fill = resolveFill(idx, v.signature, v.orbit, v.centre, v.cellKey)
+    if (fill) fills.push(makeVoidFill(v.polygon, v.keyPolygon, fill))
   }
   return fills
+}
+
+/** Assemble one render-ready `VoidFill`, deriving the canonical-pose transform
+ * when the fill carries a gradient (from the STRAIGHT outline where present,
+ * matching stamps — so a gradient survives curve-recipe changes). */
+export function makeVoidFill(
+  polygon: Vec2[],
+  keyPolygon: Vec2[] | undefined,
+  fill: { colour: string; gradient?: GradientSpec },
+): VoidFill {
+  if (!fill.gradient) return { polygon, colour: fill.colour }
+  const pose = canonicalPose(keyPolygon ?? polygon)
+  return pose
+    ? { polygon, colour: fill.colour, gradient: fill.gradient, pose: pose.toInstance }
+    : { polygon, colour: fill.colour }
 }
 
 /**

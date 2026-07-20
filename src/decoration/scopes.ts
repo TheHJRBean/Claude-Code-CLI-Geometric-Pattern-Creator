@@ -155,7 +155,9 @@ function matchPositioned(
   for (let i = recs.length - 1; i >= 0; i--) {
     const r = recs[i]
     if (r.signature !== signature) continue
-    if (Math.abs(r.x - p.x) <= tol && Math.abs(r.y - p.y) <= tol) return r
+    if (Math.abs(r.x - p.x) <= tol && Math.abs(r.y - p.y) <= tol) {
+      return r.gradient ? { colour: r.colour, gradient: r.gradient } : { colour: r.colour }
+    }
   }
   return null
 }

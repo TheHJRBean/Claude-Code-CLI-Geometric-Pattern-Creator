@@ -3,6 +3,7 @@ import { reducer } from './reducer'
 import { DEFAULT_CONFIG } from './defaults'
 import { createDefaultEditorConfig } from '../editor/createDefault'
 import type { PatternConfig } from '../types/pattern'
+import type { GradientSpec } from '../types/editor'
 import type { Action } from './actions'
 
 const base = (): PatternConfig => ({
@@ -145,6 +146,63 @@ describe('Step 19 — decoration reducer actions (scoped records)', () => {
   it('decoration actions are no-ops without an editor patch', () => {
     const s = structuredClone(DEFAULT_CONFIG)
     expect(reducer(s, { type: 'SET_DECORATION_VOID_FILL', payload: { scope: 'congruent', key: 'x', colour: '#000' } } as Action)).toBe(s)
+  })
+})
+
+describe('Gradient Void fills (#44) — SET_DECORATION_VOID_GRADIENT', () => {
+  const stops = [{ offset: 0, colour: '#111' }, { offset: 1, colour: '#eee' }]
+  const grad = { type: 'linear' as const, stops, start: { x: 40, y: 0 }, end: { x: 40, y: 30 } }
+  const paint = (gradient: GradientSpec = grad, extra: Record<string, unknown> = {}): Action => ({
+    type: 'SET_DECORATION_VOID_GRADIENT',
+    payload: { scope: 'congruent', key: 'sig', colour: '#111', gradient, toggle: true, ...extra },
+  } as Action)
+
+  it('creates a voidFills record carrying the gradient', () => {
+    const s = reducer(base(), paint())
+    expect(s.editor!.decoration!.voidFills).toEqual([
+      { scope: 'congruent', key: 'sig', colour: '#111', gradient: grad },
+    ])
+  })
+
+  it('re-clicking with the same type + stops toggles the record off', () => {
+    let s = reducer(base(), paint())
+    s = reducer(s, paint())
+    expect(s.editor!.decoration!.voidFills).toEqual([])
+  })
+
+  it('toggle-off ignores geometry differences (focus-edited records still unpaint)', () => {
+    let s = reducer(base(), paint())
+    // Focus-editor Apply (no toggle) reshapes the geometry.
+    const shaped = { ...grad, start: { x: 0, y: 0 }, end: { x: 80, y: 30 } }
+    s = reducer(s, paint(shaped, { toggle: undefined }))
+    expect(s.editor!.decoration!.voidFills[0].gradient).toEqual(shaped)
+    // A canvas re-click with the original seeded geometry still unpaints.
+    s = reducer(s, paint())
+    expect(s.editor!.decoration!.voidFills).toEqual([])
+  })
+
+  it('canvas re-paint with new stops preserves focus-edited geometry', () => {
+    let s = reducer(base(), paint())
+    const shaped = { ...grad, start: { x: 0, y: 0 }, end: { x: 80, y: 30 } }
+    s = reducer(s, paint(shaped, { toggle: undefined }))
+    const newStops = [{ offset: 0, colour: '#222' }, { offset: 1, colour: '#fff' }]
+    s = reducer(s, paint({ ...grad, stops: newStops }))
+    expect(s.editor!.decoration!.voidFills[0].gradient).toEqual({ ...shaped, stops: newStops })
+  })
+
+  it('a type flip replaces the geometry outright', () => {
+    let s = reducer(base(), paint())
+    const radial = { type: 'radial' as const, stops, centre: { x: 40, y: 15 }, radius: 40 }
+    s = reducer(s, paint(radial))
+    expect(s.editor!.decoration!.voidFills[0].gradient).toEqual(radial)
+  })
+
+  it('gradient and flat records upsert into the same (scope, key) slot', () => {
+    let s = reducer(base(), paint())
+    s = reducer(s, { type: 'SET_DECORATION_VOID_FILL', payload: { scope: 'congruent', key: 'sig', colour: '#333' } } as Action)
+    expect(s.editor!.decoration!.voidFills).toEqual([
+      { scope: 'congruent', key: 'sig', colour: '#333' },
+    ])
   })
 })
 

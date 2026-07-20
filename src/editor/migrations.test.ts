@@ -55,6 +55,46 @@ describe('Guides slice 3 — guideTiles migration', () => {
   })
 })
 
+describe('Decoration gradients (#44) — ColourRecord.gradient migration', () => {
+  const grad = {
+    type: 'linear',
+    stops: [{ offset: 0, colour: '#111' }, { offset: 1, colour: '#eee' }],
+    start: { x: 0, y: 0 },
+    end: { x: 0, y: 100 },
+  }
+  const deco = (gradient: unknown) => ({
+    version: 1,
+    strandColours: [],
+    voidFills: [{ scope: 'congruent', key: 'sig', colour: '#123456', gradient }],
+  })
+
+  it('round-trips a valid linear gradient record', () => {
+    const out = migrateEditorConfig(v3Patch({ decoration: deco(grad) }))
+    expect(out!.decoration!.voidFills[0].gradient).toEqual(grad)
+  })
+
+  it('round-trips a valid radial gradient record', () => {
+    const radial = { type: 'radial', stops: grad.stops, centre: { x: 5, y: 6 }, radius: 40 }
+    const out = migrateEditorConfig(v3Patch({ decoration: deco(radial) }))
+    expect(out!.decoration!.voidFills[0].gradient).toEqual(radial)
+  })
+
+  it.each([
+    ['unknown type', { ...grad, type: 'conic' }],
+    ['single stop', { ...grad, stops: [grad.stops[0]] }],
+    ['offset out of range', { ...grad, stops: [{ offset: -0.1, colour: '#111' }, { offset: 1, colour: '#eee' }] }],
+    ['non-string stop colour', { ...grad, stops: [{ offset: 0, colour: 7 }, { offset: 1, colour: '#eee' }] }],
+    ['linear missing end', { type: 'linear', stops: grad.stops, start: { x: 0, y: 0 } }],
+    ['radial non-positive radius', { type: 'radial', stops: grad.stops, centre: { x: 0, y: 0 }, radius: 0 }],
+    ['not an object', 'gradient!'],
+  ])('malformed gradient (%s) is dropped, keeping the flat colour', (_name, bad) => {
+    const out = migrateEditorConfig(v3Patch({ decoration: deco(bad) }))
+    expect(out!.decoration!.voidFills).toEqual([
+      { scope: 'congruent', key: 'sig', colour: '#123456' },
+    ])
+  })
+})
+
 describe('Step 19 — decoration migration', () => {
   it('a v3 patch with no decoration loads with decoration undefined', () => {
     const out = migrateEditorConfig(v3Patch())

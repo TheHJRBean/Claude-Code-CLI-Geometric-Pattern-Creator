@@ -3,3 +3,5 @@ dist
 taprats-batik/
 vite.config.ts.timestamp-*
 *:Zone.Identifier
+islamic-pattern*.png
+islamic-pattern*.json

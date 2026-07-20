@@ -5,6 +5,20 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-20 (Decoration gradients slice 1 — #44 per-shape Void gradients) — ✅ SHIPPED (Fable), ⏳ user browser-verify
+
+**Goal:** ticket #44 / `DECORATION_GRADIENTS_SPEC.md` slice 1: GradientSpec data model, per-shape Void gradients, gradient PaintTarget, stop bar, focus editor.
+
+**Done — 3 commits (`c32be35` model+render, `a0fde0e` UI, `a84444a` tests), 1151 vitest green, tsc + build clean:**
+1. **Data model:** `GradientSpec` union (linear start/end | radial centre/radius, stops min 2 / cap `GRADIENT_MAX_STOPS`=8) + additive `ColourRecord.gradient?` (`types/editor.ts`); `migrations.ts` `migrateGradient` — malformed gradient dropped alone, flat colour kept.
+2. **Resolve ladder:** `scopes.ts` `FillStyle {colour, gradient?}` — index maps store fills; new `resolveFill` (old `resolveColour` = colour-only wrapper, StrandLayer untouched). `resolve.ts` `VoidFill` gains `gradient?`+`pose?`; shared `makeVoidFill` derives the canonical→instance pose (`canonicalPose`, straight `keyPolygon` preferred — survives curve changes). Wired into `colourVoids` (non-fast), fast-path `decorationFills`, and `instanceVoidFills` (translated outline re-posed).
+3. **Rendering:** `VoidFillLayer` mints per-instance `<linearGradient>/<radialGradient>` defs, `userSpaceOnUse` + `gradientTransform`=pose matrix; `idPrefix` per PatternSVG mount (`void-fill-frag`/`-inst`/`-world`) for `<use>` id-collision safety (same mechanism as stamp clips).
+4. **Paint flow:** `'gradient'` 5th `PaintTarget` (mode toggle This shape / Across-frame-disabled-until-#45); Reach ladder shared with Voids. New `decoration/gradients.ts` (`GradientDraft`, `seedGradientSpec` — linear = vertical canonical-box span, radial = centre + half-max-side). Canvas click seeds geometry off the clicked Void's canonical pose → `SET_DECORATION_VOID_GRADIENT` (reducer: unmask ladder; **toggle compares type+stops only** and re-paint preserves focus-edited geometry; focus Apply = full replace, no toggle). Draft edits in the panel live-update the selected record.
+5. **UI:** `GradientStopBar` (draggable offsets, click-track add, +/− stops, ColourPicker per stop) + `GradientSection` in DecorationPanel + `GradientFocusEditor` (StampFocusEditor pattern: canonical-pose shape live-filled, draggable linear start/end or radial centre/radius handles, type toggle w/ reseed, stop bar, Reset geometry).
+
+**Next (cold start):** user browser-verify #44 (paint a gradient on a Void group — congruent + finer reaches; drag stops; focus-mode reshape incl. on a mirrored instance; save/load round-trip; export). Then **#45 slice 2 (Opus per ticket): across-frame underlay + on-canvas handles**. #46 stays blocked until #44+#45 verified.
+
+---
 ### ▶ 2026-07-20 (Housekeeping: gitignore + memory prune) — ✅ DONE (Fable)
 
 **Goal:** small wins with low usage budget — clean stray exports, prune memory index.

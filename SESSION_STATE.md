@@ -5,6 +5,25 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-20 (Frame border strand-paint — round 4: curved strokes unclickable) — ✅ FIXED (Fable), ⏳ user browser-verify
+
+**Goal:** user report — border strand-paint error persists ("less severe"): on a FRESH comp with #42 extra line sets, clicking some border strands does nothing (no hover). Screenshot `islamic-pattern (6).png` shows curved petal strands.
+
+**Root cause (by construction, pinned in tests):** every rendered segment's straight chord IS in `strandHits` at distance 0, so a truly dead click means the visible stroke isn't where the chord is — **curves**. `computeCurves` offsets control points by `cp.offset × edgeLen`, so a bowed stroke's body sits up to ~offset·edgeLen (easily 6–15+ world units) from the chord, while the pick radius is only `max(6/zoom, width/2 + 2/zoom)`. Interior curved strokes still hit near junction points (curves pass through them); at the Frame border the clip leaves ONLY the mid-bulge visible ⇒ the whole visible stroke is a dead zone. #42 per-set curves made this common (each extra set carries its own curve).
+
+**Fix (1 commit; both hit paths + hover highlight):**
+- `decoration/flatten.ts`: new `flattenSegmentPolylines(segments, strandData, config)` — per-segment sampled Bézier polyline (null = straight), reusing the caller's chains; shared `sampleCurve` extracted from `flattenStrandsToSegments`.
+- `decoration/resolve.ts`: `StrandHit.poly?: Vec2[]`.
+- `rendering/svgGeometry.ts`: `nearestSegmentIndex` measures hits with `poly` against the polyline (new `pointPolylineDist`).
+- `hooks/usePattern.ts`: both hit builders attach `poly` when `curvesEnabled` — non-fast `nonFastStrandHits` (deps + config.figures/smoothTransitions) and the fast-path `decorationStrandHits` (base polylines computed once, translated per stamp).
+- `rendering/DecorationPaintLayer.tsx`: hover highlight follows `poly` (was straight chords over bowed strokes); catcher bbox includes poly points.
+- Tests: `svgGeometry.test.ts` (polyline-vs-chord pick regression) + `flatten.test.ts` (per-segment polylines, straight ⇒ null). 1121 vitest green, tsc clean.
+
+**Next (cold start):** user browser-verify — framed comp with curved strands (incl. #42 per-set curves) → Decoration → Strands: border bulge strokes must hover + paint; hover highlight should now trace the curve. SAVED-comps replay investigation (round 3 entry below) still ⏳ pending user's `pattern-library-v1` dump — this round may well BE that bug too (saves with curves enabled), so re-test a failing save first before chasing the dump.
+
+**Also noted (not fixed):** `segmentBaseSignatures` midpoint match ignores `setId` — exactly-coincident twin-set segments alias to one base class. Benign for paint (same geometry ⇒ same class visually); file only if a real symptom appears.
+
+---
 ### ▶ 2026-07-19 (Morph reset on composition swap — ticket #43) — ✅ FIXED (Fable; Sonnet-level task), issue #43 CLOSED
 
 **Goal:** user report — Morph settings not reset between composition changes (= ticket #43, filed 2026-07-18).

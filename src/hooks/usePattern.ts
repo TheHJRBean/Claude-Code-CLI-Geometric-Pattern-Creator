@@ -28,7 +28,7 @@ import { extractVoids, pairCurvedOutlines, type VoidRegion } from '../decoration
 import { buildColourIndex, orbitOffset, resolveColour, scopedKey } from '../decoration/scopes'
 import { cellFramesFromOutlines, cellOrbitKey, reduceToOrbit, type CellFrame } from '../decoration/cellScope'
 import { strandIdentities, strandIdentitiesFromBase } from '../decoration/strandGroups'
-import { curvesEnabled, flattenStrandsToSegments } from '../decoration/flatten'
+import { curvesEnabled, flattenStrandsToSegments, flattenSegmentPolylines } from '../decoration/flatten'
 import { overlapsExisting } from '../editor/tileOverlap'
 
 export interface PatternData {
@@ -714,6 +714,13 @@ export function usePattern(
       offsets[i],
       frames,
     ))
+    // Curved strokes bow away from their straight chord — hit-test (and
+    // hover-highlight) against the flattened rendered polyline instead, or
+    // the bulge is a dead pick zone (at a Frame border the clip can leave
+    // ONLY the bulge visible, making the stroke unclickable).
+    const polys = curvesEnabled(config)
+      ? flattenSegmentPolylines(segments, ids.strandData, config)
+      : null
     const hits: StrandHit[] = []
     for (let i = 0; i < segments.length; i++) {
       const strandIdx = ids.strandOfSegment[i]
@@ -721,6 +728,7 @@ export function usePattern(
       hits.push({
         from: segments[i].from,
         to: segments[i].to,
+        poly: polys?.[i] ?? undefined,
         strandId: strandIdx,
         // Per-SEGMENT effective congruent signature — a chain spans multiple
         // base classes in multi-class fields (vertex lines / extra sets) and
@@ -732,7 +740,10 @@ export function usePattern(
       })
     }
     return hits
-  }, [decorationActive, decorationPaintTarget, stampedField, editorBase, decorationCellFrames])
+    // Curve reads: curvesEnabled/flattenSegmentPolylines → config.figures +
+    // config.smoothTransitions.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [decorationActive, decorationPaintTarget, stampedField, editorBase, decorationCellFrames, config.figures, config.smoothTransitions])
 
   return useMemo(() => {
     // Step 17 Builder: when a Patch is active, render its Tiles directly.
@@ -922,15 +933,22 @@ export function usePattern(
             } else if (baseStrandIds) {
               decorationStrandHits = []
               const nStrands = baseStrandIds.strands.length
+              // Flattened rendered polylines for curved base segments — the
+              // hit-test must follow the bowed stroke, not its chord.
+              const baseSegPolylines = curvesEnabled(config)
+                ? flattenSegmentPolylines(editorBase.baseSegments, baseStrandIds.strandData, config)
+                : null
               for (let si = 0; si < visible.length; si++) {
                 const tx = visible[si].translation.x, ty = visible[si].translation.y
                 for (let i = 0; i < editorBase.baseSegments.length; i++) {
                   const s = editorBase.baseSegments[i]
                   const strandIdx = baseStrandIds.strandOfSegment[i]
                   if (strandIdx < 0) continue
+                  const bp = baseSegPolylines?.[i]
                   decorationStrandHits.push({
                     from: { x: s.from.x + tx, y: s.from.y + ty },
                     to: { x: s.to.x + tx, y: s.to.y + ty },
+                    poly: bp ? bp.map(q => ({ x: q.x + tx, y: q.y + ty })) : undefined,
                     strandId: si * nStrands + strandIdx,
                     signature: baseStrandIds.strands[strandIdx].signature,
                     patchKey: baseStrandIds.patchKeys[strandIdx],

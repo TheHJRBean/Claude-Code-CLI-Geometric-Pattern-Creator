@@ -159,6 +159,12 @@ export function DecorationPaintLayer({
     for (const s of strandHits) {
       minX = Math.min(minX, s.from.x, s.to.x); maxX = Math.max(maxX, s.from.x, s.to.x)
       minY = Math.min(minY, s.from.y, s.to.y); maxY = Math.max(maxY, s.from.y, s.to.y)
+      if (s.poly) {
+        for (const q of s.poly) {
+          minX = Math.min(minX, q.x); maxX = Math.max(maxX, q.x)
+          minY = Math.min(minY, q.y); maxY = Math.max(maxY, q.y)
+        }
+      }
     }
     return { minX, minY, maxX, maxY }
   }, [strandHits])
@@ -212,7 +218,12 @@ export function DecorationPaintLayer({
     // Single <path> no matter how large the group ('all' is the whole field).
     let d = ''
     for (const s of strandHits) {
-      if (inGroup(s)) d += `M${s.from.x},${s.from.y}L${s.to.x},${s.to.y}`
+      if (!inGroup(s)) continue
+      // Follow the flattened rendered curve where there is one, so the
+      // highlight overlays the bowed stroke instead of its straight chord.
+      d += s.poly
+        ? `M${s.poly.map(q => `${q.x},${q.y}`).join('L')}`
+        : `M${s.from.x},${s.from.y}L${s.to.x},${s.to.y}`
     }
     if (!d) return null
     return (

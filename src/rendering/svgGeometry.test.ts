@@ -60,4 +60,19 @@ describe('nearestSegmentIndex', () => {
     // equidistant (3) from both → index 0
     expect(nearestSegmentIndex({ x: 5, y: 3 }, [segs[0], { from: { x: 0, y: 6 }, to: { x: 10, y: 6 } }], 6)).toBe(0)
   })
+
+  it('a hit carrying a flattened polyline is measured against the polyline, not the chord', () => {
+    // Chord along y=0, but the rendered curve bulges to y=10 mid-stroke —
+    // the border strand-paint dead-zone regression: clicking the bulge must
+    // hit even though the chord is far away.
+    const bulged = [{
+      from: { x: 0, y: 0 },
+      to: { x: 10, y: 0 },
+      poly: [{ x: 0, y: 0 }, { x: 3, y: 8 }, { x: 5, y: 10 }, { x: 7, y: 8 }, { x: 10, y: 0 }],
+    }]
+    // On the bulge: 9 units from the chord (would miss at tol 6), on the polyline.
+    expect(nearestSegmentIndex({ x: 5, y: 9 }, bulged, 6)).toBe(0)
+    // Between chord and bulge, near neither within a tight tolerance.
+    expect(nearestSegmentIndex({ x: 5, y: 5 }, bulged, 2)).toBeNull()
+  })
 })

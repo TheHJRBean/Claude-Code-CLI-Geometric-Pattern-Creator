@@ -28,18 +28,32 @@ export function pointSegmentDist(p: Vec2, a: Vec2, b: Vec2): number {
   return Math.hypot(p.x - qx, p.y - qy)
 }
 
+/** Shortest distance from `p` to a polyline (min over its chords). */
+export function pointPolylineDist(p: Vec2, pts: Vec2[]): number {
+  let best = Infinity
+  for (let i = 1; i < pts.length; i++) {
+    const d = pointSegmentDist(p, pts[i - 1], pts[i])
+    if (d < best) best = d
+  }
+  return best
+}
+
 /** Index of the segment nearest `p`, but only within `tol`; `null` otherwise.
  *  The lowest index wins ties. Used by the Decoration strand hit-test, where a
- *  miss (null) deliberately lets the click fall through to the pan handler. */
+ *  miss (null) deliberately lets the click fall through to the pan handler.
+ *  A segment carrying `poly` (its flattened rendered Bézier) is measured
+ *  against that polyline instead of the straight `from`→`to` chord — curved
+ *  strokes bow away from the chord, which left dead pick zones mid-bulge. */
 export function nearestSegmentIndex(
   p: Vec2,
-  segs: { from: Vec2; to: Vec2 }[],
+  segs: { from: Vec2; to: Vec2; poly?: Vec2[] }[],
   tol: number,
 ): number | null {
   let best = -1
   let bestD = tol
   for (let i = 0; i < segs.length; i++) {
-    const d = pointSegmentDist(p, segs[i].from, segs[i].to)
+    const s = segs[i]
+    const d = s.poly ? pointPolylineDist(p, s.poly) : pointSegmentDist(p, s.from, s.to)
     if (d < bestD) { bestD = d; best = i }
   }
   return best >= 0 ? best : null

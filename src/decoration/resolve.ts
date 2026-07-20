@@ -42,6 +42,11 @@ export interface PaintVoid extends VoidRegion {
 export interface StrandHit {
   from: Vec2
   to: Vec2
+  /** Flattened rendered Bézier polyline when this segment renders curved —
+   * the hit-test and hover highlight follow it instead of the straight
+   * chord (curved strokes bow away from the chord, which left dead pick
+   * zones on the bulge — the whole visible stroke at a Frame border). */
+  poly?: Vec2[]
   /** Field-unique strand index (groups the hit segments of one strand). */
   strandId: number
   /** Congruent strand signature. */

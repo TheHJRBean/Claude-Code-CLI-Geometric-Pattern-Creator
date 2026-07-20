@@ -194,6 +194,9 @@ interface Props {
   /** Stamp target — a Void click selects its congruent shape for the
    * Decoration panel's inspector / export / upload flow. */
   onSelectStampVoid?: (v: PaintVoid) => void
+  /** Gradient target (#44) — a Void click paints the working gradient draft;
+   * the clicked Void rides along to seed canonical-pose geometry. */
+  onPaintGradientVoid?: (v: PaintVoid, payload: PaintPayload) => void
   /** Signature of the selected stamp shape (persistent highlight). */
   selectedStampSignature?: string | null
   /** Stamp target — surfaces the current Void hit-targets so the Decoration
@@ -214,7 +217,7 @@ interface Props {
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, onPlaceTileOnAnchor, editorMode = 'place', constructSnap = true, constructAngleStep = DEFAULT_ANGLE_STEP, constructTool = 'line', showGuides = false, onAddGuide, onUpdateGuide, onDeleteGuide, picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature, onDecorationVoids, showMorphOverlay = false, onSetMorphOrigin, onSetMorphDirection, onSetMorphBoundaryPosition, onDeleteMorphBoundary, viewBoundsRef }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, onPlaceTileOnAnchor, editorMode = 'place', constructSnap = true, constructAngleStep = DEFAULT_ANGLE_STEP, constructTool = 'line', showGuides = false, onAddGuide, onUpdateGuide, onDeleteGuide, picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature, onPaintGradientVoid, onDecorationVoids, showMorphOverlay = false, onSetMorphOrigin, onSetMorphDirection, onSetMorphBoundaryPosition, onDeleteMorphBoundary, viewBoundsRef }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -257,8 +260,8 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     editorNeighbourStrands,
     editorFrame,
     decorationActive,
-    // Stamp mode needs the same Void hit-targets as Voids painting.
-    !decorationActive ? 'off' : paintTarget === 'stamp' ? 'voids' : paintTarget,
+    // Stamp + Gradient modes need the same Void hit-targets as Voids painting.
+    !decorationActive ? 'off' : paintTarget === 'stamp' || paintTarget === 'gradient' ? 'voids' : paintTarget,
   )
 
   // Mirror the Void hit-targets up so the Decoration panel can export every
@@ -1206,6 +1209,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         onPaintStrand={onPaintStrand}
         onSelectStampVoid={onSelectStampVoid}
         selectedStampSignature={selectedStampSignature}
+        onPaintGradientVoid={onPaintGradientVoid}
       />
     )
     : null

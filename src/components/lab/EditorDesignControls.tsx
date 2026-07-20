@@ -4,6 +4,7 @@ import type { EditorMode } from '../../types/appMode'
 import type { GuideTool, WorldBounds } from '../../editor/guides'
 import type { PaintTarget, StrandPaintScope, VoidPaintScope } from '../../rendering/DecorationPaintLayer'
 import type { PaintVoid } from '../../decoration/resolve'
+import type { GradientDraft, GradientSelection } from '../../decoration/gradients'
 import type { Vec2 } from '../../utils/math'
 import { FieldLabel, segmentedButtonStyle } from './labShared'
 import { CompositionPanel } from './CompositionPanel'
@@ -51,6 +52,10 @@ export interface EditorDesignControlsProps {
   stampSelection: PaintVoid | null
   /** Decoration Stamp target — latest canvas Void hit-targets (Export all). */
   getStampVoids: () => PaintVoid[]
+  /** Decoration Gradient target (#44) — working draft + last-painted group. */
+  gradientDraft: GradientDraft
+  onSetGradientDraft: (d: GradientDraft) => void
+  gradientSelection: GradientSelection | null
   showBoundaryLattice: boolean
   onToggleShowBoundaryLattice: (next: boolean) => void
   showNeighbours: boolean
@@ -105,6 +110,9 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
     onSetStrandScope,
     stampSelection,
     getStampVoids,
+    gradientDraft,
+    onSetGradientDraft,
+    gradientSelection,
     showBoundaryLattice,
     onToggleShowBoundaryLattice,
     showNeighbours,
@@ -200,6 +208,9 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
           onSetStrandScope={onSetStrandScope}
           stampSelection={stampSelection}
           getStampVoids={getStampVoids}
+          gradientDraft={gradientDraft}
+          onSetGradientDraft={onSetGradientDraft}
+          gradientSelection={gradientSelection}
         />
       )}
 

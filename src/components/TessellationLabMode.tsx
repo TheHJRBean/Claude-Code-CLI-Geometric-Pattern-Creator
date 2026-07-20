@@ -16,6 +16,7 @@ import {
 import { Canvas, type SelectedEdge } from './Canvas'
 import type { PaintTarget, StrandPaintScope, VoidPaintScope } from '../rendering/DecorationPaintLayer'
 import type { PaintVoid } from '../decoration/resolve'
+import { defaultGradientStops, seedGradientSpec, type GradientDraft, type GradientSelection } from '../decoration/gradients'
 import type { SectionKey } from './EditorBoundaryInwardLayer'
 import { SandstoneEdge } from './SandstoneEdge'
 import { TopBar } from './TopBar'
@@ -249,6 +250,12 @@ export function TessellationLabMode({
   // Stamp target — the Void shape picked on the canvas for the panel's
   // inspector / shape-canvas export / image-upload flow.
   const [stampSelection, setStampSelection] = useState<PaintVoid | null>(null)
+  // Gradient target (#44) — the working gradient draft (type + stops) canvas
+  // clicks paint, and the group last painted (anchors the focus editor).
+  const [gradientDraft, setGradientDraft] = useState<GradientDraft>(
+    () => ({ type: 'linear', stops: defaultGradientStops('#c0392b') }),
+  )
+  const [gradientSelection, setGradientSelection] = useState<GradientSelection | null>(null)
   // Stamp target — latest Void hit-targets mirrored up from the Canvas so
   // "Export all shapes" can enumerate every distinct shape on demand. A ref
   // (not state): it updates on every pan/zoom and nothing renders from it.
@@ -515,6 +522,9 @@ export function TessellationLabMode({
                 onSetStrandScope={setStrandScope}
                 stampSelection={stampSelection}
                 getStampVoids={getStampVoids}
+                gradientDraft={gradientDraft}
+                onSetGradientDraft={setGradientDraft}
+                gradientSelection={gradientSelection}
                 onSetEditorPhase={p => {
                   // Step 17.7 — fire auto-complete when leaving Design for any
                   // later phase (Composition or Decoration) if the user opted
@@ -863,11 +873,20 @@ export function TessellationLabMode({
         onForceCommitMulti={handleForceCommitMulti}
         editorStrandMode={editorPhase !== 'design'}
         decorationActive={editorPhase === 'decoration'}
-        paintColor={decorationColor}
+        paintColor={paintTarget === 'gradient' ? gradientDraft.stops[0].colour : decorationColor}
         paintTarget={editorPhase === 'decoration' ? paintTarget : 'off'}
         paintVoidScope={voidScope}
         paintStrandScope={strandScope}
         onPaintVoid={p => { pushRecentColour(decorationColor); dispatch({ type: 'SET_DECORATION_VOID_FILL', payload: { ...p, colour: decorationColor } }) }}
+        onPaintGradientVoid={(v, p) => {
+          // Seed the gradient's geometry off the clicked shape's canonical
+          // pose so the record replicates like a stamp (mirrors included).
+          const spec = seedGradientSpec(gradientDraft.type, gradientDraft.stops, v.keyPolygon ?? v.polygon)
+          if (!spec) return
+          pushRecentColour(gradientDraft.stops[0].colour)
+          dispatch({ type: 'SET_DECORATION_VOID_GRADIENT', payload: { ...p, colour: gradientDraft.stops[0].colour, gradient: spec, toggle: true } })
+          setGradientSelection({ void: v, scope: p.scope, key: p.key })
+        }}
         onPaintStrand={p => { pushRecentColour(decorationColor); dispatch({ type: 'SET_DECORATION_STRAND_COLOR', payload: { ...p, colour: decorationColor } }) }}
         onSelectStampVoid={setStampSelection}
         selectedStampSignature={paintTarget === 'stamp' ? stampSelection?.signature ?? null : null}

@@ -1,5 +1,5 @@
 import type { FigureLineSet, MorphConfig, PatternConfig, StrandStyle } from '../types/pattern'
-import type { BoundaryShape, ConfigurationId, EditorConfig, EditorGuide, EditorGuidePatch, FrameConfig, GroupingScope, SymmetryMode, VoidStampRecord } from '../types/editor'
+import type { BoundaryShape, ConfigurationId, EditorConfig, EditorGuide, EditorGuidePatch, FrameConfig, GradientSpec, GroupingScope, SymmetryMode, VoidStampRecord } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import type { ClickedTargetKeys } from '../decoration/scopes'
 
@@ -126,6 +126,12 @@ export type Action =
   // no-op click). STRAND_COLOR with colour null removes the (scope, key)
   // record explicitly.
   | { type: 'SET_DECORATION_VOID_FILL'; payload: { scope: GroupingScope; key: string; colour: string; clicked?: ClickedTargetKeys } }
+  // Gradient Void fill (DECORATION_GRADIENTS_SPEC, #44) — same record ladder
+  // as VOID_FILL, with a `gradient` spec riding the record (`colour` stays the
+  // representative flat colour). `toggle` marks a canvas click: re-painting an
+  // identical gradient then removes the record (panel/focus-editor upserts
+  // omit it so Apply never unpaints).
+  | { type: 'SET_DECORATION_VOID_GRADIENT'; payload: { scope: GroupingScope; key: string; colour: string; gradient: GradientSpec; clicked?: ClickedTargetKeys; toggle?: boolean } }
   | { type: 'SET_DECORATION_STRAND_COLOR'; payload: { scope: GroupingScope; key: string; colour: string | null; clicked?: ClickedTargetKeys } }
   // Void Stamps — an uploaded image clipped into every Void the record
   // reaches (v1 scope: congruent, key = shape signature). Upserts by

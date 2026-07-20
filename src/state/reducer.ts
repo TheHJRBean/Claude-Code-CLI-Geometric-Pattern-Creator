@@ -748,6 +748,31 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       }
       return { ...state, editor: { ...state.editor, decoration: { ...deco, voidFills } } }
     }
+    case 'SET_DECORATION_VOID_GRADIENT': {
+      // Gradient Void fill (#44): same unmask-then-upsert ladder as
+      // SET_DECORATION_VOID_FILL, with the gradient spec riding the record.
+      // Toggle-off (canvas clicks only, `toggle`) requires an identical
+      // gradient — a focus-editor Apply omits `toggle` so it always upserts.
+      if (!state.editor) return state
+      const deco = state.editor.decoration ?? { version: 1 as const, strandColours: [], voidFills: [] }
+      const { scope, key, colour, gradient, clicked, toggle } = action.payload
+      const { records: unmasked, removedAny } = clearMaskingRecords(deco.voidFills, scope, key, clicked)
+      const existing = unmasked.find(r => r.scope === scope && r.key === key)
+      const voidFills = unmasked.filter(r => !(r.scope === scope && r.key === key))
+      // Canvas-click (`toggle`) semantics compare type + stops only — the
+      // geometry may have been reshaped in the focus editor, and a re-click
+      // with the same draft should unpaint (or restyle) without stomping it.
+      const sameStops = !!existing?.gradient
+        && existing.gradient.type === gradient.type
+        && JSON.stringify(existing.gradient.stops) === JSON.stringify(gradient.stops)
+      if (removedAny || !toggle || !sameStops) {
+        const merged = toggle && existing?.gradient && existing.gradient.type === gradient.type
+          ? { ...existing.gradient, stops: gradient.stops }
+          : gradient
+        voidFills.push({ scope, key, colour, gradient: merged })
+      }
+      return { ...state, editor: { ...state.editor, decoration: { ...deco, voidFills } } }
+    }
     case 'SET_DECORATION_STRAND_COLOR': {
       // Scoped Strand colour (Stage 2): same unmask-then-upsert + guarded
       // same-colour toggle as Void fills. `colour: null` removes the record

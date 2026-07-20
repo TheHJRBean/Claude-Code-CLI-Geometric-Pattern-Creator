@@ -3,10 +3,13 @@ import type { PatternConfig, StrandLineStyle } from '../../types/pattern'
 import type { Action } from '../../state/actions'
 import type { PaintTarget, StrandPaintScope, VoidPaintScope } from '../../rendering/DecorationPaintLayer'
 import type { PaintVoid } from '../../decoration/resolve'
+import { seedGradientSpec, type GradientDraft, type GradientSelection } from '../../decoration/gradients'
 import { downloadAllVoidShapeCanvases, downloadVoidShapePNG, downloadVoidShapeSVG, importStampImage, voidStampCanvas } from '../../export/stampAssets'
 import { ColourPicker, pushRecentColour } from '../ColourPicker'
 import { FieldLabel, segmentedButtonStyle } from './labShared'
 import { StampFocusEditor } from './StampFocusEditor'
+import { GradientFocusEditor } from './GradientFocusEditor'
+import { GradientStopBar } from './GradientStopBar'
 
 const decorationButtonStyle: React.CSSProperties = {
   padding: '5px 8px',
@@ -36,6 +39,11 @@ interface DecorationPanelProps {
   stampSelection: PaintVoid | null
   /** Stamp target — latest canvas Void hit-targets ("Export all shapes"). */
   getStampVoids: () => PaintVoid[]
+  /** Gradient target (#44) — the working gradient draft canvas clicks paint. */
+  gradientDraft: GradientDraft
+  onSetGradientDraft: (d: GradientDraft) => void
+  /** Gradient target — the Void group last painted (focus-editor anchor). */
+  gradientSelection: GradientSelection | null
 }
 
 /**
@@ -57,6 +65,9 @@ export function DecorationPanel({
   onSetStrandScope,
   stampSelection,
   getStampVoids,
+  gradientDraft,
+  onSetGradientDraft,
+  gradientSelection,
 }: DecorationPanelProps) {
   const strandRec = editor.decoration?.strandColours.find(r => r.scope === 'congruent' && r.key === '*')
   const strandRecCount = editor.decoration?.strandColours.length ?? 0
@@ -84,15 +95,15 @@ export function DecorationPanel({
         unpaints it. Strand geometry is frozen here — flip back to
         Composition to reshape.
       </div>
-      <FieldLabel label="Paint target" tooltip="What clicking on the canvas paints. Off frees panning; Voids fill the gaps between Strands; Strands colour the lines themselves; Stamp selects a Void shape to export as a canvas or fill with an uploaded image." />
-      <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
-        {(['off', 'voids', 'strands', 'stamp'] as const).map(t => (
+      <FieldLabel label="Paint target" tooltip="What clicking on the canvas paints. Off frees panning; Voids fill the gaps between Strands; Strands colour the lines themselves; Stamp selects a Void shape to export as a canvas or fill with an uploaded image; Gradient fills the clicked Void group with a colour gradient." />
+      <div style={{ display: 'flex', gap: 0, marginBottom: 10, flexWrap: 'wrap' }}>
+        {(['off', 'voids', 'strands', 'stamp', 'gradient'] as const).map(t => (
           <button key={t} onClick={() => onSetPaintTarget(t)} style={segButtonStyle(paintTarget === t)}>
-            {t === 'off' ? 'Off' : t === 'voids' ? 'Voids' : t === 'strands' ? 'Strands' : 'Stamp'}
+            {t === 'off' ? 'Off' : t === 'voids' ? 'Voids' : t === 'strands' ? 'Strands' : t === 'stamp' ? 'Stamp' : 'Gradient'}
           </button>
         ))}
       </div>
-      {paintTarget === 'voids' && (
+      {(paintTarget === 'voids' || paintTarget === 'gradient') && (
         <>
           <FieldLabel label="Reach" tooltip="How far one click spreads. Matching = every Void with the clicked shape, everywhere. Twins = the clicked Void plus its rotation/mirror twins within its Cell, in every repeat. Repeat = the clicked Void's spot in every Patch repeat. Single = only the Void you click." />
           <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
@@ -119,8 +130,17 @@ export function DecorationPanel({
       {paintTarget === 'stamp' && (
         <StampSection editor={editor} dispatch={dispatch} selection={stampSelection} getStampVoids={getStampVoids} />
       )}
-      {paintTarget !== 'stamp' && <ColourPicker value={decorationColor} onChange={onSetDecorationColor} />}
-      {paintTarget === 'stamp' ? null : paintTarget === 'strands' ? (() => {
+      {paintTarget === 'gradient' && (
+        <GradientSection
+          editor={editor}
+          dispatch={dispatch}
+          draft={gradientDraft}
+          onSetDraft={onSetGradientDraft}
+          selection={gradientSelection}
+        />
+      )}
+      {paintTarget !== 'stamp' && paintTarget !== 'gradient' && <ColourPicker value={decorationColor} onChange={onSetDecorationColor} />}
+      {paintTarget === 'stamp' || paintTarget === 'gradient' ? null : paintTarget === 'strands' ? (() => {
         // Toggle: if every strand already carries the current paint colour,
         // the button removes it; otherwise it applies/updates. Removal
         // stores the `'none'` sentinel (strands hidden, Void fills meet
@@ -157,7 +177,7 @@ export function DecorationPanel({
           Colour all Voids
         </button>
       )}
-      {paintTarget !== 'stamp' && <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+      {paintTarget !== 'stamp' && paintTarget !== 'gradient' && <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
         {strandRec?.colour !== 'none' && (
           <button
             onClick={() => dispatch({ type: 'SET_DECORATION_STRAND_COLOR', payload: { scope: 'congruent', key: '*', colour: 'none' } })}
@@ -282,6 +302,125 @@ export function DecorationPanel({
           </div>
         )
       })()}
+    </div>
+  )
+}
+
+/**
+ * The **Gradient** target's panel section (#44): the working gradient draft —
+ * type, stop bar, per-stop colour — that canvas clicks paint onto Void groups
+ * at the active Reach; plus the focus-editor entry for reshaping the last
+ * painted group's gradient geometry. Draft edits live-update the selected
+ * record (stops/type), so tweaking colours after painting shows immediately.
+ */
+function GradientSection({ editor, dispatch, draft, onSetDraft, selection }: {
+  editor: NonNullable<PatternConfig['editor']>
+  dispatch: React.Dispatch<Action>
+  draft: GradientDraft
+  onSetDraft: (d: GradientDraft) => void
+  selection: GradientSelection | null
+}) {
+  const [selectedStop, setSelectedStop] = useState(0)
+  const [focusOpen, setFocusOpen] = useState(false)
+  const selRec = selection
+    ? editor.decoration?.voidFills.find(r => r.scope === selection.scope && r.key === selection.key && r.gradient)
+    : undefined
+  const outline = selection ? (selection.void.keyPolygon ?? selection.void.polygon) : null
+  const gradientCount = editor.decoration?.voidFills.filter(r => r.gradient).length ?? 0
+
+  // Draft edits mirror onto the selected record so painted gradients restyle
+  // live. Same-type changes keep the record's (possibly focus-edited)
+  // geometry; a type flip reseeds it from the shape's canonical box.
+  const updateDraft = (next: GradientDraft) => {
+    onSetDraft(next)
+    if (selection && selRec?.gradient && outline) {
+      const spec = next.type === selRec.gradient.type
+        ? { ...selRec.gradient, stops: next.stops }
+        : seedGradientSpec(next.type, next.stops, outline)
+      if (spec) {
+        dispatch({
+          type: 'SET_DECORATION_VOID_GRADIENT',
+          payload: { scope: selection.scope, key: selection.key, colour: next.stops[0].colour, gradient: spec },
+        })
+      }
+    }
+  }
+
+  const stops = draft.stops
+  const stopColour = selectedStop >= 0 && selectedStop < stops.length ? stops[selectedStop].colour : stops[0].colour
+
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <FieldLabel label="Mode" tooltip="This shape paints a gradient onto the clicked Void group, repeated across every congruent instance. Across frame (coming next) lays one gradient under all unpainted Voids." />
+      <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
+        <button style={segmentedButtonStyle(true, { transition: false })}>This shape</button>
+        <button
+          disabled
+          title="Across-frame gradients arrive with the next slice"
+          style={{ ...segmentedButtonStyle(false, { transition: false }), opacity: 0.4, cursor: 'default' }}
+        >
+          Across frame
+        </button>
+      </div>
+      <FieldLabel label="Gradient" tooltip="The working gradient. Linear runs along an axis; Radial radiates from a centre. Click a marker to select a stop, drag it to move, click the bar to add one. Then click a Void on the canvas to paint it; clicking again with the same stops unpaints." />
+      <div style={{ display: 'flex', gap: 0, marginBottom: 8 }}>
+        {(['linear', 'radial'] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => updateDraft({ ...draft, type: t })}
+            style={segmentedButtonStyle(draft.type === t, { transition: false })}
+          >
+            {t === 'linear' ? 'Linear' : 'Radial'}
+          </button>
+        ))}
+      </div>
+      <GradientStopBar
+        stops={stops}
+        selected={selectedStop}
+        onSelect={setSelectedStop}
+        onChange={s => updateDraft({ ...draft, stops: s })}
+      />
+      <ColourPicker
+        value={stopColour}
+        onChange={c => updateDraft({
+          ...draft,
+          stops: stops.map((s, i) => (i === selectedStop ? { ...s, colour: c } : s)),
+        })}
+      />
+      {!selection && (
+        <div style={{ fontSize: 11, fontStyle: 'italic', marginTop: 6 }}>
+          Click a Void on the canvas to paint this gradient onto its group.
+        </div>
+      )}
+      {selRec?.gradient && outline && (
+        <button
+          onClick={() => setFocusOpen(true)}
+          style={{ ...decorationButtonStyle, width: '100%', marginTop: 8 }}
+          title="Open the shape full-screen and drag the gradient's axis or centre/radius handles"
+        >
+          Focus mode — shape the gradient…
+        </button>
+      )}
+      {gradientCount > 0 && (
+        <div style={{ fontSize: 11, marginTop: 8 }}>
+          {gradientCount} gradient{gradientCount === 1 ? '' : 's'} painted
+        </div>
+      )}
+      {focusOpen && selRec?.gradient && outline && selection && (
+        <GradientFocusEditor
+          spec={selRec.gradient}
+          outline={outline}
+          title={selection.void.signature}
+          onApply={spec => {
+            onSetDraft({ type: spec.type, stops: spec.stops })
+            dispatch({
+              type: 'SET_DECORATION_VOID_GRADIENT',
+              payload: { scope: selection.scope, key: selection.key, colour: spec.stops[0].colour, gradient: spec },
+            })
+          }}
+          onClose={() => setFocusOpen(false)}
+        />
+      )}
     </div>
   )
 }

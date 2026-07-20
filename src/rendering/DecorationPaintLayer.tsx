@@ -5,7 +5,7 @@ import type { ClickedTargetKeys } from '../decoration/scopes'
 import type { PaintVoid, StrandHit } from '../decoration/resolve'
 import { nearestSegmentIndex, polygonPath } from './svgGeometry'
 
-export type PaintTarget = 'off' | 'voids' | 'strands' | 'stamp'
+export type PaintTarget = 'off' | 'voids' | 'strands' | 'stamp' | 'gradient'
 
 /** Which Grouping-scope rung a Void click binds at (ADR-0005 ladder).
  * `cell` = the clicked Void plus its rotation/mirror twins within its Cell. */
@@ -61,6 +61,7 @@ export function DecorationPaintLayer({
   // group renders a persistent outline highlight.
   onSelectStampVoid,
   selectedStampSignature,
+  onPaintGradientVoid,
 }: {
   target: PaintTarget
   voids: PaintVoid[]
@@ -81,6 +82,10 @@ export function DecorationPaintLayer({
   onPaintStrand: (payload: PaintPayload) => void
   onSelectStampVoid?: (v: PaintVoid) => void
   selectedStampSignature?: string | null
+  /** Gradient target (#44): a Void click paints the working gradient draft.
+   * Carries the whole clicked Void so the handler can seed the gradient
+   * geometry off its canonical pose. */
+  onPaintGradientVoid?: (v: PaintVoid, payload: PaintPayload) => void
 }) {
   const [hoveredVoid, setHoveredVoid] = useState<number | null>(null)
   const [hoveredStrand, setHoveredStrand] = useState<number | null>(null)
@@ -108,15 +113,17 @@ export function DecorationPaintLayer({
           onSelectStampVoid?.(v)
           return
         }
-        onPaintVoid({
+        const payload: PaintPayload = {
           scope: voidScope,
           key: voidKey(v),
           clicked: { signature: v.signature, cellKey: v.cellKey, patchKey: v.patchKey, instanceKey: v.instanceKey },
-        })
+        }
+        if (target === 'gradient') onPaintGradientVoid?.(v, payload)
+        else onPaintVoid(payload)
       }}
     />
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  )), [voids, onPaintVoid, voidScope, stampMode, onSelectStampVoid])
+  )), [voids, onPaintVoid, voidScope, stampMode, target, onSelectStampVoid, onPaintGradientVoid])
 
   const voidHighlight = useMemo(() => {
     if (hoveredVoid === null || hoveredVoid >= voids.length) return null
@@ -240,7 +247,7 @@ export function DecorationPaintLayer({
     )
   }, [hoveredStrand, strandHits, strandScope, activeColor])
 
-  if (target === 'voids') {
+  if (target === 'voids' || target === 'gradient') {
     return <g id="decoration-paint-layer">{voidHighlight}{voidHits}</g>
   }
 

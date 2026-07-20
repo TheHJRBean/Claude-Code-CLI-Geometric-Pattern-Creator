@@ -44,6 +44,8 @@ interface DecorationPanelProps {
   onSetGradientDraft: (d: GradientDraft) => void
   /** Gradient target — the Void group last painted (focus-editor anchor). */
   gradientSelection: GradientSelection | null
+  /** Detach the draft from the last-painted group ("New gradient"). */
+  onClearGradientSelection: () => void
 }
 
 /**
@@ -68,6 +70,7 @@ export function DecorationPanel({
   gradientDraft,
   onSetGradientDraft,
   gradientSelection,
+  onClearGradientSelection,
 }: DecorationPanelProps) {
   const strandRec = editor.decoration?.strandColours.find(r => r.scope === 'congruent' && r.key === '*')
   const strandRecCount = editor.decoration?.strandColours.length ?? 0
@@ -137,6 +140,7 @@ export function DecorationPanel({
           draft={gradientDraft}
           onSetDraft={onSetGradientDraft}
           selection={gradientSelection}
+          onClearSelection={onClearGradientSelection}
         />
       )}
       {paintTarget !== 'stamp' && paintTarget !== 'gradient' && <ColourPicker value={decorationColor} onChange={onSetDecorationColor} />}
@@ -313,12 +317,13 @@ export function DecorationPanel({
  * painted group's gradient geometry. Draft edits live-update the selected
  * record (stops/type), so tweaking colours after painting shows immediately.
  */
-function GradientSection({ editor, dispatch, draft, onSetDraft, selection }: {
+function GradientSection({ editor, dispatch, draft, onSetDraft, selection, onClearSelection }: {
   editor: NonNullable<PatternConfig['editor']>
   dispatch: React.Dispatch<Action>
   draft: GradientDraft
   onSetDraft: (d: GradientDraft) => void
   selection: GradientSelection | null
+  onClearSelection: () => void
 }) {
   const [selectedStop, setSelectedStop] = useState(0)
   const [focusOpen, setFocusOpen] = useState(false)
@@ -392,6 +397,12 @@ function GradientSection({ editor, dispatch, draft, onSetDraft, selection }: {
           Click a Void on the canvas to paint this gradient onto its group.
         </div>
       )}
+      {selection && (
+        <div style={{ fontSize: 11, fontStyle: 'italic', marginTop: 6 }}>
+          Edits restyle the last-painted group live. “New gradient” detaches
+          the draft so painted groups keep their colours.
+        </div>
+      )}
       {selRec?.gradient && outline && (
         <button
           onClick={() => setFocusOpen(true)}
@@ -399,6 +410,15 @@ function GradientSection({ editor, dispatch, draft, onSetDraft, selection }: {
           title="Open the shape full-screen and drag the gradient's axis or centre/radius handles"
         >
           Focus mode — shape the gradient…
+        </button>
+      )}
+      {selection && (
+        <button
+          onClick={onClearSelection}
+          style={{ ...decorationButtonStyle, width: '100%', marginTop: 8 }}
+          title="Detach the working gradient from the last-painted group — colour edits stop restyling it, and the next canvas click paints a fresh gradient"
+        >
+          New gradient
         </button>
       )}
       {gradientCount > 0 && (

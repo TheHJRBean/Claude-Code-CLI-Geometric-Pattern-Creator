@@ -56,6 +56,7 @@ export interface EditorDesignControlsProps {
   gradientDraft: GradientDraft
   onSetGradientDraft: (d: GradientDraft) => void
   gradientSelection: GradientSelection | null
+  onClearGradientSelection: () => void
   showBoundaryLattice: boolean
   onToggleShowBoundaryLattice: (next: boolean) => void
   showNeighbours: boolean
@@ -113,6 +114,7 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
     gradientDraft,
     onSetGradientDraft,
     gradientSelection,
+    onClearGradientSelection,
     showBoundaryLattice,
     onToggleShowBoundaryLattice,
     showNeighbours,
@@ -211,6 +213,7 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
           gradientDraft={gradientDraft}
           onSetGradientDraft={onSetGradientDraft}
           gradientSelection={gradientSelection}
+          onClearGradientSelection={onClearGradientSelection}
         />
       )}
 

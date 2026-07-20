@@ -525,6 +525,7 @@ export function TessellationLabMode({
                 gradientDraft={gradientDraft}
                 onSetGradientDraft={setGradientDraft}
                 gradientSelection={gradientSelection}
+                onClearGradientSelection={() => setGradientSelection(null)}
                 onSetEditorPhase={p => {
                   // Step 17.7 — fire auto-complete when leaving Design for any
                   // later phase (Composition or Decoration) if the user opted

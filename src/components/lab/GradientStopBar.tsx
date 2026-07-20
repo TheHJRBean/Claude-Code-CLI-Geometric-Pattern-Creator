@@ -2,12 +2,15 @@ import { useRef } from 'react'
 import type { GradientStop } from '../../types/editor'
 import { GRADIENT_MAX_STOPS } from '../../types/editor'
 import { gradientPreviewCss } from '../../decoration/gradients'
+import { isHexColour } from '../colourPicker.logic'
 
 /**
  * Gradient **stop bar** (#44) — a horizontal preview of the stop set with a
  * draggable marker per stop. Click a marker to select it (the caller binds
  * its colour to the shared `ColourPicker`); drag to move its offset; +/−
- * add/remove stops (min 2, cap `GRADIENT_MAX_STOPS`). Shared by the
+ * add/remove stops (min 2, cap `GRADIENT_MAX_STOPS`). Each stop also gets
+ * its own colour well under the track, so stop colours are independently
+ * editable without going through the shared picker. Shared by the
  * Decoration panel (working draft) and the gradient focus editor.
  */
 export function GradientStopBar({ stops, selected, onSelect, onChange }: {
@@ -109,6 +112,34 @@ export function GradientStopBar({ stops, selected, onSelect, onChange }: {
             }}
           />
         ))}
+      </div>
+      {/* Per-stop colour wells (offset order) — one picker per stop. */}
+      <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+        {stops
+          .map((s, i) => ({ s, i }))
+          .sort((a, b) => a.s.offset - b.s.offset)
+          .map(({ s, i }) => (
+            <input
+              key={i}
+              type="color"
+              value={isHexColour(s.colour) ? s.colour : '#000000'}
+              title={`Stop at ${(s.offset * 100).toFixed(0)}%`}
+              onPointerDown={() => onSelect(i)}
+              onChange={e => {
+                onSelect(i)
+                onChange(stops.map((st, j) => (j === i ? { ...st, colour: e.target.value } : st)))
+              }}
+              style={{
+                width: 30,
+                height: 22,
+                padding: 0,
+                border: i === selected ? '2px solid var(--accent, #d4af37)' : '1px solid var(--border-subtle)',
+                background: 'transparent',
+                cursor: 'pointer',
+                boxSizing: 'border-box',
+              }}
+            />
+          ))}
       </div>
       <div style={{ display: 'flex', gap: 6, marginTop: 8, alignItems: 'center', fontSize: 11 }}>
         <button

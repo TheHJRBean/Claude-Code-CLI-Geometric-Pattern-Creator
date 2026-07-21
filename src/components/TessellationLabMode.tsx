@@ -880,6 +880,25 @@ export function TessellationLabMode({
         paintStrandScope={strandScope}
         onPaintVoid={p => { pushRecentColour(decorationColor); dispatch({ type: 'SET_DECORATION_VOID_FILL', payload: { ...p, colour: decorationColor } }) }}
         onPaintGradientVoid={(v, p) => {
+          // Pick-to-edit: if the clicked group already carries a *different*
+          // gradient, load it into the draft and select it instead of painting
+          // over it — otherwise there's no way to resume editing an existing
+          // gradient without clobbering it. A group whose gradient already
+          // matches the draft falls through to the paint/unpaint toggle below,
+          // so a just-painted group can still be clicked off.
+          const existing = config.editor?.decoration?.voidFills.find(
+            r => r.scope === p.scope && r.key === p.key && r.gradient,
+          )?.gradient
+          if (existing) {
+            const sameAsDraft =
+              existing.type === gradientDraft.type &&
+              JSON.stringify(existing.stops) === JSON.stringify(gradientDraft.stops)
+            if (!sameAsDraft) {
+              setGradientDraft({ type: existing.type, stops: existing.stops })
+              setGradientSelection({ void: v, scope: p.scope, key: p.key })
+              return
+            }
+          }
           // Seed the gradient's geometry off the clicked shape's canonical
           // pose so the record replicates like a stamp (mirrors included).
           const spec = seedGradientSpec(gradientDraft.type, gradientDraft.stops, v.keyPolygon ?? v.polygon)

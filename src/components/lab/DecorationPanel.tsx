@@ -395,6 +395,7 @@ function GradientSection({ editor, dispatch, draft, onSetDraft, selection, onCle
       {!selection && (
         <div style={{ fontSize: 11, fontStyle: 'italic', marginTop: 6 }}>
           Click a Void on the canvas to paint this gradient onto its group.
+          Click an already-painted gradient to select it for editing.
         </div>
       )}
       {selection && (

@@ -5,6 +5,19 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-21 (Generator — sample additional line sets #42) — ✅ SHIPPED (Opus), ⏳ user browser-verify
+
+**Goal:** Generator's aesthetic-rating sampler only explored the pre-#42 space — never emitted `extraSets`, so layered edge/vertex/boundary line families never appeared in generated candidates or the ML rating dataset (`project_generator_line_sets_idea.md`).
+
+**Done (all in `src/generator/`):**
+1. **`randomPattern.ts`** — `GENERATOR_VERSION` **1→2** (any sampling change bumps it; reshuffles every seed). New `SAMPLER_TUNING` block: `extraSetProbability: 0.25`, `extraSetCount {1,2}`, `extraSetKindWeights {edge 0.45, vertex 0.4, boundary 0.15}`. New `sampleLineSet` (per-set θ/length/curve reuse the primary bands; `boundary` still samples θ/length for a complete type + uniform stream, PIC ignores them) + `sampleExtraSets` (`undefined` not `[]` when none → byte-identical setless shape, matches reducer REMOVE_FIGURE_SET cleanup). Extra sets are **additive** — primary edge/vertex lines always render; sets never hide the primary. `anyCurve`/smoothTransitions gate broadened to include extra-set curves.
+2. **`features.ts`** — 5 additive feature dims so the ridge can rate set-bearing configs fairly (else their scores misattribute onto primary axes): `extraSetFrac`, `extraSetCountMean`, `extraSetEdgeFrac`, `extraSetVertexFrac`, `extraSetBoundaryFrac`. Additive is safe under the documented contract — trained artifacts persist their own `featureNames` and re-index by name; old records read 0 in the new slots.
+3. **Guided flows through free** — `guidedPattern.ts` reuses `sampleRandomPattern`, so best-of-16 now draws set-bearing candidates; Explore/UCB steers toward set regions via the new leverage dims automatically (no change needed). Source-mix badge is provenance-only (Random vs Guided) — untouched, still honest.
+4. **Tests** — `randomPattern.test.ts`: extra-set invariants inside the batch loop (kind/θ/length bands, unique ids) + a batch test that sets appear but stay a minority and span all 3 kinds; pipeline smoke test now exercises sets through `runPIC` for free. `features.test.ts`: populated + zeroed extra-set feature cases. **1173 vitest green, tsc + build clean.**
+
+**Next:** browser-verify in Generator mode — draw a batch (Random and Guided), confirm some samples visibly carry layered line families (2nd star family / boundary-trace) and render cleanly; keep rating so the new dims get data. Per-era centring (#36) absorbs any grading drift from the richer space; consider a fresh era to mark the v2 sampler boundary (user's call, UI-only). Idea memo `project_generator_line_sets_idea.md` → SHIPPED.
+
+---
 ### ▶ 2026-07-21 (Export Max-fill — headless browser-verify + real bug found & fixed) — ✅ VERIFIED (Sonnet)
 
 **Goal:** browser-verify the Max-fill export toggle shipped earlier this session (see entry directly below) — previously blocked on no headless browser (missing `libnspr4` etc, no passwordless sudo).

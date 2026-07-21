@@ -103,6 +103,44 @@ describe('extractFeatures', () => {
     expect(f.curveAlternatingFrac).toBeCloseTo(1)
   })
 
+  it('represents extra line sets (#42) across tile types', () => {
+    const f = featureMap({
+      ...baseConfig,
+      figures: {
+        a: {
+          type: 'star',
+          contactAngle: 60,
+          lineLength: 1.0,
+          autoLineLength: true,
+          extraSets: [
+            { id: 'set-1', kind: 'edge', contactAngle: 45, lineLength: 1.0, autoLineLength: true },
+            { id: 'set-2', kind: 'boundary', contactAngle: 50, lineLength: 1.0, autoLineLength: true },
+          ],
+        },
+        b: {
+          type: 'star',
+          contactAngle: 70,
+          lineLength: 1.0,
+          autoLineLength: true,
+        },
+      },
+    })
+    expect(f.extraSetFrac).toBeCloseTo(0.5) // 1 of 2 figures carries sets
+    expect(f.extraSetCountMean).toBeCloseTo(1) // (2 + 0) / 2
+    expect(f.extraSetEdgeFrac).toBeCloseTo(0.5)
+    expect(f.extraSetBoundaryFrac).toBeCloseTo(0.5)
+    expect(f.extraSetVertexFrac).toBeCloseTo(0)
+  })
+
+  it('zeroes extra-set features for setless configs', () => {
+    const f = featureMap(baseConfig)
+    expect(f.extraSetFrac).toBe(0)
+    expect(f.extraSetCountMean).toBe(0)
+    expect(f.extraSetEdgeFrac).toBe(0)
+    expect(f.extraSetVertexFrac).toBe(0)
+    expect(f.extraSetBoundaryFrac).toBe(0)
+  })
+
   it('treats absent edgeLinesEnabled as enabled', () => {
     const f = featureMap({
       ...baseConfig,

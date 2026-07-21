@@ -95,6 +95,31 @@ describe('sampleRandomPattern invariants', () => {
           }
           expect(['left', 'right']).toContain(fig.curve.direction)
         }
+
+        // Extra line sets (#42): additive layers within the tuned bands.
+        if (fig.extraSets) {
+          expect(fig.extraSets.length).toBeGreaterThanOrEqual(t.extraSetCount.min)
+          expect(fig.extraSets.length).toBeLessThanOrEqual(t.extraSetCount.max)
+          const ids = new Set<string>()
+          for (const s of fig.extraSets) {
+            expect(Object.keys(t.extraSetKindWeights)).toContain(s.kind)
+            expect(s.contactAngle).toBeGreaterThanOrEqual(t.contactAngle.min)
+            expect(s.contactAngle).toBeLessThanOrEqual(t.contactAngle.max)
+            if (!s.autoLineLength) {
+              expect(s.lineLength).toBeGreaterThanOrEqual(t.lineLength.min)
+              expect(s.lineLength).toBeLessThanOrEqual(t.lineLength.max)
+            }
+            if (s.curve) {
+              anyCurve = true
+              expect(s.curve.enabled).toBe(true)
+              expect(s.curve.points.length).toBeGreaterThanOrEqual(t.curvePoints.min)
+              expect(s.curve.points.length).toBeLessThanOrEqual(t.curvePoints.max)
+            }
+            ids.add(s.id)
+          }
+          // Ids collision-free within the figure (setId keys per-set chaining).
+          expect(ids.size).toBe(fig.extraSets.length)
+        }
       }
 
       // smoothTransitions only sampled when a curve exists.
@@ -106,6 +131,26 @@ describe('sampleRandomPattern invariants', () => {
   it('samples eventually cover every shipped tiling', () => {
     const seen = new Set(BATCH_SEEDS.map(s => sampleRandomPattern(s).config.tiling.type))
     expect([...seen].sort()).toEqual([...TILING_NAMES].sort())
+  })
+
+  it('exercises extra line sets across the batch, spanning every kind', () => {
+    let figuresWithSets = 0
+    let figuresTotal = 0
+    const kinds = new Set<string>()
+    for (const seed of BATCH_SEEDS) {
+      for (const fig of Object.values(sampleRandomPattern(seed).config.figures)) {
+        figuresTotal++
+        if (fig.extraSets?.length) {
+          figuresWithSets++
+          for (const s of fig.extraSets) kinds.add(s.kind)
+        }
+      }
+    }
+    // Sets appear sometimes but stay a minority (extraSetProbability ~0.25).
+    expect(figuresWithSets).toBeGreaterThan(0)
+    expect(figuresWithSets).toBeLessThan(figuresTotal * 0.5)
+    // Every kind eventually shows up in a large enough batch.
+    expect([...kinds].sort()).toEqual(['boundary', 'edge', 'vertex'])
   })
 })
 

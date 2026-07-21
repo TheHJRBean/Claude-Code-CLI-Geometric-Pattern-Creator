@@ -1,4 +1,4 @@
-import type { CurveConfig, FigureConfig, PatternConfig, StrandLineStyle } from '../types/pattern'
+import type { CurveConfig, FigureConfig, FigureLineSet, PatternConfig, StrandLineStyle } from '../types/pattern'
 import { TILINGS, TILING_NAMES } from '../tilings/index'
 
 /**
@@ -14,8 +14,10 @@ import { TILINGS, TILING_NAMES } from '../tilings/index'
  * logic below MUST bump `GENERATOR_VERSION`.
  */
 
-/** Bump on ANY change to sampling behaviour (ranges, weights, logic). */
-export const GENERATOR_VERSION = 1
+/** Bump on ANY change to sampling behaviour (ranges, weights, logic).
+ *  v2 (2026-07-21): figures can now carry `extraSets` — layered edge/vertex/
+ *  boundary line families (#42, `multi-ray-sets`). */
+export const GENERATOR_VERSION = 2
 
 /**
  * All tunable ranges and weights in one block (ADR-0007 consequence).
@@ -54,6 +56,18 @@ export const SAMPLER_TUNING = {
     dotted: 0.1,
   } as Record<StrandLineStyle, number>,
   weaveProbability: 0.5,
+  /** Extra line sets (#42, layered families) per tile-type figure. Additive
+   * on top of the primary edge/vertex lines, so the primary always renders.
+   * `extraSetProbability` = P(a figure carries any); then how many; then the
+   * kind mix. Edge/vertex weighted over `boundary` (outline-trace, no PIC).
+   * Per-set θ / length / curve reuse the primary bands so sets stay plausible. */
+  extraSetProbability: 0.25,
+  extraSetCount: { min: 1, max: 2 },
+  extraSetKindWeights: {
+    edge: 0.45,
+    vertex: 0.4,
+    boundary: 0.15,
+  } as Record<FigureLineSet['kind'], number>,
 } as const
 
 /** Frozen presentation pair (ADR-0007: confound dimensions excluded in v1).
@@ -134,6 +148,33 @@ function sampleCurve(rng: () => number): CurveConfig {
   }
 }
 
+/** One extra line set — additive layer over the primary figure. `boundary`
+ * ignores θ/length (it traces Tile outlines, no PIC), but they're still sampled
+ * so the type is complete and the RNG stream stays uniform across kinds. */
+function sampleLineSet(rng: () => number, index: number): FigureLineSet {
+  const t = SAMPLER_TUNING
+  const autoLineLength = coin(rng, t.autoLineLengthProbability)
+  const set: FigureLineSet = {
+    id: `set-${index + 1}`,
+    kind: weightedPick(rng, t.extraSetKindWeights),
+    contactAngle: uniform(rng, t.contactAngle),
+    autoLineLength,
+    lineLength: autoLineLength ? 1.0 : uniform(rng, t.lineLength),
+  }
+  if (coin(rng, t.curveProbability)) set.curve = sampleCurve(rng)
+  return set
+}
+
+/** Sometimes attach 1–2 extra line sets; `undefined` (not `[]`) when none, so
+ * the config stays byte-identical to the setless shape (matches the reducer's
+ * REMOVE_FIGURE_SET cleanup). */
+function sampleExtraSets(rng: () => number): FigureLineSet[] | undefined {
+  const t = SAMPLER_TUNING
+  if (!coin(rng, t.extraSetProbability)) return undefined
+  const count = intInclusive(rng, t.extraSetCount)
+  return Array.from({ length: count }, (_, i) => sampleLineSet(rng, i))
+}
+
 function sampleFigure(rng: () => number): FigureConfig {
   const t = SAMPLER_TUNING
   const autoLineLength = coin(rng, t.autoLineLengthProbability)
@@ -163,6 +204,9 @@ function sampleFigure(rng: () => number): FigureConfig {
     figure.curve = sampleCurve(rng)
   }
 
+  const extraSets = sampleExtraSets(rng)
+  if (extraSets) figure.extraSets = extraSets
+
   return figure
 }
 
@@ -183,7 +227,9 @@ export function sampleRandomPattern(seed: number): GeneratedPattern {
     figures[id] = sampleFigure(rng)
   }
 
-  const anyCurve = Object.values(figures).some(f => f.curve?.enabled)
+  const anyCurve = Object.values(figures).some(
+    f => f.curve?.enabled || f.extraSets?.some(s => s.curve?.enabled),
+  )
 
   const config: PatternConfig = {
     tiling: {

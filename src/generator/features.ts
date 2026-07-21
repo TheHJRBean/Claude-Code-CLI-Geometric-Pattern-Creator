@@ -38,6 +38,14 @@ export const FEATURE_NAMES: readonly string[] = [
   'curvePointsMean',
   'curveOffsetAbsMean',
   'curveAlternatingFrac',
+  // Extra line sets (#42) — layered families. Without these, set-bearing
+  // configs are invisible to the model and their scores misattribute onto the
+  // primary-figure axes. `*Frac` = fraction of figures carrying ≥1 such set.
+  'extraSetFrac',
+  'extraSetCountMean',
+  'extraSetEdgeFrac',
+  'extraSetVertexFrac',
+  'extraSetBoundaryFrac',
   'smoothTransitions',
   'strandWidth',
   'weave',
@@ -81,6 +89,11 @@ export function extractFeatures(config: PatternConfig): number[] {
     curvePointsMean: mean(curved.map(f => f.curve?.points.length ?? 0)),
     curveOffsetAbsMean: mean(curvePoints.map(p => Math.abs(p.offset))),
     curveAlternatingFrac: frac(curved, f => f.curve?.alternating === true),
+    extraSetFrac: frac(figures, f => (f.extraSets?.length ?? 0) > 0),
+    extraSetCountMean: mean(figures.map(f => f.extraSets?.length ?? 0)),
+    extraSetEdgeFrac: frac(figures, f => f.extraSets?.some(s => s.kind === 'edge') === true),
+    extraSetVertexFrac: frac(figures, f => f.extraSets?.some(s => s.kind === 'vertex') === true),
+    extraSetBoundaryFrac: frac(figures, f => f.extraSets?.some(s => s.kind === 'boundary') === true),
     smoothTransitions: config.smoothTransitions ? 1 : 0,
     strandWidth: config.strand.width,
     weave: config.strand.weave ? 1 : 0,

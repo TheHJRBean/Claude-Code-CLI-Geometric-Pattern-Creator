@@ -244,6 +244,29 @@ export function DesignPanel({
   const toggleCell = (id: string) => setCollapsedCells(prev => ({ ...prev, [id]: !prev[id] }))
   return (
     <>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+        <button
+          onClick={onClear}
+          style={{
+            flex: '1 1 0',
+            minWidth: 0,
+            padding: '5px 0',
+            fontFamily: "'Cinzel', Georgia, serif",
+            fontSize: 9,
+            fontWeight: 600,
+            letterSpacing: '0.10em',
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+            border: '1px solid var(--border-subtle)',
+            background: 'transparent',
+            color: 'var(--text-muted)',
+            transition: 'all 0.15s',
+          }}
+        >
+          Clear
+        </button>
+      </div>
+
       <FieldLabel
         label="Boundary"
         tooltip="Cell shape (or multi-cell Configuration) the Patch is built into. Single-cell options like Square/Hex/Triangle give one Cell; Configurations like 4.8.8 give a multi-cell Patch."
@@ -523,29 +546,6 @@ export function DesignPanel({
             </div>
           </>
         )}
-      </div>
-
-      <div style={{ display: 'flex', gap: 6, marginTop: 14 }}>
-        <button
-          onClick={onClear}
-          style={{
-            flex: '1 1 0',
-            minWidth: 0,
-            padding: '5px 0',
-            fontFamily: "'Cinzel', Georgia, serif",
-            fontSize: 9,
-            fontWeight: 600,
-            letterSpacing: '0.10em',
-            textTransform: 'uppercase',
-            cursor: 'pointer',
-            border: '1px solid var(--border-subtle)',
-            background: 'transparent',
-            color: 'var(--text-muted)',
-            transition: 'all 0.15s',
-          }}
-        >
-          Clear
-        </button>
       </div>
     </>
   )

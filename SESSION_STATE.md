@@ -5,15 +5,16 @@
 ## ▶ RESUME HERE
 
 ---
-### ▶ 2026-07-21 (Small UI fixes — Clear-to-top + gradient stop removal) — ✅ SHIPPED (Opus), ⏳ user browser-verify
+### ▶ 2026-07-21 (Small gradient/UI fixes — Clear-to-top + stop removal + stop-order render) — ✅ SHIPPED (Opus), ⏳ user browser-verify
 
-**Goal:** two quick user asks while browser-verifying #44 gradients. (a) Move the Lab Design-panel **Clear** button to the top; (b) user reported "no way to remove the colour change points in the gradient".
+**Goal:** three quick user asks while browser-verifying #44 gradients. (a) Move the Lab Design-panel **Clear** button to the top; (b) "no way to remove the colour change points in the gradient"; (c) dragging a stop past another didn't reorder the rendered gradient — it "just restricts the overall size".
 
-**Done — 2 commits, tsc clean, 31 gradient/decoration tests green:**
+**Done — 3 commits, tsc clean, 12 gradient tests green:**
 1. **`f9bbe77`** — moved the Clear button block from the bottom of `DesignPanel.tsx` to the top (before the Boundary control); `marginTop:14` → `marginBottom:14` for spacing. Cosmetic only.
 2. **`be206fd`** — gradient stop removal was undiscoverable: the only path was click-a-marker-to-select then `− Stop`. Added two **direct** removals in the shared `GradientStopBar` (so both DecorationPanel draft + GradientFocusEditor get them): a **×** button under each per-stop colour well, and **double-click a marker** to remove. Both guarded at min 2 stops (disabled/greyed + tooltip). New `removeStopAt(index)` helper keeps selection stable when deleting a non-selected stop. DecorationPanel "Gradient" tooltip updated to mention removal.
+3. **`32cdacf`** — **stop-order render bug.** SVG clamps a `<stop>` whose offset is below a previous one instead of reordering it, so `VoidFillLayer` (canvas + export) and the focus-editor preview — both emitting stops in **creation** order — collapsed the gradient when a marker was dragged past another. New `sortedStops()` helper in `decoration/gradients.ts` sorts **at render time only** (storage stays creation-order so the stop bar's selection index is stable mid-drag); applied at both SVG sites + `gradientPreviewCss` refactored onto it (it already sorted, so the track preview was the only correct surface before). Regression test `sortedStops` in `gradients.test.ts`.
 
-**Next (cold start):** unchanged priority — user browser-verify backlog. For this session specifically: verify (a) Clear sits at panel top; (b) a gradient stop deletes via well-× and via double-click on its marker, and can't drop below 2. Then resume #44 verify → **#45 slice 2 (Opus)**: across-frame underlay + on-canvas handles. Localhost dev server was started this session on `http://localhost:5173/` (Vite, background task).
+**Next (cold start):** unchanged priority — user browser-verify backlog. For this session specifically: verify (a) Clear sits at panel top; (b) a stop deletes via well-× and via double-click on its marker, min 2; (c) drag red stop right of white → white becomes the start colour on the painted Void + in focus mode (not just the track). Then resume #44 verify → **#45 slice 2 (Opus)**: across-frame underlay + on-canvas handles. Localhost dev server started this session on `http://localhost:5173/` (Vite, background task).
 
 ---
 ### ▶ 2026-07-20 (Gradients #44 — user bug reports: stop colours + Matching inconsistency) — ✅ FIXED (Fable), ⏳ user browser-verify

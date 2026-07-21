@@ -27,6 +27,25 @@ export function normaliseEyeDropperHex(sRGBHex: string): string | null {
   return isHexColour(hex) ? hex.toLowerCase() : null
 }
 
+/**
+ * Deepen a colour by multiplying it with itself channel-wise — the classic
+ * "multiply" blend against itself, each sRGB channel `c → c²` (in 0–1). Washed-
+ * out colours become richer and more saturated; a channel already at full or
+ * zero is unchanged, so pure hues keep their hue. Repeatable — each call
+ * intensifies further (converging toward black). Non-hex input is returned
+ * unchanged. Used by the gradient stop bar's **Multiply** control to boost the
+ * strength of the selected stop's colour.
+ */
+export function multiplyColour(colour: string): string {
+  if (!isHexColour(colour)) return colour
+  const body = colour.slice(1)
+  const sq = (i: number): string => {
+    const v = parseInt(body.slice(i * 2, i * 2 + 2), 16) / 255
+    return Math.round(v * v * 255).toString(16).padStart(2, '0')
+  }
+  return `#${sq(0)}${sq(1)}${sq(2)}`
+}
+
 /* ── Recent-colours store (module-level, localStorage-backed) ── */
 
 const RECENTS_KEY = 'recent-paint-colours'

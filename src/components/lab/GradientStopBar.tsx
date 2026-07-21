@@ -2,15 +2,16 @@ import { useRef } from 'react'
 import type { GradientStop } from '../../types/editor'
 import { GRADIENT_MAX_STOPS } from '../../types/editor'
 import { gradientPreviewCss } from '../../decoration/gradients'
-import { isHexColour } from '../colourPicker.logic'
+import { isHexColour, multiplyColour } from '../colourPicker.logic'
 
 /**
  * Gradient **stop bar** (#44) — a horizontal preview of the stop set with a
  * draggable marker per stop. Click a marker to select it (the caller binds
  * its colour to the shared `ColourPicker`); drag to move its offset;
  * double-click a marker to remove it. `+ Stop` / `− Stop` add/remove (min 2,
- * cap `GRADIENT_MAX_STOPS`). Each stop also gets its own colour well under the
- * track with a `×` to delete that specific stop, so a stop can be removed
+ * cap `GRADIENT_MAX_STOPS`); `× Multiply` deepens the selected stop's colour
+ * (self-multiply, repeatable). Each stop also gets its own colour well under
+ * the track with a `×` to delete that specific stop, so a stop can be removed
  * directly without selecting it first. Shared by the Decoration panel
  * (working draft) and the gradient focus editor.
  */
@@ -59,6 +60,15 @@ export function GradientStopBar({ stops, selected, onSelect, onChange }: {
   }
 
   const removeSelected = () => removeStopAt(selected)
+
+  const hasSelection = selected >= 0 && selected < stops.length
+
+  // Multiply the selected stop's colour with itself to deepen it (#gradient
+  // "Multiply" control) — repeatable, one stop at a time.
+  const boostSelected = () => {
+    if (!hasSelection) return
+    onChange(stops.map((st, j) => (j === selected ? { ...st, colour: multiplyColour(st.colour) } : st)))
+  }
 
   return (
     <div style={{ marginBottom: 8 }}>
@@ -162,7 +172,7 @@ export function GradientStopBar({ stops, selected, onSelect, onChange }: {
             </div>
           ))}
       </div>
-      <div style={{ display: 'flex', gap: 6, marginTop: 8, alignItems: 'center', fontSize: 11 }}>
+      <div style={{ display: 'flex', gap: 6, marginTop: 8, alignItems: 'center', fontSize: 11, flexWrap: 'wrap' }}>
         <button
           onClick={addStop}
           disabled={stops.length >= GRADIENT_MAX_STOPS}
@@ -179,8 +189,16 @@ export function GradientStopBar({ stops, selected, onSelect, onChange }: {
         >
           − Stop
         </button>
+        <button
+          onClick={boostSelected}
+          disabled={!hasSelection}
+          style={{ ...stopButtonStyle, opacity: hasSelection ? 1 : 0.4 }}
+          title="Multiply the selected stop's colour to deepen it — click again to intensify further"
+        >
+          × Multiply
+        </button>
         <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
-          {selected >= 0 && selected < stops.length ? `${(stops[selected].offset * 100).toFixed(0)}%` : ''}
+          {hasSelection ? `${(stops[selected].offset * 100).toFixed(0)}%` : ''}
         </span>
       </div>
     </div>

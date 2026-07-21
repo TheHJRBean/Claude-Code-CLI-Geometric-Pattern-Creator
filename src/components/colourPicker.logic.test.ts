@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
   isHexColour,
+  multiplyColour,
   normaliseEyeDropperHex,
   pushRecentColour,
   getRecents,
@@ -45,6 +46,26 @@ describe('isHexColour', () => {
     expect(isHexColour('#gggggg')).toBe(false)
     expect(isHexColour('')).toBe(false)
     expect(isHexColour('red')).toBe(false)
+  })
+})
+
+describe('multiplyColour', () => {
+  it('squares each channel (deepens toward black)', () => {
+    // 0x80 = 128 → (128/255)² ≈ 0.2517 → round(64.18) = 64 = 0x40
+    expect(multiplyColour('#808080')).toBe('#404040')
+  })
+  it('leaves pure channels (full or zero) unchanged', () => {
+    expect(multiplyColour('#ff0000')).toBe('#ff0000')
+    expect(multiplyColour('#000000')).toBe('#000000')
+    expect(multiplyColour('#ffffff')).toBe('#ffffff')
+  })
+  it('increases saturation of a washed-out colour', () => {
+    // Pale pink: red stays full, the raised green/blue drop — more saturated.
+    expect(multiplyColour('#ffb3b3')).toBe('#ff7e7e')
+  })
+  it('returns non-hex input unchanged', () => {
+    expect(multiplyColour('red')).toBe('red')
+    expect(multiplyColour('#fff')).toBe('#fff')
   })
 })
 

@@ -5,6 +5,23 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-21 (Export Max-fill — headless browser-verify + real bug found & fixed) — ✅ VERIFIED (Sonnet)
+
+**Goal:** browser-verify the Max-fill export toggle shipped earlier this session (see entry directly below) — previously blocked on no headless browser (missing `libnspr4` etc, no passwordless sudo).
+
+**Unblocked the browser:** `apt-get download` works without sudo (network-only, no install step). Pulled `libnspr4 libnss3 libasound2t64` as `.deb`s into the session scratchpad, extracted with `dpkg-deb -x` (no system install, nothing touches the repo or system package db), pointed `LD_LIBRARY_PATH` at the extracted `.so`s for the existing Playwright-cached Chromium (`~/.cache/ms-playwright/chromium-1228`). Playwright itself came from the `npx` cache (`~/.npm/_npx/.../node_modules/playwright`) — no project dependency needed. Reusable recipe for any future headless-verify session; scratchpad is ephemeral so this needs redoing each session (~2 min).
+
+**Verified end-to-end via real downloaded files (SVG text + PNG bytes), not just DOM inspection:**
+1. Unframed Design-phase pattern: Max-fill viewBox hugs the tile exactly (100-unit tile → `-53 -53 106 106`, i.e. 3% margin each side, no dead space).
+2. Framed pattern (Shape Frame, square, 400): Max-fill viewBox is a perfect square centred on the frame's `#pattern-frame-clip` polygon, correctly padded.
+3. PNG export at 1024px: correct aspect-follows-content (no stretch/letterbox) at a non-square (√2) frame ratio.
+4. Toggle off: viewBox identical to the live on-screen camera in both framed and unframed cases — screen-view path genuinely unchanged.
+
+**Bug found + fixed (unrelated to Max-fill itself, `be90840`):** PNG export from Design phase was **silently producing nothing** — no download, no console error, menu just closed. Root cause: `stripExportExclusions` (`src/export/exportSVG.ts`) strips `data-export="exclude"` overlay subtrees via string-based tag-depth counting; it didn't check whether a *nested* same-name match was self-closing (e.g. `<g id="editor-vertex-placement-layer"/>`, which renders empty whenever there's nothing pickable). It counted the self-close as an open with no matching close, so it over-consumed one `</g>` belonging to the enclosing NON-excluded pattern group — truncating the serialized SVG into invalid XML. `exportPNG`'s `<img src=blob:...>` decode then fails, and the failure is caught-and-swallowed in `rasterizeSvgToCanvas`, so nothing surfaces to the user. This is always live in Design phase (the overlay layer is present whenever the Place tool has nothing to pick) and shares its code path with **thumbnail rasterisation** (`rasterizeSvgToDataUrl`) — so saved-tessellation thumbnails could hit the same truncation. SVG-export was affected too (downloaded file was invalid XML), just not visibly broken since browsers render truncated-but-recognizable SVG leniently. Fix: check self-closing before incrementing depth on a nested match. Regression test added (`exportSVG.test.ts`). 1170 vitest green, tsc + build clean.
+
+**Next:** the underlying Max-fill feature is now fully verified, not just reasoned-through. Frame-border-colour-swatch (`dd4d689`) still wants a human eyeball — not touched this session. Deferred export extensions (Unwoven-in-Lab, unit-vs-field, SVG background) untouched, still future work.
+
+---
 ### ▶ 2026-07-21 (Frame border colour picker + roadmap promotions + Export view-fit #45-adjacent) — ✅ SHIPPED (Opus border-fix; Sonnet export-view-fit), ⏳ user browser-verify
 
 **Goal:** three small user asks in one session. (a) Frame-border colour swatch was clumsy ("Set border to paint colour" copied the global paint colour); (b) put all raw idea memories into the roadmap; (c) build the export **screen-view vs max-fill** toggle (`project_export_view_fit_idea.md`).

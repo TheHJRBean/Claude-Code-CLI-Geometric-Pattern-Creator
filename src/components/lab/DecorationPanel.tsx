@@ -367,7 +367,7 @@ function GradientSection({ editor, dispatch, draft, onSetDraft, selection, onCle
           Across frame
         </button>
       </div>
-      <FieldLabel label="Gradient" tooltip="The working gradient. Linear runs along an axis; Radial radiates from a centre. Click a marker to select a stop, drag it to move, click the bar to add one. Then click a Void on the canvas to paint it; clicking again with the same stops unpaints." />
+      <FieldLabel label="Gradient" tooltip="The working gradient. Linear runs along an axis; Radial radiates from a centre. Click a marker to select a stop, drag it to move, click the bar to add one; double-click a marker or use a well's × to remove one (min 2). Then click a Void on the canvas to paint it; clicking again with the same stops unpaints." />
       <div style={{ display: 'flex', gap: 0, marginBottom: 8 }}>
         {(['linear', 'radial'] as const).map(t => (
           <button

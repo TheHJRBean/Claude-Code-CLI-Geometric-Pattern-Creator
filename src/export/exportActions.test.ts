@@ -12,6 +12,8 @@ function args(overrides: Partial<ExportActionsArgs> = {}): ExportActionsArgs {
     onLoad: () => {},
     pngTransparent: false,
     onTogglePngTransparent: () => {},
+    maxFill: false,
+    onToggleMaxFill: () => {},
     ...overrides,
   }
 }
@@ -33,12 +35,23 @@ describe('buildExportMenuItems', () => {
   it('reflects transparent state on the toggle and fires the callback', () => {
     const onTogglePngTransparent = vi.fn()
     const toggle = buildExportMenuItems(args({ pngTransparent: true, onTogglePngTransparent }))
-      .find(i => i.kind === 'toggle')
+      .find(i => i.label === 'Transparent background')
     expect(toggle?.kind).toBe('toggle')
     if (toggle?.kind !== 'toggle') throw new Error('expected toggle')
     expect(toggle.checked).toBe(true)
     toggle.onToggle()
     expect(onTogglePngTransparent).toHaveBeenCalledOnce()
+  })
+
+  it('reflects Max-fill state on its own toggle and fires the callback', () => {
+    const onToggleMaxFill = vi.fn()
+    const toggle = buildExportMenuItems(args({ maxFill: true, onToggleMaxFill }))
+      .find(i => i.label === 'Max-fill export')
+    expect(toggle?.kind).toBe('toggle')
+    if (toggle?.kind !== 'toggle') throw new Error('expected toggle')
+    expect(toggle.checked).toBe(true)
+    toggle.onToggle()
+    expect(onToggleMaxFill).toHaveBeenCalledOnce()
   })
 
   it('keeps Save/Load JSON as the trailing actions', () => {

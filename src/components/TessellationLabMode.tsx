@@ -74,6 +74,7 @@ export function TessellationLabMode({
   // it on Add Boundary so the default position lands on screen.
   const viewBoundsRef = useRef<WorldBounds | null>(null)
   const [pngTransparent, setPngTransparent] = useState(false)
+  const [maxFillExport, setMaxFillExport] = useState(false)
   const [cpVisible, setCpVisible] = useState<Record<string, boolean>>({})
   const [cpActive, setCpActive] = useState<Record<string, number>>({})
   const toggleCpVisible = useCallback((tileTypeId: string) => {
@@ -431,6 +432,8 @@ export function TessellationLabMode({
     onLoad: loaded => dispatch({ type: 'LOAD_CONFIG', payload: loaded }),
     pngTransparent,
     onTogglePngTransparent: () => setPngTransparent(t => !t),
+    maxFill: maxFillExport,
+    onToggleMaxFill: () => setMaxFillExport(v => !v),
   })
 
   const labTitle = config.tiling.type === 'editor'

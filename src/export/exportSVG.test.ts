@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { unwovenSvgMarkup, substituteCssVariables, stripExportExclusions } from './exportSVG'
+import { unwovenSvgMarkup, substituteCssVariables, stripExportExclusions, boundsFromPointsAttr, padContentBounds } from './exportSVG'
 import type { Segment } from '../types/geometry'
 
 // Pin the pure "unwoven" SVG markup builder extracted from exportUnwovenSVG:
@@ -158,5 +158,44 @@ describe('stripExportExclusions', () => {
   it('leaves markup untouched when the marked group is unbalanced', () => {
     const markup = '<svg><g data-export="exclude"><circle/></svg>'
     expect(stripExportExclusions(markup)).toBe(markup)
+  })
+})
+
+describe('boundsFromPointsAttr', () => {
+  it('computes the bbox of a points attribute', () => {
+    expect(boundsFromPointsAttr('10,20 50,80 30,5')).toEqual({ x: 10, y: 5, width: 40, height: 75 })
+  })
+
+  it('accepts space-only separated pairs', () => {
+    expect(boundsFromPointsAttr('0 0 10 10 5 -5')).toEqual({ x: 0, y: -5, width: 10, height: 15 })
+  })
+
+  it('returns null for fewer than two coordinates', () => {
+    expect(boundsFromPointsAttr('10')).toBeNull()
+  })
+
+  it('returns null for degenerate (zero-area) input', () => {
+    expect(boundsFromPointsAttr('5,5 5,5')).toBeNull()
+  })
+
+  it('returns null for empty input', () => {
+    expect(boundsFromPointsAttr('')).toBeNull()
+  })
+})
+
+describe('padContentBounds', () => {
+  it('pads symmetrically by a ratio of the larger dimension', () => {
+    // larger dimension = 100 (width) → margin = 100 * 0.03 = 3
+    const out = padContentBounds({ x: 0, y: 0, width: 100, height: 50 })
+    expect(out).toEqual({ x: -3, y: -3, width: 106, height: 56 })
+  })
+
+  it('uses height when it is the larger dimension', () => {
+    const out = padContentBounds({ x: 10, y: 10, width: 50, height: 200 })
+    const margin = 200 * 0.03
+    expect(out.x).toBeCloseTo(10 - margin)
+    expect(out.y).toBeCloseTo(10 - margin)
+    expect(out.width).toBeCloseTo(50 + margin * 2)
+    expect(out.height).toBeCloseTo(200 + margin * 2)
   })
 })

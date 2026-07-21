@@ -139,13 +139,98 @@ export function stripExportExclusions(markup: string): string {
   }
 }
 
-export function exportSVG(svgEl: SVGSVGElement) {
+/** An axis-aligned world-space bounding box, as read off rendered SVG content. */
+export interface ContentBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/** Fraction of the larger content dimension added as breathing room around a
+ *  Max-fill export, so the artwork isn't cropped razor-tight to its edges. */
+const MAX_FILL_MARGIN_RATIO = 0.03
+
+/** Parse an SVG `points="x,y x,y ..."` attribute into its bounding box. Pure
+ *  string parsing — no DOM — so it's testable like the rest of this module's
+ *  markup helpers. Null for fewer than one coordinate pair. */
+export function boundsFromPointsAttr(points: string): ContentBounds | null {
+  const nums = points.trim().split(/[\s,]+/).map(Number).filter(n => !Number.isNaN(n))
+  if (nums.length < 2) return null
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  for (let i = 0; i + 1 < nums.length; i += 2) {
+    const x = nums[i]
+    const y = nums[i + 1]
+    if (x < minX) minX = x
+    if (x > maxX) maxX = x
+    if (y < minY) minY = y
+    if (y > maxY) maxY = y
+  }
+  if (maxX <= minX || maxY <= minY) return null
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
+}
+
+/** Pad a content bbox by {@link MAX_FILL_MARGIN_RATIO} of its larger
+ *  dimension, symmetrically on every side. Pure — split out so the margin
+ *  policy is independently testable. */
+export function padContentBounds(bounds: ContentBounds): ContentBounds {
+  const margin = Math.max(bounds.width, bounds.height) * MAX_FILL_MARGIN_RATIO
+  return { x: bounds.x - margin, y: bounds.y - margin, width: bounds.width + margin * 2, height: bounds.height + margin * 2 }
+}
+
+/**
+ * Measure the world-space bounding box of a live pattern `<svg>`'s exportable
+ * content — the basis for the Max-fill export viewBox. Two paths:
+ *
+ * - **Frame clipping active**: the exported/visible content is exactly the
+ *   Frame outline, so read its bbox straight off the clip polygon's `points`
+ *   attribute (cheap string parse, no rendering-tree requirement).
+ * - **Otherwise**: measure the actual rendered content via `getBBox()` on a
+ *   detached clone with the same overlay stripping the file exports use
+ *   (`stripExportExclusions`) — authoring scaffolding (ghost polygons,
+ *   Cell-Boundary guides, Frame pick nodes) must not inflate the bbox. The
+ *   clone is attached off-screen because `getBBox()` requires the element to
+ *   be part of the render tree in some browsers.
+ *
+ * Returns null if content bounds can't be determined (empty pattern).
+ */
+export function measureExportContentBounds(svgEl: SVGSVGElement): ContentBounds | null {
+  const clipPolygon = svgEl.querySelector('#pattern-frame-clip polygon')
+  const clipPoints = clipPolygon?.getAttribute('points')
+  if (clipPoints) {
+    const bounds = boundsFromPointsAttr(clipPoints)
+    if (bounds) return bounds
+  }
+
   const clone = svgEl.cloneNode(true) as SVGSVGElement
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+  const markup = stripExportExclusions(new XMLSerializer().serializeToString(clone))
+  const container = document.createElement('div')
+  container.setAttribute('style', 'position:fixed; left:-99999px; top:-99999px;')
+  container.innerHTML = markup
+  document.body.appendChild(container)
+  try {
+    const el = container.querySelector('svg')
+    if (!el) return null
+    const bbox = (el as SVGSVGElement).getBBox()
+    if (!Number.isFinite(bbox.width) || !Number.isFinite(bbox.height) || bbox.width <= 0 || bbox.height <= 0) return null
+    return { x: bbox.x, y: bbox.y, width: bbox.width, height: bbox.height }
+  } catch {
+    return null
+  } finally {
+    document.body.removeChild(container)
+  }
+}
+
+export function exportSVG(svgEl: SVGSVGElement, opts: { viewBox?: ContentBounds } = {}) {
+  const clone = svgEl.cloneNode(true) as SVGSVGElement
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+  const vb = opts.viewBox
   const w = svgEl.clientWidth || 1200
-  const h = svgEl.clientHeight || 900
+  const h = vb ? Math.max(1, Math.round(w * (vb.height / vb.width))) : (svgEl.clientHeight || 900)
   clone.setAttribute('width', String(w))
   clone.setAttribute('height', String(h))
+  if (vb) clone.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.width} ${vb.height}`)
   const str = inlineCssVariables(stripExportExclusions(new XMLSerializer().serializeToString(clone)), svgEl)
   const blob = new Blob([str], { type: 'image/svg+xml;charset=utf-8' })
   downloadBlob(blob, 'islamic-pattern.svg')
@@ -200,6 +285,9 @@ export interface PngExportOptions {
   height?: number
   /** Fill colour behind the pattern; `null` exports on transparent alpha. */
   background?: string | null
+  /** Max-fill: override the rasterised viewBox instead of the live on-screen
+   *  one, so `width`/`height` frame the given content bounds exactly. */
+  viewBox?: ContentBounds
 }
 
 /**
@@ -210,12 +298,13 @@ export interface PngExportOptions {
  */
 export async function rasterizeSvgToCanvas(
   svgEl: SVGSVGElement,
-  { width = 2048, height = 2048, background = DEFAULT_PNG_BACKGROUND }: PngExportOptions = {},
+  { width = 2048, height = 2048, background = DEFAULT_PNG_BACKGROUND, viewBox }: PngExportOptions = {},
 ): Promise<HTMLCanvasElement | null> {
   const clone = svgEl.cloneNode(true) as SVGSVGElement
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
   clone.setAttribute('width', String(width))
   clone.setAttribute('height', String(height))
+  if (viewBox) clone.setAttribute('viewBox', `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`)
   const str = inlineCssVariables(stripExportExclusions(new XMLSerializer().serializeToString(clone)), svgEl)
   const blob = new Blob([str], { type: 'image/svg+xml' })
   const url = URL.createObjectURL(blob)

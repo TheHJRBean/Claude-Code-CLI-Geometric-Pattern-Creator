@@ -1,6 +1,6 @@
 import type { RefObject } from 'react'
 import type { PatternConfig } from '../types/pattern'
-import { exportSVG, exportPNG, DEFAULT_PNG_BACKGROUND } from './exportSVG'
+import { exportSVG, exportPNG, DEFAULT_PNG_BACKGROUND, measureExportContentBounds, padContentBounds, type ContentBounds } from './exportSVG'
 import { saveJSON, loadJSON } from './exportJSON'
 
 /** A leaf action in the export menu. */
@@ -32,6 +32,20 @@ export interface ExportActionsArgs {
    *  toggle state so it persists while the menu is open. */
   pngTransparent: boolean
   onTogglePngTransparent: () => void
+  /** Max-fill: recompute the export viewBox to the content's own bounds
+   *  (Frame outline when clipping is active, else the rendered pattern)
+   *  instead of the live on-screen camera. Off = today's screen-view export. */
+  maxFill: boolean
+  onToggleMaxFill: () => void
+}
+
+/** Resolve the Max-fill viewBox for the current live SVG, or undefined when
+ *  Max-fill is off or content bounds can't be determined (falls back to the
+ *  screen-view export unchanged). */
+function resolveMaxFillViewBox(svgEl: SVGSVGElement | null, maxFill: boolean): ContentBounds | undefined {
+  if (!maxFill || !svgEl) return undefined
+  const bounds = measureExportContentBounds(svgEl)
+  return bounds ? padContentBounds(bounds) : undefined
 }
 
 /**
@@ -48,22 +62,30 @@ export function buildExportMenuItems({
   onLoad,
   pngTransparent,
   onTogglePngTransparent,
+  maxFill,
+  onToggleMaxFill,
 }: ExportActionsArgs): ExportMenuItem[] {
   const handleExportSVG = () => {
-    if (svgRef.current) exportSVG(svgRef.current)
+    const el = svgRef.current
+    if (!el) return
+    exportSVG(el, { viewBox: resolveMaxFillViewBox(el, maxFill) })
   }
   const exportPngAt = (width: number) => {
     const el = svgRef.current
     if (!el) return
-    // Height follows the on-screen aspect ratio so the raster isn't
-    // letterboxed/stretched into a square.
-    const cw = el.clientWidth || 1200
-    const ch = el.clientHeight || 900
-    const height = Math.max(1, Math.round(width * (ch / cw)))
+    const viewBox = resolveMaxFillViewBox(el, maxFill)
+    // Height follows the export's own aspect ratio — content bounds under
+    // Max-fill, the on-screen viewport otherwise — so the raster isn't
+    // letterboxed/stretched.
+    const aspect = viewBox
+      ? viewBox.height / viewBox.width
+      : (el.clientHeight || 900) / (el.clientWidth || 1200)
+    const height = Math.max(1, Math.round(width * aspect))
     void exportPNG(el, {
       width,
       height,
       background: pngTransparent ? null : DEFAULT_PNG_BACKGROUND,
+      viewBox,
     })
   }
   const handleSaveJSON = () => saveJSON(config)
@@ -85,6 +107,7 @@ export function buildExportMenuItems({
       items: PNG_SIZES.map(px => ({ label: `${px} px`, onClick: () => exportPngAt(px) })),
     },
     { kind: 'toggle', label: 'Transparent background', checked: pngTransparent, onToggle: onTogglePngTransparent },
+    { kind: 'toggle', label: 'Max-fill export', checked: maxFill, onToggle: onToggleMaxFill },
   ]
   items.push({ kind: 'action', label: 'Save JSON', onClick: handleSaveJSON })
   items.push({ kind: 'action', label: 'Load JSON', onClick: handleLoadJSON })

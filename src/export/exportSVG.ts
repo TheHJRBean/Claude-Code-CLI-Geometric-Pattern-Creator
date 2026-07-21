@@ -123,8 +123,17 @@ export function stripExportExclusions(markup: string): string {
         return c === ' ' || c === '>' || c === '/' || c === '\n' || c === '\t' || c === '\r'
       }
       if (nextOpen !== -1 && nextOpen < nextClose && isTagBoundary(nextOpen, openTok)) {
-        depth++
-        i = nextOpen + openTok.length
+        // A self-closing nested `<tag .../>` (e.g. an empty overlay layer)
+        // has no matching close of its own — counting it toward depth eats
+        // one of the ENCLOSING tag's real closes instead, truncating the
+        // output past the excluded subtree's own boundary.
+        const nestedOpenEnd = out.indexOf('>', nextOpen)
+        if (nestedOpenEnd !== -1 && out[nestedOpenEnd - 1] === '/') {
+          i = nestedOpenEnd + 1
+        } else {
+          depth++
+          i = nextOpen + openTok.length
+        }
       } else {
         depth--
         i = nextClose + closeTok.length

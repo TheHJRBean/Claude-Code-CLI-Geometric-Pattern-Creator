@@ -159,6 +159,18 @@ describe('stripExportExclusions', () => {
     const markup = '<svg><g data-export="exclude"><circle/></svg>'
     expect(stripExportExclusions(markup)).toBe(markup)
   })
+
+  it('does not let a self-closing nested <g/> eat an enclosing tag\'s close', () => {
+    // Regression: an empty editor overlay layer (e.g. `editor-vertex-placement-layer`
+    // rendering with no picks) is a self-closing `<g id="..."/>` nested inside an
+    // excluded wrapper. The old depth counter treated it as a real open with no
+    // matching close, so it over-consumed one `</g>` belonging to the outer,
+    // non-excluded `<g>` — truncating the exported SVG into invalid XML.
+    const out = stripExportExclusions(
+      '<svg><g><g data-export="exclude"><g><g id="a"/><g id="b"/></g></g><path/></g></svg>',
+    )
+    expect(out).toBe('<svg><g><path/></g></svg>')
+  })
 })
 
 describe('boundsFromPointsAttr', () => {

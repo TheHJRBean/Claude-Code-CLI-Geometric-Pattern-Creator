@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { Vec2 } from '../utils/math'
 import type { ColourRecord } from '../types/editor'
-import { defaultGradientStops, gradientPreviewCss, seedGradientSpec } from './gradients'
+import { defaultGradientStops, gradientPreviewCss, seedGradientSpec, sortedStops } from './gradients'
 import { makeVoidFill } from './resolve'
 import { buildColourIndex, resolveFill } from './scopes'
 import { canonicalPose } from './stamps'
@@ -123,5 +123,22 @@ describe('gradientPreviewCss', () => {
       { offset: 0, colour: '#111' },
     ])
     expect(css).toBe('linear-gradient(90deg, #111 0.0%, #eee 100.0%)')
+  })
+})
+
+describe('sortedStops', () => {
+  it('orders stops by ascending offset without mutating the input', () => {
+    // Dragging the "red" stop right of the "white" stop leaves storage in
+    // creation order; SVG defs must sort so red actually becomes the end stop
+    // (SVG clamps an out-of-order stop rather than reordering it).
+    const stored = [
+      { offset: 0.5, colour: 'red' },
+      { offset: 0, colour: 'white' },
+    ]
+    const out = sortedStops(stored)
+    expect(out.map(s => s.colour)).toEqual(['white', 'red'])
+    expect(out.map(s => s.offset)).toEqual([0, 0.5])
+    // Input untouched — selection index in the stop bar stays stable.
+    expect(stored[0].colour).toBe('red')
   })
 })

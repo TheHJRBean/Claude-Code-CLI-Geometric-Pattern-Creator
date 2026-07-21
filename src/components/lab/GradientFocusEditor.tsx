@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import type { GradientSpec } from '../../types/editor'
 import type { Vec2 } from '../../utils/math'
 import { canonicalPose, poseBBox } from '../../decoration/stamps'
-import { seedGradientSpec } from '../../decoration/gradients'
+import { seedGradientSpec, sortedStops } from '../../decoration/gradients'
 import { polygonPath } from '../../rendering/svgGeometry'
 import { ColourPicker } from '../ColourPicker'
 import { GradientStopBar } from './GradientStopBar'
@@ -98,6 +98,9 @@ export function GradientFocusEditor({ spec, outline, title, onApply, onClose }: 
   }
 
   const stops = draft.stops
+  // Sorted only for the SVG defs below — the stop bar keeps array order so its
+  // selection index stays stable while a marker is dragged past another.
+  const defStops = sortedStops(stops)
   const stopColour = selectedStop >= 0 && selectedStop < stops.length ? stops[selectedStop].colour : stops[0].colour
 
   const buttonStyle: React.CSSProperties = {
@@ -124,7 +127,7 @@ export function GradientFocusEditor({ spec, outline, title, onApply, onClose }: 
         gradientUnits="userSpaceOnUse"
         x1={draft.start.x} y1={draft.start.y} x2={draft.end.x} y2={draft.end.y}
       >
-        {stops.map((s, i) => <stop key={i} offset={s.offset} stopColor={s.colour} />)}
+        {defStops.map((s, i) => <stop key={i} offset={s.offset} stopColor={s.colour} />)}
       </linearGradient>
     )
     : (
@@ -133,7 +136,7 @@ export function GradientFocusEditor({ spec, outline, title, onApply, onClose }: 
         gradientUnits="userSpaceOnUse"
         cx={draft.centre.x} cy={draft.centre.y} r={draft.radius}
       >
-        {stops.map((s, i) => <stop key={i} offset={s.offset} stopColor={s.colour} />)}
+        {defStops.map((s, i) => <stop key={i} offset={s.offset} stopColor={s.colour} />)}
       </radialGradient>
     )
 

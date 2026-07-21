@@ -1,5 +1,6 @@
 import { memo } from 'react'
 import type { VoidFill } from '../decoration/resolve'
+import { sortedStops } from '../decoration/gradients'
 import { polygonPath } from './svgGeometry'
 
 /**
@@ -32,7 +33,7 @@ export const VoidFillLayer = memo(function VoidFillLayer({
     const g = f.gradient
     const m = f.pose
     const gradientTransform = `matrix(${m.a} ${m.b} ${m.c} ${m.d} ${m.e} ${m.f})`
-    const stops = g.stops.map((s, j) => (
+    const stops = sortedStops(g.stops).map((s, j) => (
       <stop key={j} offset={s.offset} stopColor={s.colour} />
     ))
     return g.type === 'linear'

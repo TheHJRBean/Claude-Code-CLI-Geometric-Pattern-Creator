@@ -61,8 +61,17 @@ export function seedGradientSpec(
     : { type, stops, centre: { x: cx, y: cy }, radius: Math.max(box.width, box.height) / 2 }
 }
 
+/** Stops in ascending offset order. **Required before emitting SVG `<stop>`
+ * elements** — SVG clamps any stop whose offset is below a previous one, so
+ * out-of-order stops (e.g. after dragging one marker past another) render as a
+ * collapsed gradient rather than a reordered one. Storage stays in insertion
+ * order so the stop bar's selection index is stable across drags; sorting
+ * happens only at render/preview time. */
+export function sortedStops(stops: GradientStop[]): GradientStop[] {
+  return [...stops].sort((a, b) => a.offset - b.offset)
+}
+
 /** CSS `linear-gradient` preview of a stop set (panel stop bar / swatches). */
 export function gradientPreviewCss(stops: GradientStop[]): string {
-  const sorted = [...stops].sort((a, b) => a.offset - b.offset)
-  return `linear-gradient(90deg, ${sorted.map(s => `${s.colour} ${(s.offset * 100).toFixed(1)}%`).join(', ')})`
+  return `linear-gradient(90deg, ${sortedStops(stops).map(s => `${s.colour} ${(s.offset * 100).toFixed(1)}%`).join(', ')})`
 }

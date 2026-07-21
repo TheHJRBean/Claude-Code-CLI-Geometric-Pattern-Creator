@@ -290,17 +290,16 @@ export function DecorationPanel({
                     )}
                   </label>
                 )}
-                <button
-                  onClick={() => setStroke({ ...stroke, colour: decorationColor })}
-                  style={{ ...decorationButtonStyle, marginTop: 6 }}
-                >
-                  Set border to paint colour
-                  <span style={{
-                    display: 'inline-block', width: 12, height: 12, marginLeft: 8,
-                    background: stroke.colour,
-                    border: '1px solid var(--border-subtle)', verticalAlign: 'middle',
-                  }} />
-                </button>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 8 }}>
+                  <input
+                    type="color"
+                    value={/^#[0-9a-fA-F]{6}$/.test(stroke.colour) ? stroke.colour : '#000000'}
+                    onChange={e => setStroke({ ...stroke, colour: e.target.value })}
+                    title="Colour of the Frame border stroke"
+                    style={{ width: 26, height: 20, padding: 0, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer' }}
+                  />
+                  Border colour
+                </label>
               </div>
             )}
           </div>

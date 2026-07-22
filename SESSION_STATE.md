@@ -9,7 +9,7 @@
 
 **Ask (user):** "put an anchor in the centre of boundary tiles and circle guides." (Circle-guide centres were already anchors — `g.center` leads `guideAnchorPoints`; the real work was Tile centres.)
 
-**Done (`5cac235`):**
+**Done (`8a0bef1`):**
 - `tileCentreAnchors(patch, patchRot)` in `guides.ts` — centroid (`utils/math.centroid`, vertex-average = polygon centre) of every Cell Tile, tagged with its Tile id.
 - `collectGuideAnchors` now emits Tile-centre anchors **unconditionally** (independent of Guides), `stamp: true` (Patch-relative → repeats under the Lattice), `guideId: tile-centre/<id>`. Because that fn is the single Anchor source, centres flow everywhere for free: snap-while-drawing, Complete grounding/pick (`validateMultiPick` + `multiPickCompleteAcrossPatch`), Place-on-Anchor, and the reducer re-derivations. Enables centring a Guide circle/line on a Tile + dual-tiling Completes (connect Tile centres).
 - Render: `EditorGuideLayer` gained a `tileCentres` prop — passive ring+dot markers shown in **Construct** mode (Canvas `guideTileCentres` memo). Complete/Place show them as pickable dots via the existing vertex/placement layers (violet = stamp).

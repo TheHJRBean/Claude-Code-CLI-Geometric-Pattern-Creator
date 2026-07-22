@@ -194,6 +194,13 @@ export function periodicFastPathEligible(
     // World-space Guide-scoped Tiles don't repeat under the Lattice, so the
     // per-domain <use> tiling would either drop or falsely repeat them.
     && !(config.editor?.guideTiles?.length)
+    // Weave (Lacing) interlaces over the FULL planar arrangement: crossings at
+    // the seams BETWEEN stamped copies must alternate over/under with the ones
+    // inside a domain. computeWeave over one base domain never sees those seam
+    // crossings, so <use>-tiling it leaves the border strands un-interlaced
+    // ("lacing only within patches"). Same class of miss as vertex-lines below
+    // — fall through to the exact stamped field so the weave spans the seams.
+    && !config.strand?.weave
     && !Object.values(config.figures).some(f => f?.vertexLinesEnabled)
     && stamps.every(s => s.rotation === 0)
 }

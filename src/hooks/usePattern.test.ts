@@ -157,6 +157,14 @@ describe('periodicFastPathEligible', () => {
     expect(periodicFastPathEligible(cfg(), false, false, [T(0, 0), T(10, 0, Math.PI / 3)])).toBe(false)
   })
 
+  it('is ineligible when weave (Lacing) is on — seam crossings need the full field', () => {
+    const woven: PatternConfig = { ...cfg(), strand: { width: 2, color: '#000', background: '#fff', weave: true } }
+    expect(periodicFastPathEligible(woven, false, false, [T(0, 0), T(10, 0)])).toBe(false)
+    // weave off ⇒ still eligible.
+    const flat: PatternConfig = { ...cfg(), strand: { width: 2, color: '#000', background: '#fff', weave: false } }
+    expect(periodicFastPathEligible(flat, false, false, [T(0, 0), T(10, 0)])).toBe(true)
+  })
+
   it('is ineligible when the periodicity flag is off, even with everything else clear', () => {
     perfFlag.periodicity = false
     expect(periodicFastPathEligible(cfg(), false, false, [T(0, 0)])).toBe(false)

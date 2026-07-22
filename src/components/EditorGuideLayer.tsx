@@ -39,8 +39,11 @@ export type GuideHandle = 'start' | 'end' | 'center' | 'radius'
 
 interface Props {
   guides: EditorGuide[]
-  /** Default tick spacing (`patch.edgeLength`). */
+  /** Default tick spacing (the Seed-Tile edge length). */
   patchEdgeLength: number
+  /** Tile centres (Patch-world coords) — passive centre-Anchor markers shown
+   *  while constructing, so a Guide can be snapped onto a Tile's centre. */
+  tileCentres: Vec2[]
   /** Visible world rectangle (padded for rotation) — clips extended lines. */
   bounds: WorldBounds
   /** Construct mode: selection + endpoint drag are live. */
@@ -67,6 +70,7 @@ const HANDLE_HALF = 5
 export const EditorGuideLayer = memo(function EditorGuideLayer({
   guides,
   patchEdgeLength,
+  tileCentres,
   bounds,
   interactive,
   zoom,
@@ -227,6 +231,16 @@ export const EditorGuideLayer = memo(function EditorGuideLayer({
         <g key={`x${i}`} pointerEvents="none" stroke="var(--text-muted)" strokeWidth={1.2} strokeOpacity={0.75}>
           <line x1={p.x - r(3)} y1={p.y - r(3)} x2={p.x + r(3)} y2={p.y + r(3)} vectorEffect="non-scaling-stroke" />
           <line x1={p.x - r(3)} y1={p.y + r(3)} x2={p.x + r(3)} y2={p.y - r(3)} vectorEffect="non-scaling-stroke" />
+        </g>
+      ))}
+
+      {/* Tile-centre Anchors — passive ring + dot while constructing, so a Guide
+          centre/endpoint can be snapped onto a Tile's centre. Pickable dots for
+          Complete/Place come from the vertex/placement layers. */}
+      {interactive && tileCentres.map((c, i) => (
+        <g key={`tc${i}`} pointerEvents="none">
+          <circle cx={c.x} cy={c.y} r={r(3.4)} fill="none" stroke="var(--text-muted)" strokeWidth={1.2} strokeOpacity={0.65} vectorEffect="non-scaling-stroke" />
+          <circle cx={c.x} cy={c.y} r={r(1)} fill="var(--text-muted)" fillOpacity={0.85} />
         </g>
       ))}
 

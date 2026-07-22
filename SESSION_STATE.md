@@ -5,6 +5,19 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-22 (Guides — tile-centre Anchors) — ✅ SHIPPED (Opus), browser-verified
+
+**Ask (user):** "put an anchor in the centre of boundary tiles and circle guides." (Circle-guide centres were already anchors — `g.center` leads `guideAnchorPoints`; the real work was Tile centres.)
+
+**Done (`5cac235`):**
+- `tileCentreAnchors(patch, patchRot)` in `guides.ts` — centroid (`utils/math.centroid`, vertex-average = polygon centre) of every Cell Tile, tagged with its Tile id.
+- `collectGuideAnchors` now emits Tile-centre anchors **unconditionally** (independent of Guides), `stamp: true` (Patch-relative → repeats under the Lattice), `guideId: tile-centre/<id>`. Because that fn is the single Anchor source, centres flow everywhere for free: snap-while-drawing, Complete grounding/pick (`validateMultiPick` + `multiPickCompleteAcrossPatch`), Place-on-Anchor, and the reducer re-derivations. Enables centring a Guide circle/line on a Tile + dual-tiling Completes (connect Tile centres).
+- Render: `EditorGuideLayer` gained a `tileCentres` prop — passive ring+dot markers shown in **Construct** mode (Canvas `guideTileCentres` memo). Complete/Place show them as pickable dots via the existing vertex/placement layers (violet = stamp).
+- +3 tests; suite **1181 green**, tsc + build clean. Browser-verified on 4.8.8: markers at octagon+square centres in Construct; violet pickable centre dots in Complete.
+
+**Next:** user hand-confirm — draw a circle snapped to a Tile centre; Complete a polygon from Tile centres. Then advance Guides #29–#34.
+
+---
 ### ▶ 2026-07-22 (Guides — anchor spacing tied to Seed-Tile edge) — ✅ SHIPPED (Opus), ⏳ browser-verify
 
 **Feedback (user, 2026-07-22):** Guide Anchors (line ticks + circle arc ticks) should be **even + tied to the Seed-Tile edge length** — not a fixed pixel spacing — so Tiles Completed on them land on the tessellation grid.

@@ -3,6 +3,7 @@ import type { EditorGuideCircle, EditorGuideLine, EditorPatch } from '../types/e
 import {
   collectGuideAnchors,
   collectSnapPoints,
+  tileCentreAnchors,
   createGuideCircle,
   guideEdgeIntersections,
   type GuideAnchor,
@@ -251,6 +252,30 @@ describe('Guides — anchors', () => {
     expect(guideIntersections([a, b])).toHaveLength(0)
     // Extending `a` forward reaches the crossing.
     expect(guideIntersections([line({ extend: 'end' }), b])).toHaveLength(1)
+  })
+})
+
+describe('Guides — tile-centre anchors', () => {
+  it('tileCentreAnchors returns each Tile centroid with its id', () => {
+    const cs = tileCentreAnchors(patch(), 0)
+    expect(cs).toHaveLength(1)
+    expect(cs[0].tileId).toBe('seed')
+    expect(cs[0].p.x).toBeCloseTo(0, 6)
+    expect(cs[0].p.y).toBeCloseTo(0, 6)
+  })
+
+  it('collectGuideAnchors exposes Tile centres even with no Guides, as stamping anchors', () => {
+    const anchors = collectGuideAnchors(patch(), 0)
+    const centre = anchors.find(a => Math.hypot(a.p.x, a.p.y) < 1e-6)
+    expect(centre).toBeDefined()
+    expect(centre!.stamp).toBe(true)
+    expect(centre!.guideId).toBe('tile-centre/seed')
+  })
+
+  it('Tile centres are snappable while drawing', () => {
+    const pts = collectSnapPoints(patch(), 0)
+    // The seed square's centre (0,0) is reachable as a guide-anchor snap point.
+    expect(pts.some(s => s.kind === 'guide-anchor' && Math.hypot(s.p.x, s.p.y) < 1e-6)).toBe(true)
   })
 })
 

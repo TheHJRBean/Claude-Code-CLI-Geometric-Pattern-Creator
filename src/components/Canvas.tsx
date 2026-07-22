@@ -53,6 +53,7 @@ import {
   type GuideTool,
   snapAngle,
   snapToPoint,
+  tileCentreAnchors,
   type SnapPoint,
   type WorldBounds,
 } from '../editor/guides'
@@ -1019,10 +1020,16 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   const guideLayerVisible = editorActive && !decorationActive
     && (guides.length > 0 || constructActive)
     && (!editorStrandMode || showGuides)
+  // Tile-centre markers only while constructing (they're snap targets there).
+  const guideTileCentres = useMemo<Vec2[]>(
+    () => (constructActive && config.editor ? tileCentreAnchors(config.editor, patchRot).map(a => a.p) : []),
+    [constructActive, config.editor, patchRot],
+  )
   const guideLayer = guideLayerVisible && config.editor ? (
     <EditorGuideLayer
       guides={guides}
       patchEdgeLength={patchTickEdgeLength(config.editor)}
+      tileCentres={guideTileCentres}
       bounds={guideBounds}
       interactive={constructActive}
       zoom={viewTransform.zoom}

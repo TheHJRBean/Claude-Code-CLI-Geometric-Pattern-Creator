@@ -1,6 +1,6 @@
 import type { EditorGuide, EditorGuideCircle, EditorGuideLine, EditorPatch } from '../types/editor'
 import type { Vec2 } from '../utils/math'
-import { add, sub, scale, dot, cross, len, normalize, midpoint, dist, degToRad } from '../utils/math'
+import { add, sub, scale, dot, cross, len, normalize, midpoint, dist, degToRad, centroid } from '../utils/math'
 import { applyCellTransform } from './patchSelectable'
 import { patchTickEdgeLength } from './active'
 import { tileVertices } from './exposedEdges'
@@ -128,35 +128,62 @@ function patchWorldEdges(patch: EditorPatch, patchRot: number): Array<[Vec2, Vec
 }
 
 /**
- * Every Guide **Anchor** the Patch exposes (spec Decision 5), in Patch-world
- * coords: each Guide's own anchors (endpoints/centre/ticks/divisions/manual),
- * Guide×Guide intersections, and Guide×Tile-edge / Guide×Cell-Boundary
- * crossings. Deduplicated to a rounded grid so coincident points (a tick that
- * lands on a crossing, a shared tile edge hit twice) collapse to one pick.
+ * The centre **Anchor** of every Cell Tile in the Patch — the Tile's centroid
+ * in Patch-world coords, carried with its Tile id. Always available (no Guide
+ * needed): lets a Guide circle / line be centred on a Tile and enables
+ * dual-tiling Completes that connect Tile centres. Tile centres are
+ * Patch-relative (part of a Cell's Tiles), so a Tile minted on one repeats
+ * under the Lattice.
+ */
+export function tileCentreAnchors(patch: EditorPatch, patchRot: number): Array<{ p: Vec2; tileId: string }> {
+  const out: Array<{ p: Vec2; tileId: string }> = []
+  for (const cell of patch.cells) {
+    for (const tile of cell.tiles) {
+      const p = centroid(tileVertices(tile).map(v => applyCellTransform(v, cell, patchRot)))
+      out.push({ p, tileId: tile.id })
+    }
+  }
+  return out
+}
+
+/**
+ * Every **Anchor** the Patch exposes (spec Decision 5), in Patch-world coords:
+ * the centre of every Cell Tile (always on — see `tileCentreAnchors`), plus,
+ * when Guides exist, each Guide's own anchors (endpoints/centre/ticks/
+ * divisions/manual), Guide×Guide intersections, and Guide×Tile-edge /
+ * Guide×Cell-Boundary crossings. Deduplicated to a rounded grid so coincident
+ * points (a tick that lands on a crossing, a shared tile edge hit twice)
+ * collapse to one pick. This is the single Anchor source consumed by snap, the
+ * Guide layer, and both placement flows.
  */
 export function collectGuideAnchors(patch: EditorPatch, patchRot: number): GuideAnchor[] {
   const guides = patch.guides ?? []
-  if (guides.length === 0) return []
   const out: GuideAnchor[] = []
-  // Tick / arc spacing is anchored to the Seed-Tile edge, not the (possibly
-  // drifted, multi-cell) lattice constant, so Anchors land on the grid.
-  const tickEdge = patchTickEdgeLength(patch)
-  // Self anchors.
-  for (const g of guides) {
-    for (const p of guideAnchorPoints(g, tickEdge)) out.push({ p, guideId: g.id, stamp: g.stamp })
+  // Tile-centre Anchors — Patch-relative (stamp true), independent of Guides.
+  for (const { p, tileId } of tileCentreAnchors(patch, patchRot)) {
+    out.push({ p, guideId: `tile-centre/${tileId}`, stamp: true })
   }
-  // Guide×Guide crossings — Patch-relative only when both Guides stamp.
-  for (let i = 0; i < guides.length; i++) {
-    for (let j = i + 1; j < guides.length; j++) {
-      const stamp = guides[i].stamp && guides[j].stamp
-      for (const p of guidePairIntersections(guides[i], guides[j])) out.push({ p, guideId: guides[i].id, stamp })
+  if (guides.length > 0) {
+    // Tick / arc spacing is anchored to the Seed-Tile edge, not the (possibly
+    // drifted, multi-cell) lattice constant, so Anchors land on the grid.
+    const tickEdge = patchTickEdgeLength(patch)
+    // Self anchors.
+    for (const g of guides) {
+      for (const p of guideAnchorPoints(g, tickEdge)) out.push({ p, guideId: g.id, stamp: g.stamp })
     }
-  }
-  // Guide×Tile-edge and Guide×Cell-Boundary crossings — follow the Guide's
-  // stamp flag (the target geometry is already Patch-relative).
-  const edges = patchWorldEdges(patch, patchRot)
-  for (const g of guides) {
-    for (const p of guideEdgeIntersections(g, edges)) out.push({ p, guideId: g.id, stamp: g.stamp })
+    // Guide×Guide crossings — Patch-relative only when both Guides stamp.
+    for (let i = 0; i < guides.length; i++) {
+      for (let j = i + 1; j < guides.length; j++) {
+        const stamp = guides[i].stamp && guides[j].stamp
+        for (const p of guidePairIntersections(guides[i], guides[j])) out.push({ p, guideId: guides[i].id, stamp })
+      }
+    }
+    // Guide×Tile-edge and Guide×Cell-Boundary crossings — follow the Guide's
+    // stamp flag (the target geometry is already Patch-relative).
+    const edges = patchWorldEdges(patch, patchRot)
+    for (const g of guides) {
+      for (const p of guideEdgeIntersections(g, edges)) out.push({ p, guideId: g.id, stamp: g.stamp })
+    }
   }
   return dedupeAnchors(out)
 }

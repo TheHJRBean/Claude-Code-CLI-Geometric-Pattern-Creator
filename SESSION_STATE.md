@@ -25,10 +25,13 @@
 7. **vertex-strands-multicell (RESOLVED)** — 3.12.12 dodecagon renders full 12-point star (vs old 2/12), uniform across all cells; the `d99c725` design change (emit on every edge) makes the symptom impossible. Memory is stale → PRUNABLE.
 8. **frame-touching-strands (new-comp)** — Shape Frame clips cleanly, border strands render, "Frame border stroke" control present. Round 5 `c1d16a1` was already dev-Playwright-verified.
 
-**⏳ STILL OPEN (needs user input / not headlessly drivable):**
-- **Guides anchor-Complete / Place-on-anchors** — anchors pickable but blind multi-pick didn't commit a tile; user hand-confirm.
-- **decoration-stage Twins-cell reach** (on a real twin config) + **lacing angled-cut wedge caps `c7aa7f6`** — not deeply driven.
-- **frame-touching-strands SAVED comps** — BLOCKED on user's `localStorage['pattern-library-v1']` dump + the bad save's name.
+**USER FEEDBACK 2026-07-22:**
+- **Guides anchor-Complete = CONFIRMED WORKING by hand.** New ask: anchor spacing should be **even + tied to the seed-tile edge length** (lattice constant), not fixed-pixel — so completed tiles land on the tessellation grid. TODO in `guides.ts` tick/division generators (Sonnet). Memory `project_construction_lines_idea.md` updated.
+- **frame-touching-strands = RESOLVED** ("no longer a problem"). Memory `project_frame_touching_strands_bug.md` DELETED + MEMORY.md line removed.
+
+**⏳ STILL OPEN:**
+- **Guides anchor spacing** (feedback above) — implement edge-length-relative even spacing.
+- **decoration-stage Twins-cell reach** (on a real twin config) + **lacing angled-cut wedge caps `c7aa7f6`** — not deeply driven; user unsure what these are (explained in chat 2026-07-22).
 
 **Next (cold start):** dev server + browser recipe as above. Get the library dump for the saved-comp frame bug; hand-confirm Guides completion. Then prune the vertex-strands memory + advance verified ideas to next slices (#45 across-frame gradients, Guides #29–#34, stamps Tile-stamping).
 

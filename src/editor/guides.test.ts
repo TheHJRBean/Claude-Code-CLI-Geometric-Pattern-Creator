@@ -198,14 +198,29 @@ describe('Guides — extend span', () => {
 })
 
 describe('Guides — anchors', () => {
-  it('ticks march from start at the default (patch edge length) spacing', () => {
+  it('ticks are centred on the midpoint at the default (edge length) spacing', () => {
+    // Length 250, spacing 100 → midpoint tick at 125 plus a mirror pair at ±100.
     const ticks = guideTickPoints(line({ end: { x: 250, y: 0 } }), 100)
-    expect(ticks.map(t => Math.round(t.x))).toEqual([100, 200])
+    expect(ticks.map(t => Math.round(t.x))).toEqual([25, 125, 225])
   })
 
-  it('per-guide tickSpacing overrides the default', () => {
+  it('ticks are symmetric about the segment midpoint (equal end margins)', () => {
+    const ticks = guideTickPoints(line({ start: { x: 10, y: 0 }, end: { x: 251, y: 0 } }), 100)
+    const xs = ticks.map(t => t.x)
+    const mid = (10 + 251) / 2
+    // Mirroring every tick across the midpoint yields the same set.
+    const mirrored = xs.map(x => 2 * mid - x).sort((a, b) => a - b)
+    expect(mirrored).toEqual([...xs].sort((a, b) => a - b))
+    // Margin before the first tick equals the margin after the last.
+    const sorted = [...xs].sort((a, b) => a - b)
+    expect(sorted[0] - 10).toBeCloseTo(251 - sorted[sorted.length - 1], 6)
+  })
+
+  it('per-guide tickSpacing overrides the default (centred)', () => {
+    // Length 100, spacing 50 → only the midpoint tick fits (a ±50 pair would
+    // land on the endpoints, which are separate Anchors).
     const ticks = guideTickPoints(line({ tickSpacing: 50 }), 100)
-    expect(ticks.map(t => Math.round(t.x))).toEqual([50, 100])
+    expect(ticks.map(t => Math.round(t.x))).toEqual([50])
   })
 
   it('ticksEnabled false suppresses ticks', () => {
@@ -414,16 +429,16 @@ describe('Guides — tick spacing tracks the Seed-Tile edge, not the lattice con
   })
 
   it('collectGuideAnchors spaces line ticks by the Seed-Tile edge, not the lattice constant', () => {
-    // A horizontal guide the full lattice width. Lattice-constant spacing (300)
-    // would emit a single interior tick; Seed-Tile spacing (100) emits three.
+    // A horizontal guide the full lattice width, ticks centred on the midpoint
+    // (x=150). Seed-Tile spacing (100) → ticks at 50/150/250; lattice-constant
+    // spacing (300) would emit only the midpoint tick at 150.
     const g = line({ id: 'guide-0', start: { x: 0, y: 0 }, end: { x: 300, y: 0 } })
     const onLine = collectGuideAnchors(multiCellPatch({ guides: [g] }), 0)
       .filter(a => Math.abs(a.p.y) < 1e-6)
       .map(a => Math.round(a.p.x))
       .sort((m, n) => m - n)
-    expect(onLine).toContain(100)
-    expect(onLine).toContain(200)
-    expect(onLine).not.toEqual([0, 300]) // not just the endpoints
+    expect(onLine).toContain(50)
+    expect(onLine).toContain(250)
   })
 })
 

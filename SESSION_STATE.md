@@ -17,9 +17,13 @@
 - Popup (`GuidePopupOverlay`): Tick/Arc spacing input replaced by **edge-length multiplier buttons** (×1/×2/×3/×4); ×1 clears the override (tracks edge length live), ×2–×4 pin `k·edge`. Legacy absolute values snap to nearest multiple for the highlight. Circle `= edge`/`2·edge` radius presets now also reference the Seed-Tile edge (incidental bonus).
 - Divided circles left **angle-even** (rosette scaffold — per feedback TODO). Doc fix: line ticks march *forward* only (comment claimed both directions).
 
-**Tests:** +4 in `guides.test.ts` (multi-cell `patchTickEdgeLength`, single-cell fallback, multi-cell tick spacing via `collectGuideAnchors`). Full suite **1177 green**, tsc + build clean.
+**Tests:** +4 in `guides.test.ts` (multi-cell `patchTickEdgeLength`, single-cell fallback, multi-cell tick spacing via `collectGuideAnchors`). Full suite green, tsc + build clean.
 
-**Next:** user hand-verify in a multi-cell Patch (e.g. 4.8.8) — draw a guide line, confirm ticks sit one Tile apart and a Completed tile lands edge-to-edge; check the ×1–×4 buttons. Then update `project_construction_lines_idea.md` (drop the anchor-spacing TODO).
+**⚠ CORRECTION — the above was a no-op for the user's case (`32f5545`).** Browser-verified (headless Playwright, 4.8.8): fresh multi-cell has lattice-constant = seed-edge = 100, so `patchTickEdgeLength` returned the same value — nothing moved. The spacing fix is still valid (bites after a lattice-slider drag + gives the ×1–×4 popup), but it wasn't what the user saw.
+
+**REAL bug (user: "the anchors are not symmetrical on each line") — ✅ FIXED (`<pending>`):** `guideTickPoints` marched ticks *forward from the start*, piling them evenly from one end and leaving an uneven **stub** before the far endpoint → asymmetric. Rewrote it to **centre ticks on the segment midpoint** (midpoint tick + mirror pairs at ±spacing), so ticks read the same from either end and both end-margins are equal. Circles were already rotationally symmetric — line-only fix. Browser-confirmed on 4.8.8 (equal ~20u margins both ends of a line across the octagon). Tests updated + a symmetry assertion added; suite **1178 green**.
+
+**Next:** user hand-verify the symmetric ticks on a line (any config) + that Completes/Places on them still work. Then update `project_construction_lines_idea.md`.
 
 ---
 ### ▶ 2026-07-22 (Lacing cross-patch bug — FIXED + verified) — ✅ SHIPPED (Opus)

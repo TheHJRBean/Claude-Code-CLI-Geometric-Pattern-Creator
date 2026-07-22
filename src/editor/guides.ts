@@ -316,11 +316,14 @@ function clipLineToBounds(origin: Vec2, d: Vec2, bounds: WorldBounds): [number, 
 /* ── Anchors: ticks, manual, intersections ─────────────────────────────── */
 
 /**
- * Spaced-tick Anchor points along a Guide line (spec Decision 5): ticks march
- * forward from the start point at `tickSpacing` (default = the Seed-Tile edge
- * length, so consecutive ticks are one Tile apart), covering the drawn segment
- * only — extended (infinite) portions are unticked in v1 so the Anchor set
- * stays finite.
+ * Spaced-tick Anchor points along a Guide line (spec Decision 5), **symmetric
+ * about the segment's midpoint** so the ticks read the same from either
+ * endpoint and the leftover margin before each end is equal (marching only
+ * from the start left an uneven stub at the far end). Ticks step out from the
+ * midpoint by `tickSpacing` each way (default = the Seed-Tile edge length, so
+ * consecutive ticks are one Tile apart), covering the drawn segment only —
+ * endpoints are their own Anchors (`guideAnchorPoints`), so a tick landing on
+ * one is skipped, and extended (infinite) portions stay unticked in v1.
  */
 export function guideTickPoints(g: EditorGuideLine, tileEdgeLength: number): Vec2[] {
   if (g.ticksEnabled === false) return []
@@ -330,9 +333,13 @@ export function guideTickPoints(g: EditorGuideLine, tileEdgeLength: number): Vec
   const length = len(d)
   if (length < 1e-9) return []
   const dir = normalize(d)
+  const mid = midpoint(g.start, g.end)
+  // The midpoint tick (k = 0) plus mirror pairs stepping ±spacing outward,
+  // stopping just short of the endpoints (they are separate Anchors).
+  const maxK = Math.floor((length / 2 - 1e-6) / spacing)
   const out: Vec2[] = []
-  for (let s = spacing; s <= length + 1e-9; s += spacing) {
-    out.push(add(g.start, scale(dir, s)))
+  for (let k = -maxK; k <= maxK; k++) {
+    out.push(add(mid, scale(dir, k * spacing)))
   }
   return out
 }

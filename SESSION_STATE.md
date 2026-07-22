@@ -5,6 +5,17 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-22 (Guide popup "Accept" does nothing — HANDOFF written, NOT fixed)
+
+**Reported:** clicking **Accept** in the Guide popup does nothing, any guide type. **Root-caused + reproduced headless.** Handoff doc: **`BUG_DOC_GUIDE_ACCEPT.md`**.
+
+**Root cause (one line):** Accept commits on `onClick` (pointer-up); line **Angle** / circle **Radius** commit on **blur**. Typing then clicking Accept → the Accept press blurs the field → the edit commits → the popup's anchor (line midpoint / circle north) moves → the floating popup repositions **mid-click** → pointer-up misses the button → no `click` → popup won't close. No-edit + button edits (extend/stamp/×N/presets) work. Intermittent (depends how far the popup jumps).
+
+**Recommended fix (see doc):** **freeze the popup screen position while a Guide is selected** (`Canvas.tsx:1048-1054` derive it from live editable geometry — capture at selection instead). Alternatives: anchor to a non-editable point (line `start`/circle `center`); or fire Accept on `onPointerDown`.
+
+**Not fixed** — user asked for a handoff only. Repro scripts in scratchpad (`accept3.mjs` = failing case, ready as a regression template).
+
+---
 ### ▶ 2026-07-22 (Guides — tile-centre Anchors) — ✅ SHIPPED (Opus), browser-verified
 
 **Ask (user):** "put an anchor in the centre of boundary tiles and circle guides." (Circle-guide centres were already anchors — `g.center` leads `guideAnchorPoints`; the real work was Tile centres.)

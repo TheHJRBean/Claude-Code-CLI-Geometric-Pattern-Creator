@@ -20,12 +20,17 @@
 
 **⚠ GUIDES GAP:** blind multi-pick clicks in Complete mode did NOT commit a completed tile — anchors land + select but the close-the-loop commit didn't fire under Playwright (pointer-event nuance suspected, not proven an app bug; unit-covered by `validateMultiPick`/`multiPickCompleteAcrossPatch`). **User: hand-confirm anchor-Complete + Place-on-anchors produce a tile.**
 
-**⏳ STILL PENDING (3) — next session:**
-- **decoration-stage** — Twins-cell Reach, strand-paint 'none' hide (`3e8f7ea`), lacing angled-cut wedge caps (`c7aa7f6`).
-- **frame-touching-strands bug** — border-touching strand paint (`c1d16a1`); memory says already Playwright-verified, wants a user eyeball.
-- **vertex-strands-multicell bug** — periodic edge-context + overlap point-in-polygon; has regression tests (`vertexStrandsPeriodic`/`vertexStrandsOverlap`).
+**✅ VERIFIED (batch 2):**
+6. **decoration-stage (strand-paint core)** — Strands target paints all strands (ALL reach); Reach ladder All/Matching/Twins/Single present; themes + recents; Remove→"Restore strands" toggle = the `3e8f7ea` 'none'-sentinel hide.
+7. **vertex-strands-multicell (RESOLVED)** — 3.12.12 dodecagon renders full 12-point star (vs old 2/12), uniform across all cells; the `d99c725` design change (emit on every edge) makes the symptom impossible. Memory is stale → PRUNABLE.
+8. **frame-touching-strands (new-comp)** — Shape Frame clips cleanly, border strands render, "Frame border stroke" control present. Round 5 `c1d16a1` was already dev-Playwright-verified.
 
-**Next (cold start):** dev server + browser recipe as above; drive the 3 pending items. Then prune the now-verified idea memories or advance them to their next slices (#45 across-frame gradients, Guides #29–#34, stamps Tile-stamping).
+**⏳ STILL OPEN (needs user input / not headlessly drivable):**
+- **Guides anchor-Complete / Place-on-anchors** — anchors pickable but blind multi-pick didn't commit a tile; user hand-confirm.
+- **decoration-stage Twins-cell reach** (on a real twin config) + **lacing angled-cut wedge caps `c7aa7f6`** — not deeply driven.
+- **frame-touching-strands SAVED comps** — BLOCKED on user's `localStorage['pattern-library-v1']` dump + the bad save's name.
+
+**Next (cold start):** dev server + browser recipe as above. Get the library dump for the saved-comp frame bug; hand-confirm Guides completion. Then prune the vertex-strands memory + advance verified ideas to next slices (#45 across-frame gradients, Guides #29–#34, stamps Tile-stamping).
 
 ---
 ### ▶ 2026-07-21 (Generator — sample additional line sets #42) — ✅ SHIPPED (Opus), ⏳ user browser-verify

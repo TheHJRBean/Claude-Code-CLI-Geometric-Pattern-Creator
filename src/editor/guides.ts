@@ -2,6 +2,7 @@ import type { EditorGuide, EditorGuideCircle, EditorGuideLine, EditorPatch } fro
 import type { Vec2 } from '../utils/math'
 import { add, sub, scale, dot, cross, len, normalize, midpoint, dist, degToRad } from '../utils/math'
 import { applyCellTransform } from './patchSelectable'
+import { patchTickEdgeLength } from './active'
 import { tileVertices } from './exposedEdges'
 import { editorBoundaryVertices } from './buildEditorPolygons'
 
@@ -137,9 +138,12 @@ export function collectGuideAnchors(patch: EditorPatch, patchRot: number): Guide
   const guides = patch.guides ?? []
   if (guides.length === 0) return []
   const out: GuideAnchor[] = []
+  // Tick / arc spacing is anchored to the Seed-Tile edge, not the (possibly
+  // drifted, multi-cell) lattice constant, so Anchors land on the grid.
+  const tickEdge = patchTickEdgeLength(patch)
   // Self anchors.
   for (const g of guides) {
-    for (const p of guideAnchorPoints(g, patch.edgeLength)) out.push({ p, guideId: g.id, stamp: g.stamp })
+    for (const p of guideAnchorPoints(g, tickEdge)) out.push({ p, guideId: g.id, stamp: g.stamp })
   }
   // Guide×Guide crossings — Patch-relative only when both Guides stamp.
   for (let i = 0; i < guides.length; i++) {
@@ -313,13 +317,14 @@ function clipLineToBounds(origin: Vec2, d: Vec2, bounds: WorldBounds): [number, 
 
 /**
  * Spaced-tick Anchor points along a Guide line (spec Decision 5): ticks march
- * from the start point in both directions at `tickSpacing` (default = the
- * Patch edge length), covering the drawn segment only — extended (infinite)
- * portions are unticked in v1 so the Anchor set stays finite.
+ * forward from the start point at `tickSpacing` (default = the Seed-Tile edge
+ * length, so consecutive ticks are one Tile apart), covering the drawn segment
+ * only — extended (infinite) portions are unticked in v1 so the Anchor set
+ * stays finite.
  */
-export function guideTickPoints(g: EditorGuideLine, patchEdgeLength: number): Vec2[] {
+export function guideTickPoints(g: EditorGuideLine, tileEdgeLength: number): Vec2[] {
   if (g.ticksEnabled === false) return []
-  const spacing = g.tickSpacing ?? patchEdgeLength
+  const spacing = g.tickSpacing ?? tileEdgeLength
   if (!(spacing > 0)) return []
   const d = sub(g.end, g.start)
   const length = len(d)
@@ -341,17 +346,17 @@ export function guideManualAnchorPoints(g: EditorGuideLine): Vec2[] {
 /** Every Anchor a single Guide exposes by itself: line endpoints/ticks/manual,
  *  or circle centre/radius-handle/divisions/arc-ticks/manual. (Intersections
  *  need the full Guide set — see `guideIntersections`.) */
-export function guideAnchorPoints(g: EditorGuide, patchEdgeLength: number): Vec2[] {
+export function guideAnchorPoints(g: EditorGuide, tileEdgeLength: number): Vec2[] {
   if (g.kind === 'circle') {
     return [
       g.center,
       guideCircleRadiusPoint(g),
       ...guideCircleDivisionPoints(g),
-      ...guideCircleTickPoints(g, patchEdgeLength),
+      ...guideCircleTickPoints(g, tileEdgeLength),
       ...guideCircleManualPoints(g),
     ]
   }
-  return [g.start, g.end, ...guideTickPoints(g, patchEdgeLength), ...guideManualAnchorPoints(g)]
+  return [g.start, g.end, ...guideTickPoints(g, tileEdgeLength), ...guideManualAnchorPoints(g)]
 }
 
 /**
@@ -434,13 +439,14 @@ export function guideCircleDivisionPoints(c: EditorGuideCircle): Vec2[] {
 
 /**
  * Arc-spaced tick Anchors round a Guide circle (spec Decision 5): evenly
- * spaced at ≈`tickSpacing` **along the arc**, starting from `phase`. The count
- * is `round(circumference / spacing)` so ticks land evenly and close the loop;
+ * spaced at ≈`tickSpacing` **along the arc**, starting from `phase` (default
+ * spacing = the Seed-Tile edge length). The count is
+ * `round(circumference / spacing)` so ticks land evenly and close the loop;
  * fewer than two would fit ⇒ none. Off when `ticksEnabled === false`.
  */
-export function guideCircleTickPoints(c: EditorGuideCircle, patchEdgeLength: number): Vec2[] {
+export function guideCircleTickPoints(c: EditorGuideCircle, tileEdgeLength: number): Vec2[] {
   if (c.ticksEnabled === false || !(c.radius > 0)) return []
-  const spacing = c.tickSpacing ?? patchEdgeLength
+  const spacing = c.tickSpacing ?? tileEdgeLength
   if (!(spacing > 0)) return []
   const count = Math.round((2 * Math.PI * c.radius) / spacing)
   if (count < 2) return []

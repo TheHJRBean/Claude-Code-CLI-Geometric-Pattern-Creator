@@ -22,6 +22,7 @@ import {
   withGuideLineAngle,
 } from './guides'
 import { migrateEditorConfig } from './migrations'
+import { patchTickEdgeLength } from './active'
 
 function line(partial: Partial<EditorGuideLine> = {}): EditorGuideLine {
   return {
@@ -377,6 +378,52 @@ describe('Guides — circle intersections', () => {
     expect(guideIntersections([a, far])).toHaveLength(0)
     const concentric = circle({ id: 'b', radius: 80 })
     expect(guideIntersections([a, concentric])).toHaveLength(0)
+  })
+})
+
+describe('Guides — tick spacing tracks the Seed-Tile edge, not the lattice constant', () => {
+  /** Two-cell Patch whose lattice constant (`edgeLength`) drifts far above the
+   *  actual Seed-Tile edge — the multi-cell case where the two diverge. */
+  function multiCellPatch(extra: Partial<EditorPatch> = {}): EditorPatch {
+    const cell = (id: string, cx: number) => ({
+      id,
+      shape: 'square' as const,
+      center: { x: cx, y: 0 },
+      rotation: 0,
+      boundarySize: 100,
+      seedSides: 4,
+      tiles: [
+        { id: `${id}-seed`, kind: 'regular' as const, sides: 4, center: { x: cx, y: 0 }, edgeLength: 100, rotation: 0, source: 'seed' as const },
+      ],
+    })
+    return {
+      cells: [cell('a', 0), cell('b', 400)],
+      activeCellId: 'a',
+      edgeLength: 300, // lattice constant, ≠ the 100-unit Seed Tiles
+      ...extra,
+    }
+  }
+
+  it('patchTickEdgeLength returns the Seed-Tile edge in a multi-cell Patch', () => {
+    expect(patchTickEdgeLength(multiCellPatch())).toBe(100)
+  })
+
+  it('patchTickEdgeLength falls back to patch.edgeLength single-cell', () => {
+    // Single-cell: the Seed Tile is created at patch.edgeLength, so they coincide.
+    expect(patchTickEdgeLength(patch())).toBe(100)
+  })
+
+  it('collectGuideAnchors spaces line ticks by the Seed-Tile edge, not the lattice constant', () => {
+    // A horizontal guide the full lattice width. Lattice-constant spacing (300)
+    // would emit a single interior tick; Seed-Tile spacing (100) emits three.
+    const g = line({ id: 'guide-0', start: { x: 0, y: 0 }, end: { x: 300, y: 0 } })
+    const onLine = collectGuideAnchors(multiCellPatch({ guides: [g] }), 0)
+      .filter(a => Math.abs(a.p.y) < 1e-6)
+      .map(a => Math.round(a.p.x))
+      .sort((m, n) => m - n)
+    expect(onLine).toContain(100)
+    expect(onLine).toContain(200)
+    expect(onLine).not.toEqual([0, 300]) // not just the endpoints
   })
 })
 

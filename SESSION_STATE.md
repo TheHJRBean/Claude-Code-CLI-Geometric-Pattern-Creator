@@ -5,6 +5,23 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-22 (Guides — anchor spacing tied to Seed-Tile edge) — ✅ SHIPPED (Opus), ⏳ browser-verify
+
+**Feedback (user, 2026-07-22):** Guide Anchors (line ticks + circle arc ticks) should be **even + tied to the Seed-Tile edge length** — not a fixed pixel spacing — so Tiles Completed on them land on the tessellation grid.
+
+**Root cause:** the tick generators defaulted spacing to raw `patch.edgeLength`. In a **multi-cell** Patch that's the drifted *lattice constant* (far larger than the Tiles), so ticks marched way past the grid; placement, by contrast, sizes to `cellPlacementEdgeLength` (the actual Seed-Tile edge). Single-cell coincidentally matched (seed = `patch.edgeLength`), so the bug bit multi-cell.
+
+**Fix:**
+- New `patchTickEdgeLength(patch)` in `editor/active.ts` = `cellPlacementEdgeLength(activeCell, patch.edgeLength, cells)` — the Seed-Tile edge.
+- `collectGuideAnchors` (`guides.ts`) now feeds that to `guideAnchorPoints` instead of `patch.edgeLength`, fixing **every** anchor consumer (reducer / patchSelectable / Canvas) at once. Render side (`EditorGuideLayer` `patchEdgeLength`, popup `defaultTickSpacing`) rerouted through the same helper in Canvas.
+- Popup (`GuidePopupOverlay`): Tick/Arc spacing input replaced by **edge-length multiplier buttons** (×1/×2/×3/×4); ×1 clears the override (tracks edge length live), ×2–×4 pin `k·edge`. Legacy absolute values snap to nearest multiple for the highlight. Circle `= edge`/`2·edge` radius presets now also reference the Seed-Tile edge (incidental bonus).
+- Divided circles left **angle-even** (rosette scaffold — per feedback TODO). Doc fix: line ticks march *forward* only (comment claimed both directions).
+
+**Tests:** +4 in `guides.test.ts` (multi-cell `patchTickEdgeLength`, single-cell fallback, multi-cell tick spacing via `collectGuideAnchors`). Full suite **1177 green**, tsc + build clean.
+
+**Next:** user hand-verify in a multi-cell Patch (e.g. 4.8.8) — draw a guide line, confirm ticks sit one Tile apart and a Completed tile lands edge-to-edge; check the ×1–×4 buttons. Then update `project_construction_lines_idea.md` (drop the anchor-spacing TODO).
+
+---
 ### ▶ 2026-07-22 (Lacing cross-patch bug — FIXED + verified) — ✅ SHIPPED (Opus)
 
 **Bug (user):** "lacing is not working well. only within patches as far as I can see." Weave/Lacing over/under only interlaced *within* a patch; seam crossings between lattice-stamped copies stayed un-woven.

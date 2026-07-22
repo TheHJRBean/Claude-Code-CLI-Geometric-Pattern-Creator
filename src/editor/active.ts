@@ -67,6 +67,22 @@ export function cellPlacementEdgeLength(
 }
 
 /**
+ * The world-unit spacing a Patch's Guide ticks / arc marks default to: the
+ * active Cell's Seed-Tile edge length (via `cellPlacementEdgeLength`), **not**
+ * the raw `patch.edgeLength`.
+ *
+ * In a multi-cell Patch `patch.edgeLength` is the drifted *lattice constant*
+ * (far larger than the Tiles), so ticks spaced by it march way past the
+ * tessellation grid and Tiles Completed on those Anchors don't sit
+ * edge-to-edge. Anchoring the spacing to the Seed-Tile edge keeps Guide
+ * Anchors on the grid (single-cell is unchanged — there the two coincide).
+ * See the Guides anchor-spacing feedback (2026-07-22).
+ */
+export function patchTickEdgeLength(patch: EditorPatch): number {
+  return cellPlacementEdgeLength(activeCell(patch), patch.edgeLength, patch.cells)
+}
+
+/**
  * Multi-cell convenience: replace a specific Cell by id. Used by Complete
  * flows that touch every Cell of a Configuration rather than just the
  * active one.

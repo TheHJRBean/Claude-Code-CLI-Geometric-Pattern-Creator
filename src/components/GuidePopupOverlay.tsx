@@ -18,8 +18,8 @@ import { guideLineAngleDeg, GUIDE_COLOUR_STAMP, GUIDE_COLOUR_STATIC } from '../e
 interface Props {
   guide: EditorGuide
   position: { x: number; y: number }
-  /** Default tick spacing shown when the Guide has no override; also the Patch
-   *  edge length, reused by the circle size presets. */
+  /** The Seed-Tile edge length (`patchTickEdgeLength`): the ×1 tick spacing and
+   *  the unit the multiplier buttons + circle size presets are relative to. */
   defaultTickSpacing: number
   onUpdate: (patch: EditorGuidePatch) => void
   onDelete: () => void
@@ -119,6 +119,11 @@ export function GuidePopupOverlay({ guide, position, defaultTickSpacing, onUpdat
   }, [])
 
   const tickSpacingLabel = guide.kind === 'circle' ? 'Arc spacing' : 'Tick spacing'
+  // Spacing is expressed as a whole multiple of the Seed-Tile edge length so
+  // Anchors land on the tessellation grid (Guides feedback 2026-07-22). No
+  // override ⇒ ×1; a legacy absolute value snaps to its nearest multiple for
+  // the highlight and normalises on the next click.
+  const tickMultiple = Math.max(1, Math.round((guide.tickSpacing ?? defaultTickSpacing) / defaultTickSpacing))
 
   return (
     <div
@@ -171,21 +176,31 @@ export function GuidePopupOverlay({ guide, position, defaultTickSpacing, onUpdat
         ? <CircleControls guide={guide} edgeLength={defaultTickSpacing} onUpdate={onUpdate} />
         : <LineControls guide={guide} onUpdate={onUpdate} />}
 
-      {/* Tick spacing + show-ticks (shared; circles measure spacing along the
-          arc). Lines pair it with typed angle inside LineControls. */}
+      {/* Tick / arc spacing as a multiple of the Seed-Tile edge length, so
+          Anchors land on the tessellation grid (circles measure along the
+          arc). ×1 tracks the edge length live; ×2–×4 pin an absolute multiple.
+          Lines pair it with typed angle inside LineControls. */}
       <div>
         <div style={labelStyle}>{tickSpacingLabel}</div>
-        <input
-          type="number"
-          min={1}
-          step={1}
-          value={guide.tickSpacing ?? defaultTickSpacing}
-          onChange={e => {
-            const v = Number(e.target.value)
-            if (Number.isFinite(v) && v > 0) onUpdate({ tickSpacing: v })
-          }}
-          style={{ ...inputStyle, marginTop: 3 }}
-        />
+        <div style={{ display: 'flex', gap: 0, marginTop: 3 }}>
+          {[1, 2, 3, 4].map(k => {
+            const active = tickMultiple === k
+            return (
+              <button
+                key={k}
+                onClick={() => onUpdate({ tickSpacing: k === 1 ? undefined : k * defaultTickSpacing })}
+                title={`${k}× the tile edge length (${Math.round(k * defaultTickSpacing)} units)`}
+                style={{
+                  ...presetButtonStyle,
+                  background: active ? 'var(--accent-bg, rgba(230,201,122,0.18))' : 'transparent',
+                  color: active ? 'var(--text)' : 'var(--text-muted)',
+                }}
+              >
+                ×{k}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontFamily: "'EB Garamond', Georgia, serif", fontSize: 12.5, color: 'var(--text-muted)' }}>

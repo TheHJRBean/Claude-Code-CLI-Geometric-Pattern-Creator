@@ -424,8 +424,10 @@ export interface EditorGuideLine {
   extend: GuideExtend
   /**
    * Spaced-tick Anchors along the Guide (spec Decision 5): spacing in world
-   * units; absent → the Patch's `edgeLength`. `ticksEnabled` absent → true
-   * (ticks are on by default).
+   * units; absent → the Seed-Tile edge length (`patchTickEdgeLength`), so
+   * consecutive ticks are one Tile apart and Anchors land on the tessellation
+   * grid. The popup sets it in whole edge-length multiples. `ticksEnabled`
+   * absent → true (ticks are on by default).
    */
   tickSpacing?: number
   ticksEnabled?: boolean
@@ -471,9 +473,10 @@ export interface EditorGuideCircle {
   stamp: boolean
   /**
    * Arc-spaced tick Anchors (spec Decision 5): spacing measured **along the
-   * arc** in world units; absent → the Patch's `edgeLength`. `ticksEnabled`
-   * absent → true. The tick count is `round(circumference / spacing)` so the
-   * ticks land evenly and close the loop. */
+   * arc** in world units; absent → the Seed-Tile edge length
+   * (`patchTickEdgeLength`). `ticksEnabled` absent → true. The tick count is
+   * `round(circumference / spacing)` so the ticks land evenly and close the
+   * loop. */
   tickSpacing?: number
   ticksEnabled?: boolean
   /**

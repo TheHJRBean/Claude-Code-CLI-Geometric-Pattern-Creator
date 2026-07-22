@@ -22,7 +22,7 @@ import { applyStamp } from '../editor/lattice'
 import { patchRotation } from '../editor/compositionLattice'
 import { viableSidesForEdge, viableSidesForVertexOrbit, vertexOrientationsWithOrbit } from '../editor/orbit'
 import { applyCellTransform, worldProbeCell } from '../editor/patchSelectable'
-import { cellPlacementEdgeLength } from '../editor/active'
+import { cellPlacementEdgeLength, patchTickEdgeLength } from '../editor/active'
 import { EditorEdgeLayer } from './EditorEdgeLayer'
 import { EditorPickerOverlay } from './EditorPickerOverlay'
 import { OverlapConfirmModal } from './OverlapConfirmModal'
@@ -1022,7 +1022,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   const guideLayer = guideLayerVisible && config.editor ? (
     <EditorGuideLayer
       guides={guides}
-      patchEdgeLength={config.editor.edgeLength}
+      patchEdgeLength={patchTickEdgeLength(config.editor)}
       bounds={guideBounds}
       interactive={constructActive}
       zoom={viewTransform.zoom}
@@ -1433,7 +1433,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
           key={selectedGuide.id}
           guide={selectedGuide}
           position={guidePopupScreenPos}
-          defaultTickSpacing={config.editor?.edgeLength ?? 100}
+          defaultTickSpacing={config.editor ? patchTickEdgeLength(config.editor) : 100}
           onUpdate={patch => onUpdateGuide(selectedGuide.id, patch)}
           onDelete={() => { onDeleteGuide(selectedGuide.id); setSelectedGuideId(null) }}
           onClose={() => {

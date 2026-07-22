@@ -1044,13 +1044,23 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   ) : null
 
   // Per-Guide popup anchor — over a line's midpoint / a circle's north point.
+  // FROZEN at selection time (keyed on selectedGuideId only): if this tracked
+  // the live editable geometry, typing an Angle/Radius then clicking Accept
+  // would reposition the popup between the field's blur-commit (pointerdown)
+  // and the Accept click (pointerup), so the click would miss the button and
+  // nothing would happen (BUG_DOC_GUIDE_ACCEPT). The screen position below
+  // still tracks pan/zoom via worldToScreen.
   const selectedGuide = selectedGuideId ? guides.find(g => g.id === selectedGuideId) ?? null : null
-  const guidePopupAnchor = selectedGuide
-    ? selectedGuide.kind === 'circle'
+  const guidePopupAnchor = useMemo<Vec2 | null>(() => {
+    if (!selectedGuide) return null
+    return selectedGuide.kind === 'circle'
       ? { x: selectedGuide.center.x, y: selectedGuide.center.y - selectedGuide.radius }
       : vecMidpoint(selectedGuide.start, selectedGuide.end)
-    : null
-  const guidePopupScreenPos = selectedGuide && guidePopupAnchor && constructActive
+    // Intentionally omit selectedGuide: capture the anchor once per selection,
+    // do NOT follow the guide's editable geometry.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedGuideId])
+  const guidePopupScreenPos = guidePopupAnchor && constructActive
     ? worldToScreen(guidePopupAnchor, viewTransform, size.width, size.height)
     : null
 

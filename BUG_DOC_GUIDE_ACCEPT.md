@@ -1,6 +1,15 @@
 # Guide popup "Accept" does nothing — Handoff
 
-**Status:** ROOT-CAUSED, not yet fixed (2026-07-22, Opus). Reproduced headlessly.
+**Status:** ✅ FIXED + browser-verified (2026-07-22, Opus). Fix A (freeze popup
+anchor at selection time) applied in `src/components/Canvas.tsx` — `guidePopupAnchor`
+is now a `useMemo` keyed on `selectedGuideId` only, so editing a line's Angle or a
+circle's Radius no longer repositions the popup mid-click. Headless verify (`verify2.mjs`):
+line typed-Angle Accept closes + applies 0°→37°; circle typed-Radius Accept closes;
+no-edit Accept still closes. All 1181 tests pass; tsc clean.
+
+---
+
+**Original root-cause writeup below (2026-07-22, Opus). Reproduced headlessly.**
 **Area:** Builder → Design Phase → **Construct** mode → per-Guide popup (`GuidePopupOverlay`).
 **Reporter symptom:** *"the 'accept guide' feature doesn't work. click accept but nothing happens on any type of guide."*
 

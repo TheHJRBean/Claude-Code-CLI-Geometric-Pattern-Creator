@@ -5,15 +5,13 @@
 ## ▶ RESUME HERE
 
 ---
-### ▶ 2026-07-22 (Guide popup "Accept" does nothing — HANDOFF written, NOT fixed)
+### ▶ 2026-07-22 (Guide popup "Accept" does nothing — ✅ FIXED + browser-verified)
 
-**Reported:** clicking **Accept** in the Guide popup does nothing, any guide type. **Root-caused + reproduced headless.** Handoff doc: **`BUG_DOC_GUIDE_ACCEPT.md`**.
+**Fixed (`357c071`, Opus).** Applied handoff **Fix A**: froze the popup anchor at selection time. `guidePopupAnchor` (`Canvas.tsx`) is now a `useMemo` keyed on `selectedGuideId` **only** (deliberately omits the live `selectedGuide` geometry), so typing a line **Angle** / circle **Radius** — which blur-commits on the Accept pointerdown — no longer moves the anchor and repositions the floating popup mid-click. The screen pos still tracks pan/zoom via `worldToScreen`.
 
-**Root cause (one line):** Accept commits on `onClick` (pointer-up); line **Angle** / circle **Radius** commit on **blur**. Typing then clicking Accept → the Accept press blurs the field → the edit commits → the popup's anchor (line midpoint / circle north) moves → the floating popup repositions **mid-click** → pointer-up misses the button → no `click` → popup won't close. No-edit + button edits (extend/stamp/×N/presets) work. Intermittent (depends how far the popup jumps).
+**Verify (headless `verify2.mjs`, chromium-1228 + prior-session libs):** line typed-Angle-no-Enter Accept **closes** (was intermittently stuck) + angle applied 0°→37°; circle typed-Radius Accept **closes**; no-edit Accept still closes; screenshot shows no lingering popup. `npx vitest run` = **1181 green**, `tsc --noEmit` clean.
 
-**Recommended fix (see doc):** **freeze the popup screen position while a Guide is selected** (`Canvas.tsx:1048-1054` derive it from live editable geometry — capture at selection instead). Alternatives: anchor to a non-editable point (line `start`/circle `center`); or fire Accept on `onPointerDown`.
-
-**Not fixed** — user asked for a handoff only. Repro scripts in scratchpad (`accept3.mjs` = failing case, ready as a regression template).
+**Root cause (was):** Accept commits on `onClick` (pointer-up); Angle/Radius commit on **blur**. Accept press → blur → edit commits → anchor (line midpoint / circle north) moves → popup repositions **mid-click** → pointer-up misses the button. Handoff: `BUG_DOC_GUIDE_ACCEPT.md` (now marked FIXED).
 
 ---
 ### ▶ 2026-07-22 (Guides — tile-centre Anchors) — ✅ SHIPPED (Opus), browser-verified

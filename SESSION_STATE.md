@@ -5,6 +5,17 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-22 (Lacing cross-patch bug — FIXED + verified) — ✅ SHIPPED (Opus)
+
+**Bug (user):** "lacing is not working well. only within patches as far as I can see." Weave/Lacing over/under only interlaced *within* a patch; seam crossings between lattice-stamped copies stayed un-woven.
+
+**Root cause:** the Lever-A periodic fast-path (`periodicFastPathEligible`, `usePattern.ts`) `<use>`-tiles ONE base domain, so `computeWeave` ran on that domain alone and never saw the crossings that form at the seams between copies. `periodicFastPathEligible` checked frame / boundary-lattice / morph / guideTiles / **vertex-lines** / rotation — but NOT weave. Vertex-lines are disqualified for the exact same reason (base PIC misses stamp-boundary crossings); weave was the missing twin. On a single-cell patch every star-tip crossing forms at a tile edge/corner shared between domains ⇒ the weave was in effect *entirely absent*.
+
+**Fix (`916938e`):** added `&& !config.strand?.weave` to `periodicFastPathEligible`, so weave falls through to the exact stamped path where PIC+buildStrands+computeWeave run over the full field (`stampedField.segments` / `decoField`) and the interlace spans every seam. +1 test in `usePattern.test.ts`. **Before/after browser-verified** (headless): Square patch weave went from all-solid-X crossings → full over/under across the whole field. 1174 green, tsc + build clean.
+
+**Perf note:** weave patterns now PIC the full viewport field each regen (no `<use>` fast-path) — deliberate, same tradeoff as vertex-lines; correctness > speed for a decorative mode.
+
+---
 ### ▶ 2026-07-22 (Browser-verification sweep — headless Playwright) — 5 items ✅ VERIFIED, Guides partial, 3 items pending
 
 **Goal:** work through the whole ⏳-browser-verify backlog surfaced by the roadmap review.

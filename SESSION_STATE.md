@@ -5,6 +5,29 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-22 (Browser-verification sweep — headless Playwright) — 5 items ✅ VERIFIED, Guides partial, 3 items pending
+
+**Goal:** work through the whole ⏳-browser-verify backlog surfaced by the roadmap review.
+
+**Browser setup:** re-ran the no-sudo headless recipe ([[feedback-headless-browser-no-sudo]]) — `apt-get download libnspr4 libnss3 libasound2t64` → `dpkg-deb -x` → `LD_LIBRARY_PATH` at cached Chromium (`chromium-1228/chrome-linux64/chrome`, note the `chrome-linux64` dir this build). Reusable driver harness + scenario files in the session scratchpad (`driver.js` + `sNN_*.js`). Dev server on :5173.
+
+**✅ VERIFIED (5):**
+1. **#42 multi-ray-sets** — Square Patch, Composition, Show advanced → Line sets: `+ Edge set` diverged θ 30°→45° layers a distinct 2nd star family live; `+ Tile edges` (boundary) traces tile outlines as strands (no θ slider — correct); `+ Vertex set` fine. All 3 kinds render.
+2. **generator-line-sets** (today's work) — dynamic-imported the *served* modules in-browser: `GENERATOR_VERSION`=2, **27.2%** of figures carry extraSets (≈tuned 0.25), all 3 kinds present, feature vec=51 with the 5 `extraSet*` dims correct; 8 live Generator Skips = no console/page errors; a generated 3.4.6.4 (Square vertex set θ82.2°) opened in Lab renders layered.
+3. **#44 decoration-gradients** — Gradient target on Square star Voids: Linear red→cream per star with **consistent pose across the Matching group** (`50b4365` tie-break ✓); Radial concentric per star; real `linear/radialGradient` defs w/ 2 stops; per-stop wells + detach `×` (`2d5281b`); stops 3→4→3; pick-to-edit no crash.
+4. **decoration-stamps** — Stamp target → click Void → shape canvas; uploaded 4-colour PNG clips into every matching Void (SVG pattern+image); Cover/Contain/remove/list; **Focus mode** (`18731dd`) drag-move + scroll-zoom + Zoom/Rotation sliders + Reset/Cancel/Apply.
+5. **Guides (construction-lines) — authoring + anchors** — Construct toolbar (Line/Circle/Divided + angle-step); guide line + its Cell-Boundary crossing anchors; circle w/ centre/radius/rim-ticks + tile-edge intersection anchor; divided circle = **12 rim anchors** (2n); Complete mode shows anchors as pickable dots (one selects gold); presetShelf structural-edit one-time note fires.
+
+**⚠ GUIDES GAP:** blind multi-pick clicks in Complete mode did NOT commit a completed tile — anchors land + select but the close-the-loop commit didn't fire under Playwright (pointer-event nuance suspected, not proven an app bug; unit-covered by `validateMultiPick`/`multiPickCompleteAcrossPatch`). **User: hand-confirm anchor-Complete + Place-on-anchors produce a tile.**
+
+**⏳ STILL PENDING (3) — next session:**
+- **decoration-stage** — Twins-cell Reach, strand-paint 'none' hide (`3e8f7ea`), lacing angled-cut wedge caps (`c7aa7f6`).
+- **frame-touching-strands bug** — border-touching strand paint (`c1d16a1`); memory says already Playwright-verified, wants a user eyeball.
+- **vertex-strands-multicell bug** — periodic edge-context + overlap point-in-polygon; has regression tests (`vertexStrandsPeriodic`/`vertexStrandsOverlap`).
+
+**Next (cold start):** dev server + browser recipe as above; drive the 3 pending items. Then prune the now-verified idea memories or advance them to their next slices (#45 across-frame gradients, Guides #29–#34, stamps Tile-stamping).
+
+---
 ### ▶ 2026-07-21 (Generator — sample additional line sets #42) — ✅ SHIPPED (Opus), ⏳ user browser-verify
 
 **Goal:** Generator's aesthetic-rating sampler only explored the pre-#42 space — never emitted `extraSets`, so layered edge/vertex/boundary line families never appeared in generated candidates or the ML rating dataset (`project_generator_line_sets_idea.md`).

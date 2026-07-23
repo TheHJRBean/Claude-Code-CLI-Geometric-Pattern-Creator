@@ -17,7 +17,9 @@ import type { Vec2 } from '../utils/math'
  */
 
 const HANDLE_HALF = 5
-/** Distinct from Guides (blue/violet), Morph (teal) and the accent gold. */
+/** Frame-gradient default: distinct from Guides (blue/violet), Morph (teal)
+ * and the accent gold. The strand gradient (#46) reuses this layer with its
+ * own `colour` so the two world-space gradient handle sets read apart. */
 const GRADIENT_COLOUR = '#c77dff'
 
 interface Props {
@@ -25,6 +27,8 @@ interface Props {
   interactive: boolean
   /** Current zoom — converts px glyph sizes into world units. */
   zoom: number
+  /** Handle/axis colour. Defaults to the frame-gradient purple. */
+  colour?: string
   /** Handle drags (screen px; parent converts + dispatches). */
   onDragLinear?: (which: 'start' | 'end', screen: Vec2) => void
   onDragRadialCentre?: (screen: Vec2) => void
@@ -35,6 +39,7 @@ export const EditorFrameGradientLayer = memo(function EditorFrameGradientLayer({
   gradient,
   interactive,
   zoom,
+  colour = GRADIENT_COLOUR,
   onDragLinear,
   onDragRadialCentre,
   onDragRadialRadius,
@@ -54,7 +59,7 @@ export const EditorFrameGradientLayer = memo(function EditorFrameGradientLayer({
           key={key}
           x={p.x - r(HANDLE_HALF)} y={p.y - r(HANDLE_HALF)}
           width={r(HANDLE_HALF * 2)} height={r(HANDLE_HALF * 2)}
-          fill="var(--bg-base, #08080f)" stroke={GRADIENT_COLOUR} strokeWidth={1.8}
+          fill="var(--bg-base, #08080f)" stroke={colour} strokeWidth={1.8}
           vectorEffect="non-scaling-stroke"
           style={{ cursor: 'move', touchAction: 'none' }}
           onPointerDown={e => {
@@ -69,7 +74,7 @@ export const EditorFrameGradientLayer = memo(function EditorFrameGradientLayer({
           onPointerUp={e => (e.target as Element).releasePointerCapture?.(e.pointerId)}
         />
       )
-      : <circle key={key} cx={p.x} cy={p.y} r={r(3.2)} fill={GRADIENT_COLOUR} pointerEvents="none" />
+      : <circle key={key} cx={p.x} cy={p.y} r={r(3.2)} fill={colour} pointerEvents="none" />
 
   return (
     <g id="editor-frame-gradient-layer" pointerEvents={interactive ? undefined : 'none'}>
@@ -77,7 +82,7 @@ export const EditorFrameGradientLayer = memo(function EditorFrameGradientLayer({
         <>
           <line
             x1={gradient.start.x} y1={gradient.start.y} x2={gradient.end.x} y2={gradient.end.y}
-            stroke={GRADIENT_COLOUR} strokeWidth={1.6} strokeOpacity={0.85}
+            stroke={colour} strokeWidth={1.6} strokeOpacity={0.85}
             strokeDasharray="6 4" vectorEffect="non-scaling-stroke" pointerEvents="none"
           />
           {dragHandle('start', gradient.start, s => onDragLinear?.('start', s))}
@@ -87,13 +92,13 @@ export const EditorFrameGradientLayer = memo(function EditorFrameGradientLayer({
         <>
           <circle
             cx={gradient.centre.x} cy={gradient.centre.y} r={gradient.radius}
-            fill="none" stroke={GRADIENT_COLOUR} strokeWidth={1.6} strokeOpacity={0.85}
+            fill="none" stroke={colour} strokeWidth={1.6} strokeOpacity={0.85}
             strokeDasharray="6 4" vectorEffect="non-scaling-stroke" pointerEvents="none"
           />
           <line
             x1={gradient.centre.x} y1={gradient.centre.y}
             x2={gradient.centre.x + gradient.radius} y2={gradient.centre.y}
-            stroke={GRADIENT_COLOUR} strokeWidth={1.2} strokeOpacity={0.6}
+            stroke={colour} strokeWidth={1.2} strokeOpacity={0.6}
             vectorEffect="non-scaling-stroke" pointerEvents="none"
           />
           {dragHandle('centre', gradient.centre, onDragRadialCentre)}

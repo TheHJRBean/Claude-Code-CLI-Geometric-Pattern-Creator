@@ -43,7 +43,7 @@ import { PICKER_SIDES } from '../editor/placement'
 import { regularPolygonVertices } from '../editor/regularPolygon'
 import { PerfHud } from './PerfHud'
 import type { EditorMode } from '../types/appMode'
-import type { EditorGuide, EditorGuidePatch, FrameGradient } from '../types/editor'
+import type { EditorGuide, EditorGuidePatch, FrameGradient, StrandGradient } from '../types/editor'
 import {
   collectGuideAnchors,
   collectSnapPoints,
@@ -214,6 +214,7 @@ interface Props {
   onDeleteMorphBoundary?: (boundaryId: string) => void
   /** #45 — commit the reshaped across-frame gradient (handle drags). */
   onSetFrameGradient?: (fg: FrameGradient) => void
+  onSetStrandGradient?: (sg: StrandGradient) => void
   /** Written (never read) by Canvas: the current visible world-rect, for
    *  view-aware defaults outside the canvas (MorphPanel's Add Boundary). */
   viewBoundsRef?: React.MutableRefObject<WorldBounds | null>
@@ -221,7 +222,7 @@ interface Props {
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, onPlaceTileOnAnchor, editorMode = 'place', constructSnap = true, constructAngleStep = DEFAULT_ANGLE_STEP, constructTool = 'line', showGuides = false, onAddGuide, onUpdateGuide, onDeleteGuide, picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature, onPaintGradientVoid, onDecorationVoids, showMorphOverlay = false, onSetMorphOrigin, onSetMorphDirection, onSetMorphBoundaryPosition, onDeleteMorphBoundary, onSetFrameGradient, viewBoundsRef }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, onPlaceTileOnAnchor, editorMode = 'place', constructSnap = true, constructAngleStep = DEFAULT_ANGLE_STEP, constructTool = 'line', showGuides = false, onAddGuide, onUpdateGuide, onDeleteGuide, picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature, onPaintGradientVoid, onDecorationVoids, showMorphOverlay = false, onSetMorphOrigin, onSetMorphDirection, onSetMorphBoundaryPosition, onDeleteMorphBoundary, onSetFrameGradient, onSetStrandGradient, viewBoundsRef }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -1165,6 +1166,47 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     />
   ) : null
 
+  // Strand gradient (#46) — the same world-space handle layer (start/end or
+  // centre/radius), shown while the Strands paint target is active with an
+  // enabled strand gradient. It and the frame-gradient overlay never coexist
+  // (distinct paint targets). Drag maths mirror the frame gradient's.
+  const strandGradient = config.editor?.decoration?.strandGradient
+  const strandGradientOverlayVisible = paintTarget === 'strands' && strandGradient?.enabled === true
+
+  const handleDragStrandGradientLinear = useCallback((which: 'start' | 'end', screen: Vec2) => {
+    const sg = config.editor?.decoration?.strandGradient
+    if (!sg || sg.type !== 'linear') return
+    const w = screenToWorld(screen, viewTransform, size.width, size.height)
+    onSetStrandGradient?.(which === 'start' ? { ...sg, start: w } : { ...sg, end: w })
+  }, [config.editor?.decoration?.strandGradient, viewTransform, size.width, size.height, onSetStrandGradient])
+
+  const handleDragStrandGradientCentre = useCallback((screen: Vec2) => {
+    const sg = config.editor?.decoration?.strandGradient
+    if (!sg || sg.type !== 'radial') return
+    const w = screenToWorld(screen, viewTransform, size.width, size.height)
+    onSetStrandGradient?.({ ...sg, centre: w })
+  }, [config.editor?.decoration?.strandGradient, viewTransform, size.width, size.height, onSetStrandGradient])
+
+  const handleDragStrandGradientRadius = useCallback((screen: Vec2) => {
+    const sg = config.editor?.decoration?.strandGradient
+    if (!sg || sg.type !== 'radial') return
+    const w = screenToWorld(screen, viewTransform, size.width, size.height)
+    const radius = Math.max(1, Math.hypot(w.x - sg.centre.x, w.y - sg.centre.y))
+    onSetStrandGradient?.({ ...sg, radius })
+  }, [config.editor?.decoration?.strandGradient, viewTransform, size.width, size.height, onSetStrandGradient])
+
+  const strandGradientLayer = strandGradientOverlayVisible && strandGradient ? (
+    <EditorFrameGradientLayer
+      gradient={strandGradient}
+      interactive
+      zoom={viewTransform.zoom}
+      colour="#e0a020"
+      onDragLinear={handleDragStrandGradientLinear}
+      onDragRadialCentre={handleDragStrandGradientCentre}
+      onDragRadialRadius={handleDragStrandGradientRadius}
+    />
+  ) : null
+
   // Composition Phase hides every Design-Phase overlay — the canvas is the
   // lattice preview only, and Strand controls in the side panel drive what
   // changes. Multi-Cell Design Phase keeps the picker live: edges are
@@ -1363,7 +1405,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         // Morph overlay renders via the never-Frame-clipped slot so Boundary
         // lines always span the canvas. (Composition-only since 2026-07-18,
         // where no clip applies anyway — the slot keeps that guaranteed.)
-        editorOverlayUnclipped={(morphLayer || frameGradientLayer) ? <>{morphLayer}{frameGradientLayer}</> : null}
+        editorOverlayUnclipped={(morphLayer || frameGradientLayer || strandGradientLayer) ? <>{morphLayer}{frameGradientLayer}{strandGradientLayer}</> : null}
         frameOutline={frameOutline}
         clipToFrame={config.tiling.type !== 'editor' || editorStrandMode}
         // Frame nodes are Design-phase Complete pick targets; in Decoration

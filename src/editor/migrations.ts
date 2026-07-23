@@ -260,7 +260,13 @@ function migrateDecoration(raw: unknown): DecorationConfig | undefined {
   if (typeof r.strandGradient === 'object' && r.strandGradient !== null) {
     const sg = r.strandGradient as Record<string, unknown>
     const gradient = migrateGradient(sg)
-    if (gradient) out.strandGradient = { enabled: sg.enabled === true, ...gradient }
+    if (gradient) out.strandGradient = {
+      enabled: sg.enabled === true,
+      // #46 follow-up — a congruent-signature scope key; malformed ⇒ dropped
+      // (⇒ the default global wash), the rest of the gradient survives.
+      ...(typeof sg.scopeKey === 'string' ? { scopeKey: sg.scopeKey } : {}),
+      ...gradient,
+    }
   }
   return out
 }

@@ -143,6 +143,17 @@ describe('Strand gradient (#46) — strandGradient migration', () => {
     expect(out!.decoration!.strandGradient).toBeUndefined()
     expect(out!.decoration).toBeDefined()
   })
+
+  it('round-trips a scopeKey (single-Strand narrowing, #46 follow-up)', () => {
+    const out = migrateEditorConfig(v3Patch({ decoration: deco({ enabled: true, scopeKey: '8i:abcd1234', ...grad }) }))
+    expect(out!.decoration!.strandGradient).toEqual({ enabled: true, scopeKey: '8i:abcd1234', ...grad })
+  })
+
+  it('drops a non-string scopeKey, keeping the gradient (defaults to the global wash)', () => {
+    const out = migrateEditorConfig(v3Patch({ decoration: deco({ enabled: true, scopeKey: 42, ...grad }) }))
+    expect(out!.decoration!.strandGradient).toEqual({ enabled: true, ...grad })
+    expect('scopeKey' in out!.decoration!.strandGradient!).toBe(false)
+  })
 })
 
 describe('Step 19 — decoration migration', () => {

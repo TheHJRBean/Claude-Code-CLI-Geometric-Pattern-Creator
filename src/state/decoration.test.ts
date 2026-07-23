@@ -271,6 +271,46 @@ describe('Strand gradient (#46) — SET_DECORATION_STRAND_GRADIENT', () => {
   })
 })
 
+describe('Strand gradient scope (#46 follow-up) — SET_STRAND_GRADIENT_SCOPE', () => {
+  const sg = { enabled: true, type: 'linear' as const, stops: [{ offset: 0, colour: '#c0392b' }, { offset: 1, colour: '#2c3e50' }], start: { x: 0, y: 0 }, end: { x: 0, y: 120 } }
+
+  it('narrows the wash to one congruent Strand group (signature key)', () => {
+    let s = reducer(base(), { type: 'SET_DECORATION_STRAND_GRADIENT', payload: sg } as Action)
+    s = reducer(s, { type: 'SET_STRAND_GRADIENT_SCOPE', payload: '5' } as Action)
+    expect(s.editor!.decoration!.strandGradient).toEqual({ ...sg, scopeKey: '5' })
+  })
+
+  it('null clears the scope back to the global wash (drops scopeKey)', () => {
+    let s = reducer(base(), { type: 'SET_DECORATION_STRAND_GRADIENT', payload: sg } as Action)
+    s = reducer(s, { type: 'SET_STRAND_GRADIENT_SCOPE', payload: '5' } as Action)
+    s = reducer(s, { type: 'SET_STRAND_GRADIENT_SCOPE', payload: null } as Action)
+    expect(s.editor!.decoration!.strandGradient).toEqual(sg)
+    expect('scopeKey' in s.editor!.decoration!.strandGradient!).toBe(false)
+  })
+
+  it('re-scopes to a different signature (replace, not merge)', () => {
+    let s = reducer(base(), { type: 'SET_DECORATION_STRAND_GRADIENT', payload: sg } as Action)
+    s = reducer(s, { type: 'SET_STRAND_GRADIENT_SCOPE', payload: '5' } as Action)
+    s = reducer(s, { type: 'SET_STRAND_GRADIENT_SCOPE', payload: '8i:abcd1234' } as Action)
+    expect(s.editor!.decoration!.strandGradient!.scopeKey).toBe('8i:abcd1234')
+  })
+
+  it('is a no-op when no strand gradient exists yet', () => {
+    const s0 = base()
+    const s = reducer(s0, { type: 'SET_STRAND_GRADIENT_SCOPE', payload: '5' } as Action)
+    expect(s).toBe(s0)
+  })
+
+  it('preserves scopeKey across a gradient type flip when the UI carries it', () => {
+    // SET_DECORATION_STRAND_GRADIENT is a dumb replace; the UI spreads scopeKey.
+    let s = reducer(base(), { type: 'SET_DECORATION_STRAND_GRADIENT', payload: sg } as Action)
+    s = reducer(s, { type: 'SET_STRAND_GRADIENT_SCOPE', payload: '5' } as Action)
+    const radial = { enabled: true, scopeKey: '5', type: 'radial' as const, stops: sg.stops, centre: { x: 10, y: 10 }, radius: 80 }
+    s = reducer(s, { type: 'SET_DECORATION_STRAND_GRADIENT', payload: radial } as Action)
+    expect(s.editor!.decoration!.strandGradient!.scopeKey).toBe('5')
+  })
+})
+
 describe('Void Stamps — reducer actions', () => {
   const stamp = { scope: 'congruent' as const, key: 'a1b2c3d4', image: 'data:image/webp;base64,x', width: 800, height: 600, fit: 'cover' as const }
 

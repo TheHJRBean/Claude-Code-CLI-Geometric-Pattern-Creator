@@ -87,10 +87,10 @@ const STRAND_GRADIENT_ID = 'strand-gradient-def'
 export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPolygonIds, strandRecords, orbitStamps, cellFrames, identitySource, strandGradient }: Props) {
   const { strand } = config
   const stroke = strand.color
-  // V2 (#46) — when the strand gradient is enabled, every visible piece strokes
-  // with the shared def instead of its flat/record colour; `null` otherwise.
+  // V2 (#46) — when the strand gradient is enabled, matching pieces stroke with
+  // the shared def instead of their flat/record colour; `null` otherwise. Which
+  // pieces match is decided by `gradientOn` below (scope-aware).
   const gradientStroke = strandGradient?.enabled ? `url(#${STRAND_GRADIENT_ID})` : null
-  const paintOf = (pieceStroke: string): string => gradientStroke ?? pieceStroke
 
   const strandData = useMemo(() => {
     const t0 = performance.now()
@@ -113,6 +113,30 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
       strandData, segments, baseMap, identitySource.stamps, perSegment)
     return { perStrand, perSegment }
   }, [strandData, segments, identitySource])
+
+  // V2 (#46) scope — when the wash is narrowed to one congruent Strand group
+  // (`strandGradient.scopeKey`), only strands whose congruent signature matches
+  // take the shared def; the rest keep their flat / record stroke. Reuses the
+  // same per-strand signature the colour ladder resolves against
+  // (`baseSigs.perStrand[si]` on the editor non-fast path, else the rendered
+  // chain's own identity). Null ⇒ every visible strand takes the def (the
+  // default global wash, or the gradient disabled).
+  const gradientOn = useMemo<boolean[] | null>(() => {
+    if (!gradientStroke) return null
+    const key = strandGradient?.scopeKey
+    if (!key || key === '*') return null
+    return strandData.map((sd, si) =>
+      (baseSigs?.perStrand[si] ?? strandIdentity(sd.points).signature) === key)
+  }, [gradientStroke, strandGradient?.scopeKey, strandData, baseSigs])
+
+  // Per-piece stroke: the shared gradient def when this strand is in scope,
+  // else its flat / record colour. `si` is the SOURCE strand index (a
+  // multi-class chain splits into several pieces sharing one `si`).
+  const paintOf = (pieceStroke: string, si: number): string => {
+    if (!gradientStroke) return pieceStroke
+    if (!gradientOn) return gradientStroke
+    return gradientOn[si] ? gradientStroke : pieceStroke
+  }
 
   // Stage 2 — Decoration strokes from the colour ladder. Null when no records
   // apply (single global colour, the common/Gallery case) or when the ghost
@@ -180,7 +204,10 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
   // must not take one majority stroke whole). Weave keeps the whole-chain
   // stroke: the over/under cut walk needs the chain in one path.
   const { pieces, ghostPaths } = useMemo(() => {
-    type Piece = { d: string; stroke: string; cap: string | null }
+    // `si` = source strand index (into strandData / curvedStrands) so the
+    // scope-aware `paintOf` can match this piece's strand even after a
+    // multi-class chain splits into several pieces.
+    type Piece = { d: string; stroke: string; cap: string | null; si: number }
     const strokeOf = (i: number): string => strokes ? strokes.perStrand[i] : stroke
     if (!ghostPolygonIds || ghostPolygonIds.size === 0) {
       if (weaves) {
@@ -196,7 +223,7 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
         const out: Piece[] = curvedStrands.map((cs, i) => {
           const under = weaves[i].under
           if (under.length === 0) {
-            return { d: curvedPathD(cs), stroke: strokeOf(i), cap: null }
+            return { d: curvedPathD(cs), stroke: strokeOf(i), cap: null, si: i }
           }
           if (!wedges) {
             // Half-cut per under crossing: cover the over thread (width/2
@@ -206,6 +233,7 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
               d: wovenPathD(cs, under.map(u => ({ s: u.s, half: (w / 2) * u.factor + w / 2 + gap }))),
               stroke: strokeOf(i),
               cap: null,
+              si: i,
             }
           }
           const r = wovenPath(cs, under.map(u => ({
@@ -215,7 +243,7 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
             over: u.over,
             factor: u.factor,
           })))
-          return { d: r.d, stroke: strokeOf(i), cap: weaveCapWedgeD(r.caps, w, gap) || null }
+          return { d: r.d, stroke: strokeOf(i), cap: weaveCapWedgeD(r.caps, w, gap) || null, si: i }
         })
         return { pieces: out, ghostPaths: [] as string[] }
       }
@@ -223,11 +251,11 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
       for (let i = 0; i < curvedStrands.length; i++) {
         const perEdge = strokes?.edgeStrokes[i]
         if (!perEdge) {
-          out.push({ d: curvedPathD(curvedStrands[i]), stroke: strokeOf(i), cap: null })
+          out.push({ d: curvedPathD(curvedStrands[i]), stroke: strokeOf(i), cap: null, si: i })
           continue
         }
         for (const [strokeKey, d] of curvedPathDSplitBy(curvedStrands[i], j => perEdge[j])) {
-          out.push({ d, stroke: strokeKey, cap: null })
+          out.push({ d, stroke: strokeKey, cap: null, si: i })
         }
       }
       return { pieces: out, ghostPaths: [] as string[] }
@@ -239,7 +267,7 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
       const isGhostEdge = (i: number) =>
         ghostPolygonIds.has(segments[sd.segmentIndices[i]].polygonId)
       const { seedD, ghostD } = curvedPathDSplit(curvedStrands[s], isGhostEdge)
-      if (seedD) seeds.push({ d: seedD, stroke, cap: null })
+      if (seedD) seeds.push({ d: seedD, stroke, cap: null, si: s })
       if (ghostD) ghosts.push(ghostD)
     }
     return { pieces: seeds, ghostPaths: ghosts }
@@ -361,12 +389,12 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
       {/* `'none'` = the hidden-strand sentinel (Decoration "Remove strand
           colour"): emit nothing so Void fills meet seamlessly underneath. */}
       <g mask={maskRect ? `url(#${maskId})` : undefined}>
-        {visiblePieces.map(({ d, stroke: pieceStroke, i }) => (
+        {visiblePieces.map(({ d, stroke: pieceStroke, i, si }) => (
           <path
             key={`strand-${i}`}
             d={d}
             fill="none"
-            stroke={paintOf(pieceStroke)}
+            stroke={paintOf(pieceStroke, si)}
             strokeWidth={strand.width}
             strokeLinecap={lineCap}
             strokeLinejoin="round"
@@ -374,23 +402,23 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
           />
         ))}
         {/* Angled-cut wedges dressing the woven gap ends (solid style only). */}
-        {visiblePieces.map(({ cap, stroke: pieceStroke, i }) =>
+        {visiblePieces.map(({ cap, stroke: pieceStroke, i, si }) =>
           cap ? (
             <path
               key={`strand-cap-${i}`}
               d={cap}
-              fill={paintOf(pieceStroke)}
+              fill={paintOf(pieceStroke, si)}
               stroke="none"
             />
           ) : null,
         )}
       </g>
-      {lineStyle === 'triple' && visiblePieces.map(({ d, stroke: pieceStroke, i }) => (
+      {lineStyle === 'triple' && visiblePieces.map(({ d, stroke: pieceStroke, i, si }) => (
         <path
           key={`strand-centre-${i}`}
           d={d}
           fill="none"
-          stroke={paintOf(pieceStroke)}
+          stroke={paintOf(pieceStroke, si)}
           strokeWidth={centreWidth}
           strokeLinecap="round"
           strokeLinejoin="round"

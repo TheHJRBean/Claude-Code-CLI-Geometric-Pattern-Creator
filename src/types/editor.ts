@@ -305,9 +305,11 @@ export type FrameGradient = { enabled: boolean } & GradientSpec
  * strand field (spec V2 "one shared gradient definition"). Geometry in
  * **world** coordinates, exactly like `FrameGradient`. Off by default;
  * `enabled: false` keeps the seeded geometry so re-enabling doesn't reseed.
- * Global scope only in this slice — the single-Strand narrowing is deferred.
+ * `scopeKey` (#46 follow-up) optionally narrows the wash to one **congruent
+ * Strand group** — a strand signature; absent / `'*'` ⇒ every Strand (the
+ * default global wash). Non-matching Strands keep their flat / record stroke.
  */
-export type StrandGradient = { enabled: boolean } & GradientSpec
+export type StrandGradient = { enabled: boolean; scopeKey?: string } & GradientSpec
 
 /**
  * Step 19 — one Decoration colour assignment (ADR-0005). The same shape backs

@@ -834,6 +834,19 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       else delete next.strandGradient
       return { ...state, editor: { ...state.editor, decoration: next } }
     }
+    case 'SET_STRAND_GRADIENT_SCOPE': {
+      // #46 follow-up — narrow the strand wash to one congruent Strand group
+      // (a signature) or clear back to every Strand (`null`). No-op when no
+      // strand gradient exists yet (nothing to scope). Undo follows the
+      // gradient setter — not on the history allowlist.
+      const current = state.editor?.decoration?.strandGradient
+      if (!current) return state
+      const deco = state.editor!.decoration!
+      const sg = { ...current }
+      if (action.payload) sg.scopeKey = action.payload
+      else delete sg.scopeKey
+      return { ...state, editor: { ...state.editor!, decoration: { ...deco, strandGradient: sg } } }
+    }
     case 'CLEAR_DECORATION': {
       if (!state.editor || !state.editor.decoration) return state
       const { decoration: _drop, ...rest } = state.editor

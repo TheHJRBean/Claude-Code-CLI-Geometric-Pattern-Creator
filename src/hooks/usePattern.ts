@@ -649,8 +649,12 @@ export function usePattern(
       decoField = runPIC(decorationExtractionPolygons(polygons, worldPolys), config)
     }
     return { fastPath: false as const, stamps, polygons, picPolygons, segments, boundaryOutlines, decoField }
+    // frameGradient.enabled flips periodicFastPathEligible (#45) but isn't part
+    // of the geometry captured by editorBase, so it must be an explicit dep —
+    // else toggling the across-frame gradient leaves fastPath stale-true and the
+    // underlay (which only renders on the world-space path) never appears.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editorBase, ed?.frame, editorFrame, showBoundaryLattice, editorStrandMode, decorationActive, fbX, fbY, fbW, fbH])
+  }, [editorBase, ed?.frame, ed?.decoration?.frameGradient?.enabled, editorFrame, showBoundaryLattice, editorStrandMode, decorationActive, fbX, fbY, fbW, fbH])
 
   // Non-fast-path Decoration extraction + Void keying — FIELD-keyed, never
   // decoration- or Paint-target-keyed (the fast path's `decorationReps` twin):

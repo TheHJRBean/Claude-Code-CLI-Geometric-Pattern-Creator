@@ -5,6 +5,22 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-23 (Decoration gradients v2 / #46 — STRAND gradients, global-field slice — ✅ SHIPPED + BROWSER-VERIFIED)
+
+**Goal:** ONE world-space gradient stroked across EVERY Strand — a continuous colour wash over the whole field (spec V2 "one shared gradient definition"). Ticket #46. Model: Opus (user chose to stay on Opus over the Fable tag). Spec: `DECORATION_GRADIENTS_SPEC.md` V2.
+
+**Render model locked (user decision, AskUserQuestion):** Model A — one shared `userSpaceOnUse` `GradientSpec`, NOT a gradient-def-per-Ray. Mirrors the #45 frame gradient almost exactly, targeting strand strokes instead of Void fills.
+
+**Plan / status:**
+1. **Data model — ✅ DONE (`94c7147`).** `StrandGradient` (`{enabled}&GradientSpec`, world coords) + `DecorationConfig.strandGradient?` slot + `SET_DECORATION_STRAND_GRADIENT` dumb setter (null clears) + additive migration validation (reuses `migrateGradient`). +10 tests.
+2. **Rendering — ✅ DONE (`306e0e8`).** `StrandLayer` mints ONE def (linear/radial, `id="strand-gradient-def"`) when `strandGradient.enabled` and strokes every VISIBLE piece with `url(#...)` over the flat/record colour (main stroke + weave caps + triple centre; hidden `'none'` strands stay hidden). `enabled` disqualifies the periodic fast-path (added to `periodicFastPathEligible` + the `stampedField` memo dep array — same stale-dep fix as #45's `0df398c`). Threaded PatternSVG (world-path StrandLayer) + Canvas (decoration-gated).
+3. **UI + on-canvas handles — ✅ DONE (`0c2c640`).** Strands paint target gains a **Flat / Gradient** mode toggle → `StrandGradientControls` (near-copy of `FrameGradientControls`: enable + linear/radial + stop bar + colour picker; first-enable seeds a vertical linear across the composition bbox, stops = decorationColor→background). Handles reuse `EditorFrameGradientLayer` (now takes an optional `colour`; strand = gold `#e0a020`), shown when Strands target + `strandGradient.enabled`; drags mirror the frame gradient's screen→world→dispatch. Full suite **1202 green**, tsc + build clean.
+
+**✅ BROWSER-VERIFIED 2026-07-23** (headless chromium-1228 + prior-session libs, 4.8.8, "Show strands" ON): enable → fast-path `<use>` **238→0**, strand stroke = **`url(#strand-gradient-def)`**, def minted (linearGradient, 2 stops), **full star field renders with a continuous vertical red→parchment wash**; linear↔radial flips the def (radial = saturated centre fading to rim); on-canvas gold axis + 2 handles render and **dragging the end handle reorients the wash** (start pinned, verified via def geometry). Screenshots `sg1_enabled_linear.png` / `sg2_radial.png` / `sg3_dragged.png`. NOTE: strands only render when the **"Show strands"** toggle is on (`showLines=showStrands`); Voids come from segments regardless, so #45 didn't need it — this slice does.
+
+**Next:** #46 follow-up slice = the **single-Strand scope toggle** (spec V2: a UI toggle narrows the same tools to one clicked Strand). Also un-screenshotted: gradient × weave/double/triple line-style combos. Minor consistency-with-#45 quirks (handle visibility not gated on the panel Flat/Gradient mode; `strandMode` defaults 'flat' even when a gradient is enabled) left as-is — they match the shipped frame-gradient precedent.
+
+---
 ### ▶ 2026-07-23 (Decoration gradients slice 2 / #45 — across-frame underlay — ✅ SHIPPED + BROWSER-VERIFIED)
 
 **Goal:** ONE world-space gradient rendered as the default fill of every UNPAINTED Void (underlay; painted groups cover it). Off by default; on-canvas drag handles (Morph precedent). Spec: `DECORATION_GRADIENTS_SPEC.md` slice 2. Ticket #45. Model: Opus.

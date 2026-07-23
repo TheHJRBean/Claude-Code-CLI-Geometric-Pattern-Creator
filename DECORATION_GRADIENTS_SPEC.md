@@ -1,7 +1,9 @@
 # Decoration Gradients — Spec
 
-Grilled + agreed 2026-07-20. Status: **SPEC'D, not started.** Tickets:
-**#44** (slice 1), **#45** (slice 2), **#46** (v2 strand gradients, deferred).
+Grilled + agreed 2026-07-20. Status: **#44 + #45 SHIPPED + browser-verified;
+#46 v2 strand gradients — global-field slice SHIPPED + browser-verified
+(2026-07-23), single-Strand scope deferred.** Tickets:
+**#44** (slice 1), **#45** (slice 2), **#46** (v2 strand gradients).
 Companion memory: `project_decoration_gradients_idea.md`.
 
 ## Summary
@@ -87,7 +89,27 @@ via SVG gradient defs.
 3. **Strand gradients (v2, deferred)** — see below. Model: Fable (gradients
    along stroked curved paths are non-trivial in SVG).
 
-## V2 — Strand gradients (deferred; user design 2026-07-20)
+## V2 — Strand gradients (user design 2026-07-20)
+
+**Status (2026-07-23): global-field slice SHIPPED + browser-verified.** The
+render model was locked to **Model A — one shared world-space `GradientSpec`**
+(user decision): a single `userSpaceOnUse` `<linearGradient>`/`<radialGradient>`
+def stroked across **every** Strand (`StrandLayer` `stroke="url(#strand-gradient-def)"`),
+a continuous wash over the whole field — *not* the literal "a gradient def per
+Ray" reading (thousands of handles/defs, unusable at scale). Data model mirrors
+the #45 frame gradient exactly: `DecorationConfig.strandGradient?: StrandGradient`
+(`{enabled}&GradientSpec`, world coords), `SET_DECORATION_STRAND_GRADIENT` dumb
+setter, additive migration, `enabled` disqualifies the periodic fast-path (so the
+def spans the full world field, not one tiled `<use>` fragment). UI: a Flat /
+Gradient mode toggle under the **Strands** paint target → `StrandGradientControls`
+(enable + linear/radial + stop bar + colour picker, first-enable seeds across the
+composition bbox), on-canvas handles reuse `EditorFrameGradientLayer` (gold).
+Commits `94c7147` (data) → `306e0e8` (render) → `0c2c640` (UI+handles).
+
+**Deferred to a follow-up slice:** the **single-Strand scope toggle** below (this
+slice ships only the DEFAULT "ALL strands at once" scope). Also not yet
+visually verified: gradient × weave / double / triple line styles (the code path
+applies the url stroke to those too, but the combo wasn't screenshotted).
 
 User's intent, captured verbatim-in-spirit:
 

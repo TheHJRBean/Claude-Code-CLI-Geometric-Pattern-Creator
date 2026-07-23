@@ -235,6 +235,42 @@ describe('Across-frame gradient (#45) — SET_DECORATION_FRAME_GRADIENT', () => 
   })
 })
 
+describe('Strand gradient (#46) — SET_DECORATION_STRAND_GRADIENT', () => {
+  const sg = { enabled: true, type: 'linear' as const, stops: [{ offset: 0, colour: '#c0392b' }, { offset: 1, colour: '#2c3e50' }], start: { x: 0, y: 0 }, end: { x: 0, y: 120 } }
+
+  it('sets the strand gradient, creating editor.decoration if absent', () => {
+    const s = reducer(base(), { type: 'SET_DECORATION_STRAND_GRADIENT', payload: sg } as Action)
+    expect(s.editor!.decoration).toEqual({ version: 1, strandColours: [], voidFills: [], strandGradient: sg })
+  })
+
+  it('replaces the existing strand gradient (drag / type flip)', () => {
+    let s = reducer(base(), { type: 'SET_DECORATION_STRAND_GRADIENT', payload: sg } as Action)
+    const radial = { enabled: true, type: 'radial' as const, stops: sg.stops, centre: { x: 10, y: 10 }, radius: 80 }
+    s = reducer(s, { type: 'SET_DECORATION_STRAND_GRADIENT', payload: radial } as Action)
+    expect(s.editor!.decoration!.strandGradient).toEqual(radial)
+  })
+
+  it('null clears only the strand gradient, leaving other decoration intact', () => {
+    let s = reducer(base(), { type: 'SET_DECORATION_STRAND_COLOR', payload: { scope: 'congruent', key: '*', colour: '#111' } } as Action)
+    s = reducer(s, { type: 'SET_DECORATION_STRAND_GRADIENT', payload: sg } as Action)
+    s = reducer(s, { type: 'SET_DECORATION_STRAND_GRADIENT', payload: null } as Action)
+    expect(s.editor!.decoration!.strandGradient).toBeUndefined()
+    expect(s.editor!.decoration!.strandColours).toHaveLength(1)
+  })
+
+  it('coexists with the frame gradient (independent slots)', () => {
+    let s = reducer(base(), { type: 'SET_DECORATION_FRAME_GRADIENT', payload: { ...sg, enabled: true } } as Action)
+    s = reducer(s, { type: 'SET_DECORATION_STRAND_GRADIENT', payload: sg } as Action)
+    expect(s.editor!.decoration!.frameGradient).toBeDefined()
+    expect(s.editor!.decoration!.strandGradient).toEqual(sg)
+  })
+
+  it('disabled strand gradient still persists its geometry (re-enable without reseeding)', () => {
+    const s = reducer(base(), { type: 'SET_DECORATION_STRAND_GRADIENT', payload: { ...sg, enabled: false } } as Action)
+    expect(s.editor!.decoration!.strandGradient).toEqual({ ...sg, enabled: false })
+  })
+})
+
 describe('Void Stamps — reducer actions', () => {
   const stamp = { scope: 'congruent' as const, key: 'a1b2c3d4', image: 'data:image/webp;base64,x', width: 800, height: 600, fit: 'cover' as const }
 

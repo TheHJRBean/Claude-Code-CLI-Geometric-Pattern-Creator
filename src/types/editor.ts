@@ -299,6 +299,17 @@ export type GradientSpec =
 export type FrameGradient = { enabled: boolean } & GradientSpec
 
 /**
+ * The single **strand gradient** (DECORATION_GRADIENTS_SPEC v2, #46). ONE
+ * world-space gradient stroked across **every** Strand via a single
+ * `userSpaceOnUse` def — a continuous colour wash flowing over the whole
+ * strand field (spec V2 "one shared gradient definition"). Geometry in
+ * **world** coordinates, exactly like `FrameGradient`. Off by default;
+ * `enabled: false` keeps the seeded geometry so re-enabling doesn't reseed.
+ * Global scope only in this slice — the single-Strand narrowing is deferred.
+ */
+export type StrandGradient = { enabled: boolean } & GradientSpec
+
+/**
  * Step 19 — one Decoration colour assignment (ADR-0005). The same shape backs
  * every rung of the **Grouping scope** ladder; only the meaning of `key`
  * changes per `scope`. Because `key` is *identity* (not a world position),
@@ -353,6 +364,9 @@ export interface DecorationConfig {
   /** Slice 2 (#45) — the single across-frame gradient underlay (world-space).
    * Optional + additive; absent ⇒ pre-slice-2 behaviour byte-identical. */
   frameGradient?: FrameGradient
+  /** V2 (#46) — the single strand gradient (world-space) stroked across every
+   * Strand. Optional + additive; absent ⇒ pre-v2 behaviour byte-identical. */
+  strandGradient?: StrandGradient
 }
 
 /**

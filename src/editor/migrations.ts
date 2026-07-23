@@ -255,6 +255,13 @@ function migrateDecoration(raw: unknown): DecorationConfig | undefined {
     const gradient = migrateGradient(fg)
     if (gradient) out.frameGradient = { enabled: fg.enabled === true, ...gradient }
   }
+  // V2 (#46) — strand gradient. Same validation as the frame gradient; a
+  // malformed spec drops the whole strand gradient, the rest survives.
+  if (typeof r.strandGradient === 'object' && r.strandGradient !== null) {
+    const sg = r.strandGradient as Record<string, unknown>
+    const gradient = migrateGradient(sg)
+    if (gradient) out.strandGradient = { enabled: sg.enabled === true, ...gradient }
+  }
   return out
 }
 

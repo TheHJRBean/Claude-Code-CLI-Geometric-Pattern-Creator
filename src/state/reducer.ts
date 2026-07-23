@@ -823,6 +823,17 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       else delete next.frameGradient
       return { ...state, editor: { ...state.editor, decoration: next } }
     }
+    case 'SET_DECORATION_STRAND_GRADIENT': {
+      // Strand gradient (#46) — dumb setter, mirrors the frame gradient. `null`
+      // clears the slot; a spec sets/replaces it (enable flag + world geometry
+      // + stops). One per composition, stroked across every Strand.
+      if (!state.editor) return state
+      const deco = state.editor.decoration ?? { version: 1 as const, strandColours: [], voidFills: [] }
+      const next = { ...deco }
+      if (action.payload) next.strandGradient = action.payload
+      else delete next.strandGradient
+      return { ...state, editor: { ...state.editor, decoration: next } }
+    }
     case 'CLEAR_DECORATION': {
       if (!state.editor || !state.editor.decoration) return state
       const { decoration: _drop, ...rest } = state.editor

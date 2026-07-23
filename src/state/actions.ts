@@ -1,5 +1,5 @@
 import type { FigureLineSet, MorphConfig, PatternConfig, StrandStyle } from '../types/pattern'
-import type { BoundaryShape, ConfigurationId, EditorConfig, EditorGuide, EditorGuidePatch, FrameConfig, FrameGradient, GradientSpec, GroupingScope, SymmetryMode, VoidStampRecord } from '../types/editor'
+import type { BoundaryShape, ConfigurationId, EditorConfig, EditorGuide, EditorGuidePatch, FrameConfig, FrameGradient, GradientSpec, GroupingScope, StrandGradient, SymmetryMode, VoidStampRecord } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import type { ClickedTargetKeys } from '../decoration/scopes'
 
@@ -143,6 +143,11 @@ export type Action =
   // coords) rides the payload — the reducer is a dumb setter, seeding + drag
   // maths live in the UI where world bounds / pointer positions are known.
   | { type: 'SET_DECORATION_FRAME_GRADIENT'; payload: FrameGradient | null }
+  // Strand gradient (DECORATION_GRADIENTS_SPEC v2, #46). ONE per composition,
+  // stroked across every Strand; `null` clears the slot. Dumb setter like the
+  // frame gradient — seeding + drag maths live in the UI (world coords ride
+  // the payload).
+  | { type: 'SET_DECORATION_STRAND_GRADIENT'; payload: StrandGradient | null }
   | { type: 'CLEAR_DECORATION' }
   // Step 20 (slice 2, #38) — Morph authoring. Top-level `config.morph`
   // (mirrors SET_GALLERY_FRAME's plain-prefix naming — the target isn't

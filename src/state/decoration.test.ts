@@ -206,6 +206,35 @@ describe('Gradient Void fills (#44) — SET_DECORATION_VOID_GRADIENT', () => {
   })
 })
 
+describe('Across-frame gradient (#45) — SET_DECORATION_FRAME_GRADIENT', () => {
+  const fg = { enabled: true, type: 'linear' as const, stops: [{ offset: 0, colour: '#111' }, { offset: 1, colour: '#000' }], start: { x: 0, y: 0 }, end: { x: 0, y: 100 } }
+
+  it('sets the frame gradient, creating editor.decoration if absent', () => {
+    const s = reducer(base(), { type: 'SET_DECORATION_FRAME_GRADIENT', payload: fg } as Action)
+    expect(s.editor!.decoration).toEqual({ version: 1, strandColours: [], voidFills: [], frameGradient: fg })
+  })
+
+  it('replaces the existing frame gradient (e.g. a drag/type flip)', () => {
+    let s = reducer(base(), { type: 'SET_DECORATION_FRAME_GRADIENT', payload: fg } as Action)
+    const radial = { enabled: true, type: 'radial' as const, stops: fg.stops, centre: { x: 0, y: 0 }, radius: 70 }
+    s = reducer(s, { type: 'SET_DECORATION_FRAME_GRADIENT', payload: radial } as Action)
+    expect(s.editor!.decoration!.frameGradient).toEqual(radial)
+  })
+
+  it('null clears only the frame gradient, leaving other decoration intact', () => {
+    let s = reducer(base(), { type: 'SET_DECORATION_VOID_FILL', payload: { scope: 'congruent', key: 'abc', colour: '#111' } } as Action)
+    s = reducer(s, { type: 'SET_DECORATION_FRAME_GRADIENT', payload: fg } as Action)
+    s = reducer(s, { type: 'SET_DECORATION_FRAME_GRADIENT', payload: null } as Action)
+    expect(s.editor!.decoration!.frameGradient).toBeUndefined()
+    expect(s.editor!.decoration!.voidFills).toHaveLength(1)
+  })
+
+  it('disabled frame gradient still persists its geometry (re-enable without reseeding)', () => {
+    const s = reducer(base(), { type: 'SET_DECORATION_FRAME_GRADIENT', payload: { ...fg, enabled: false } } as Action)
+    expect(s.editor!.decoration!.frameGradient).toEqual({ ...fg, enabled: false })
+  })
+})
+
 describe('Void Stamps — reducer actions', () => {
   const stamp = { scope: 'congruent' as const, key: 'a1b2c3d4', image: 'data:image/webp;base64,x', width: 800, height: 600, fit: 'cover' as const }
 

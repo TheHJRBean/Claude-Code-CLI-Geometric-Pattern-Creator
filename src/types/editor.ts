@@ -289,6 +289,16 @@ export type GradientSpec =
   | { type: 'radial'; stops: GradientStop[]; centre: Vec2; radius: number }
 
 /**
+ * The single **across-frame** gradient (DECORATION_GRADIENTS_SPEC slice 2, #45).
+ * ONE per composition, geometry in **world** coordinates. Rendered as the
+ * default fill of every UNPAINTED Void (an underlay — painted groups cover it
+ * because each Void resolves to exactly one fill: its paint spec, or this).
+ * Off by default; `enabled: false` keeps the seeded geometry so re-enabling
+ * doesn't reseed.
+ */
+export type FrameGradient = { enabled: boolean } & GradientSpec
+
+/**
  * Step 19 — one Decoration colour assignment (ADR-0005). The same shape backs
  * every rung of the **Grouping scope** ladder; only the meaning of `key`
  * changes per `scope`. Because `key` is *identity* (not a world position),
@@ -340,6 +350,9 @@ export interface DecorationConfig {
    * the record's scope reaches (v1: `congruent` only, keyed by signature).
    * Optional + additive so decoration blocks without stamps stay version 1. */
   voidStamps?: VoidStampRecord[]
+  /** Slice 2 (#45) — the single across-frame gradient underlay (world-space).
+   * Optional + additive; absent ⇒ pre-slice-2 behaviour byte-identical. */
+  frameGradient?: FrameGradient
 }
 
 /**

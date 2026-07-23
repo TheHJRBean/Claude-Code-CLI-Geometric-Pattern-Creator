@@ -122,18 +122,32 @@ export function keyVoids(
 }
 
 /** Cheap colouring pass over keyed Voids — safe to re-run per paint or
- * record change. */
+ * record change. When an across-frame gradient is enabled (#45), every Void
+ * that resolves to NO paint record gets the frame gradient as an underlay fill
+ * (world-space geometry, no `pose`); painted Voids keep their own fill. Because
+ * each Void resolves to exactly one fill, "painted covers the underlay" falls
+ * out for free — a painted and an unpainted Void are disjoint regions. */
 export function colourVoids(
   keyed: KeyedVoid[],
   decoration: DecorationConfig | undefined,
 ): VoidFill[] {
   const idx = buildColourIndex(decoration?.voidFills)
+  const frame = decoration?.frameGradient?.enabled ? decoration.frameGradient : undefined
   const fills: VoidFill[] = []
   for (const v of keyed) {
     const fill = resolveFill(idx, v.signature, v.orbit, v.centre, v.cellKey)
     if (fill) fills.push(makeVoidFill(v.polygon, v.keyPolygon, fill))
+    else if (frame) fills.push(frameUnderlayFill(v.polygon, frame))
   }
   return fills
+}
+
+/** One across-frame underlay fill: the world-space gradient with NO `pose`
+ * (its geometry is already in world coordinates). `colour` is the first stop
+ * so a renderer that can't mint the def still shows a representative flat. */
+export function frameUnderlayFill(polygon: Vec2[], frame: GradientSpec): VoidFill {
+  const first = frame.stops.length > 0 ? frame.stops[0].colour : '#000'
+  return { polygon, colour: first, gradient: frame }
 }
 
 /** Assemble one render-ready `VoidFill`, deriving the canonical-pose transform

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { Vec2 } from '../utils/math'
 import type { ColourRecord } from '../types/editor'
-import { defaultGradientStops, gradientPreviewCss, seedGradientSpec, sortedStops } from './gradients'
+import { defaultGradientStops, gradientPreviewCss, pointsBBox, seedFrameGradientSpec, seedGradientSpec, sortedStops } from './gradients'
 import { makeVoidFill } from './resolve'
 import { buildColourIndex, resolveFill } from './scopes'
 import { canonicalPose } from './stamps'
@@ -49,6 +49,31 @@ describe('seedGradientSpec', () => {
     expect(b.start.y).toBeCloseTo(a.start.y, 3)
     expect(b.end.x).toBeCloseTo(a.end.x, 3)
     expect(b.end.y).toBeCloseTo(a.end.y, 3)
+  })
+})
+
+describe('pointsBBox / seedFrameGradientSpec (#45)', () => {
+  const box = { minX: -50, minY: 20, maxX: 150, maxY: 120 }
+
+  it('pointsBBox spans the world points; null for degenerate/empty', () => {
+    expect(pointsBBox([{ x: -50, y: 20 }, { x: 150, y: 120 }, { x: 0, y: 0 }])).toEqual({ minX: -50, minY: 0, maxX: 150, maxY: 120 })
+    expect(pointsBBox([])).toBeNull()
+    expect(pointsBBox([{ x: 5, y: 5 }, { x: 5, y: 5 }])).toBeNull()
+  })
+
+  it('seeds a vertical linear gradient across the box in WORLD coords, colour→background stops', () => {
+    const spec = seedFrameGradientSpec('linear', box, '#c0392b', '#101018')
+    if (spec.type !== 'linear') throw new Error('expected linear')
+    expect(spec.start).toEqual({ x: 50, y: 20 })  // top-centre
+    expect(spec.end).toEqual({ x: 50, y: 120 })   // bottom-centre
+    expect(spec.stops).toEqual([{ offset: 0, colour: '#c0392b' }, { offset: 1, colour: '#101018' }])
+  })
+
+  it('seeds a radial gradient centred with a half-diagonal radius', () => {
+    const spec = seedFrameGradientSpec('radial', box, '#111', '#000')
+    if (spec.type !== 'radial') throw new Error('expected radial')
+    expect(spec.centre).toEqual({ x: 50, y: 70 })
+    expect(spec.radius).toBeCloseTo(Math.hypot(200, 100) / 2, 6)
   })
 })
 

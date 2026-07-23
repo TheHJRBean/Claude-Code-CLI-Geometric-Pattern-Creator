@@ -1,5 +1,5 @@
 import type { FigureLineSet, MorphConfig, PatternConfig, StrandStyle } from '../types/pattern'
-import type { BoundaryShape, ConfigurationId, EditorConfig, EditorGuide, EditorGuidePatch, FrameConfig, GradientSpec, GroupingScope, SymmetryMode, VoidStampRecord } from '../types/editor'
+import type { BoundaryShape, ConfigurationId, EditorConfig, EditorGuide, EditorGuidePatch, FrameConfig, FrameGradient, GradientSpec, GroupingScope, SymmetryMode, VoidStampRecord } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import type { ClickedTargetKeys } from '../decoration/scopes'
 
@@ -138,6 +138,11 @@ export type Action =
   // (scope, key); REMOVE deletes the record.
   | { type: 'SET_DECORATION_VOID_STAMP'; payload: VoidStampRecord }
   | { type: 'REMOVE_DECORATION_VOID_STAMP'; payload: { scope: GroupingScope; key: string } }
+  // Across-frame gradient underlay (DECORATION_GRADIENTS_SPEC slice 2, #45).
+  // One per composition; `null` clears the slot. The seeded geometry (world
+  // coords) rides the payload — the reducer is a dumb setter, seeding + drag
+  // maths live in the UI where world bounds / pointer positions are known.
+  | { type: 'SET_DECORATION_FRAME_GRADIENT'; payload: FrameGradient | null }
   | { type: 'CLEAR_DECORATION' }
   // Step 20 (slice 2, #38) — Morph authoring. Top-level `config.morph`
   // (mirrors SET_GALLERY_FRAME's plain-prefix naming — the target isn't

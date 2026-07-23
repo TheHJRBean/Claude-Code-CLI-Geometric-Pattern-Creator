@@ -813,6 +813,16 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       else delete next.voidStamps
       return { ...state, editor: { ...state.editor!, decoration: next } }
     }
+    case 'SET_DECORATION_FRAME_GRADIENT': {
+      // Across-frame gradient underlay (#45) — dumb setter. `null` clears the
+      // slot; a spec sets/replaces it (enable flag + world geometry + stops).
+      if (!state.editor) return state
+      const deco = state.editor.decoration ?? { version: 1 as const, strandColours: [], voidFills: [] }
+      const next = { ...deco }
+      if (action.payload) next.frameGradient = action.payload
+      else delete next.frameGradient
+      return { ...state, editor: { ...state.editor, decoration: next } }
+    }
     case 'CLEAR_DECORATION': {
       if (!state.editor || !state.editor.decoration) return state
       const { decoration: _drop, ...rest } = state.editor

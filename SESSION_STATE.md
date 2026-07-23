@@ -5,6 +5,20 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-23 (Decoration gradients slice 2 / #45 — across-frame underlay — IN PROGRESS)
+
+**Goal:** ONE world-space gradient rendered as the default fill of every UNPAINTED Void (underlay; painted groups cover it). Off by default; on-canvas drag handles (Morph precedent). Spec: `DECORATION_GRADIENTS_SPEC.md` slice 2. Ticket #45. Model: Opus.
+
+**Plan / status:**
+1. **Engine — ✅ DONE (commit 1).** `DecorationConfig.frameGradient?: FrameGradient` (`{enabled}&GradientSpec`, world coords) + `migrateGradient`-based validation. Reducer `SET_DECORATION_FRAME_GRADIENT` (dumb setter, null clears). `colourVoids` emits a `frameUnderlayFill` (gradient, NO pose) for every void that resolves to no paint record when `frameGradient.enabled` — each void resolves to exactly one fill so "painted covers underlay" is automatic (disjoint regions). `VoidFillLayer` mints ONE shared world-space def (`${idPrefix}-frame`, no gradientTransform) referenced by all underlay voids; per-shape pose defs unchanged. `frameGradient.enabled` disqualifies the periodic fast-path (else the userSpaceOnUse def repeats per `<use>` clone). Seed helpers `pointsBBox` + `seedFrameGradientSpec` (vertical linear / centred radial, stops = colour→background). Tests: reducer +4, resolve +3, migration +3, gradients +2 — all green, tsc clean.
+2. **Sidebar Across-frame UI — TODO (commit 2).** Enable the disabled "Across frame" mode button in `DecorationPanel` GradientSection; lift a `gradientMode: 'shape'|'frame'` state to TessellationLabMode. Frame sub-panel: enable toggle (first-enable seeds via frame-outline bbox / content bbox + decorationColor→background), type linear/radial, stop bar, colour picker → dispatch `SET_DECORATION_FRAME_GRADIENT`.
+3. **On-canvas drag handles — TODO (commit 3).** New `EditorFrameGradientLayer` (mirror `EditorMorphLayer`): linear start/end handles + axis line; radial centre + radius handle + ring. Wire into Canvas `editorOverlayUnclipped` (compose w/ morphLayer), drags screen→world → `onSetFrameGradient`. Show when Decoration phase + gradient target + across-frame mode + enabled.
+
+**Files touched so far:** `types/editor.ts`, `editor/migrations.ts`, `state/actions.ts`, `state/reducer.ts`, `decoration/resolve.ts`, `decoration/gradients.ts`, `rendering/VoidFillLayer.tsx`, `hooks/usePattern.ts` + 4 test files.
+
+**Next:** commit 2 (sidebar), then commit 3 (handles), then browser-verify.
+
+---
 ### ▶ 2026-07-23 (Guides — tick ×N now ADDS ticks — ✅ FIXED + browser-verified)
 
 **Feedback (user):** "Tick spacing should be a min of the times 1 setting and then add more, not fewer ticks."

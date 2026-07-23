@@ -248,6 +248,13 @@ function migrateDecoration(raw: unknown): DecorationConfig | undefined {
     }
     if (stamps.length > 0) out.voidStamps = stamps
   }
+  // Slice 2 (#45) — across-frame gradient. A malformed spec drops the whole
+  // frame gradient (never crashes the load); the rest of decoration survives.
+  if (typeof r.frameGradient === 'object' && r.frameGradient !== null) {
+    const fg = r.frameGradient as Record<string, unknown>
+    const gradient = migrateGradient(fg)
+    if (gradient) out.frameGradient = { enabled: fg.enabled === true, ...gradient }
+  }
   return out
 }
 

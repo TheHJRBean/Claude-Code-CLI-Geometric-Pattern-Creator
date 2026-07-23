@@ -57,6 +57,44 @@ describe('Step 19.2 / Stage 2 — resolveDecoration', () => {
     expect(r.fills.map(f => f.colour).sort()).toEqual(['#7d3c98', '#aaa'])
   })
 
+  describe('across-frame gradient underlay (#45)', () => {
+    const frameGradient = {
+      enabled: true as const, type: 'linear' as const,
+      stops: [{ offset: 0, colour: '#900' }, { offset: 1, colour: '#000' }],
+      start: { x: 0, y: 0 }, end: { x: 0, y: 100 },
+    }
+
+    it('fills every UNPAINTED Void with the world-space gradient (no pose)', () => {
+      const r = resolveDecoration(crossSegs, boundBox(100), deco({ frameGradient }))
+      expect(r.fills).toHaveLength(4)
+      for (const f of r.fills) {
+        expect(f.gradient).toEqual(frameGradient)
+        expect(f.pose).toBeUndefined() // world-space, not canonical-pose
+        expect(f.colour).toBe('#900')  // first stop = representative flat
+      }
+    })
+
+    it('painted Voids keep their own fill; only the rest get the underlay', () => {
+      const target = resolveDecoration(crossSegs, boundBox(100), undefined).voids[0]
+      const r = resolveDecoration(crossSegs, boundBox(100), deco({
+        frameGradient,
+        voidFills: [{ scope: 'instance', key: target.instanceKey, colour: '#0f0' }],
+      }))
+      expect(r.fills).toHaveLength(4)
+      const painted = r.fills.filter(f => f.colour === '#0f0' && !f.gradient)
+      const underlay = r.fills.filter(f => f.gradient)
+      expect(painted).toHaveLength(1)
+      expect(underlay).toHaveLength(3)
+    })
+
+    it('a disabled frame gradient produces no underlay', () => {
+      const r = resolveDecoration(crossSegs, boundBox(100), deco({
+        frameGradient: { ...frameGradient, enabled: false },
+      }))
+      expect(r.fills).toEqual([])
+    })
+  })
+
   it('instance: fills exactly the keyed Void', () => {
     const target = resolveDecoration(crossSegs, boundBox(100), undefined).voids[0]
     const r = resolveDecoration(crossSegs, boundBox(100), deco({

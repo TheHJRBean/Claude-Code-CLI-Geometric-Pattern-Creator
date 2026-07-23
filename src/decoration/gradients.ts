@@ -61,6 +61,52 @@ export function seedGradientSpec(
     : { type, stops, centre: { x: cx, y: cy }, radius: Math.max(box.width, box.height) / 2 }
 }
 
+/** A world-space axis-aligned bounding box (min/max corners). */
+export interface WorldBBox {
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+}
+
+/** Bounding box of a set of world points, or null when empty/degenerate. */
+export function pointsBBox(points: Vec2[]): WorldBBox | null {
+  if (points.length === 0) return null
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  for (const p of points) {
+    if (p.x < minX) minX = p.x
+    if (p.x > maxX) maxX = p.x
+    if (p.y < minY) minY = p.y
+    if (p.y > maxY) maxY = p.y
+  }
+  if (!(maxX > minX) || !(maxY > minY)) return null
+  return { minX, minY, maxX, maxY }
+}
+
+/**
+ * Seed the across-frame gradient (#45) over a world bbox: linear = vertical
+ * span (top→bottom), radial = centre + half-diagonal radius. Stops seed from
+ * the current decoration colour → the canvas background (spec decision 6).
+ */
+export function seedFrameGradientSpec(
+  type: GradientSpec['type'],
+  box: WorldBBox,
+  colour: string,
+  background: string,
+): GradientSpec {
+  const stops: GradientStop[] = [
+    { offset: 0, colour },
+    { offset: 1, colour: background },
+  ]
+  const cx = (box.minX + box.maxX) / 2
+  const cy = (box.minY + box.maxY) / 2
+  if (type === 'linear') {
+    return { type, stops, start: { x: cx, y: box.minY }, end: { x: cx, y: box.maxY } }
+  }
+  const radius = Math.hypot(box.maxX - box.minX, box.maxY - box.minY) / 2
+  return { type, stops, centre: { x: cx, y: cy }, radius }
+}
+
 /** Stops in ascending offset order. **Required before emitting SVG `<stop>`
  * elements** — SVG clamps any stop whose offset is below a previous one, so
  * out-of-order stops (e.g. after dragging one marker past another) render as a

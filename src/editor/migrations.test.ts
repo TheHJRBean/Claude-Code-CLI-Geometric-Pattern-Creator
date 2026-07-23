@@ -95,6 +95,31 @@ describe('Decoration gradients (#44) — ColourRecord.gradient migration', () =>
   })
 })
 
+describe('Across-frame gradient (#45) — frameGradient migration', () => {
+  const grad = {
+    type: 'linear',
+    stops: [{ offset: 0, colour: '#111' }, { offset: 1, colour: '#000' }],
+    start: { x: 0, y: 0 }, end: { x: 0, y: 100 },
+  }
+  const deco = (frameGradient: unknown) => ({ version: 1, strandColours: [], voidFills: [], frameGradient })
+
+  it('round-trips an enabled linear frame gradient', () => {
+    const out = migrateEditorConfig(v3Patch({ decoration: deco({ enabled: true, ...grad }) }))
+    expect(out!.decoration!.frameGradient).toEqual({ enabled: true, ...grad })
+  })
+
+  it('coerces a missing/truthy enabled flag to a boolean (defaults false)', () => {
+    const out = migrateEditorConfig(v3Patch({ decoration: deco(grad) }))
+    expect(out!.decoration!.frameGradient).toEqual({ enabled: false, ...grad })
+  })
+
+  it('drops a malformed frame gradient, keeping the rest of decoration', () => {
+    const out = migrateEditorConfig(v3Patch({ decoration: deco({ enabled: true, type: 'conic', stops: grad.stops }) }))
+    expect(out!.decoration!.frameGradient).toBeUndefined()
+    expect(out!.decoration).toBeDefined()
+  })
+})
+
 describe('Step 19 — decoration migration', () => {
   it('a v3 patch with no decoration loads with decoration undefined', () => {
     const out = migrateEditorConfig(v3Patch())

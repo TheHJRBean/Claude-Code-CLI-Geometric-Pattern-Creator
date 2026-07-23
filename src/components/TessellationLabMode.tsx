@@ -924,6 +924,7 @@ export function TessellationLabMode({
         onSetMorphDirection={d => dispatch({ type: 'SET_MORPH_DIRECTION', payload: d })}
         onSetMorphBoundaryPosition={(boundaryId, position) => dispatch({ type: 'SET_MORPH_BOUNDARY_POSITION', payload: { boundaryId, position } })}
         onDeleteMorphBoundary={boundaryId => dispatch({ type: 'DELETE_MORPH_BOUNDARY', payload: { boundaryId } })}
+        onSetFrameGradient={fg => dispatch({ type: 'SET_DECORATION_FRAME_GRADIENT', payload: fg })}
       />
       </div>
       {/* One-time structural-edit note (Q5) — first place / delete / Complete

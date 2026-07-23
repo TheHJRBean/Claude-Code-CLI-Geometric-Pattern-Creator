@@ -43,7 +43,7 @@ import { PICKER_SIDES } from '../editor/placement'
 import { regularPolygonVertices } from '../editor/regularPolygon'
 import { PerfHud } from './PerfHud'
 import type { EditorMode } from '../types/appMode'
-import type { EditorGuide, EditorGuidePatch } from '../types/editor'
+import type { EditorGuide, EditorGuidePatch, FrameGradient } from '../types/editor'
 import {
   collectGuideAnchors,
   collectSnapPoints,
@@ -61,6 +61,7 @@ import { EditorGuideLayer, type GuideHandle } from './EditorGuideLayer'
 import { GuidePopupOverlay } from './GuidePopupOverlay'
 import { midpoint as vecMidpoint, pointsEqual } from '../utils/math'
 import { EditorMorphLayer } from './EditorMorphLayer'
+import { EditorFrameGradientLayer } from './EditorFrameGradientLayer'
 import { MorphBoundarySlider } from './MorphBoundarySlider'
 import { morphDistance } from '../pic/morph'
 
@@ -211,6 +212,8 @@ interface Props {
   onSetMorphDirection?: (d: Vec2) => void
   onSetMorphBoundaryPosition?: (boundaryId: string, position: number) => void
   onDeleteMorphBoundary?: (boundaryId: string) => void
+  /** #45 — commit the reshaped across-frame gradient (handle drags). */
+  onSetFrameGradient?: (fg: FrameGradient) => void
   /** Written (never read) by Canvas: the current visible world-rect, for
    *  view-aware defaults outside the canvas (MorphPanel's Add Boundary). */
   viewBoundsRef?: React.MutableRefObject<WorldBounds | null>
@@ -218,7 +221,7 @@ interface Props {
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, onPlaceTileOnAnchor, editorMode = 'place', constructSnap = true, constructAngleStep = DEFAULT_ANGLE_STEP, constructTool = 'line', showGuides = false, onAddGuide, onUpdateGuide, onDeleteGuide, picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature, onPaintGradientVoid, onDecorationVoids, showMorphOverlay = false, onSetMorphOrigin, onSetMorphDirection, onSetMorphBoundaryPosition, onDeleteMorphBoundary, viewBoundsRef }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, onPlaceTileOnAnchor, editorMode = 'place', constructSnap = true, constructAngleStep = DEFAULT_ANGLE_STEP, constructTool = 'line', showGuides = false, onAddGuide, onUpdateGuide, onDeleteGuide, picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature, onPaintGradientVoid, onDecorationVoids, showMorphOverlay = false, onSetMorphOrigin, onSetMorphDirection, onSetMorphBoundaryPosition, onDeleteMorphBoundary, onSetFrameGradient, viewBoundsRef }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -1123,6 +1126,45 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     ? config.morph?.boundaries.find(b => b.id === selectedMorphBoundaryId) ?? null
     : null
 
+  // Across-frame gradient handles (#45) — live while the Gradient paint target
+  // is active with an enabled frame gradient (Decoration Phase; `paintTarget`
+  // is already gated to 'off' outside Decoration by the parent).
+  const frameGradient = config.editor?.decoration?.frameGradient
+  const frameGradientOverlayVisible = paintTarget === 'gradient' && frameGradient?.enabled === true
+
+  const handleDragFrameGradientLinear = useCallback((which: 'start' | 'end', screen: Vec2) => {
+    const fg = config.editor?.decoration?.frameGradient
+    if (!fg || fg.type !== 'linear') return
+    const w = screenToWorld(screen, viewTransform, size.width, size.height)
+    onSetFrameGradient?.(which === 'start' ? { ...fg, start: w } : { ...fg, end: w })
+  }, [config.editor?.decoration?.frameGradient, viewTransform, size.width, size.height, onSetFrameGradient])
+
+  const handleDragFrameGradientCentre = useCallback((screen: Vec2) => {
+    const fg = config.editor?.decoration?.frameGradient
+    if (!fg || fg.type !== 'radial') return
+    const w = screenToWorld(screen, viewTransform, size.width, size.height)
+    onSetFrameGradient?.({ ...fg, centre: w })
+  }, [config.editor?.decoration?.frameGradient, viewTransform, size.width, size.height, onSetFrameGradient])
+
+  const handleDragFrameGradientRadius = useCallback((screen: Vec2) => {
+    const fg = config.editor?.decoration?.frameGradient
+    if (!fg || fg.type !== 'radial') return
+    const w = screenToWorld(screen, viewTransform, size.width, size.height)
+    const radius = Math.max(1, Math.hypot(w.x - fg.centre.x, w.y - fg.centre.y))
+    onSetFrameGradient?.({ ...fg, radius })
+  }, [config.editor?.decoration?.frameGradient, viewTransform, size.width, size.height, onSetFrameGradient])
+
+  const frameGradientLayer = frameGradientOverlayVisible && frameGradient ? (
+    <EditorFrameGradientLayer
+      gradient={frameGradient}
+      interactive
+      zoom={viewTransform.zoom}
+      onDragLinear={handleDragFrameGradientLinear}
+      onDragRadialCentre={handleDragFrameGradientCentre}
+      onDragRadialRadius={handleDragFrameGradientRadius}
+    />
+  ) : null
+
   // Composition Phase hides every Design-Phase overlay — the canvas is the
   // lattice preview only, and Strand controls in the side panel drive what
   // changes. Multi-Cell Design Phase keeps the picker live: edges are
@@ -1321,7 +1363,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         // Morph overlay renders via the never-Frame-clipped slot so Boundary
         // lines always span the canvas. (Composition-only since 2026-07-18,
         // where no clip applies anyway — the slot keeps that guaranteed.)
-        editorOverlayUnclipped={morphLayer}
+        editorOverlayUnclipped={(morphLayer || frameGradientLayer) ? <>{morphLayer}{frameGradientLayer}</> : null}
         frameOutline={frameOutline}
         clipToFrame={config.tiling.type !== 'editor' || editorStrandMode}
         // Frame nodes are Design-phase Complete pick targets; in Decoration

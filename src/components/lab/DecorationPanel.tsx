@@ -3,7 +3,11 @@ import type { PatternConfig, StrandLineStyle } from '../../types/pattern'
 import type { Action } from '../../state/actions'
 import type { PaintTarget, StrandPaintScope, VoidPaintScope } from '../../rendering/DecorationPaintLayer'
 import type { PaintVoid } from '../../decoration/resolve'
-import { seedGradientSpec, type GradientDraft, type GradientSelection } from '../../decoration/gradients'
+import { pointsBBox, seedFrameGradientSpec, seedGradientSpec, type GradientDraft, type GradientSelection, type WorldBBox } from '../../decoration/gradients'
+import { frameOutlinePolygon } from '../../editor/frame'
+import { compositionToPolygons } from '../../editor/compositionLattice'
+import { editorTilesToPolygons } from '../../editor/buildEditorPolygons'
+import type { GradientSpec } from '../../types/editor'
 import { downloadAllVoidShapeCanvases, downloadVoidShapePNG, downloadVoidShapeSVG, importStampImage, voidStampCanvas } from '../../export/stampAssets'
 import { ColourPicker, pushRecentColour } from '../ColourPicker'
 import { FieldLabel, segmentedButtonStyle } from './labShared'
@@ -29,6 +33,8 @@ interface DecorationPanelProps {
   dispatch: React.Dispatch<Action>
   decorationColor: string
   onSetDecorationColor: (c: string) => void
+  /** Canvas background — the far stop when seeding the across-frame gradient (#45). */
+  background: string
   paintTarget: PaintTarget
   onSetPaintTarget: (t: PaintTarget) => void
   voidScope: VoidPaintScope
@@ -59,6 +65,7 @@ export function DecorationPanel({
   dispatch,
   decorationColor,
   onSetDecorationColor,
+  background,
   paintTarget,
   onSetPaintTarget,
   voidScope,
@@ -141,6 +148,8 @@ export function DecorationPanel({
           onSetDraft={onSetGradientDraft}
           selection={gradientSelection}
           onClearSelection={onClearGradientSelection}
+          decorationColor={decorationColor}
+          background={background}
         />
       )}
       {paintTarget !== 'stamp' && paintTarget !== 'gradient' && <ColourPicker value={decorationColor} onChange={onSetDecorationColor} />}
@@ -316,16 +325,19 @@ export function DecorationPanel({
  * painted group's gradient geometry. Draft edits live-update the selected
  * record (stops/type), so tweaking colours after painting shows immediately.
  */
-function GradientSection({ editor, dispatch, draft, onSetDraft, selection, onClearSelection }: {
+function GradientSection({ editor, dispatch, draft, onSetDraft, selection, onClearSelection, decorationColor, background }: {
   editor: NonNullable<PatternConfig['editor']>
   dispatch: React.Dispatch<Action>
   draft: GradientDraft
   onSetDraft: (d: GradientDraft) => void
   selection: GradientSelection | null
   onClearSelection: () => void
+  decorationColor: string
+  background: string
 }) {
   const [selectedStop, setSelectedStop] = useState(0)
   const [focusOpen, setFocusOpen] = useState(false)
+  const [mode, setMode] = useState<'shape' | 'frame'>('shape')
   const selRec = selection
     ? editor.decoration?.voidFills.find(r => r.scope === selection.scope && r.key === selection.key && r.gradient)
     : undefined
@@ -355,17 +367,22 @@ function GradientSection({ editor, dispatch, draft, onSetDraft, selection, onCle
 
   return (
     <div style={{ marginBottom: 8 }}>
-      <FieldLabel label="Mode" tooltip="This shape paints a gradient onto the clicked Void group, repeated across every congruent instance. Across frame (coming next) lays one gradient under all unpainted Voids." />
+      <FieldLabel label="Mode" tooltip="This shape paints a gradient onto the clicked Void group, repeated across every congruent instance. Across frame lays ONE gradient under every unpainted Void — a wash across the whole composition that painted groups cover." />
       <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
-        <button style={segmentedButtonStyle(true, { transition: false })}>This shape</button>
-        <button
-          disabled
-          title="Across-frame gradients arrive with the next slice"
-          style={{ ...segmentedButtonStyle(false, { transition: false }), opacity: 0.4, cursor: 'default' }}
-        >
-          Across frame
-        </button>
+        {(['shape', 'frame'] as const).map(m => (
+          <button
+            key={m}
+            onClick={() => setMode(m)}
+            style={segmentedButtonStyle(mode === m, { transition: false })}
+          >
+            {m === 'shape' ? 'This shape' : 'Across frame'}
+          </button>
+        ))}
       </div>
+      {mode === 'frame' ? (
+        <FrameGradientControls editor={editor} dispatch={dispatch} decorationColor={decorationColor} background={background} />
+      ) : (
+        <>
       <FieldLabel label="Gradient" tooltip="The working gradient. Linear runs along an axis; Radial radiates from a centre. Click a marker to select a stop, drag it to move, click the bar to add one; double-click a marker or use a well's × to remove one (min 2). × Multiply deepens the selected stop's colour (repeat to intensify). Then click a Void on the canvas to paint it; clicking again with the same stops unpaints." />
       <div style={{ display: 'flex', gap: 0, marginBottom: 8 }}>
         {(['linear', 'radial'] as const).map(t => (
@@ -440,6 +457,115 @@ function GradientSection({ editor, dispatch, draft, onSetDraft, selection, onCle
           }}
           onClose={() => setFocusOpen(false)}
         />
+      )}
+        </>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The **Across-frame** gradient sub-panel (#45): enable toggle + type + stop
+ * bar + colour picker for the single world-space underlay gradient. First
+ * enable seeds a vertical linear gradient across the Frame bbox (content-bbox
+ * fallback), stops = current decoration colour → canvas background. Geometry is
+ * then reshaped by dragging the on-canvas handles; this panel only edits
+ * type/stops (geometry rides through untouched on a same-type edit; a type flip
+ * reseeds it). One gradient per composition — no scope ladder, no canvas paint.
+ */
+function FrameGradientControls({ editor, dispatch, decorationColor, background }: {
+  editor: NonNullable<PatternConfig['editor']>
+  dispatch: React.Dispatch<Action>
+  decorationColor: string
+  background: string
+}) {
+  const [selectedStop, setSelectedStop] = useState(0)
+  const fg = editor.decoration?.frameGradient
+  const enabled = fg?.enabled === true
+
+  // World bbox anchoring the seed: the Frame outline when present, else the
+  // patch's world content, else null (a degenerate patch — toggle stays inert).
+  const seedBox = (): WorldBBox | null => {
+    if (editor.frame) {
+      const outline = frameOutlinePolygon(editor.frame)
+      const b = outline ? pointsBBox(outline) : null
+      if (b) return b
+    }
+    const polys = editor.cells.length > 1
+      ? compositionToPolygons(editor)
+      : editor.cells.flatMap(c => editorTilesToPolygons(c))
+    return pointsBBox(polys.flatMap(p => p.vertices))
+  }
+
+  const set = (next: GradientSpec, on: boolean) =>
+    dispatch({ type: 'SET_DECORATION_FRAME_GRADIENT', payload: { enabled: on, ...next } })
+
+  const toggle = () => {
+    if (fg) { set(fg, !enabled); return }
+    // First enable — seed geometry from the content/frame bbox.
+    const box = seedBox()
+    if (!box) return
+    set(seedFrameGradientSpec('linear', box, decorationColor, background), true)
+  }
+
+  // Type flip reseeds geometry (keeping current stops); a same-type change is
+  // impossible here (there's only one type per spec), so this always reseeds.
+  const setType = (type: GradientSpec['type']) => {
+    const box = seedBox()
+    if (!box || !fg) return
+    const seeded = seedFrameGradientSpec(type, box, decorationColor, background)
+    set({ ...seeded, stops: fg.stops }, enabled)
+  }
+
+  const setStops = (stops: GradientSpec['stops']) => {
+    if (!fg) return
+    set({ ...fg, stops }, enabled)
+  }
+
+  const stops = fg?.stops ?? [{ offset: 0, colour: decorationColor }, { offset: 1, colour: background }]
+  const stopColour = selectedStop >= 0 && selectedStop < stops.length ? stops[selectedStop].colour : stops[0].colour
+
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, marginBottom: 10, cursor: 'pointer' }}>
+        <input type="checkbox" checked={enabled} onChange={toggle} />
+        Enable across-frame gradient
+      </label>
+      {!fg && (
+        <div style={{ fontSize: 11, fontStyle: 'italic', marginTop: 6 }}>
+          Lays one gradient under every unpainted Void — a wash across the whole
+          composition. Painted Void groups cover it.
+        </div>
+      )}
+      {fg && (
+        <>
+          <FieldLabel label="Gradient" tooltip="The across-frame wash. Linear runs along an axis; Radial radiates from a centre. Drag the handles on the canvas to place it. Click a marker to select a stop, drag it to move, click the bar to add one; double-click a marker to remove one (min 2)." />
+          <div style={{ display: 'flex', gap: 0, marginBottom: 8 }}>
+            {(['linear', 'radial'] as const).map(t => (
+              <button
+                key={t}
+                onClick={() => setType(t)}
+                style={segmentedButtonStyle(fg.type === t, { transition: false })}
+              >
+                {t === 'linear' ? 'Linear' : 'Radial'}
+              </button>
+            ))}
+          </div>
+          <GradientStopBar
+            stops={stops}
+            selected={selectedStop}
+            onSelect={setSelectedStop}
+            onChange={setStops}
+          />
+          <ColourPicker
+            value={stopColour}
+            onChange={c => setStops(stops.map((s, i) => (i === selectedStop ? { ...s, colour: c } : s)))}
+          />
+          <div style={{ fontSize: 11, fontStyle: 'italic', marginTop: 6 }}>
+            Drag the {fg.type === 'linear' ? 'start/end' : 'centre/radius'} handles
+            on the canvas to place the gradient.
+          </div>
+        </>
       )}
     </div>
   )

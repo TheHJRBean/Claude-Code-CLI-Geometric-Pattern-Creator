@@ -202,6 +202,7 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
           dispatch={dispatch}
           decorationColor={decorationColor}
           onSetDecorationColor={onSetDecorationColor}
+          background={config.strand.background}
           paintTarget={paintTarget}
           onSetPaintTarget={onSetPaintTarget}
           voidScope={voidScope}

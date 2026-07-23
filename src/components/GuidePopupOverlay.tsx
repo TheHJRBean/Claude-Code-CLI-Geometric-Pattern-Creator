@@ -118,12 +118,14 @@ export function GuidePopupOverlay({ guide, position, defaultTickSpacing, onUpdat
     }
   }, [])
 
-  const tickSpacingLabel = guide.kind === 'circle' ? 'Arc spacing' : 'Tick spacing'
-  // Spacing is expressed as a whole multiple of the Seed-Tile edge length so
-  // Anchors land on the tessellation grid (Guides feedback 2026-07-22). No
+  const tickSpacingLabel = guide.kind === 'circle' ? 'Arc ticks' : 'Ticks'
+  // ×N is a tick-DENSITY multiplier: ×1 = one tick per Seed-Tile edge (the
+  // floor — coarsest, and on-grid), ×N = N ticks per edge (spacing = edge/N),
+  // so higher settings ADD ticks (user feedback 2026-07-23). Each ×N's ticks
+  // are a superset of ×1's, so the tessellation grid points stay marked. No
   // override ⇒ ×1; a legacy absolute value snaps to its nearest multiple for
   // the highlight and normalises on the next click.
-  const tickMultiple = Math.max(1, Math.round((guide.tickSpacing ?? defaultTickSpacing) / defaultTickSpacing))
+  const tickMultiple = Math.max(1, Math.round(defaultTickSpacing / (guide.tickSpacing ?? defaultTickSpacing)))
 
   return (
     <div
@@ -176,10 +178,11 @@ export function GuidePopupOverlay({ guide, position, defaultTickSpacing, onUpdat
         ? <CircleControls guide={guide} edgeLength={defaultTickSpacing} onUpdate={onUpdate} />
         : <LineControls guide={guide} onUpdate={onUpdate} />}
 
-      {/* Tick / arc spacing as a multiple of the Seed-Tile edge length, so
-          Anchors land on the tessellation grid (circles measure along the
-          arc). ×1 tracks the edge length live; ×2–×4 pin an absolute multiple.
-          Lines pair it with typed angle inside LineControls. */}
+      {/* Tick DENSITY: ×N = N ticks per Seed-Tile edge (spacing = edge/N), so
+          ×1 is the coarsest on-grid floor and higher settings add ticks
+          (circles measure along the arc). ×1 tracks the edge length live;
+          ×2–×4 pin an absolute edge/N spacing. Lines pair it with typed angle
+          inside LineControls. */}
       <div>
         <div style={labelStyle}>{tickSpacingLabel}</div>
         <div style={{ display: 'flex', gap: 0, marginTop: 3 }}>
@@ -188,8 +191,8 @@ export function GuidePopupOverlay({ guide, position, defaultTickSpacing, onUpdat
             return (
               <button
                 key={k}
-                onClick={() => onUpdate({ tickSpacing: k === 1 ? undefined : k * defaultTickSpacing })}
-                title={`${k}× the tile edge length (${Math.round(k * defaultTickSpacing)} units)`}
+                onClick={() => onUpdate({ tickSpacing: k === 1 ? undefined : defaultTickSpacing / k })}
+                title={`${k}× as many ticks — ${k} per tile edge (spacing ${Math.round(defaultTickSpacing / k)} units)`}
                 style={{
                   ...presetButtonStyle,
                   background: active ? 'var(--accent-bg, rgba(230,201,122,0.18))' : 'transparent',

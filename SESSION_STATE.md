@@ -5,7 +5,7 @@
 ## ▶ RESUME HERE
 
 ---
-### ▶ 2026-07-23 (Decoration gradients v2 / #46 — single-Strand SCOPE toggle — 🚧 IN PROGRESS, Opus)
+### ▶ 2026-07-23 (Decoration gradients v2 / #46 — single-Strand SCOPE toggle — 🚧 CODE DONE, ⏳ browser-verify, Opus)
 
 **Goal:** the deferred #46 follow-up. Default stays the global wash; a scope lets the user click a Strand to narrow the SAME shared gradient def to just that Strand's **congruent group** (a signature). Non-matching Strands keep their flat/record stroke. Spec V2 "UI selection toggle narrows scope to a single Strand". Model: Opus (user chose to stay over the Fable tag).
 
@@ -13,11 +13,14 @@
 
 **Engine — ✅ DONE (this commit).** `StrandGradient` gains optional `scopeKey?: string` (absent/`'*'` = every Strand). Additive migration (string → keep, else drop → global wash). `SET_STRAND_GRADIENT_SCOPE` action (payload `string|null`, no-op with no gradient, not on the undo allowlist — mirrors the gradient setter). `StrandLayer`: new `gradientOn: boolean[]|null` memo (null ⇒ all pieces take the def; else per-strand signature match reusing `baseSigs.perStrand[si] ?? strandIdentity(...).signature`); `paintOf(pieceStroke, si)` takes the SOURCE strand index (`Piece` gained `si`, set at every push incl. the multi-class edge-split + weave + ghost paths). +7 tests (reducer 5, migration 2), tsc + suite green.
 
-**NEXT (this session):** UI + wiring —
-1. `StrandGradientControls` (DecorationPanel): when a gradient is enabled, show a "Wash all / Scope to a Strand" state — clicking a Strand on canvas sets `scopeKey` (via the click path); a "Clear scope · wash all" button dispatches `SET_STRAND_GRADIENT_SCOPE null`. Caption reflects scoped vs global.
-2. Lift `strandMode` ('flat'|'gradient') from DecorationPanel local state up to `TessellationLabMode` (thread through `EditorDesignControls`), so the paint router knows the sub-mode.
-3. `TessellationLabMode.onPaintStrand`: when `strandMode==='gradient'`, route the strand click to `SET_STRAND_GRADIENT_SCOPE` with `p.clicked.signature` instead of flat-painting (early-return the flat path). Override `paintStrandScope` → `'congruent'` in gradient mode so hover highlights the congruent group a click will scope.
-4. Then tsc + full suite + build, then browser-verify (needs "Show strands" ON): scope to one Strand → only that group washes, rest flat; Clear → global wash returns.
+**UI + wiring — ✅ DONE (2nd commit).**
+1. `StrandGradientControls` (DecorationPanel): added a **Reach** row under the strand gradient — scoped state shows "Scoped to one Strand group · [Wash all]" (button → `SET_STRAND_GRADIENT_SCOPE null`), unscoped shows "Click a Strand to scope". `set()` now spreads the existing `scopeKey` so type/stop/enable edits don't silently widen back to all.
+2. Lifted `strandMode` ('flat'|'gradient') out of DecorationPanel local state → `TessellationLabMode` state, threaded through `EditorDesignControls` (`strandMode`/`onSetStrandMode` props on both).
+3. `TessellationLabMode.onPaintStrand`: `strandMode==='gradient'` ⇒ dispatch `SET_STRAND_GRADIENT_SCOPE` with `p.clicked.signature` (guarded) and early-return before the flat paint. `paintStrandScope` overridden to `'congruent'` in gradient mode so hover highlights the group the click will scope.
+
+tsc + **1209 tests** (+7) + build all green.
+
+**NEXT:** browser-verify (needs "Show strands" ON, Decoration phase, Strands target → Gradient mode → Enable): scope to one Strand → only that congruent group washes, rest render flat; "Wash all" → global wash returns; scope survives a type flip / stop edit. Then flip status to SHIPPED + update memory `project_decoration_gradients_idea.md`. Not yet visually checked: gradient × weave/double/triple (code strokes them via the same url path).
 
 ---
 ### ▶ 2026-07-23 (Decoration gradients v2 / #46 — STRAND gradients, global-field slice — ✅ SHIPPED + BROWSER-VERIFIED)

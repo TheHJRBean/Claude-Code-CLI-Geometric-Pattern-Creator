@@ -248,6 +248,10 @@ export function TessellationLabMode({
   // Grouping-scope ladder).
   const [voidScope, setVoidScope] = useState<VoidPaintScope>('congruent')
   const [strandScope, setStrandScope] = useState<StrandPaintScope>('all')
+  // Strands target sub-mode (#46): 'flat' colour ladder vs the strand gradient.
+  // Lifted here so the canvas paint-router can send a Strand click to the
+  // gradient scope instead of flat-painting.
+  const [strandMode, setStrandMode] = useState<'flat' | 'gradient'>('flat')
   // Stamp target — the Void shape picked on the canvas for the panel's
   // inspector / shape-canvas export / image-upload flow.
   const [stampSelection, setStampSelection] = useState<PaintVoid | null>(null)
@@ -523,6 +527,8 @@ export function TessellationLabMode({
                 onSetVoidScope={setVoidScope}
                 strandScope={strandScope}
                 onSetStrandScope={setStrandScope}
+                strandMode={strandMode}
+                onSetStrandMode={setStrandMode}
                 stampSelection={stampSelection}
                 getStampVoids={getStampVoids}
                 gradientDraft={gradientDraft}
@@ -880,7 +886,9 @@ export function TessellationLabMode({
         paintColor={paintTarget === 'gradient' ? gradientDraft.stops[0].colour : decorationColor}
         paintTarget={editorPhase === 'decoration' ? paintTarget : 'off'}
         paintVoidScope={voidScope}
-        paintStrandScope={strandScope}
+        // In gradient sub-mode a Strand click scopes the wash to the clicked
+        // strand's congruent group, so highlight that group on hover (#46).
+        paintStrandScope={strandMode === 'gradient' ? 'congruent' : strandScope}
         onPaintVoid={p => { pushRecentColour(decorationColor); dispatch({ type: 'SET_DECORATION_VOID_FILL', payload: { ...p, colour: decorationColor } }) }}
         onPaintGradientVoid={(v, p) => {
           // Pick-to-edit: if the clicked group already carries a *different*
@@ -910,7 +918,18 @@ export function TessellationLabMode({
           dispatch({ type: 'SET_DECORATION_VOID_GRADIENT', payload: { ...p, colour: gradientDraft.stops[0].colour, gradient: spec, toggle: true } })
           setGradientSelection({ void: v, scope: p.scope, key: p.key })
         }}
-        onPaintStrand={p => { pushRecentColour(decorationColor); dispatch({ type: 'SET_DECORATION_STRAND_COLOR', payload: { ...p, colour: decorationColor } }) }}
+        onPaintStrand={p => {
+          // #46 — in the Strands gradient sub-mode, a Strand click scopes the
+          // shared wash to that strand's congruent group (its signature)
+          // instead of flat-painting it. Undefined signature (shouldn't happen
+          // for strand hits) leaves the current scope untouched.
+          if (strandMode === 'gradient') {
+            if (p.clicked?.signature) dispatch({ type: 'SET_STRAND_GRADIENT_SCOPE', payload: p.clicked.signature })
+            return
+          }
+          pushRecentColour(decorationColor)
+          dispatch({ type: 'SET_DECORATION_STRAND_COLOR', payload: { ...p, colour: decorationColor } })
+        }}
         onSelectStampVoid={setStampSelection}
         selectedStampSignature={paintTarget === 'stamp' ? stampSelection?.signature ?? null : null}
         onDecorationVoids={handleDecorationVoids}

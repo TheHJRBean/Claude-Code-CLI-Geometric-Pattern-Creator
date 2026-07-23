@@ -41,6 +41,11 @@ interface DecorationPanelProps {
   onSetVoidScope: (s: VoidPaintScope) => void
   strandScope: StrandPaintScope
   onSetStrandScope: (s: StrandPaintScope) => void
+  /** Strands target sub-mode (#46) — Flat colour ladder vs the strand gradient.
+   * Lifted so the canvas paint-router knows whether a Strand click paints flat
+   * or scopes the gradient. */
+  strandMode: 'flat' | 'gradient'
+  onSetStrandMode: (m: 'flat' | 'gradient') => void
   /** Stamp target — the Void shape selected on the canvas (null = none yet). */
   stampSelection: PaintVoid | null
   /** Stamp target — latest canvas Void hit-targets ("Export all shapes"). */
@@ -72,6 +77,8 @@ export function DecorationPanel({
   onSetVoidScope,
   strandScope,
   onSetStrandScope,
+  strandMode,
+  onSetStrandMode,
   stampSelection,
   getStampVoids,
   gradientDraft,
@@ -84,9 +91,8 @@ export function DecorationPanel({
   const voidCount = editor.decoration?.voidFills.length ?? 0
   const stampCount = editor.decoration?.voidStamps?.length ?? 0
   const hasDecoration = strandRecCount > 0 || voidCount > 0 || stampCount > 0
-  // Strands target sub-mode (#46): Flat colour ladder vs the single strand
-  // gradient. Local, like the Gradient target's This-shape/Across-frame mode.
-  const [strandMode, setStrandMode] = useState<'flat' | 'gradient'>('flat')
+  // Strands target sub-mode (#46): Flat colour ladder vs the strand gradient.
+  // Lifted to the parent (canvas paint-router needs it — see props).
   const strandGradientMode = paintTarget === 'strands' && strandMode === 'gradient'
   // The Decoration seg buttons match the phase switch minus the hover
   // transition (they snap on click).
@@ -134,7 +140,7 @@ export function DecorationPanel({
           <FieldLabel label="Mode" tooltip="Flat colours the clicked Strands at the chosen reach. Gradient lays ONE gradient stroked across every Strand — a continuous colour wash flowing over the whole pattern, placed with on-canvas handles." />
           <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
             {(['flat', 'gradient'] as const).map(m => (
-              <button key={m} onClick={() => setStrandMode(m)} style={segButtonStyle(strandMode === m)}>
+              <button key={m} onClick={() => onSetStrandMode(m)} style={segButtonStyle(strandMode === m)}>
                 {m === 'flat' ? 'Flat' : 'Gradient'}
               </button>
             ))}
@@ -624,8 +630,14 @@ function StrandGradientControls({ editor, dispatch, decorationColor, background 
     return pointsBBox(polys.flatMap(p => p.vertices))
   }
 
+  // Preserve any active scope (#46) across type / stop / enable edits — the
+  // reducer setter is a dumb replace, so a dropped scopeKey would silently
+  // widen the wash back to every Strand.
   const set = (next: GradientSpec, on: boolean) =>
-    dispatch({ type: 'SET_DECORATION_STRAND_GRADIENT', payload: { enabled: on, ...next } })
+    dispatch({
+      type: 'SET_DECORATION_STRAND_GRADIENT',
+      payload: { enabled: on, ...(sg?.scopeKey ? { scopeKey: sg.scopeKey } : {}), ...next },
+    })
 
   const toggle = () => {
     if (sg) { set(sg, !enabled); return }
@@ -688,6 +700,25 @@ function StrandGradientControls({ editor, dispatch, decorationColor, background 
           <div style={{ fontSize: 11, fontStyle: 'italic', marginTop: 6 }}>
             Drag the {sg.type === 'linear' ? 'start/end' : 'centre/radius'} handles
             on the canvas to place the gradient.
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <FieldLabel label="Reach" tooltip="Wash across every Strand, or scope it to one Strand group. Click a Strand on the canvas to scope the wash to just that congruent group — the rest keep their flat colour. Clear to wash all Strands again." />
+            {sg.scopeKey ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
+                <span>Scoped to one Strand group.</span>
+                <button
+                  onClick={() => dispatch({ type: 'SET_STRAND_GRADIENT_SCOPE', payload: null })}
+                  style={segmentedButtonStyle(false, { transition: false })}
+                >
+                  Wash all
+                </button>
+              </div>
+            ) : (
+              <div style={{ fontSize: 11, fontStyle: 'italic' }}>
+                Washing across every Strand. Click a Strand on the canvas to scope
+                the wash to just that group.
+              </div>
+            )}
           </div>
         </>
       )}

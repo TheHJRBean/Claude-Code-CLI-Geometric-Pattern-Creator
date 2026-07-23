@@ -5,6 +5,17 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-23 (Guides — tick ×N now ADDS ticks — ✅ FIXED + browser-verified)
+
+**Feedback (user):** "Tick spacing should be a min of the times 1 setting and then add more, not fewer ticks."
+
+**Was:** the popup tick multiplier stored `tickSpacing = k·edge`, so ×1 was the **densest** setting and ×2–×4 *removed* ticks (bigger spacing). Backwards from intent.
+
+**Fix (`8f89faa`, popup-only):** flipped the mapping to `tickSpacing = edge/N` (`GuidePopupOverlay.tsx`): ×1 = the floor (one tick per Seed-Tile edge, on-grid), ×N = N ticks per edge. Each ×N's ticks are a **superset** of ×1's, so the tessellation-grid points stay marked. Inverted the active-button derivation (`Math.round(edge / spacing)`), relabelled the control **"Ticks" / "Arc ticks"** (was "Tick spacing"/"Arc spacing", which read backwards). **Geometry untouched** — `guideTickPoints`/`guideCircleTickPoints` still take an absolute spacing (smaller = more ticks), so their tests are unchanged.
+
+**Verify:** tsc clean, 71 guides tests green. Headless (`ticks.mjs`): line tick dots **3→5→7→11** across ×1..×4 (monotonic increase, was decreasing before).
+
+---
 ### ▶ 2026-07-22 (Guide popup "Accept" does nothing — ✅ FIXED + browser-verified)
 
 **Fixed (`357c071`, Opus).** Applied handoff **Fix A**: froze the popup anchor at selection time. `guidePopupAnchor` (`Canvas.tsx`) is now a `useMemo` keyed on `selectedGuideId` **only** (deliberately omits the live `selectedGuide` geometry), so typing a line **Angle** / circle **Radius** — which blur-commits on the Accept pointerdown — no longer moves the anchor and repositions the floating popup mid-click. The screen pos still tracks pan/zoom via `worldToScreen`.

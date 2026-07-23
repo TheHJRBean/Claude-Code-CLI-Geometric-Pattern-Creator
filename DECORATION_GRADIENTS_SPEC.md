@@ -1,9 +1,9 @@
 # Decoration Gradients — Spec
 
-Grilled + agreed 2026-07-20. Status: **#44 + #45 SHIPPED + browser-verified;
-#46 v2 strand gradients — global-field slice SHIPPED + browser-verified
-(2026-07-23), single-Strand scope deferred.** Tickets:
-**#44** (slice 1), **#45** (slice 2), **#46** (v2 strand gradients).
+Grilled + agreed 2026-07-20. Status: **FEATURE COMPLETE — #44 + #45 SHIPPED +
+browser-verified; #46 v2 strand gradients SHIPPED + browser-verified
+(2026-07-23), both the global-field wash AND the single-Strand scope toggle.**
+Tickets: **#44** (slice 1), **#45** (slice 2), **#46** (v2 strand gradients).
 Companion memory: `project_decoration_gradients_idea.md`.
 
 ## Summary
@@ -91,7 +91,8 @@ via SVG gradient defs.
 
 ## V2 — Strand gradients (user design 2026-07-20)
 
-**Status (2026-07-23): global-field slice SHIPPED + browser-verified.** The
+**Status (2026-07-23): SHIPPED + browser-verified — global-field wash AND the
+single-Strand scope toggle.** The
 render model was locked to **Model A — one shared world-space `GradientSpec`**
 (user decision): a single `userSpaceOnUse` `<linearGradient>`/`<radialGradient>`
 def stroked across **every** Strand (`StrandLayer` `stroke="url(#strand-gradient-def)"`),
@@ -106,30 +107,38 @@ Gradient mode toggle under the **Strands** paint target → `StrandGradientContr
 composition bbox), on-canvas handles reuse `EditorFrameGradientLayer` (gold).
 Commits `94c7147` (data) → `306e0e8` (render) → `0c2c640` (UI+handles).
 
-**Deferred to a follow-up slice:** the **single-Strand scope toggle** below (this
-slice ships only the DEFAULT "ALL strands at once" scope). Also not yet
-visually verified: gradient × weave / double / triple line styles (the code path
-applies the url stroke to those too, but the combo wasn't screenshotted).
+**Single-Strand scope toggle — SHIPPED (2026-07-23, `72ca215`→`de1f712`).**
+`StrandGradient` gained an optional `scopeKey?: string` — a congruent strand
+**signature**; absent / `'*'` ⇒ the default global wash (every Strand). When
+set, `StrandLayer` strokes only Strands whose congruent signature matches with
+the shared def (`gradientOn` per-strand match reusing the same
+`baseSigs.perStrand[si] ?? strandIdentity(...).signature` the flat colour ladder
+resolves against); non-matching Strands keep their flat / record stroke.
+`SET_STRAND_GRADIENT_SCOPE` sets/clears it (no-op with no gradient; not on the
+undo allowlist — mirrors the gradient setter). UI: a **Reach** row under the
+Strands→Gradient controls — clicking a Strand routes through the existing
+`onPaintStrand` (`p.clicked.signature`) to set the scope; the scoped state shows
+"Scoped to one Strand group · [Wash all]". `strandMode` was lifted
+DecorationPanel→TessellationLabMode so the paint-router sends a gradient-mode
+Strand click to the scope setter instead of flat-painting; `paintStrandScope` is
+forced to `'congruent'` in gradient mode so hover highlights the group a click
+will scope.
 
-User's intent, captured verbatim-in-spirit:
+**Design decision:** "single Strand" resolves to the **congruent GROUP**, not a
+lone world Strand — matches the flat ladder's deliberate "no world-instance for
+strands", and a single half-lit strand under the lattice reads arbitrary.
+Verified on 4.8.8 (1 mega-strand → wiring) + 3.12.12 (448 strands → click
+narrows to the clicked congruent group of 368, other class of 80 goes flat).
 
-- **Handles appear on every Ray** when the strand-gradient tool is active —
-  the gradient control points live on the rendered strand geometry itself.
-- **Default editing scope = ALL strands at once**: the UI elements edit every
-  strand's gradient together (one shared gradient definition). Handle
-  **colour** is edited in the sidebar; handle **position** is dragged
-  directly on screen.
-- **A UI selection toggle narrows scope to a single Strand**: with it on,
-  clicking a Strand scopes the same tools to that strand only (the tools
-  "just scope to facilitate" — same handles/sidebar, narrower reach).
+The original design captured the render model as "handles on every Ray"; the
+**locked implementation is Model A** (one shared world-space def) — see the
+render-model paragraph above. The scope toggle rides that single def, narrowing
+*which Strands reference it* rather than adding per-Ray gradients.
 
-Implementation notes for the future session: SVG has no native
-gradient-along-a-path; expect per-Ray gradient segments (each Ray stroked
-with its own linear gradient interpolated between the handle colours at its
-endpoints — matches "handles on every Ray") or path-splitting. Interacts
-with weave rendering, the double/triple mask + `innerFill`, and Decoration
-strand-colour records (scope ladder vs the new all-strands/single-strand
-toggle needs reconciling when this is picked up).
+**Still deferred (out of the shipped scope):** gradient × weave / double / triple
+line styles not yet screenshotted (the url stroke applies to those pieces via
+the same `paintOf`); finer Cell / Patch scope rungs for the gradient (only
+congruent is wired — the flat strand-colour ladder keeps all four rungs).
 
 ## Out of scope (v1)
 

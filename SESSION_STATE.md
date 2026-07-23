@@ -5,7 +5,7 @@
 ## ▶ RESUME HERE
 
 ---
-### ▶ 2026-07-23 (Decoration gradients v2 / #46 — single-Strand SCOPE toggle — 🚧 CODE DONE, ⏳ browser-verify, Opus)
+### ▶ 2026-07-23 (Decoration gradients v2 / #46 — single-Strand SCOPE toggle — ✅ SHIPPED + BROWSER-VERIFIED, Opus)
 
 **Goal:** the deferred #46 follow-up. Default stays the global wash; a scope lets the user click a Strand to narrow the SAME shared gradient def to just that Strand's **congruent group** (a signature). Non-matching Strands keep their flat/record stroke. Spec V2 "UI selection toggle narrows scope to a single Strand". Model: Opus (user chose to stay over the Fable tag).
 
@@ -20,7 +20,12 @@
 
 tsc + **1209 tests** (+7) + build all green.
 
-**NEXT:** browser-verify (needs "Show strands" ON, Decoration phase, Strands target → Gradient mode → Enable): scope to one Strand → only that congruent group washes, rest render flat; "Wash all" → global wash returns; scope survives a type flip / stop edit. Then flip status to SHIPPED + update memory `project_decoration_gradients_idea.md`. Not yet visually checked: gradient × weave/double/triple (code strokes them via the same url path).
+**✅ BROWSER-VERIFIED 2026-07-23** (headless chromium-1228 + prior-session libs; `scope2.mjs`). Two configs:
+- **4.8.8** (baseStrands=1 → full field is ONE mega-strand): proved the WIRING — clicking a Strand set the scope (`scopedText` appears, "Wash all" button, hint gone); "Wash all" cleared it. No visible narrowing there because the whole field is one strand (nothing to narrow to).
+- **3.12.12** (baseStrands=3 → **448** full-field strands): the visual proof. Global wash = all 448 stroked `url(#strand-gradient-def)`. Click a Strand → its congruent group (**368**) keeps the wash, the other congruent class (**80**) drops to the flat default stroke (`#1a1a2e`, visible dark strands among the red wash — screenshot `v_scoped.png`). "Wash all" → back to 448. Semantics correct (clicked group washes, rest flat; matches the flat ladder's "Matching" reach). `RESULT: {clickRegistered, scopeStateOk, narrowedVisibly, washAllResets}` all true.
+- **Click hit-test gotcha for future verifies:** the strand pick is an `onPointerDown` on a transparent bbox rect (`DecorationPaintLayer`, tol ≈ 6px); reliable way to click a strand headlessly = mousemove on a grid until `#decoration-paint-layer path` (the hover highlight) appears, then click there. Sampling `getPointAtLength` on the rendered path is unreliable (and don't allow x < ~360, that's under the sidebar).
+
+**Deferred (not this slice):** gradient × weave / double / triple line styles — the url stroke applies to those pieces too (same `paintOf`) but wasn't screenshotted. Finer scope rungs (Cell/Patch) for the gradient — only congruent is wired; the flat ladder still has all four for flat strand colour.
 
 ---
 ### ▶ 2026-07-23 (Decoration gradients v2 / #46 — STRAND gradients, global-field slice — ✅ SHIPPED + BROWSER-VERIFIED)

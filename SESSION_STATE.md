@@ -5,7 +5,7 @@
 ## ▶ RESUME HERE
 
 ---
-### ▶ 2026-07-23 (Decoration gradients slice 2 / #45 — across-frame underlay — IN PROGRESS)
+### ▶ 2026-07-23 (Decoration gradients slice 2 / #45 — across-frame underlay — ✅ SHIPPED + BROWSER-VERIFIED)
 
 **Goal:** ONE world-space gradient rendered as the default fill of every UNPAINTED Void (underlay; painted groups cover it). Off by default; on-canvas drag handles (Morph precedent). Spec: `DECORATION_GRADIENTS_SPEC.md` slice 2. Ticket #45. Model: Opus.
 

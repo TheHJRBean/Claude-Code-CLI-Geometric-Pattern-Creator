@@ -1,8 +1,9 @@
 import { memo, useMemo } from 'react'
 import type { Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
-import type { ColourRecord } from '../types/editor'
+import type { ColourRecord, StrandGradient } from '../types/editor'
 import type { Vec2 } from '../utils/math'
+import { sortedStops } from '../decoration/gradients'
 import { buildStrands } from '../strand/buildStrands'
 import { computeCurves, smoothCurves } from '../strand/computeCurves'
 import { curvedPathD, curvedPathDSplit, curvedPathDSplitBy } from '../strand/curvedPathD'
@@ -53,10 +54,25 @@ interface Props {
    * signatures from the rendered chains (fast path / Gallery).
    */
   identitySource?: { baseSegments: Segment[]; stamps: LatticeStamp[] }
+  /**
+   * V2 (#46) — the single world-space **strand gradient**. When
+   * `enabled`, one `userSpaceOnUse` gradient def is minted and stroked across
+   * **every** visible Strand (a continuous wash over the whole field), winning
+   * over the flat/record stroke. Explicitly hidden (`'none'`) strands stay
+   * hidden. The enabled flag disqualifies the periodic fast-path (so the def
+   * spans the full world field, not one tiled fragment). Undefined / disabled ⇒
+   * pre-v2 behaviour byte-identical.
+   */
+  strandGradient?: StrandGradient
 }
 
 /** Default extra gap (px) each side of the over thread at an under crossing. */
 const DEFAULT_WEAVE_GAP = 2
+
+/** Stable id for the single strand-gradient def (one per layer; the fast-path
+ * tiled fragment is disqualified when the gradient is enabled, so a constant id
+ * never collides across `<use>` clones). */
+const STRAND_GRADIENT_ID = 'strand-gradient-def'
 
 /**
  * Render every Strand as a single continuous SVG path.
@@ -68,9 +84,13 @@ const DEFAULT_WEAVE_GAP = 2
  * through. This is the Lacing effect; the legacy two-pass renderer it
  * replaces was removed in Phase 6 of the context refactor.
  */
-export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPolygonIds, strandRecords, orbitStamps, cellFrames, identitySource }: Props) {
+export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPolygonIds, strandRecords, orbitStamps, cellFrames, identitySource, strandGradient }: Props) {
   const { strand } = config
   const stroke = strand.color
+  // V2 (#46) — when the strand gradient is enabled, every visible piece strokes
+  // with the shared def instead of its flat/record colour; `null` otherwise.
+  const gradientStroke = strandGradient?.enabled ? `url(#${STRAND_GRADIENT_ID})` : null
+  const paintOf = (pieceStroke: string): string => gradientStroke ?? pieceStroke
 
   const strandData = useMemo(() => {
     const t0 = performance.now()
@@ -266,6 +286,30 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
 
   return (
     <g id="strand-layer">
+      {gradientStroke && (
+        <defs>
+          {strandGradient!.type === 'linear' ? (
+            <linearGradient
+              id={STRAND_GRADIENT_ID} gradientUnits="userSpaceOnUse"
+              x1={strandGradient!.start.x} y1={strandGradient!.start.y}
+              x2={strandGradient!.end.x} y2={strandGradient!.end.y}
+            >
+              {sortedStops(strandGradient!.stops).map((s, j) => (
+                <stop key={j} offset={s.offset} stopColor={s.colour} />
+              ))}
+            </linearGradient>
+          ) : (
+            <radialGradient
+              id={STRAND_GRADIENT_ID} gradientUnits="userSpaceOnUse"
+              cx={strandGradient!.centre.x} cy={strandGradient!.centre.y} r={strandGradient!.radius}
+            >
+              {sortedStops(strandGradient!.stops).map((s, j) => (
+                <stop key={j} offset={s.offset} stopColor={s.colour} />
+              ))}
+            </radialGradient>
+          )}
+        </defs>
+      )}
       {maskRect && (
         <defs>
           <mask id={maskId} maskUnits="userSpaceOnUse" x={maskRect.x} y={maskRect.y} width={maskRect.width} height={maskRect.height}>
@@ -322,7 +366,7 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
             key={`strand-${i}`}
             d={d}
             fill="none"
-            stroke={pieceStroke}
+            stroke={paintOf(pieceStroke)}
             strokeWidth={strand.width}
             strokeLinecap={lineCap}
             strokeLinejoin="round"
@@ -335,7 +379,7 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
             <path
               key={`strand-cap-${i}`}
               d={cap}
-              fill={pieceStroke}
+              fill={paintOf(pieceStroke)}
               stroke="none"
             />
           ) : null,
@@ -346,7 +390,7 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
           key={`strand-centre-${i}`}
           d={d}
           fill="none"
-          stroke={pieceStroke}
+          stroke={paintOf(pieceStroke)}
           strokeWidth={centreWidth}
           strokeLinecap="round"
           strokeLinejoin="round"

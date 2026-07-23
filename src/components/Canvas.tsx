@@ -1377,6 +1377,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         orbitStamps={decorationOrbitStamps}
         cellFrames={decorationCellFrames}
         strandIdentitySource={strandIdentitySource}
+        strandGradient={decorationActive ? config.editor?.decoration?.strandGradient : undefined}
       />
       {pickerScreenPos && onPlaceTile && onSelectEdge && selectedEdgeData && (
         <EditorPickerOverlay

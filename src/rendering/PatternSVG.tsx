@@ -12,7 +12,7 @@ import { VoidFillLayer } from './VoidFillLayer'
 import { VoidStampLayer } from './VoidStampLayer'
 import type { VoidFill } from '../decoration/resolve'
 import type { StampPlacement } from '../decoration/stamps'
-import type { ColourRecord } from '../types/editor'
+import type { ColourRecord, StrandGradient } from '../types/editor'
 import type { CellFrame } from '../decoration/cellScope'
 
 interface Props {
@@ -141,10 +141,14 @@ interface Props {
   /** Base-fragment strand-identity source for StrandLayer (editor non-fast
    * path) — see `PatternData.strandIdentitySource`. */
   strandIdentitySource?: { baseSegments: Segment[]; stamps: LatticeStamp[] }
+  /** V2 (#46) — the single world-space strand gradient (see StrandLayer). When
+   * enabled it disqualifies the fast-path, so only the world-space StrandLayer
+   * below renders it. */
+  strandGradient?: StrandGradient
 }
 
 export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
-  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, compositionStamps, editorOverlay, clipEditorOverlayToFrame = false, editorOverlayUnclipped, frameOutline, clipToFrame = true, frameNodes, frameStroke, voidFills, instanceVoidFills, voidStamps, strandRecords, orbitStamps, cellFrames, strandIdentitySource },
+  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, compositionStamps, editorOverlay, clipEditorOverlayToFrame = false, editorOverlayUnclipped, frameOutline, clipToFrame = true, frameNodes, frameStroke, voidFills, instanceVoidFills, voidStamps, strandRecords, orbitStamps, cellFrames, strandIdentitySource, strandGradient },
   ref
 ) {
   const { x, y, zoom, rotation } = viewTransform
@@ -261,7 +265,7 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
               <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
               {voidFills && <VoidFillLayer fills={voidFills} idPrefix="void-fill-world" />}
               {voidStamps && <VoidStampLayer placements={voidStamps} idPrefix="void-stamp-world" />}
-              {showLines && <StrandLayer segments={segments} config={config} ghostPolygonIds={ghostPolygonIds} strandRecords={strandRecords} orbitStamps={orbitStamps} cellFrames={cellFrames} identitySource={strandIdentitySource} />}
+              {showLines && <StrandLayer segments={segments} config={config} ghostPolygonIds={ghostPolygonIds} strandRecords={strandRecords} orbitStamps={orbitStamps} cellFrames={cellFrames} identitySource={strandIdentitySource} strandGradient={strandGradient} />}
               <ControlPointLayer
                 segments={segments}
                 config={config}

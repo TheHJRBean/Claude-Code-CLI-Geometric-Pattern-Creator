@@ -200,6 +200,11 @@ export function periodicFastPathEligible(
     // space) instead of washing continuously — fall through to the exact
     // world-space field so the underlay stays a single continuous gradient.
     && !(config.editor?.decoration?.frameGradient?.enabled)
+    // Strand gradient (#46) is ONE world-space gradient stroked across every
+    // Strand. A `userSpaceOnUse` stroke def inside the tiled fragment would
+    // repeat per <use> clone (each clone shifts its user space) instead of
+    // washing continuously — fall through to the exact world-space field.
+    && !(config.editor?.decoration?.strandGradient?.enabled)
     // Weave (Lacing) interlaces over the FULL planar arrangement: crossings at
     // the seams BETWEEN stamped copies must alternate over/under with the ones
     // inside a domain. computeWeave over one base domain never sees those seam
@@ -649,12 +654,13 @@ export function usePattern(
       decoField = runPIC(decorationExtractionPolygons(polygons, worldPolys), config)
     }
     return { fastPath: false as const, stamps, polygons, picPolygons, segments, boundaryOutlines, decoField }
-    // frameGradient.enabled flips periodicFastPathEligible (#45) but isn't part
-    // of the geometry captured by editorBase, so it must be an explicit dep —
-    // else toggling the across-frame gradient leaves fastPath stale-true and the
-    // underlay (which only renders on the world-space path) never appears.
+    // frameGradient.enabled / strandGradient.enabled flip periodicFastPathEligible
+    // (#45 / #46) but aren't part of the geometry captured by editorBase, so they
+    // must be explicit deps — else toggling a gradient leaves fastPath stale-true
+    // and the world-space render path (the only one either gradient uses) never
+    // engages.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editorBase, ed?.frame, ed?.decoration?.frameGradient?.enabled, editorFrame, showBoundaryLattice, editorStrandMode, decorationActive, fbX, fbY, fbW, fbH])
+  }, [editorBase, ed?.frame, ed?.decoration?.frameGradient?.enabled, ed?.decoration?.strandGradient?.enabled, editorFrame, showBoundaryLattice, editorStrandMode, decorationActive, fbX, fbY, fbW, fbH])
 
   // Non-fast-path Decoration extraction + Void keying — FIELD-keyed, never
   // decoration- or Paint-target-keyed (the fast path's `decorationReps` twin):

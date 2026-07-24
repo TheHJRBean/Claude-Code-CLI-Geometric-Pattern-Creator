@@ -138,10 +138,24 @@ export function DecorationPanel({
       )}
       {paintTarget === 'strands' && (
         <>
-          <FieldLabel label="Mode" tooltip="Flat colours the clicked Strands at the chosen reach. Gradient lays ONE gradient stroked across every Strand — a continuous colour wash flowing over the whole pattern, placed with on-canvas handles, and optionally scoped to a Strand group at the chosen reach." />
+          <FieldLabel label="Mode" tooltip="Flat colours the clicked Strands at the chosen reach. Gradient lays ONE gradient stroked across every Strand — a continuous colour wash flowing over the whole pattern, placed with on-canvas handles, and optionally scoped to a Strand group at the chosen reach. Switch back to Flat to remove the wash." />
           <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
             {(['flat', 'gradient'] as const).map(m => (
-              <button key={m} onClick={() => onSetStrandMode(m)} style={segButtonStyle(strandMode === m)}>
+              <button
+                key={m}
+                onClick={() => {
+                  onSetStrandMode(m)
+                  // Flat and Gradient are exclusive — the wash always visually
+                  // wins over flat strokes, so switching to Flat REMOVES it (a
+                  // discoverable "remove the gradient" path). The spec is kept
+                  // disabled so switching back to Gradient re-enables without
+                  // reseeding.
+                  if (m === 'flat' && editor.decoration?.strandGradient?.enabled) {
+                    dispatch({ type: 'SET_DECORATION_STRAND_GRADIENT', payload: { ...editor.decoration.strandGradient, enabled: false } })
+                  }
+                }}
+                style={segButtonStyle(strandMode === m)}
+              >
                 {m === 'flat' ? 'Flat' : 'Gradient'}
               </button>
             ))}
@@ -591,8 +605,11 @@ function FrameGradientControls({ editor, dispatch, decorationColor, background }
     return pointsBBox(polys.flatMap(p => p.vertices))
   }
 
+  // `enabled: on` after `...next` — toggling OFF passes the current spec (with
+  // `enabled: true`) as `next`, which must not clobber the `on=false` (else the
+  // checkbox can't be unchecked).
   const set = (next: GradientSpec, on: boolean) =>
-    dispatch({ type: 'SET_DECORATION_FRAME_GRADIENT', payload: { enabled: on, ...next } })
+    dispatch({ type: 'SET_DECORATION_FRAME_GRADIENT', payload: { ...next, enabled: on } })
 
   const toggle = () => {
     if (fg) { set(fg, !enabled); return }
@@ -708,11 +725,15 @@ function StrandGradientControls({ editor, dispatch, decorationColor, background 
   const set = (next: GradientSpec, on: boolean) =>
     dispatch({
       type: 'SET_DECORATION_STRAND_GRADIENT',
+      // `enabled: on` MUST come after `...next`: toggling OFF passes the current
+      // spec as `next` (it carries `enabled: true`), which would otherwise
+      // clobber the `on=false` and make the "Enable" checkbox impossible to
+      // uncheck (the wash could never be removed).
       payload: {
-        enabled: on,
         ...(sg?.scopeKey ? { scopeKey: sg.scopeKey } : {}),
         ...(sg?.scope ? { scope: sg.scope } : {}),
         ...next,
+        enabled: on,
       },
     })
 

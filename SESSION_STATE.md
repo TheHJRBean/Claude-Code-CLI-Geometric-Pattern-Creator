@@ -5,6 +5,11 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-24 (Gradient toggle-OFF bug — "hard to remove gradient from strands" — ✅ FIXED + BROWSER-VERIFIED, Opus)
+
+**User:** "its hard to remove gradient from the strands." **Root cause (real bug, both strand + frame):** the controls' `set()` built the payload `{ enabled: on, ...next }` — but toggle-OFF passes the current spec as `next`, which carries `enabled: true`, so `...next` clobbered `on=false`. Unchecking "Enable" was a no-op; the wash could never be removed (first-ENABLE worked only because the seed spec has no `enabled` field). **Fix (`66c2035`):** move `enabled: on` AFTER `...next` in both `set()` helpers. Bonus: switching the strand **Mode** toggle to **Flat** now disables the wash (Flat+gradient are exclusive — the wash always wins over flat strokes; spec kept for reseed-free re-enable). **Verified 4.8.8:** enable→uncheck removes (def gone, strands flat), re-check restores, Flat removes. 1220 green. Script `scratchpad/remove.mjs`. NB the same class of bug was the earlier `#45 0df398c` stale-dep — gradient enable/disable plumbing is fragile; watch it.
+
+---
 ### ▶ 2026-07-24 (Frame-gradient fixes — background wash + precise angle — ✅ SHIPPED + BROWSER-VERIFIED, Opus)
 
 **Two user reports on the #45 across-frame gradient:** (1) "lays over the top of the strands"; (2) "isn't easy to change the angle precisely (horizontal↔vertical)."

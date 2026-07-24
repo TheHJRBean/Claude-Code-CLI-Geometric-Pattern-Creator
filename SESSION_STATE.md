@@ -5,6 +5,17 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-24 (Frame-gradient fixes — background wash + precise angle — ✅ SHIPPED + BROWSER-VERIFIED, Opus)
+
+**Two user reports on the #45 across-frame gradient:** (1) "lays over the top of the strands"; (2) "isn't easy to change the angle precisely (horizontal↔vertical)."
+
+**#1 — full background wash (`baa9e72`).** Diagnosed: z-order was already correct (voids under strands) — but the gradient filled per-Void cells, leaving per-cell seams + a coverage gap where Void extraction stopped, reading as colour IN the pattern. User (AskUserQuestion) chose **"full background wash behind everything."** Replaced the per-Void `frameUnderlayFill` with ONE full-viewport background `<rect>` (world-space `userSpaceOnUse` def, id `frame-gradient-bg`) as the first child of PatternSVG's clipped content group — tiles are `fill:none` + unpainted Voids now transparent, so the wash shows edge-to-edge with strands/pattern crisp on top; painted Voids still cover it. `colourVoids` no longer emits underlay fills; `PatternSVG` gains a `frameGradient` prop; Canvas passes it (Decoration-gated); rect oversized 3× viewBox for rotation; clipped to Frame when present. Fast-path gate KEPT (frame gradient stays world-path — unchanged paint machinery, minimal risk). **Verified 4.8.8:** continuous wash edge-to-edge (prior right gap GONE), bg layer before strand layer, 0 per-Void gradient fills.
+
+**#2 — precise angle control (`a347d23`).** Shared `GradientAngleRow` (linear only) on BOTH frame + strand controls: **Horizontal / Vertical / ↘ / ↗ presets + numeric degrees field.** Pure `bboxAxisAtAngle(box, deg)` fits the axis to span the world bbox at the angle (0° width, 90° height, diagonals corners); `axisAngleDeg` for the readout (screen: 0°→right, 90°→down). Uncontrolled input keyed on the current angle so a drag remounts it. **Verified 4.8.8:** Horizontal→0°, Vertical→90°, ↘→45°, typed 30→30°, wash flips precisely.
+
+**Tests:** resolve.test.ts rewritten (no per-Void underlay); gradients.test.ts +5 angle cases. **1220 green, tsc + build clean.** Dev server on :5173. Scripts `scratchpad/{fgbg,ang}.mjs`.
+
+---
 ### ▶ 2026-07-24 (Decoration gradients v2 / #46 — strand-gradient Reach LADDER — ✅ SHIPPED + BROWSER-VERIFIED, Opus)
 
 **✅ BROWSER-VERIFIED 2026-07-24** (headless chromium-1228, 3.12.12, "Show strands" ON, commit `e1e3f6c`). Same anchor strand scoped through every rung — washed-strand counts (of 448 visible): **All 448 → Matching 64 → Twins 8 → Single 8 → All-reset 448**; non-matching strands drop to the flat default `#1a1a2e`. All 6 assertions pass: global-wash-all, matching-scoped (label "Matching"), twins-nested-in-matching (label "Twins"), single-nested-in-twins (label "Single"), **single(8) < matching(64)** (patch resolves position, not just congruent), All-resets-immediately. Screenshots `L0_all`/`L1_matching`/`L2_twins`/`L3_single`/`L4_allback`; Twins screenshot shows the wash collapsed to one small cell-orbit cluster, rest flat. (Twins==Single==8 for this anchor is geometric — the strand's cell orbit and Lattice orbit coincide in size; both differ from Matching and carry distinct scope labels, so both rungs demonstrably work.) Verify script `scratchpad/ladder.mjs`. Dev server left running on :5173.

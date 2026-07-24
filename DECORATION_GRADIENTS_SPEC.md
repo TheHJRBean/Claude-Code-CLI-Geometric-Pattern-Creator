@@ -135,10 +135,23 @@ The original design captured the render model as "handles on every Ray"; the
 render-model paragraph above. The scope toggle rides that single def, narrowing
 *which Strands reference it* rather than adding per-Ray gradients.
 
+**Reach ladder — SHIPPED + browser-verified (2026-07-24, `e1e3f6c`).** The
+gradient scope now spans the full flat strand-colour ladder: **All / Matching
+(congruent) / Twins (cell) / Single (patch)**. `StrandGradient` gained
+`scope?: GroupingScope` beside `scopeKey` (absent ⇒ congruent — pre-ladder
+saves byte-identical; only cell/patch persist an explicit scope). Membership is
+the same `resolveColour`/`buildColourIndex` the flat ladder uses (a one-record
+index from `{scope, scopeKey}`, resolved per strand in `StrandLayer.gradientOn`
+— congruent signature / patch `orbitOffset` / cell `cellOrbitKey`, mirroring the
+flat `strokes` memo). The flat **Reach** selector drives both modes; a
+gradient-mode Strand click scopes the wash to that rung's group (`All` clears
+immediately, positioned rungs need the click), and the controls show a **Scope**
+status line. Verified on 3.12.12: same anchor scoped All 448 → Matching 64 →
+Twins 8 → Single 8 → reset 448.
+
 **Still deferred (out of the shipped scope):** gradient × weave / double / triple
 line styles not yet screenshotted (the url stroke applies to those pieces via
-the same `paintOf`); finer Cell / Patch scope rungs for the gradient (only
-congruent is wired — the flat strand-colour ladder keeps all four rungs).
+the same `paintOf`); background gradient (a distinct new surface).
 
 ## Out of scope (v1)
 

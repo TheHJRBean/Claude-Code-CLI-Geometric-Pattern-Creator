@@ -5,7 +5,10 @@
 ## ▶ RESUME HERE
 
 ---
-### ▶ 2026-07-24 (Decoration gradients v2 / #46 — strand-gradient Reach LADDER — ✅ SHIPPED, ⏳ BROWSER-VERIFY, Opus)
+### ▶ 2026-07-24 (Decoration gradients v2 / #46 — strand-gradient Reach LADDER — ✅ SHIPPED + BROWSER-VERIFIED, Opus)
+
+**✅ BROWSER-VERIFIED 2026-07-24** (headless chromium-1228, 3.12.12, "Show strands" ON, commit `e1e3f6c`). Same anchor strand scoped through every rung — washed-strand counts (of 448 visible): **All 448 → Matching 64 → Twins 8 → Single 8 → All-reset 448**; non-matching strands drop to the flat default `#1a1a2e`. All 6 assertions pass: global-wash-all, matching-scoped (label "Matching"), twins-nested-in-matching (label "Twins"), single-nested-in-twins (label "Single"), **single(8) < matching(64)** (patch resolves position, not just congruent), All-resets-immediately. Screenshots `L0_all`/`L1_matching`/`L2_twins`/`L3_single`/`L4_allback`; Twins screenshot shows the wash collapsed to one small cell-orbit cluster, rest flat. (Twins==Single==8 for this anchor is geometric — the strand's cell orbit and Lattice orbit coincide in size; both differ from Matching and carry distinct scope labels, so both rungs demonstrably work.) Verify script `scratchpad/ladder.mjs`. Dev server left running on :5173.
+
 
 **Goal:** the deferred #46 follow-up. The single-Strand scope toggle only wired the **congruent** rung; extend `StrandGradient.scopeKey` to the FULL Reach ladder the flat strand colour already has — **All / Matching / Twins (cell) / Single (patch)**. User chose this branch (AskUserQuestion) over background-gradient / weave-verify. Model: Opus (covers the reach-resolve correctness; user has stayed over the Fable tag all through gradients).
 
@@ -20,9 +23,7 @@
 
 **Tests:** decoration.test.ts (+ cell/patch/normalise/clear-stale cases) + migrations.test.ts (+ cell/patch round-trip, invalid-scope drop, keyless-scope drop). **Full suite 1215 green, tsc + build clean.**
 
-**⏳ BROWSER-VERIFY NEXT (cold start):** dev server + headless recipe (see memory `feedback_headless_browser_no_sudo`). On **3.12.12** (448 strands, 2 congruent classes 368/80) — enable strand gradient + "Show strands" ON: (a) **Twins** rung → click a strand → wash narrows to that Cell-symmetry-orbit (subset of the congruent group); (b) **Single** rung → click → wash to that Lattice orbit only (thinnest); (c) **Matching** → congruent group (the #46 baseline, still works); (d) **All** button → instant wash-all; (e) status line shows the right rung label. Compare Twins ⊂ Matching ⊂ All by washed-strand counts. GOTCHA: needs "Show strands" toggle ON.
-
-**Still deferred (unchanged):** gradient × weave/double/triple visual screenshot; background gradient (a whole new surface, out of v1/v2 scope). Spec `DECORATION_GRADIENTS_SPEC.md` V2.
+**Still deferred (unchanged):** gradient × weave/double/triple visual screenshot; background gradient (a whole new surface, out of v1/v2 scope); finer scope rungs are now COMPLETE (all four flat rungs mirrored). Spec `DECORATION_GRADIENTS_SPEC.md` V2. GOTCHA reminder: strand gradients only render with "Show strands" ON.
 
 ---
 ### ▶ 2026-07-23 (Decoration gradients v2 / #46 — single-Strand SCOPE toggle — ✅ SHIPPED + BROWSER-VERIFIED, Opus)

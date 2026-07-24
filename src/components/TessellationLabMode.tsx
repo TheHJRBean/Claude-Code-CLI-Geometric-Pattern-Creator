@@ -248,10 +248,16 @@ export function TessellationLabMode({
   // Grouping-scope ladder).
   const [voidScope, setVoidScope] = useState<VoidPaintScope>('congruent')
   const [strandScope, setStrandScope] = useState<StrandPaintScope>('all')
-  // Strands target sub-mode (#46): 'flat' colour ladder vs the strand gradient.
-  // Lifted here so the canvas paint-router can send a Strand click to the
-  // gradient scope instead of flat-painting.
-  const [strandMode, setStrandMode] = useState<'flat' | 'gradient'>('flat')
+  // Gradient target sub-mode — which surface the [This shape · Across frame ·
+  // Strands] bar edits. Lifted here so the canvas paint-router can treat the
+  // `strands` sub-mode as a strand-hit target (scope clicks + on-canvas handles)
+  // even though the panel is on the Gradient paint target.
+  const [gradientMode, setGradientMode] = useState<'shape' | 'frame' | 'strands'>('shape')
+  // The Gradient bar's Strands sub-mode: the panel stays on the Gradient paint
+  // target, but the CANVAS is driven as a strand-hit target (scope clicks +
+  // strand-gradient handles). Canvas fully supports 'strands', so passing this
+  // effective target is all that's needed — no Canvas changes.
+  const strandGradientActive = editorPhase === 'decoration' && paintTarget === 'gradient' && gradientMode === 'strands'
   // Stamp target — the Void shape picked on the canvas for the panel's
   // inspector / shape-canvas export / image-upload flow.
   const [stampSelection, setStampSelection] = useState<PaintVoid | null>(null)
@@ -527,8 +533,8 @@ export function TessellationLabMode({
                 onSetVoidScope={setVoidScope}
                 strandScope={strandScope}
                 onSetStrandScope={setStrandScope}
-                strandMode={strandMode}
-                onSetStrandMode={setStrandMode}
+                gradientMode={gradientMode}
+                onSetGradientMode={setGradientMode}
                 stampSelection={stampSelection}
                 getStampVoids={getStampVoids}
                 gradientDraft={gradientDraft}
@@ -883,8 +889,10 @@ export function TessellationLabMode({
         onForceCommitMulti={handleForceCommitMulti}
         editorStrandMode={editorPhase !== 'design'}
         decorationActive={editorPhase === 'decoration'}
-        paintColor={paintTarget === 'gradient' ? gradientDraft.stops[0].colour : decorationColor}
-        paintTarget={editorPhase === 'decoration' ? paintTarget : 'off'}
+        paintColor={strandGradientActive ? decorationColor : paintTarget === 'gradient' ? gradientDraft.stops[0].colour : decorationColor}
+        // Strands sub-mode of the Gradient bar drives the canvas as a strand
+        // target (strand hits for scope clicks + the strand-gradient handles).
+        paintTarget={editorPhase === 'decoration' ? (strandGradientActive ? 'strands' : paintTarget) : 'off'}
         paintVoidScope={voidScope}
         // The Reach selector drives both modes: flat paints the group, gradient
         // scopes the wash to it. Either way the hover highlight previews exactly
@@ -920,12 +928,12 @@ export function TessellationLabMode({
           setGradientSelection({ void: v, scope: p.scope, key: p.key })
         }}
         onPaintStrand={p => {
-          // #46 — in the Strands gradient sub-mode, a Strand click scopes the
-          // shared wash to the clicked group at the active Reach rung
+          // #46 — in the Gradient bar's Strands sub-mode, a Strand click scopes
+          // the shared wash to the clicked group at the active Reach rung
           // (`p.scope`/`p.key`, computed by DecorationPaintLayer) instead of
           // flat-painting it. The `All` rung (congruent `'*'`) clears back to
           // the global wash.
-          if (strandMode === 'gradient') {
+          if (strandGradientActive) {
             dispatch({
               type: 'SET_STRAND_GRADIENT_SCOPE',
               payload: p.scope === 'congruent' && p.key === '*' ? null : { scope: p.scope, key: p.key },

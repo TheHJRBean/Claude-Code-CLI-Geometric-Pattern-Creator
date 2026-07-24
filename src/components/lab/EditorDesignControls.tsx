@@ -48,8 +48,8 @@ export interface EditorDesignControlsProps {
   onSetVoidScope: (s: VoidPaintScope) => void
   strandScope: StrandPaintScope
   onSetStrandScope: (s: StrandPaintScope) => void
-  strandMode: 'flat' | 'gradient'
-  onSetStrandMode: (m: 'flat' | 'gradient') => void
+  gradientMode: 'shape' | 'frame' | 'strands'
+  onSetGradientMode: (m: 'shape' | 'frame' | 'strands') => void
   /** Decoration Stamp target — the Void shape selected on the canvas. */
   stampSelection: PaintVoid | null
   /** Decoration Stamp target — latest canvas Void hit-targets (Export all). */
@@ -111,8 +111,8 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
     onSetVoidScope,
     strandScope,
     onSetStrandScope,
-    strandMode,
-    onSetStrandMode,
+    gradientMode,
+    onSetGradientMode,
     stampSelection,
     getStampVoids,
     gradientDraft,
@@ -213,8 +213,8 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
           onSetVoidScope={onSetVoidScope}
           strandScope={strandScope}
           onSetStrandScope={onSetStrandScope}
-          strandMode={strandMode}
-          onSetStrandMode={onSetStrandMode}
+          gradientMode={gradientMode}
+          onSetGradientMode={onSetGradientMode}
           stampSelection={stampSelection}
           getStampVoids={getStampVoids}
           gradientDraft={gradientDraft}

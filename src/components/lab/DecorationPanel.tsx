@@ -42,11 +42,12 @@ interface DecorationPanelProps {
   onSetVoidScope: (s: VoidPaintScope) => void
   strandScope: StrandPaintScope
   onSetStrandScope: (s: StrandPaintScope) => void
-  /** Strands target sub-mode (#46) — Flat colour ladder vs the strand gradient.
-   * Lifted so the canvas paint-router knows whether a Strand click paints flat
-   * or scopes the gradient. */
-  strandMode: 'flat' | 'gradient'
-  onSetStrandMode: (m: 'flat' | 'gradient') => void
+  /** Gradient target sub-mode — which surface the [This shape · Across frame ·
+   * Strands] bar edits. Lifted so the canvas paint-router can treat the
+   * `strands` sub-mode as a strand-hit target (scope clicks + on-canvas
+   * handles) even though the panel is on the Gradient paint target. */
+  gradientMode: 'shape' | 'frame' | 'strands'
+  onSetGradientMode: (m: 'shape' | 'frame' | 'strands') => void
   /** Stamp target — the Void shape selected on the canvas (null = none yet). */
   stampSelection: PaintVoid | null
   /** Stamp target — latest canvas Void hit-targets ("Export all shapes"). */
@@ -78,8 +79,8 @@ export function DecorationPanel({
   onSetVoidScope,
   strandScope,
   onSetStrandScope,
-  strandMode,
-  onSetStrandMode,
+  gradientMode,
+  onSetGradientMode,
   stampSelection,
   getStampVoids,
   gradientDraft,
@@ -92,9 +93,6 @@ export function DecorationPanel({
   const voidCount = editor.decoration?.voidFills.length ?? 0
   const stampCount = editor.decoration?.voidStamps?.length ?? 0
   const hasDecoration = strandRecCount > 0 || voidCount > 0 || stampCount > 0
-  // Strands target sub-mode (#46): Flat colour ladder vs the strand gradient.
-  // Lifted to the parent (canvas paint-router needs it — see props).
-  const strandGradientMode = paintTarget === 'strands' && strandMode === 'gradient'
   // The Decoration seg buttons match the phase switch minus the hover
   // transition (they snap on click).
   const segButtonStyle = (active: boolean): React.CSSProperties =>
@@ -124,7 +122,7 @@ export function DecorationPanel({
           </button>
         ))}
       </div>
-      {(paintTarget === 'voids' || paintTarget === 'gradient') && (
+      {(paintTarget === 'voids' || (paintTarget === 'gradient' && gradientMode !== 'strands')) && (
         <>
           <FieldLabel label="Reach" tooltip="How far one click spreads. Matching = every Void with the clicked shape, everywhere. Twins = the clicked Void plus its rotation/mirror twins within its Cell, in every repeat. Repeat = the clicked Void's spot in every Patch repeat. Single = only the Void you click." />
           <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
@@ -138,56 +136,16 @@ export function DecorationPanel({
       )}
       {paintTarget === 'strands' && (
         <>
-          <FieldLabel label="Mode" tooltip="Flat colours the clicked Strands at the chosen reach. Gradient lays ONE gradient stroked across every Strand — a continuous colour wash flowing over the whole pattern, placed with on-canvas handles, and optionally scoped to a Strand group at the chosen reach. Switch back to Flat to remove the wash." />
-          <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
-            {(['flat', 'gradient'] as const).map(m => (
-              <button
-                key={m}
-                onClick={() => {
-                  onSetStrandMode(m)
-                  // Flat and Gradient are exclusive — the wash always visually
-                  // wins over flat strokes, so switching to Flat REMOVES it (a
-                  // discoverable "remove the gradient" path). The spec is kept
-                  // disabled so switching back to Gradient re-enables without
-                  // reseeding.
-                  if (m === 'flat' && editor.decoration?.strandGradient?.enabled) {
-                    dispatch({ type: 'SET_DECORATION_STRAND_GRADIENT', payload: { ...editor.decoration.strandGradient, enabled: false } })
-                  }
-                }}
-                style={segButtonStyle(strandMode === m)}
-              >
-                {m === 'flat' ? 'Flat' : 'Gradient'}
-              </button>
-            ))}
-          </div>
-          {/* The Reach selector drives BOTH modes (#46 ladder): flat paints the
-              clicked group, gradient scopes the shared wash to it. */}
-          <FieldLabel
-            label="Reach"
-            tooltip={strandMode === 'gradient'
-              ? "How far a Strand click scopes the wash. All = every Strand (the default wash). Matching = the clicked Strand's shape everywhere. Twins = its rotation/mirror twins within its Cell. Single = the clicked Strand's Lattice orbit. Pick a reach, then click a Strand — the rest keep their flat colour."
-              : "How far one click spreads. All = every Strand at once. Matching = every Strand with the clicked Strand's shape. Twins = the clicked Strand plus its rotation/mirror twins within its Cell, in every repeat. Single = just the clicked Strand (it still repeats with the Patch — the pattern stays periodic)."}
-          />
+          {/* Flat strand colour only — the strand GRADIENT lives on the Gradient
+              paint target's [This shape · Across frame · Strands] bar. */}
+          <FieldLabel label="Reach" tooltip="How far one click spreads. All = every Strand at once. Matching = every Strand with the clicked Strand's shape. Twins = the clicked Strand plus its rotation/mirror twins within its Cell, in every repeat. Single = just the clicked Strand (it still repeats with the Patch — the pattern stays periodic)." />
           <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
             {([['all', 'All'], ['congruent', 'Matching'], ['cell', 'Twins'], ['patch', 'Single']] as const).map(([s, label]) => (
-              <button
-                key={s}
-                onClick={() => {
-                  onSetStrandScope(s)
-                  // In gradient mode `All` is unambiguous — reset the wash to
-                  // every Strand at once. The positioned rungs still need a
-                  // Strand click to pick which group.
-                  if (strandMode === 'gradient' && s === 'all') dispatch({ type: 'SET_STRAND_GRADIENT_SCOPE', payload: null })
-                }}
-                style={segButtonStyle(strandScope === s)}
-              >
+              <button key={s} onClick={() => onSetStrandScope(s)} style={segButtonStyle(strandScope === s)}>
                 {label}
               </button>
             ))}
           </div>
-          {strandMode === 'gradient' && (
-            <StrandGradientControls editor={editor} dispatch={dispatch} decorationColor={decorationColor} background={background} />
-          )}
         </>
       )}
       {paintTarget === 'stamp' && (
@@ -203,10 +161,14 @@ export function DecorationPanel({
           onClearSelection={onClearGradientSelection}
           decorationColor={decorationColor}
           background={background}
+          mode={gradientMode}
+          onSetMode={onSetGradientMode}
+          strandScope={strandScope}
+          onSetStrandScope={onSetStrandScope}
         />
       )}
-      {paintTarget !== 'stamp' && paintTarget !== 'gradient' && !strandGradientMode && <ColourPicker value={decorationColor} onChange={onSetDecorationColor} />}
-      {paintTarget === 'stamp' || paintTarget === 'gradient' || strandGradientMode ? null : paintTarget === 'strands' ? (() => {
+      {paintTarget !== 'stamp' && paintTarget !== 'gradient' && <ColourPicker value={decorationColor} onChange={onSetDecorationColor} />}
+      {paintTarget === 'stamp' || paintTarget === 'gradient' ? null : paintTarget === 'strands' ? (() => {
         // Toggle: if every strand already carries the current paint colour,
         // the button removes it; otherwise it applies/updates. Removal
         // stores the `'none'` sentinel (strands hidden, Void fills meet
@@ -243,7 +205,7 @@ export function DecorationPanel({
           Colour all Voids
         </button>
       )}
-      {paintTarget !== 'stamp' && paintTarget !== 'gradient' && !strandGradientMode && <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+      {paintTarget !== 'stamp' && paintTarget !== 'gradient' && <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
         {strandRec?.colour !== 'none' && (
           <button
             onClick={() => dispatch({ type: 'SET_DECORATION_STRAND_COLOR', payload: { scope: 'congruent', key: '*', colour: 'none' } })}
@@ -378,7 +340,7 @@ export function DecorationPanel({
  * painted group's gradient geometry. Draft edits live-update the selected
  * record (stops/type), so tweaking colours after painting shows immediately.
  */
-function GradientSection({ editor, dispatch, draft, onSetDraft, selection, onClearSelection, decorationColor, background }: {
+function GradientSection({ editor, dispatch, draft, onSetDraft, selection, onClearSelection, decorationColor, background, mode, onSetMode, strandScope, onSetStrandScope }: {
   editor: NonNullable<PatternConfig['editor']>
   dispatch: React.Dispatch<Action>
   draft: GradientDraft
@@ -387,10 +349,16 @@ function GradientSection({ editor, dispatch, draft, onSetDraft, selection, onCle
   onClearSelection: () => void
   decorationColor: string
   background: string
+  /** Which gradient surface this bar edits (lifted — the canvas paint-router
+   * treats `strands` as a strand-hit target). */
+  mode: 'shape' | 'frame' | 'strands'
+  onSetMode: (m: 'shape' | 'frame' | 'strands') => void
+  /** Strand-gradient scope reach (shared with flat strand painting). */
+  strandScope: StrandPaintScope
+  onSetStrandScope: (s: StrandPaintScope) => void
 }) {
   const [selectedStop, setSelectedStop] = useState(0)
   const [focusOpen, setFocusOpen] = useState(false)
-  const [mode, setMode] = useState<'shape' | 'frame'>('shape')
   const selRec = selection
     ? editor.decoration?.voidFills.find(r => r.scope === selection.scope && r.key === selection.key && r.gradient)
     : undefined
@@ -420,20 +388,42 @@ function GradientSection({ editor, dispatch, draft, onSetDraft, selection, onCle
 
   return (
     <div style={{ marginBottom: 8 }}>
-      <FieldLabel label="Mode" tooltip="This shape paints a gradient onto the clicked Void group, repeated across every congruent instance. Across frame lays ONE gradient under every unpainted Void — a wash across the whole composition that painted groups cover." />
+      <FieldLabel label="Mode" tooltip="This shape paints a gradient onto the clicked Void group, repeated across every congruent instance. Across frame lays one gradient as a background wash behind the whole composition. Strands strokes one gradient across the Strand lines (scope it to a group with the Reach + a Strand click)." />
       <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
-        {(['shape', 'frame'] as const).map(m => (
+        {(['shape', 'frame', 'strands'] as const).map(m => (
           <button
             key={m}
-            onClick={() => setMode(m)}
+            onClick={() => onSetMode(m)}
             style={segmentedButtonStyle(mode === m, { transition: false })}
           >
-            {m === 'shape' ? 'This shape' : 'Across frame'}
+            {m === 'shape' ? 'This shape' : m === 'frame' ? 'Across frame' : 'Strands'}
           </button>
         ))}
       </div>
       {mode === 'frame' ? (
         <FrameGradientControls editor={editor} dispatch={dispatch} decorationColor={decorationColor} background={background} />
+      ) : mode === 'strands' ? (
+        <>
+          <FieldLabel label="Reach" tooltip="How far a Strand click scopes the wash. All = every Strand (the default wash). Matching = the clicked Strand's shape everywhere. Twins = its rotation/mirror twins within its Cell. Single = the clicked Strand's Lattice orbit. Pick a reach, then click a Strand on the canvas — the rest keep their flat colour." />
+          <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
+            {([['all', 'All'], ['congruent', 'Matching'], ['cell', 'Twins'], ['patch', 'Single']] as const).map(([s, label]) => (
+              <button
+                key={s}
+                onClick={() => {
+                  onSetStrandScope(s)
+                  // `All` is unambiguous — reset the wash to every Strand at once.
+                  // The positioned rungs still need a Strand click to pick which
+                  // group.
+                  if (s === 'all') dispatch({ type: 'SET_STRAND_GRADIENT_SCOPE', payload: null })
+                }}
+                style={segmentedButtonStyle(strandScope === s, { transition: false })}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <StrandGradientControls editor={editor} dispatch={dispatch} decorationColor={decorationColor} background={background} />
+        </>
       ) : (
         <>
       <FieldLabel label="Gradient" tooltip="The working gradient. Linear runs along an axis; Radial radiates from a centre. Click a marker to select a stop, drag it to move, click the bar to add one; double-click a marker or use a well's × to remove one (min 2). × Multiply deepens the selected stop's colour (repeat to intensify). Then click a Void on the canvas to paint it; clicking again with the same stops unpaints." />
@@ -691,9 +681,10 @@ function FrameGradientControls({ editor, dispatch, decorationColor, background }
  * stroked across every Strand. First enable seeds a vertical linear gradient
  * across the composition bbox (Frame outline when present), stops = current
  * decoration colour → canvas background. Geometry is then reshaped by dragging
- * the on-canvas handles; this panel only edits type/stops (same-type edits ride
- * the geometry through untouched; a type flip reseeds it). One gradient per
- * composition — no scope ladder, no canvas paint. Mirrors FrameGradientControls.
+ * the on-canvas handles; this panel edits enable/type/stops/angle (same-type
+ * edits ride the geometry through untouched; a type flip reseeds it). Lives in
+ * the Gradient paint target's **Strands** sub-mode; the Reach selector above it
+ * + a canvas Strand click scope the wash to a group (#46 ladder).
  */
 function StrandGradientControls({ editor, dispatch, decorationColor, background }: {
   editor: NonNullable<PatternConfig['editor']>

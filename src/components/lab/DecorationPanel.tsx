@@ -3,7 +3,8 @@ import type { PatternConfig, StrandLineStyle } from '../../types/pattern'
 import type { Action } from '../../state/actions'
 import type { PaintTarget, StrandPaintScope, VoidPaintScope } from '../../rendering/DecorationPaintLayer'
 import type { PaintVoid } from '../../decoration/resolve'
-import { pointsBBox, seedFrameGradientSpec, seedGradientSpec, type GradientDraft, type GradientSelection, type WorldBBox } from '../../decoration/gradients'
+import { axisAngleDeg, bboxAxisAtAngle, pointsBBox, seedFrameGradientSpec, seedGradientSpec, type GradientDraft, type GradientSelection, type WorldBBox } from '../../decoration/gradients'
+import type { Vec2 } from '../../utils/math'
 import { frameOutlinePolygon } from '../../editor/frame'
 import { compositionToPolygons } from '../../editor/compositionLattice'
 import { editorTilesToPolygons } from '../../editor/buildEditorPolygons'
@@ -511,6 +512,61 @@ function GradientSection({ editor, dispatch, draft, onSetDraft, selection, onCle
  * type/stops (geometry rides through untouched on a same-type edit; a type flip
  * reseeds it). One gradient per composition — no scope ladder, no canvas paint.
  */
+/** Precise-angle control for a LINEAR gradient — shared by the frame + strand
+ * washes. Horizontal / Vertical / diagonal presets plus a numeric degrees field;
+ * each sets the axis to span the world bbox at that angle (`bboxAxisAtAngle`), a
+ * full-frame wash in the chosen direction, complementing the free on-canvas drag
+ * handles. Screen convention: 0° → right, 90° → down. Radial specs render
+ * nothing (no axis angle). */
+function GradientAngleRow({ spec, getBox, onAxis }: {
+  spec: GradientSpec
+  getBox: () => WorldBBox | null
+  onAxis: (start: Vec2, end: Vec2) => void
+}) {
+  if (spec.type !== 'linear') return null
+  const current = axisAngleDeg(spec.start, spec.end)
+  const apply = (deg: number) => {
+    if (!isFinite(deg)) return
+    const box = getBox()
+    if (!box) return
+    const { start, end } = bboxAxisAtAngle(box, ((Math.round(deg) % 360) + 360) % 360)
+    onAxis(start, end)
+  }
+  const presets: [string, number][] = [['Horizontal', 0], ['Vertical', 90], ['↘', 45], ['↗', 315]]
+  return (
+    <div style={{ marginTop: 8 }}>
+      <FieldLabel label="Angle" tooltip="Set the wash direction precisely. Use the Horizontal / Vertical / diagonal presets, or type an exact angle in degrees (0° points right, 90° points down). The axis spans the whole frame at that angle; the on-canvas handles still allow free placement." />
+      <div style={{ display: 'flex', gap: 0, marginBottom: 6 }}>
+        {presets.map(([label, deg]) => (
+          <button
+            key={deg}
+            onClick={() => apply(deg)}
+            style={segmentedButtonStyle(current === deg, { transition: false })}
+            title={`${label} (${deg}°)`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+        {/* Uncontrolled + keyed on `current` so an on-canvas drag remounts it to
+            the new angle, while free typing commits on blur / Enter. */}
+        <input
+          key={current}
+          type="number"
+          defaultValue={current}
+          min={0}
+          max={360}
+          onBlur={e => apply(Number(e.currentTarget.value))}
+          onKeyDown={e => { if (e.key === 'Enter') apply(Number((e.target as HTMLInputElement).value)) }}
+          style={{ width: 60, background: 'var(--bg-elevated, #14141f)', color: 'inherit', border: '1px solid var(--border, #2a2a3a)', borderRadius: 4, padding: '3px 6px', fontSize: 11 }}
+        />
+        <span style={{ opacity: 0.7 }}>degrees</span>
+      </div>
+    </div>
+  )
+}
+
 function FrameGradientControls({ editor, dispatch, decorationColor, background }: {
   editor: NonNullable<PatternConfig['editor']>
   dispatch: React.Dispatch<Action>
@@ -571,8 +627,8 @@ function FrameGradientControls({ editor, dispatch, decorationColor, background }
       </label>
       {!fg && (
         <div style={{ fontSize: 11, fontStyle: 'italic', marginTop: 6 }}>
-          Lays one gradient under every unpainted Void — a wash across the whole
-          composition. Painted Void groups cover it.
+          Lays one gradient as a background wash behind the whole composition —
+          the strands and any painted Voids sit on top.
         </div>
       )}
       {fg && (
@@ -603,6 +659,9 @@ function FrameGradientControls({ editor, dispatch, decorationColor, background }
             Drag the {fg.type === 'linear' ? 'start/end' : 'centre/radius'} handles
             on the canvas to place the gradient.
           </div>
+          {fg.type === 'linear' && (
+            <GradientAngleRow spec={fg} getBox={seedBox} onAxis={(start, end) => set({ type: 'linear', stops: fg.stops, start, end }, enabled)} />
+          )}
         </>
       )}
     </div>
@@ -721,6 +780,9 @@ function StrandGradientControls({ editor, dispatch, decorationColor, background 
             Drag the {sg.type === 'linear' ? 'start/end' : 'centre/radius'} handles
             on the canvas to place the gradient.
           </div>
+          {sg.type === 'linear' && (
+            <GradientAngleRow spec={sg} getBox={seedBox} onAxis={(start, end) => set({ type: 'linear', stops: sg.stops, start, end }, enabled)} />
+          )}
           <div style={{ marginTop: 10 }}>
             <FieldLabel label="Scope" tooltip="Which Strands the wash covers. Pick a Reach above, then click a Strand on the canvas to narrow the wash to that group — the rest keep their flat colour. 'Wash all' clears the scope back to every Strand." />
             {sg.scopeKey && sg.scopeKey !== '*' ? (

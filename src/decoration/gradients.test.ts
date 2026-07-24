@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { Vec2 } from '../utils/math'
 import type { ColourRecord } from '../types/editor'
-import { defaultGradientStops, gradientPreviewCss, pointsBBox, seedFrameGradientSpec, seedGradientSpec, sortedStops } from './gradients'
+import { axisAngleDeg, bboxAxisAtAngle, defaultGradientStops, gradientPreviewCss, pointsBBox, seedFrameGradientSpec, seedGradientSpec, sortedStops } from './gradients'
 import { makeVoidFill } from './resolve'
 import { buildColourIndex, resolveFill } from './scopes'
 import { canonicalPose } from './stamps'
@@ -165,5 +165,52 @@ describe('sortedStops', () => {
     expect(out.map(s => s.offset)).toEqual([0, 0.5])
     // Input untouched — selection index in the stop bar stays stable.
     expect(stored[0].colour).toBe('red')
+  })
+})
+
+describe('gradient axis angle (#45/#46 precise-angle control)', () => {
+  const box = { minX: 0, minY: 0, maxX: 200, maxY: 100 } // 200×100, centre (100,50)
+
+  it('axisAngleDeg: screen convention 0°→right, 90°→down; normalised 0–359', () => {
+    expect(axisAngleDeg({ x: 0, y: 0 }, { x: 10, y: 0 })).toBe(0)
+    expect(axisAngleDeg({ x: 0, y: 0 }, { x: 0, y: 10 })).toBe(90)
+    expect(axisAngleDeg({ x: 0, y: 0 }, { x: -10, y: 0 })).toBe(180)
+    expect(axisAngleDeg({ x: 0, y: 0 }, { x: 0, y: -10 })).toBe(270) // up → 315 for ↗ preset uses -45
+  })
+
+  it('bboxAxisAtAngle 0° spans the width (left→right through centre)', () => {
+    const { start, end } = bboxAxisAtAngle(box, 0)
+    expect(start).toEqual({ x: 0, y: 50 })
+    expect(end).toEqual({ x: 200, y: 50 })
+    expect(axisAngleDeg(start, end)).toBe(0)
+  })
+
+  it('bboxAxisAtAngle 90° spans the height (top→bottom through centre)', () => {
+    const { start, end } = bboxAxisAtAngle(box, 90)
+    expect(start.x).toBeCloseTo(100, 6)
+    expect(start.y).toBeCloseTo(0, 6)
+    expect(end.x).toBeCloseTo(100, 6)
+    expect(end.y).toBeCloseTo(100, 6)
+    expect(axisAngleDeg(start, end)).toBe(90)
+  })
+
+  it('bboxAxisAtAngle stays within the bbox and centres on it at an oblique angle', () => {
+    const { start, end } = bboxAxisAtAngle(box, 45)
+    const mid = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 }
+    expect(mid.x).toBeCloseTo(100, 6)
+    expect(mid.y).toBeCloseTo(50, 6)
+    // Exits the nearer (top/bottom) sides of the 200×100 box first.
+    for (const p of [start, end]) {
+      expect(p.x).toBeGreaterThanOrEqual(-1e-6)
+      expect(p.x).toBeLessThanOrEqual(200 + 1e-6)
+      expect(p.y).toBeGreaterThanOrEqual(-1e-6)
+      expect(p.y).toBeLessThanOrEqual(100 + 1e-6)
+    }
+  })
+
+  it('round-trips a typed angle through the axis it produces', () => {
+    for (const deg of [0, 30, 45, 90, 120, 200, 315]) {
+      expect(axisAngleDeg(...Object.values(bboxAxisAtAngle(box, deg)) as [Vec2, Vec2])).toBe(deg)
+    }
   })
 })

@@ -107,6 +107,37 @@ export function seedFrameGradientSpec(
   return { type, stops, centre: { x: cx, y: cy }, radius }
 }
 
+/** The angle (degrees, 0–359) of a linear gradient's start→end axis. Screen
+ * convention: 0° points right (→), 90° down (↓). */
+export function axisAngleDeg(start: Vec2, end: Vec2): number {
+  const d = Math.round((Math.atan2(end.y - start.y, end.x - start.x) * 180) / Math.PI)
+  return ((d % 360) + 360) % 360
+}
+
+/**
+ * Linear-gradient axis through a world bbox centre at `angleDeg`, extended to
+ * where it exits the nearer pair of bbox sides — so 0° spans the width
+ * (left→right), 90° the height (top→bottom), and diagonals reach the corners.
+ * Backs the precise-angle presets + numeric entry: any angle gives a
+ * full-frame-spanning wash. Screen convention: 0°→ right, 90°→ down.
+ */
+export function bboxAxisAtAngle(box: WorldBBox, angleDeg: number): { start: Vec2; end: Vec2 } {
+  const t = (angleDeg * Math.PI) / 180
+  const cx = (box.minX + box.maxX) / 2
+  const cy = (box.minY + box.maxY) / 2
+  const hw = (box.maxX - box.minX) / 2 || 1
+  const hh = (box.maxY - box.minY) / 2 || 1
+  const dx = Math.cos(t)
+  const dy = Math.sin(t)
+  const tx = Math.abs(dx) > 1e-9 ? hw / Math.abs(dx) : Infinity
+  const ty = Math.abs(dy) > 1e-9 ? hh / Math.abs(dy) : Infinity
+  const half = Math.min(tx, ty)
+  return {
+    start: { x: cx - half * dx, y: cy - half * dy },
+    end: { x: cx + half * dx, y: cy + half * dy },
+  }
+}
+
 /** Stops in ascending offset order. **Required before emitting SVG `<stop>`
  * elements** — SVG clamps any stop whose offset is below a previous one, so
  * out-of-order stops (e.g. after dragging one marker past another) render as a

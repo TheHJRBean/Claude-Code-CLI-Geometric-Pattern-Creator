@@ -137,7 +137,7 @@ export function DecorationPanel({
       )}
       {paintTarget === 'strands' && (
         <>
-          <FieldLabel label="Mode" tooltip="Flat colours the clicked Strands at the chosen reach. Gradient lays ONE gradient stroked across every Strand — a continuous colour wash flowing over the whole pattern, placed with on-canvas handles." />
+          <FieldLabel label="Mode" tooltip="Flat colours the clicked Strands at the chosen reach. Gradient lays ONE gradient stroked across every Strand — a continuous colour wash flowing over the whole pattern, placed with on-canvas handles, and optionally scoped to a Strand group at the chosen reach." />
           <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
             {(['flat', 'gradient'] as const).map(m => (
               <button key={m} onClick={() => onSetStrandMode(m)} style={segButtonStyle(strandMode === m)}>
@@ -145,18 +145,31 @@ export function DecorationPanel({
               </button>
             ))}
           </div>
-          {strandMode === 'flat' && (
-            <>
-              <FieldLabel label="Reach" tooltip="How far one click spreads. All = every Strand at once. Matching = every Strand with the clicked Strand's shape. Twins = the clicked Strand plus its rotation/mirror twins within its Cell, in every repeat. Single = just the clicked Strand (it still repeats with the Patch — the pattern stays periodic)." />
-              <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
-                {([['all', 'All'], ['congruent', 'Matching'], ['cell', 'Twins'], ['patch', 'Single']] as const).map(([s, label]) => (
-                  <button key={s} onClick={() => onSetStrandScope(s)} style={segButtonStyle(strandScope === s)}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
+          {/* The Reach selector drives BOTH modes (#46 ladder): flat paints the
+              clicked group, gradient scopes the shared wash to it. */}
+          <FieldLabel
+            label="Reach"
+            tooltip={strandMode === 'gradient'
+              ? "How far a Strand click scopes the wash. All = every Strand (the default wash). Matching = the clicked Strand's shape everywhere. Twins = its rotation/mirror twins within its Cell. Single = the clicked Strand's Lattice orbit. Pick a reach, then click a Strand — the rest keep their flat colour."
+              : "How far one click spreads. All = every Strand at once. Matching = every Strand with the clicked Strand's shape. Twins = the clicked Strand plus its rotation/mirror twins within its Cell, in every repeat. Single = just the clicked Strand (it still repeats with the Patch — the pattern stays periodic)."}
+          />
+          <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
+            {([['all', 'All'], ['congruent', 'Matching'], ['cell', 'Twins'], ['patch', 'Single']] as const).map(([s, label]) => (
+              <button
+                key={s}
+                onClick={() => {
+                  onSetStrandScope(s)
+                  // In gradient mode `All` is unambiguous — reset the wash to
+                  // every Strand at once. The positioned rungs still need a
+                  // Strand click to pick which group.
+                  if (strandMode === 'gradient' && s === 'all') dispatch({ type: 'SET_STRAND_GRADIENT_SCOPE', payload: null })
+                }}
+                style={segButtonStyle(strandScope === s)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           {strandMode === 'gradient' && (
             <StrandGradientControls editor={editor} dispatch={dispatch} decorationColor={decorationColor} background={background} />
           )}
@@ -631,12 +644,17 @@ function StrandGradientControls({ editor, dispatch, decorationColor, background 
   }
 
   // Preserve any active scope (#46) across type / stop / enable edits — the
-  // reducer setter is a dumb replace, so a dropped scopeKey would silently
+  // reducer setter is a dumb replace, so a dropped scope/scopeKey would silently
   // widen the wash back to every Strand.
   const set = (next: GradientSpec, on: boolean) =>
     dispatch({
       type: 'SET_DECORATION_STRAND_GRADIENT',
-      payload: { enabled: on, ...(sg?.scopeKey ? { scopeKey: sg.scopeKey } : {}), ...next },
+      payload: {
+        enabled: on,
+        ...(sg?.scopeKey ? { scopeKey: sg.scopeKey } : {}),
+        ...(sg?.scope ? { scope: sg.scope } : {}),
+        ...next,
+      },
     })
 
   const toggle = () => {
@@ -660,6 +678,8 @@ function StrandGradientControls({ editor, dispatch, decorationColor, background 
 
   const stops = sg?.stops ?? [{ offset: 0, colour: decorationColor }, { offset: 1, colour: background }]
   const stopColour = selectedStop >= 0 && selectedStop < stops.length ? stops[selectedStop].colour : stops[0].colour
+  // Reach-rung label for the scope status line (absent scope ⇒ congruent).
+  const scopeLabel = sg?.scope === 'cell' ? 'Twins' : sg?.scope === 'patch' ? 'Single' : 'Matching'
 
   return (
     <div style={{ marginBottom: 8 }}>
@@ -702,10 +722,10 @@ function StrandGradientControls({ editor, dispatch, decorationColor, background 
             on the canvas to place the gradient.
           </div>
           <div style={{ marginTop: 10 }}>
-            <FieldLabel label="Reach" tooltip="Wash across every Strand, or scope it to one Strand group. Click a Strand on the canvas to scope the wash to just that congruent group — the rest keep their flat colour. Clear to wash all Strands again." />
-            {sg.scopeKey ? (
+            <FieldLabel label="Scope" tooltip="Which Strands the wash covers. Pick a Reach above, then click a Strand on the canvas to narrow the wash to that group — the rest keep their flat colour. 'Wash all' clears the scope back to every Strand." />
+            {sg.scopeKey && sg.scopeKey !== '*' ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
-                <span>Scoped to one Strand group.</span>
+                <span>Scoped to a {scopeLabel} group.</span>
                 <button
                   onClick={() => dispatch({ type: 'SET_STRAND_GRADIENT_SCOPE', payload: null })}
                   style={segmentedButtonStyle(false, { transition: false })}
@@ -715,8 +735,8 @@ function StrandGradientControls({ editor, dispatch, decorationColor, background 
               </div>
             ) : (
               <div style={{ fontSize: 11, fontStyle: 'italic' }}>
-                Washing across every Strand. Click a Strand on the canvas to scope
-                the wash to just that group.
+                Washing across every Strand. Pick a Reach above, then click a
+                Strand on the canvas to scope the wash to that group.
               </div>
             )}
           </div>

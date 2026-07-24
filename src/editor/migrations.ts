@@ -260,12 +260,19 @@ function migrateDecoration(raw: unknown): DecorationConfig | undefined {
   if (typeof r.strandGradient === 'object' && r.strandGradient !== null) {
     const sg = r.strandGradient as Record<string, unknown>
     const gradient = migrateGradient(sg)
-    if (gradient) out.strandGradient = {
-      enabled: sg.enabled === true,
-      // #46 follow-up — a congruent-signature scope key; malformed ⇒ dropped
-      // (⇒ the default global wash), the rest of the gradient survives.
-      ...(typeof sg.scopeKey === 'string' ? { scopeKey: sg.scopeKey } : {}),
-      ...gradient,
+    if (gradient) {
+      // #46 follow-up — a Reach-ladder scope key; malformed ⇒ dropped (⇒ the
+      // default global wash), the rest of the gradient survives. Congruent is
+      // implicit (no `scope`); only the positioned rungs (`cell` / `patch`)
+      // persist an explicit `scope`, and only alongside a key.
+      const scopeKey = typeof sg.scopeKey === 'string' ? sg.scopeKey : undefined
+      const scope = scopeKey !== undefined && (sg.scope === 'cell' || sg.scope === 'patch') ? sg.scope : undefined
+      out.strandGradient = {
+        enabled: sg.enabled === true,
+        ...(scopeKey !== undefined ? { scopeKey } : {}),
+        ...(scope !== undefined ? { scope } : {}),
+        ...gradient,
+      }
     }
   }
   return out

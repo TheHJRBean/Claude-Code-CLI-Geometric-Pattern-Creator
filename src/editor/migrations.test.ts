@@ -154,6 +154,29 @@ describe('Strand gradient (#46) — strandGradient migration', () => {
     expect(out!.decoration!.strandGradient).toEqual({ enabled: true, ...grad })
     expect('scopeKey' in out!.decoration!.strandGradient!).toBe(false)
   })
+
+  it('round-trips a cell (Twins) reach scope alongside its key', () => {
+    const out = migrateEditorConfig(v3Patch({ decoration: deco({ enabled: true, scope: 'cell', scopeKey: '5#c0:deadbeef', ...grad }) }))
+    expect(out!.decoration!.strandGradient).toEqual({ enabled: true, scope: 'cell', scopeKey: '5#c0:deadbeef', ...grad })
+  })
+
+  it('round-trips a patch (Single) reach scope alongside its key', () => {
+    const out = migrateEditorConfig(v3Patch({ decoration: deco({ enabled: true, scope: 'patch', scopeKey: '5@12.00,-8.00', ...grad }) }))
+    expect(out!.decoration!.strandGradient).toEqual({ enabled: true, scope: 'patch', scopeKey: '5@12.00,-8.00', ...grad })
+  })
+
+  it('drops an invalid scope but keeps the key (falls back to the congruent rung)', () => {
+    // `instance` and garbage aren't strand-gradient rungs; congruent is implicit.
+    const out = migrateEditorConfig(v3Patch({ decoration: deco({ enabled: true, scope: 'instance', scopeKey: '5', ...grad }) }))
+    expect(out!.decoration!.strandGradient).toEqual({ enabled: true, scopeKey: '5', ...grad })
+    expect('scope' in out!.decoration!.strandGradient!).toBe(false)
+  })
+
+  it('drops a scope with no key (a positioned scope is meaningless without its key)', () => {
+    const out = migrateEditorConfig(v3Patch({ decoration: deco({ enabled: true, scope: 'cell', ...grad }) }))
+    expect(out!.decoration!.strandGradient).toEqual({ enabled: true, ...grad })
+    expect('scope' in out!.decoration!.strandGradient!).toBe(false)
+  })
 })
 
 describe('Step 19 — decoration migration', () => {

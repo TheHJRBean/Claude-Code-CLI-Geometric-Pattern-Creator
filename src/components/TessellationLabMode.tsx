@@ -886,9 +886,10 @@ export function TessellationLabMode({
         paintColor={paintTarget === 'gradient' ? gradientDraft.stops[0].colour : decorationColor}
         paintTarget={editorPhase === 'decoration' ? paintTarget : 'off'}
         paintVoidScope={voidScope}
-        // In gradient sub-mode a Strand click scopes the wash to the clicked
-        // strand's congruent group, so highlight that group on hover (#46).
-        paintStrandScope={strandMode === 'gradient' ? 'congruent' : strandScope}
+        // The Reach selector drives both modes: flat paints the group, gradient
+        // scopes the wash to it. Either way the hover highlight previews exactly
+        // the group a click will act on (#46 Reach ladder).
+        paintStrandScope={strandScope}
         onPaintVoid={p => { pushRecentColour(decorationColor); dispatch({ type: 'SET_DECORATION_VOID_FILL', payload: { ...p, colour: decorationColor } }) }}
         onPaintGradientVoid={(v, p) => {
           // Pick-to-edit: if the clicked group already carries a *different*
@@ -920,11 +921,15 @@ export function TessellationLabMode({
         }}
         onPaintStrand={p => {
           // #46 — in the Strands gradient sub-mode, a Strand click scopes the
-          // shared wash to that strand's congruent group (its signature)
-          // instead of flat-painting it. Undefined signature (shouldn't happen
-          // for strand hits) leaves the current scope untouched.
+          // shared wash to the clicked group at the active Reach rung
+          // (`p.scope`/`p.key`, computed by DecorationPaintLayer) instead of
+          // flat-painting it. The `All` rung (congruent `'*'`) clears back to
+          // the global wash.
           if (strandMode === 'gradient') {
-            if (p.clicked?.signature) dispatch({ type: 'SET_STRAND_GRADIENT_SCOPE', payload: p.clicked.signature })
+            dispatch({
+              type: 'SET_STRAND_GRADIENT_SCOPE',
+              payload: p.scope === 'congruent' && p.key === '*' ? null : { scope: p.scope, key: p.key },
+            })
             return
           }
           pushRecentColour(decorationColor)

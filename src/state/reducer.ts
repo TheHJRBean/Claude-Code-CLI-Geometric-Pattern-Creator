@@ -835,16 +835,25 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       return { ...state, editor: { ...state.editor, decoration: next } }
     }
     case 'SET_STRAND_GRADIENT_SCOPE': {
-      // #46 follow-up — narrow the strand wash to one congruent Strand group
-      // (a signature) or clear back to every Strand (`null`). No-op when no
-      // strand gradient exists yet (nothing to scope). Undo follows the
+      // #46 follow-up — narrow the strand wash to one Strand group along the
+      // Reach ladder (`{ scope, key }`) or clear back to every Strand (`null`).
+      // Congruent is the ladder's default rung, so it's normalised away (store
+      // just `scopeKey`, no `scope` — byte-identical to pre-ladder saves); the
+      // positioned rungs (`cell` / `patch`) carry an explicit `scope`. No-op
+      // when no strand gradient exists yet (nothing to scope). Undo follows the
       // gradient setter — not on the history allowlist.
       const current = state.editor?.decoration?.strandGradient
       if (!current) return state
       const deco = state.editor!.decoration!
       const sg = { ...current }
-      if (action.payload) sg.scopeKey = action.payload
-      else delete sg.scopeKey
+      if (action.payload) {
+        sg.scopeKey = action.payload.key
+        if (action.payload.scope === 'congruent') delete sg.scope
+        else sg.scope = action.payload.scope
+      } else {
+        delete sg.scopeKey
+        delete sg.scope
+      }
       return { ...state, editor: { ...state.editor!, decoration: { ...deco, strandGradient: sg } } }
     }
     case 'CLEAR_DECORATION': {

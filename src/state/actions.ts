@@ -148,9 +148,10 @@ export type Action =
   // frame gradient — seeding + drag maths live in the UI (world coords ride
   // the payload).
   | { type: 'SET_DECORATION_STRAND_GRADIENT'; payload: StrandGradient | null }
-  // #46 follow-up — narrow the strand wash to one congruent Strand group (a
-  // signature) or clear back to every Strand (`null`). No-op with no gradient.
-  | { type: 'SET_STRAND_GRADIENT_SCOPE'; payload: string | null }
+  // #46 follow-up — narrow the strand wash to one Strand group along the Reach
+  // ladder (`{ scope, key }`, mirroring the flat strand colour rungs) or clear
+  // back to every Strand (`null`). No-op with no gradient.
+  | { type: 'SET_STRAND_GRADIENT_SCOPE'; payload: { scope: GroupingScope; key: string } | null }
   | { type: 'CLEAR_DECORATION' }
   // Step 20 (slice 2, #38) — Morph authoring. Top-level `config.morph`
   // (mirrors SET_GALLERY_FRAME's plain-prefix naming — the target isn't

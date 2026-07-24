@@ -274,40 +274,57 @@ describe('Strand gradient (#46) — SET_DECORATION_STRAND_GRADIENT', () => {
 describe('Strand gradient scope (#46 follow-up) — SET_STRAND_GRADIENT_SCOPE', () => {
   const sg = { enabled: true, type: 'linear' as const, stops: [{ offset: 0, colour: '#c0392b' }, { offset: 1, colour: '#2c3e50' }], start: { x: 0, y: 0 }, end: { x: 0, y: 120 } }
 
-  it('narrows the wash to one congruent Strand group (signature key)', () => {
+  it('narrows the wash to one congruent Strand group — congruent normalises away scope', () => {
     let s = reducer(base(), { type: 'SET_DECORATION_STRAND_GRADIENT', payload: sg } as Action)
-    s = reducer(s, { type: 'SET_STRAND_GRADIENT_SCOPE', payload: '5' } as Action)
+    s = reducer(s, { type: 'SET_STRAND_GRADIENT_SCOPE', payload: { scope: 'congruent', key: '5' } } as Action)
+    // Congruent is the ladder default — stored as a bare scopeKey (no `scope`).
     expect(s.editor!.decoration!.strandGradient).toEqual({ ...sg, scopeKey: '5' })
+    expect('scope' in s.editor!.decoration!.strandGradient!).toBe(false)
   })
 
-  it('null clears the scope back to the global wash (drops scopeKey)', () => {
+  it('carries an explicit scope for the cell (Twins) rung', () => {
     let s = reducer(base(), { type: 'SET_DECORATION_STRAND_GRADIENT', payload: sg } as Action)
-    s = reducer(s, { type: 'SET_STRAND_GRADIENT_SCOPE', payload: '5' } as Action)
+    s = reducer(s, { type: 'SET_STRAND_GRADIENT_SCOPE', payload: { scope: 'cell', key: '5#c0:deadbeef' } } as Action)
+    expect(s.editor!.decoration!.strandGradient).toEqual({ ...sg, scope: 'cell', scopeKey: '5#c0:deadbeef' })
+  })
+
+  it('carries an explicit scope for the patch (Single) rung', () => {
+    let s = reducer(base(), { type: 'SET_DECORATION_STRAND_GRADIENT', payload: sg } as Action)
+    s = reducer(s, { type: 'SET_STRAND_GRADIENT_SCOPE', payload: { scope: 'patch', key: '5@12.00,-8.00' } } as Action)
+    expect(s.editor!.decoration!.strandGradient).toEqual({ ...sg, scope: 'patch', scopeKey: '5@12.00,-8.00' })
+  })
+
+  it('null clears the scope back to the global wash (drops scope + scopeKey)', () => {
+    let s = reducer(base(), { type: 'SET_DECORATION_STRAND_GRADIENT', payload: sg } as Action)
+    s = reducer(s, { type: 'SET_STRAND_GRADIENT_SCOPE', payload: { scope: 'cell', key: '5#c0:deadbeef' } } as Action)
     s = reducer(s, { type: 'SET_STRAND_GRADIENT_SCOPE', payload: null } as Action)
     expect(s.editor!.decoration!.strandGradient).toEqual(sg)
     expect('scopeKey' in s.editor!.decoration!.strandGradient!).toBe(false)
+    expect('scope' in s.editor!.decoration!.strandGradient!).toBe(false)
   })
 
-  it('re-scopes to a different signature (replace, not merge)', () => {
+  it('re-scopes from a positioned rung to congruent, clearing the stale scope', () => {
     let s = reducer(base(), { type: 'SET_DECORATION_STRAND_GRADIENT', payload: sg } as Action)
-    s = reducer(s, { type: 'SET_STRAND_GRADIENT_SCOPE', payload: '5' } as Action)
-    s = reducer(s, { type: 'SET_STRAND_GRADIENT_SCOPE', payload: '8i:abcd1234' } as Action)
+    s = reducer(s, { type: 'SET_STRAND_GRADIENT_SCOPE', payload: { scope: 'patch', key: '5@12.00,-8.00' } } as Action)
+    s = reducer(s, { type: 'SET_STRAND_GRADIENT_SCOPE', payload: { scope: 'congruent', key: '8i:abcd1234' } } as Action)
     expect(s.editor!.decoration!.strandGradient!.scopeKey).toBe('8i:abcd1234')
+    expect('scope' in s.editor!.decoration!.strandGradient!).toBe(false)
   })
 
   it('is a no-op when no strand gradient exists yet', () => {
     const s0 = base()
-    const s = reducer(s0, { type: 'SET_STRAND_GRADIENT_SCOPE', payload: '5' } as Action)
+    const s = reducer(s0, { type: 'SET_STRAND_GRADIENT_SCOPE', payload: { scope: 'congruent', key: '5' } } as Action)
     expect(s).toBe(s0)
   })
 
-  it('preserves scopeKey across a gradient type flip when the UI carries it', () => {
-    // SET_DECORATION_STRAND_GRADIENT is a dumb replace; the UI spreads scopeKey.
+  it('preserves scope + scopeKey across a gradient type flip when the UI carries them', () => {
+    // SET_DECORATION_STRAND_GRADIENT is a dumb replace; the UI spreads both.
     let s = reducer(base(), { type: 'SET_DECORATION_STRAND_GRADIENT', payload: sg } as Action)
-    s = reducer(s, { type: 'SET_STRAND_GRADIENT_SCOPE', payload: '5' } as Action)
-    const radial = { enabled: true, scopeKey: '5', type: 'radial' as const, stops: sg.stops, centre: { x: 10, y: 10 }, radius: 80 }
+    s = reducer(s, { type: 'SET_STRAND_GRADIENT_SCOPE', payload: { scope: 'cell', key: '5#c0:deadbeef' } } as Action)
+    const radial = { enabled: true, scope: 'cell' as const, scopeKey: '5#c0:deadbeef', type: 'radial' as const, stops: sg.stops, centre: { x: 10, y: 10 }, radius: 80 }
     s = reducer(s, { type: 'SET_DECORATION_STRAND_GRADIENT', payload: radial } as Action)
-    expect(s.editor!.decoration!.strandGradient!.scopeKey).toBe('5')
+    expect(s.editor!.decoration!.strandGradient!.scope).toBe('cell')
+    expect(s.editor!.decoration!.strandGradient!.scopeKey).toBe('5#c0:deadbeef')
   })
 })
 

@@ -305,11 +305,17 @@ export type FrameGradient = { enabled: boolean } & GradientSpec
  * strand field (spec V2 "one shared gradient definition"). Geometry in
  * **world** coordinates, exactly like `FrameGradient`. Off by default;
  * `enabled: false` keeps the seeded geometry so re-enabling doesn't reseed.
- * `scopeKey` (#46 follow-up) optionally narrows the wash to one **congruent
- * Strand group** — a strand signature; absent / `'*'` ⇒ every Strand (the
+ * `scopeKey` (#46 follow-up) optionally narrows the wash to one Strand group
+ * along the **Reach ladder** (`scope`); absent / `'*'` ⇒ every Strand (the
  * default global wash). Non-matching Strands keep their flat / record stroke.
+ * `scope` names the rung the `scopeKey` binds at, mirroring the flat strand
+ * colour ladder (`StrandPaintScope`): absent ⇒ `'congruent'` (a strand
+ * signature — the #46 default and pre-ladder saves); `'cell'` ⇒ a
+ * Cell-symmetry-orbit key (Twins); `'patch'` ⇒ a Lattice-orbit key (Single).
+ * Membership is resolved by the same `resolveColour`/`buildColourIndex` the
+ * flat ladder uses (see `StrandLayer.gradientOn`).
  */
-export type StrandGradient = { enabled: boolean; scopeKey?: string } & GradientSpec
+export type StrandGradient = { enabled: boolean; scope?: GroupingScope; scopeKey?: string } & GradientSpec
 
 /**
  * Step 19 — one Decoration colour assignment (ADR-0005). The same shape backs

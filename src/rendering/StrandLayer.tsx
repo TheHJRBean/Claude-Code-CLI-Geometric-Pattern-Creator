@@ -114,20 +114,34 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
     return { perStrand, perSegment }
   }, [strandData, segments, identitySource])
 
-  // V2 (#46) scope — when the wash is narrowed to one congruent Strand group
-  // (`strandGradient.scopeKey`), only strands whose congruent signature matches
-  // take the shared def; the rest keep their flat / record stroke. Reuses the
-  // same per-strand signature the colour ladder resolves against
-  // (`baseSigs.perStrand[si]` on the editor non-fast path, else the rendered
-  // chain's own identity). Null ⇒ every visible strand takes the def (the
-  // default global wash, or the gradient disabled).
+  // V2 (#46) scope — when the wash is narrowed to one Strand group along the
+  // Reach ladder (`strandGradient.scope`/`scopeKey`), only strands in that group
+  // take the shared def; the rest keep their flat / record stroke. Membership is
+  // exactly what the flat colour ladder computes: a single-record `ColourIndex`
+  // from the scope `{ scope, key }`, resolved per strand (`resolveColour !==
+  // null` ⇒ in scope). The per-strand keys — congruent signature, patch-orbit
+  // offset, Cell-symmetry-orbit key — mirror the flat `strokes` memo below.
+  // Absent scope ⇒ `congruent` (the #46 default + pre-ladder saves). Null ⇒
+  // every visible strand takes the def (the global wash, or gradient disabled).
   const gradientOn = useMemo<boolean[] | null>(() => {
     if (!gradientStroke) return null
     const key = strandGradient?.scopeKey
     if (!key || key === '*') return null
-    return strandData.map((sd, si) =>
-      (baseSigs?.perStrand[si] ?? strandIdentity(sd.points).signature) === key)
-  }, [gradientStroke, strandGradient?.scopeKey, strandData, baseSigs])
+    const scope = strandGradient?.scope ?? 'congruent'
+    const gradIdx = buildColourIndex([{ scope, key, colour: '#000' }])
+    const ring = orbitStamps ?? []
+    return strandData.map((sd, si) => {
+      const id = strandIdentity(sd.points)
+      const strandSig = baseSigs?.perStrand[si] ?? id.signature
+      // Congruent needs no position; the positioned rungs reduce to the
+      // Lattice orbit (patch) and, for `cell`, its Cell-symmetry-orbit key.
+      const off = scope === 'congruent' ? id.centroid : orbitOffset(id.centroid, ring)
+      const cellKey = scope === 'cell' && cellFrames
+        ? cellOrbitKey(strandSig, reduceToOrbit(sd.points, id.centroid, off), id.closed, off, cellFrames)
+        : null
+      return resolveColour(gradIdx, strandSig, off, null, cellKey) !== null
+    })
+  }, [gradientStroke, strandGradient?.scope, strandGradient?.scopeKey, strandData, baseSigs, orbitStamps, cellFrames])
 
   // Per-piece stroke: the shared gradient def when this strand is in scope,
   // else its flat / record colour. `si` is the SOURCE strand index (a

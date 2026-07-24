@@ -5,6 +5,26 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-24 (Decoration gradients v2 / #46 — strand-gradient Reach LADDER — ✅ SHIPPED, ⏳ BROWSER-VERIFY, Opus)
+
+**Goal:** the deferred #46 follow-up. The single-Strand scope toggle only wired the **congruent** rung; extend `StrandGradient.scopeKey` to the FULL Reach ladder the flat strand colour already has — **All / Matching / Twins (cell) / Single (patch)**. User chose this branch (AskUserQuestion) over background-gradient / weave-verify. Model: Opus (covers the reach-resolve correctness; user has stayed over the Fable tag all through gradients).
+
+**Design (locked):** a gradient scope = a `{ scope, key }` pair (a `ColourRecord` minus the colour); membership = *exactly* what the flat ladder's `resolveColour`/`buildColourIndex` compute (single-record index, `!== null` ⇒ in scope). `DecorationPaintLayer.strandPayload` already emits the right `{scope,key}` per rung from each `StrandHit`'s precomputed `signature`/`cellKey`/`patchKey`, so the SAME flat Reach selector drives both modes.
+
+**Done (this session, one commit):**
+- **Data model:** `StrandGradient` gains `scope?: GroupingScope` beside `scopeKey?` (`types/editor.ts`). Absent scope ⇒ `congruent` (the #46 default + pre-ladder saves byte-identical). Only `cell`/`patch` persist an explicit `scope`; congruent is normalised away.
+- **Action/reducer:** `SET_STRAND_GRADIENT_SCOPE` payload `string|null` → `{ scope, key }|null`. Reducer stores `scopeKey`+ (for cell/patch) `scope`; congruent deletes `scope`; null clears both. No-op w/o gradient, still off the undo allowlist.
+- **Migration (`migrations.ts`):** carries `scope` only when it's `cell`/`patch` AND a `scopeKey` is present; invalid/`instance`/keyless scope dropped (→ congruent). Old scopeKey-only saves unchanged.
+- **Render (`StrandLayer.gradientOn`):** builds a 1-record `ColourIndex` from `{scope, scopeKey}` and resolves per strand — congruent (sig), patch (orbit offset via `orbitStamps`), cell (`cellOrbitKey` via `cellFrames`) — mirroring the flat `strokes` memo line-for-line. `orbitStamps`/`cellFrames` already co-threaded to the same full-field StrandLayer that gets `strandGradient` (PatternSVG:268; fast-path clones omit it, disqualified when enabled).
+- **UI (`DecorationPanel` + `TessellationLabMode`):** Reach selector now shows in BOTH flat & gradient modes (mode-aware tooltip). `paintStrandScope = strandScope` always (was forced `'congruent'`), so hover previews the exact group a click scopes. Gradient-mode strand click → `SET_STRAND_GRADIENT_SCOPE {scope,key}`; `All`/`'*'` → clears. `All` button in gradient mode clears immediately (unambiguous); positioned rungs need a Strand click. Gradient controls' old "Reach" row → a **Scope status** line ("Scoped to a {Matching|Twins|Single} group · [Wash all]"). `set()` preserves scope+scopeKey across type/stop/enable edits.
+
+**Tests:** decoration.test.ts (+ cell/patch/normalise/clear-stale cases) + migrations.test.ts (+ cell/patch round-trip, invalid-scope drop, keyless-scope drop). **Full suite 1215 green, tsc + build clean.**
+
+**⏳ BROWSER-VERIFY NEXT (cold start):** dev server + headless recipe (see memory `feedback_headless_browser_no_sudo`). On **3.12.12** (448 strands, 2 congruent classes 368/80) — enable strand gradient + "Show strands" ON: (a) **Twins** rung → click a strand → wash narrows to that Cell-symmetry-orbit (subset of the congruent group); (b) **Single** rung → click → wash to that Lattice orbit only (thinnest); (c) **Matching** → congruent group (the #46 baseline, still works); (d) **All** button → instant wash-all; (e) status line shows the right rung label. Compare Twins ⊂ Matching ⊂ All by washed-strand counts. GOTCHA: needs "Show strands" toggle ON.
+
+**Still deferred (unchanged):** gradient × weave/double/triple visual screenshot; background gradient (a whole new surface, out of v1/v2 scope). Spec `DECORATION_GRADIENTS_SPEC.md` V2.
+
+---
 ### ▶ 2026-07-23 (Decoration gradients v2 / #46 — single-Strand SCOPE toggle — ✅ SHIPPED + BROWSER-VERIFIED, Opus)
 
 **Goal:** the deferred #46 follow-up. Default stays the global wash; a scope lets the user click a Strand to narrow the SAME shared gradient def to just that Strand's **congruent group** (a signature). Non-matching Strands keep their flat/record stroke. Spec V2 "UI selection toggle narrows scope to a single Strand". Model: Opus (user chose to stay over the Fable tag).

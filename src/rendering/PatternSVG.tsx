@@ -12,7 +12,8 @@ import { VoidFillLayer } from './VoidFillLayer'
 import { VoidStampLayer } from './VoidStampLayer'
 import type { VoidFill } from '../decoration/resolve'
 import type { StampPlacement } from '../decoration/stamps'
-import type { ColourRecord, StrandGradient } from '../types/editor'
+import type { ColourRecord, FrameGradient, StrandGradient } from '../types/editor'
+import { sortedStops } from '../decoration/gradients'
 import type { CellFrame } from '../decoration/cellScope'
 
 interface Props {
@@ -145,10 +146,16 @@ interface Props {
    * enabled it disqualifies the fast-path, so only the world-space StrandLayer
    * below renders it. */
   strandGradient?: StrandGradient
+  /** #45 across-frame gradient. When enabled it renders as a single full-viewport
+   * **background wash** rect behind the whole composition (world-space
+   * `userSpaceOnUse` def), so a continuous gradient shows edge-to-edge through
+   * the transparent tiles + every unpainted Void, with the pattern/strands on
+   * top. Clipped to the Shape Frame when one is active. */
+  frameGradient?: FrameGradient
 }
 
 export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
-  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, compositionStamps, editorOverlay, clipEditorOverlayToFrame = false, editorOverlayUnclipped, frameOutline, clipToFrame = true, frameNodes, frameStroke, voidFills, instanceVoidFills, voidStamps, strandRecords, orbitStamps, cellFrames, strandIdentitySource, strandGradient },
+  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, compositionStamps, editorOverlay, clipEditorOverlayToFrame = false, editorOverlayUnclipped, frameOutline, clipToFrame = true, frameNodes, frameStroke, voidFills, instanceVoidFills, voidStamps, strandRecords, orbitStamps, cellFrames, strandIdentitySource, strandGradient, frameGradient },
   ref
 ) {
   const { x, y, zoom, rotation } = viewTransform
@@ -192,6 +199,38 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
         {/* Pattern content is clipped to the Shape Frame outline only when
             clipping is active (Gallery / Composition); see `clipActive`. */}
         <g clipPath={clipActive ? `url(#${frameClipId})` : undefined}>
+          {/* #45 across-frame gradient — a single full-viewport background wash
+              BEHIND every layer (tiles are `fill:none`, unpainted Voids are
+              transparent, so the wash shows edge-to-edge; painted Voids +
+              strands render on top). Oversized 3× the viewBox so a rotated view
+              still covers the corners; clipped to the Frame with the content. */}
+          {frameGradient?.enabled && (
+            <g id="frame-gradient-bg-layer">
+              <defs>
+                {frameGradient.type === 'linear' ? (
+                  <linearGradient
+                    id="frame-gradient-bg" gradientUnits="userSpaceOnUse"
+                    x1={frameGradient.start.x} y1={frameGradient.start.y}
+                    x2={frameGradient.end.x} y2={frameGradient.end.y}
+                  >
+                    {sortedStops(frameGradient.stops).map((s, j) => (
+                      <stop key={j} offset={s.offset} stopColor={s.colour} />
+                    ))}
+                  </linearGradient>
+                ) : (
+                  <radialGradient
+                    id="frame-gradient-bg" gradientUnits="userSpaceOnUse"
+                    cx={frameGradient.centre.x} cy={frameGradient.centre.y} r={frameGradient.radius}
+                  >
+                    {sortedStops(frameGradient.stops).map((s, j) => (
+                      <stop key={j} offset={s.offset} stopColor={s.colour} />
+                    ))}
+                  </radialGradient>
+                )}
+              </defs>
+              <rect x={x - vw} y={y - vh} width={vw * 3} height={vh * 3} fill="url(#frame-gradient-bg)" />
+            </g>
+          )}
           {compositionStamps ? (
             // Lever A periodic fast-path: render one fundamental domain into a
             // <defs> fragment, then tile it with <use> (x/y = pure-translation

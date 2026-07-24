@@ -1420,6 +1420,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         cellFrames={decorationCellFrames}
         strandIdentitySource={strandIdentitySource}
         strandGradient={decorationActive ? config.editor?.decoration?.strandGradient : undefined}
+        frameGradient={decorationActive ? config.editor?.decoration?.frameGradient : undefined}
       />
       {pickerScreenPos && onPlaceTile && onSelectEdge && selectedEdgeData && (
         <EditorPickerOverlay

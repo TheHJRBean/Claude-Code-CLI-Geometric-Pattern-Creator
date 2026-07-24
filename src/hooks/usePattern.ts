@@ -194,11 +194,11 @@ export function periodicFastPathEligible(
     // World-space Guide-scoped Tiles don't repeat under the Lattice, so the
     // per-domain <use> tiling would either drop or falsely repeat them.
     && !(config.editor?.guideTiles?.length)
-    // Across-frame gradient underlay (#45) is ONE world-space gradient spanning
-    // the whole composition. A `userSpaceOnUse` def inside the tiled fragment
-    // would repeat per <use> clone (the clone translation shifts its user
-    // space) instead of washing continuously — fall through to the exact
-    // world-space field so the underlay stays a single continuous gradient.
+    // Across-frame gradient (#45) renders as a continuous world-space background
+    // wash behind the whole field (PatternSVG `frame-gradient-bg` rect). Keep the
+    // composition on the exact world-space path while it's on, so the decoration
+    // field the wash sits behind (voids / strands / full-scope paint hits) is the
+    // full planar arrangement, not a tiled base domain.
     && !(config.editor?.decoration?.frameGradient?.enabled)
     // Strand gradient (#46) is ONE world-space gradient stroked across every
     // Strand. A `userSpaceOnUse` stroke def inside the tiled fragment would

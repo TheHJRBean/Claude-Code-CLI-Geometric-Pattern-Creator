@@ -143,14 +143,14 @@ describe('periodicFastPathEligible', () => {
     const morph = {
       enabled: true,
       mode: 'linear' as const,
-      origin: { x: 0, y: 0 },
+      axisOrigin: { x: 0, y: 0 },
       direction: { x: 1, y: 0 },
       easing: 'linear' as const,
-      boundaries: [{ id: 'b0', position: 100, figures: {} }],
+      origins: [{ id: 'o0', position: 100, reach: 200, sides: 'both' as const, figures: {} }],
     }
     expect(periodicFastPathEligible({ ...cfg(), morph }, false, false, [T(0, 0)])).toBe(false)
     expect(periodicFastPathEligible({ ...cfg(), morph: { ...morph, enabled: false } }, false, false, [T(0, 0)])).toBe(true)
-    expect(periodicFastPathEligible({ ...cfg(), morph: { ...morph, boundaries: [] } }, false, false, [T(0, 0)])).toBe(true)
+    expect(periodicFastPathEligible({ ...cfg(), morph: { ...morph, origins: [] } }, false, false, [T(0, 0)])).toBe(true)
   })
 
   it('is ineligible when any stamp carries a non-zero rotation', () => {

@@ -172,22 +172,40 @@ describe('loadPatternConfig — morph (Step 20)', () => {
   const validMorph = () => ({
     enabled: true,
     mode: 'linear',
-    origin: { x: 10, y: -5 },
+    axisOrigin: { x: 10, y: -5 },
     direction: { x: 0, y: 2 },
     easing: 'linear',
-    boundaries: [
-      { id: 'b1', position: 200, figures: { '4': { contactAngle: 80 } } },
-      { id: 'b0', position: 100, figures: {} },
+    origins: [
+      { id: 'o1', position: 200, reach: 50, sides: 'negative', figures: { '4': { contactAngle: 80 } } },
+      { id: 'o0', position: 100, reach: 120, sides: 'both', figures: {} },
     ],
   })
 
-  it('reads a valid morph, normalising direction and sorting stops', () => {
+  it('reads a valid morph, normalising direction and sorting Origins', () => {
     const out = loadPatternConfig({ ...minimalRaw(), morph: validMorph() })
     expect(out.morph).toBeDefined()
     expect(out.morph!.mode).toBe('linear')
     expect(out.morph!.direction).toEqual({ x: 0, y: 1 })
-    expect(out.morph!.boundaries.map(b => b.id)).toEqual(['b0', 'b1'])
-    expect(out.morph!.boundaries[1].figures['4']).toEqual({ contactAngle: 80 })
+    expect(out.morph!.origins.map(o => o.id)).toEqual(['o0', 'o1'])
+    expect(out.morph!.origins[1].figures['4']).toEqual({ contactAngle: 80 })
+  })
+
+  it('carries reach and sides through', () => {
+    const out = loadPatternConfig({ ...minimalRaw(), morph: validMorph() })
+    expect(out.morph!.origins.map(o => o.reach)).toEqual([120, 50])
+    expect(out.morph!.origins.map(o => o.sides)).toEqual(['both', 'negative'])
+  })
+
+  it('normalises a bad reach/sides rather than dropping the Origin', () => {
+    const out = loadPatternConfig({
+      ...minimalRaw(),
+      morph: {
+        ...validMorph(),
+        origins: [{ id: 'o0', position: 0, reach: -40, sides: 'sideways', figures: {} }],
+      },
+    })
+    expect(out.morph!.origins[0].reach).toBe(0) // negative clamped
+    expect(out.morph!.origins[0].sides).toBe('both') // unknown → both
   })
 
   it('radial morph carries no direction', () => {
@@ -196,29 +214,29 @@ describe('loadPatternConfig — morph (Step 20)', () => {
     expect(out.morph!.direction).toBeUndefined()
   })
 
-  it('drops the morph silently on unknown mode / bad origin / missing boundaries', () => {
+  it('drops the morph silently on unknown mode / bad axis origin / missing origins', () => {
     expect(loadPatternConfig({ ...minimalRaw(), morph: { ...validMorph(), mode: 'spiral' } }).morph).toBeUndefined()
-    expect(loadPatternConfig({ ...minimalRaw(), morph: { ...validMorph(), origin: { x: NaN, y: 0 } } }).morph).toBeUndefined()
-    expect(loadPatternConfig({ ...minimalRaw(), morph: { ...validMorph(), boundaries: 'nope' } }).morph).toBeUndefined()
+    expect(loadPatternConfig({ ...minimalRaw(), morph: { ...validMorph(), axisOrigin: { x: NaN, y: 0 } } }).morph).toBeUndefined()
+    expect(loadPatternConfig({ ...minimalRaw(), morph: { ...validMorph(), origins: 'nope' } }).morph).toBeUndefined()
     expect(loadPatternConfig({ ...minimalRaw(), morph: 42 }).morph).toBeUndefined()
   })
 
-  it('drops malformed stops but keeps the rest; defaults missing ids', () => {
+  it('drops malformed Origins but keeps the rest; defaults missing ids', () => {
     const out = loadPatternConfig({
       ...minimalRaw(),
       morph: {
         ...validMorph(),
-        boundaries: [
-          { position: 50, figures: { '4': { contactAngle: 30 }, bad: 7 } },
-          { id: 'x', position: Infinity, figures: {} },
-          { id: 'y', figures: {} },
+        origins: [
+          { position: 50, reach: 10, sides: 'both', figures: { '4': { contactAngle: 30 }, bad: 7 } },
+          { id: 'x', position: Infinity, reach: 10, sides: 'both', figures: {} },
+          { id: 'y', reach: 10, sides: 'both', figures: {} },
           'garbage',
         ],
       },
     })
-    expect(out.morph!.boundaries).toHaveLength(1)
-    expect(out.morph!.boundaries[0].id).toBe('morph-0')
-    expect(out.morph!.boundaries[0].figures).toEqual({ '4': { contactAngle: 30 } })
+    expect(out.morph!.origins).toHaveLength(1)
+    expect(out.morph!.origins[0].id).toBe('morph-0')
+    expect(out.morph!.origins[0].figures).toEqual({ '4': { contactAngle: 30 } })
   })
 
   it('forces easing to linear and coerces enabled to a strict boolean', () => {
@@ -232,5 +250,67 @@ describe('loadPatternConfig — morph (Step 20)', () => {
     expect(noDir.morph!.direction).toEqual({ x: 1, y: 0 })
     const zeroDir = loadPatternConfig({ ...minimalRaw(), morph: { ...validMorph(), direction: { x: 0, y: 0 } } })
     expect(zeroDir.morph!.direction).toEqual({ x: 1, y: 0 })
+  })
+
+  // ── Pre-#48 saves: { origin, boundaries } stop chains ──────────────
+  describe('legacy boundary migration', () => {
+    const legacyMorph = (boundaries: unknown[]) => ({
+      enabled: true,
+      mode: 'linear',
+      origin: { x: 10, y: -5 },
+      direction: { x: 1, y: 0 },
+      easing: 'linear',
+      boundaries,
+    })
+
+    it('reads the legacy axis-origin key', () => {
+      const out = loadPatternConfig({ ...minimalRaw(), morph: legacyMorph([]) })
+      expect(out.morph!.axisOrigin).toEqual({ x: 10, y: -5 })
+    })
+
+    it('a SINGLE legacy boundary converts exactly: Origin at 0 reaching it', () => {
+      const out = loadPatternConfig({
+        ...minimalRaw(),
+        morph: legacyMorph([{ id: 'b0', position: 300, figures: { '4': { contactAngle: 80 } } }]),
+      })
+      expect(out.morph!.origins).toHaveLength(1)
+      expect(out.morph!.origins[0]).toMatchObject({
+        id: 'b0',
+        position: 0,
+        reach: 300,
+        sides: 'positive',
+        figures: { '4': { contactAngle: 80 } },
+      })
+    })
+
+    it('a negative-position boundary converts to a negative-sided Origin', () => {
+      const out = loadPatternConfig({
+        ...minimalRaw(),
+        morph: legacyMorph([{ id: 'b0', position: -200, figures: {} }]),
+      })
+      expect(out.morph!.origins[0]).toMatchObject({ position: 0, reach: 200, sides: 'negative' })
+    })
+
+    it('a chain converts each segment to its own Origin (approximate, documented)', () => {
+      const out = loadPatternConfig({
+        ...minimalRaw(),
+        morph: legacyMorph([
+          { id: 'b0', position: 100, figures: { '4': { contactAngle: 40 } } },
+          { id: 'b1', position: 250, figures: { '4': { contactAngle: 80 } } },
+        ]),
+      })
+      expect(out.morph!.origins).toHaveLength(2)
+      expect(out.morph!.origins[0]).toMatchObject({ id: 'b0', position: 0, reach: 100, sides: 'positive' })
+      expect(out.morph!.origins[1]).toMatchObject({ id: 'b1', position: 100, reach: 150, sides: 'positive' })
+    })
+
+    it('the new keys win when a save carries both schemas', () => {
+      const out = loadPatternConfig({
+        ...minimalRaw(),
+        morph: { ...validMorph(), origin: { x: 999, y: 999 }, boundaries: [{ id: 'legacy', position: 7, figures: {} }] },
+      })
+      expect(out.morph!.axisOrigin).toEqual({ x: 10, y: -5 })
+      expect(out.morph!.origins.map(o => o.id)).toEqual(['o0', 'o1'])
+    })
   })
 })

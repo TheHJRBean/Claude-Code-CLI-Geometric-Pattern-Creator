@@ -1,43 +1,53 @@
 import { describe, it, expect } from 'vitest'
-import type { MorphConfig, PatternConfig } from '../types/pattern'
-import { activeMorph, morphActive, morphDistance, morphFieldValue, morphValueAt } from './morph'
+import type { MorphConfig, MorphOrigin, MorphSides, PatternConfig } from '../types/pattern'
+import { activeMorph, governingOrigin, morphActive, morphDistance, morphFieldValue, morphValueAt, sideActive } from './morph'
 import { DEFAULT_CONFIG } from '../state/defaults'
 
-const linearMorph = (boundaries: MorphConfig['boundaries'], overrides?: Partial<MorphConfig>): MorphConfig => ({
+const linearMorph = (origins: MorphOrigin[], overrides?: Partial<MorphConfig>): MorphConfig => ({
   enabled: true,
   mode: 'linear',
-  origin: { x: 0, y: 0 },
+  axisOrigin: { x: 0, y: 0 },
   direction: { x: 1, y: 0 },
   easing: 'linear',
-  boundaries,
+  origins,
   ...overrides,
 })
 
-const stop = (id: string, position: number, angle?: number): MorphConfig['boundaries'][number] => ({
+/** An Origin at `position` reaching `reach` toward `sides`, targeting `angle`
+ *  on tile type "4". Omitting `angle` leaves an empty overlay (target = base). */
+const origin = (
+  id: string,
+  position: number,
+  reach: number,
+  angle?: number,
+  sides: MorphSides = 'both',
+): MorphOrigin => ({
   id,
   position,
+  reach,
+  sides,
   figures: angle === undefined ? {} : { '4': { contactAngle: angle } },
 })
 
 describe('morphActive / activeMorph', () => {
-  it('is inactive when morph is absent, disabled, or has no stops', () => {
+  it('is inactive when morph is absent, disabled, or has no Origins', () => {
     expect(morphActive(DEFAULT_CONFIG)).toBe(false)
-    const disabled: PatternConfig = { ...DEFAULT_CONFIG, morph: linearMorph([stop('a', 100, 40)], { enabled: false }) }
+    const disabled: PatternConfig = { ...DEFAULT_CONFIG, morph: linearMorph([origin('a', 100, 50, 40)], { enabled: false }) }
     expect(morphActive(disabled)).toBe(false)
     const empty: PatternConfig = { ...DEFAULT_CONFIG, morph: linearMorph([]) }
     expect(morphActive(empty)).toBe(false)
   })
 
-  it('is active with an enabled morph carrying at least one stop', () => {
-    const config: PatternConfig = { ...DEFAULT_CONFIG, morph: linearMorph([stop('a', 100, 40)]) }
+  it('is active with an enabled morph carrying at least one Origin', () => {
+    const config: PatternConfig = { ...DEFAULT_CONFIG, morph: linearMorph([origin('a', 100, 50, 40)]) }
     expect(morphActive(config)).toBe(true)
     expect(activeMorph(config)).toBe(config.morph)
   })
 })
 
 describe('morphDistance', () => {
-  it('linear: signed dot along direction from origin', () => {
-    const m = linearMorph([], { origin: { x: 10, y: 5 }, direction: { x: 0, y: 1 } })
+  it('linear: signed dot along direction from the axis origin', () => {
+    const m = linearMorph([], { axisOrigin: { x: 10, y: 5 }, direction: { x: 0, y: 1 } })
     expect(morphDistance(m, { x: 100, y: 25 })).toBeCloseTo(20)
     expect(morphDistance(m, { x: -3, y: -15 })).toBeCloseTo(-20)
   })
@@ -47,83 +57,150 @@ describe('morphDistance', () => {
     expect(morphDistance(m, { x: 7, y: 99 })).toBeCloseTo(7)
   })
 
-  it('radial: distance from origin', () => {
-    const m = linearMorph([], { mode: 'radial', origin: { x: 3, y: 4 } })
+  it('radial: distance from the centre', () => {
+    const m = linearMorph([], { mode: 'radial', axisOrigin: { x: 3, y: 4 } })
     expect(morphDistance(m, { x: 0, y: 0 })).toBeCloseTo(5)
   })
 })
 
-describe('morphFieldValue', () => {
-  it('holds the start recipe at/below the Origin and clamps to the last stop beyond the band', () => {
-    const m = linearMorph([stop('a', 100, 40), stop('b', 200, 80)])
-    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, -50)).toBe(67.5) // below implicit Origin stop
-    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 0)).toBe(67.5)
-    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 50)).toBeCloseTo(53.75) // Origin → first stop blend
-    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 100)).toBe(40)
-    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 200)).toBe(80)
-    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 350)).toBe(80)
+describe('sideActive', () => {
+  it("'both' faces every offset", () => {
+    expect(sideActive('both', -5)).toBe(true)
+    expect(sideActive('both', 0)).toBe(true)
+    expect(sideActive('both', 5)).toBe(true)
   })
 
-  it('a SINGLE stop yields a real gradient from the Origin (implicit start stop)', () => {
-    const m = linearMorph([stop('a', 200, 30)])
-    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, -100)).toBe(67.5)
-    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 0)).toBe(67.5)
-    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 100)).toBeCloseTo(48.75)
+  it('one-sided Origins face their own side, and the line itself either way', () => {
+    expect(sideActive('negative', -5)).toBe(true)
+    expect(sideActive('negative', 5)).toBe(false)
+    expect(sideActive('positive', 5)).toBe(true)
+    expect(sideActive('positive', -5)).toBe(false)
+    // s === 0 is on the line: base recipe under either, so both accept it.
+    expect(sideActive('negative', 0)).toBe(true)
+    expect(sideActive('positive', 0)).toBe(true)
+  })
+})
+
+describe('morphFieldValue — a single Origin', () => {
+  it('holds the base recipe AT the Origin and blends out to the target over the reach', () => {
+    const m = linearMorph([origin('a', 100, 100, 40)])
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 100)).toBe(67.5) // on the line = base
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 150)).toBeCloseTo(53.75) // halfway out
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 200)).toBe(40) // target reached
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 500)).toBe(40) // clamped beyond
+  })
+
+  it("'both' is symmetric about the line", () => {
+    const m = linearMorph([origin('a', 0, 100, 30)])
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, -50)).toBeCloseTo(48.75)
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 50)).toBeCloseTo(48.75)
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, -200)).toBe(30)
     expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 200)).toBe(30)
-    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 300)).toBe(30)
   })
 
-  it('an explicit stop exactly at 0 replaces the implicit Origin stop', () => {
-    const m = linearMorph([stop('a', 0, 30), stop('b', 100, 60)])
-    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, -50)).toBe(30)
-    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 50)).toBeCloseTo(45)
+  it("'positive' leaves the negative side at the base recipe entirely", () => {
+    const m = linearMorph([origin('a', 0, 100, 30, 'positive')])
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, -50)).toBe(67.5)
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, -5000)).toBe(67.5)
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 50)).toBeCloseTo(48.75)
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 200)).toBe(30)
   })
 
-  it('a negative-position stop blends back to the start recipe at the Origin', () => {
-    const m = linearMorph([stop('a', -200, 20)])
-    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, -300)).toBe(20)
-    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, -100)).toBeCloseTo(43.75)
-    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 0)).toBe(67.5)
-    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 100)).toBe(67.5) // implicit stop is last — clamp
+  it("'negative' mirrors that", () => {
+    const m = linearMorph([origin('a', 0, 100, 30, 'negative')])
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 50)).toBe(67.5)
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, -50)).toBeCloseTo(48.75)
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, -200)).toBe(30)
   })
 
-  it('blends piecewise-linearly between consecutive stops', () => {
-    const m = linearMorph([stop('a', 100, 40), stop('b', 200, 80), stop('c', 300, 50)])
-    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 150)).toBeCloseTo(60)
-    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 175)).toBeCloseTo(70)
-    // Morph out and back through the intermediate stop.
-    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 250)).toBeCloseTo(65)
+  it('a WIDER reach spreads the same change over more distance (the #48 ask)', () => {
+    const narrow = linearMorph([origin('a', 0, 100, 30, 'positive')])
+    const wide = linearMorph([origin('a', 0, 400, 30, 'positive')])
+    // Same endpoints…
+    expect(morphFieldValue(narrow, '4', 'contactAngle', 67.5, 0)).toBe(67.5)
+    expect(morphFieldValue(wide, '4', 'contactAngle', 67.5, 0)).toBe(67.5)
+    // …but at d=100 the narrow one is done while the wide one is a quarter in.
+    expect(morphFieldValue(narrow, '4', 'contactAngle', 67.5, 100)).toBe(30)
+    expect(morphFieldValue(wide, '4', 'contactAngle', 67.5, 100)).toBeCloseTo(58.125)
+    expect(morphFieldValue(wide, '4', 'contactAngle', 67.5, 400)).toBe(30)
   })
 
-  it('an empty overlay stop is the start recipe (adding a Boundary changes nothing)', () => {
-    const m = linearMorph([stop('a', 100), stop('b', 200)])
-    for (const d of [0, 100, 150, 200, 300]) {
+  it('zero reach is a hard step: base exactly on the line, target either side', () => {
+    const m = linearMorph([origin('a', 100, 0, 40)])
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 100)).toBe(67.5)
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 100.001)).toBe(40)
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 99.999)).toBe(40)
+  })
+
+  it('an empty overlay is the base recipe everywhere (adding an Origin changes nothing)', () => {
+    const m = linearMorph([origin('a', 100, 200)])
+    for (const d of [-500, 0, 100, 150, 300, 900]) {
       expect(morphFieldValue(m, '4', 'contactAngle', 67.5, d)).toBe(67.5)
     }
   })
 
-  it('falls back to the start value per tile type and per field independently', () => {
-    const m = linearMorph([
-      { id: 'a', position: 0, figures: { '4': { contactAngle: 30 } } },
-      { id: 'b', position: 100, figures: { '4': { contactAngle: 60 } } },
-    ])
-    // Unknown tile type: start value throughout.
+  it('falls back to the base value per tile type and per field independently', () => {
+    const m = linearMorph([origin('a', 0, 100, 30)])
+    // Unknown tile type: base value throughout.
     expect(morphFieldValue(m, '6', 'contactAngle', 55, 50)).toBe(55)
-    // vertexContactAngle not in the overlay: start value, never contactAngle's.
+    // vertexContactAngle not in the overlay: base value, never contactAngle's.
     expect(morphFieldValue(m, '4', 'vertexContactAngle', 55, 50)).toBe(55)
   })
+})
 
-  it('coincident stops: the later stop wins just past the shared position', () => {
-    const m = linearMorph([stop('a', 100, 40), stop('b', 100, 80), stop('c', 200, 20)])
-    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 99)).toBeCloseTo(40.275) // Origin→a blend
-    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 100)).toBe(40) // a wins AT its position
-    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 150)).toBeCloseTo(50) // b→c blend past it
+describe('morphFieldValue — overlapping Origins (nearest wins)', () => {
+  it('hands over at the midpoint between two Origins', () => {
+    const m = linearMorph([origin('a', 0, 1000, 30), origin('b', 200, 1000, 80)])
+    // Just left of the midpoint 'a' governs (dist 99 of 1000 from base 67.5).
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 99)).toBeCloseTo(63.7875)
+    // Just right of it 'b' does (dist 101 toward 80).
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 101)).toBeCloseTo(68.7375)
+  })
+
+  it('never compounds — each point is governed by exactly one Origin', () => {
+    const m = linearMorph([origin('a', 0, 100, 30), origin('b', 40, 100, 30)])
+    // At d=20 (midpoint) 'a' wins on the tie-break; either way the value is a
+    // single 20/100 ramp from base, NOT two summed deltas.
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 20)).toBeCloseTo(60)
+  })
+
+  it('an inactive side does not shadow a further Origin that really reaches the point', () => {
+    // 'a' only morphs LEFT, so the region to its right belongs to 'b' even
+    // though 'a' is nearer there.
+    const m = linearMorph([origin('a', 0, 100, 30, 'negative'), origin('b', 500, 1000, 80)])
+    expect(governingOrigin(m, 50)?.id).toBe('b')
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 50)).toBeCloseTo(73.125)
+  })
+
+  it('no Origin facing a point leaves the base recipe untouched', () => {
+    const m = linearMorph([origin('a', 0, 100, 30, 'negative')])
+    expect(governingOrigin(m, 500)).toBeNull()
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 500)).toBe(67.5)
+  })
+
+  it('ties keep the earlier (lower-position) Origin', () => {
+    const m = linearMorph([origin('a', 0, 100, 30), origin('b', 100, 100, 80)])
+    expect(governingOrigin(m, 50)?.id).toBe('a')
+  })
+
+  it('coincident Origins: the first entry governs', () => {
+    const m = linearMorph([origin('a', 100, 100, 40), origin('b', 100, 100, 80)])
+    expect(governingOrigin(m, 150)?.id).toBe('a')
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 150)).toBeCloseTo(53.75)
   })
 })
 
 describe('morphValueAt', () => {
   it('evaluates through the distance field at a world point', () => {
-    const m = linearMorph([stop('a', 0, 40), stop('b', 100, 80)], { mode: 'radial', origin: { x: 0, y: 0 } })
-    expect(morphValueAt(m, '4', 'contactAngle', 67.5, { x: 30, y: 40 })).toBeCloseTo(60)
+    const m = linearMorph([origin('a', 0, 100, 40)], { mode: 'radial', axisOrigin: { x: 0, y: 0 } })
+    // |(30,40)| = 50, half of the reach, from base 67.5 toward 40.
+    expect(morphValueAt(m, '4', 'contactAngle', 67.5, { x: 30, y: 40 })).toBeCloseTo(53.75)
+  })
+
+  it("radial 'inside' morphs toward the centre and leaves the outside alone", () => {
+    const m = linearMorph([origin('a', 200, 100, 30, 'negative')], { mode: 'radial' })
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 150)).toBeCloseTo(48.75)
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 100)).toBe(30)
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 250)).toBe(67.5)
   })
 })

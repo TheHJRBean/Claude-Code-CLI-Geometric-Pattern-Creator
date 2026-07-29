@@ -1,13 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import type { MorphBoundary, MorphConfig, PatternConfig } from '../types/pattern'
+import type { MorphConfig, MorphOrigin, PatternConfig } from '../types/pattern'
 import { DEFAULT_CONFIG } from '../state/defaults'
 import { createDefaultEditorConfig } from './createDefault'
 import {
-  buildMorphBoundary,
+  buildMorphOrigin,
   clipInfiniteLineToBounds,
   createDefaultMorph,
-  defaultMorphBoundaryPosition,
-  insertMorphBoundary,
+  defaultMorphOriginPosition,
+  insertMorphOrigin,
+  morphSideLabels,
   visibleMorphBand,
 } from './morph'
 import { morphFieldValue } from '../pic/morph'
@@ -18,104 +19,121 @@ const editorConfig = (): PatternConfig => ({
   editor: createDefaultEditorConfig(),
 })
 
-const linearMorph = (boundaries: MorphBoundary[], overrides?: Partial<MorphConfig>): MorphConfig => ({
+const linearMorph = (origins: MorphOrigin[], overrides?: Partial<MorphConfig>): MorphConfig => ({
   enabled: true,
   mode: 'linear',
-  origin: { x: 0, y: 0 },
+  axisOrigin: { x: 0, y: 0 },
   direction: { x: 1, y: 0 },
   easing: 'linear',
-  boundaries,
+  origins,
   ...overrides,
 })
 
+/** A bare Origin with no overlay — for the ordering/positioning suites. */
+const bare = (id: string, position: number): MorphOrigin =>
+  ({ id, position, reach: 100, sides: 'both', figures: {} })
+
 describe('createDefaultMorph', () => {
-  it('is enabled, Linear, at the origin, with no Boundaries', () => {
+  it('is enabled, Linear, at the axis origin, with no Origins', () => {
     const m = createDefaultMorph()
     expect(m.enabled).toBe(true)
     expect(m.mode).toBe('linear')
-    expect(m.origin).toEqual({ x: 0, y: 0 })
+    expect(m.axisOrigin).toEqual({ x: 0, y: 0 })
     expect(m.direction).toEqual({ x: 1, y: 0 })
-    expect(m.boundaries).toEqual([])
+    expect(m.origins).toEqual([])
   })
 })
 
-describe('buildMorphBoundary', () => {
+describe('morphSideLabels', () => {
+  it('labels the stored union per mode', () => {
+    expect(morphSideLabels('linear')).toEqual({ both: 'Both', negative: 'Left', positive: 'Right' })
+    expect(morphSideLabels('radial')).toEqual({ both: 'Both', negative: 'Inside', positive: 'Outside' })
+  })
+})
+
+describe('buildMorphOrigin', () => {
   it('with no active morph, reproduces the start recipe (fallback to config.figures keys)', () => {
     const config = DEFAULT_CONFIG // no editor — exercises the Object.keys(figures) fallback
-    const b = buildMorphBoundary(config, 200)
+    const b = buildMorphOrigin(config, 200)
     expect(b.figures['4'].contactAngle).toBe(config.figures['4'].contactAngle)
     expect(b.position).toBe(200)
   })
 
   it('walks the Patch tile types when an editor Patch is present', () => {
     const config = editorConfig()
-    const b = buildMorphBoundary(config, 150)
+    const b = buildMorphOrigin(config, 150)
     expect(Object.keys(b.figures)).toEqual(['4'])
     expect(b.figures['4'].contactAngle).toBe(config.figures['4'].contactAngle)
   })
 
   it('does not write vertexContactAngle when vertex lines are not decoupled', () => {
     const config = editorConfig()
-    const b = buildMorphBoundary(config, 150)
+    const b = buildMorphOrigin(config, 150)
     expect(b.figures['4'].vertexContactAngle).toBeUndefined()
   })
 
   it('writes vertexContactAngle when vertex lines are decoupled', () => {
     const config = editorConfig()
     config.figures['4'] = { ...config.figures['4'], vertexLinesDecoupled: true, vertexContactAngle: 30 }
-    const b = buildMorphBoundary(config, 150)
+    const b = buildMorphOrigin(config, 150)
     expect(b.figures['4'].vertexContactAngle).toBe(30)
   })
 
-  it('pre-fills from the CURRENT field value at that position, so inserting is a visual no-op', () => {
+  it('defaults to a both-sided ramp reaching 4 edge-lengths', () => {
     const config = editorConfig()
-    const existing = [
-      { id: 'a', position: 0, figures: { '4': { contactAngle: 20 } } },
-      { id: 'b', position: 400, figures: { '4': { contactAngle: 80 } } },
-    ]
-    config.morph = linearMorph(existing)
+    const o = buildMorphOrigin(config, 150)
+    expect(o.sides).toBe('both')
+    expect(o.reach).toBe(4 * config.editor!.edgeLength)
+  })
+
+  it('with NO existing morph, the fresh Origin is flat at the base recipe', () => {
+    const config = editorConfig()
     const startAngle = config.figures['4'].contactAngle
-
-    // Sample the field at a handful of positions BEFORE inserting a new stop.
-    const samples = [-50, 0, 100, 200, 300, 400, 500]
-    const before = samples.map(d => morphFieldValue(config.morph!, '4', 'contactAngle', startAngle, d))
-
-    const fresh = buildMorphBoundary(config, 200)
-    const afterBoundaries = insertMorphBoundary(config.morph!.boundaries, fresh)
-    const afterMorph = linearMorph(afterBoundaries)
-    const after = samples.map(d => morphFieldValue(afterMorph, '4', 'contactAngle', startAngle, d))
-
-    expect(after).toEqual(before)
-    // And the inserted stop landed exactly where the pre-insert field was.
-    expect(fresh.figures['4'].contactAngle).toBeCloseTo(50, 10) // midpoint of 20→80 at d=200 of [0,400]
+    const fresh = buildMorphOrigin(config, 200)
+    const m = linearMorph([fresh])
+    // Base everywhere: the line holds base, and the target equals it too.
+    for (const d of [-500, 0, 200, 400, 900]) {
+      expect(morphFieldValue(m, '4', 'contactAngle', startAngle, d)).toBeCloseTo(startAngle, 10)
+    }
   })
-})
 
-describe('insertMorphBoundary', () => {
-  it('keeps the array sorted ascending by position regardless of insertion order', () => {
-    const b = (id: string, position: number): MorphBoundary => ({ id, position, figures: {} })
-    let boundaries = insertMorphBoundary([], b('mid', 200))
-    boundaries = insertMorphBoundary(boundaries, b('first', 0))
-    boundaries = insertMorphBoundary(boundaries, b('last', 500))
-    expect(boundaries.map(x => x.id)).toEqual(['first', 'mid', 'last'])
-  })
-})
-
-describe('defaultMorphBoundaryPosition', () => {
-  it('spaces successive Add-Boundary positions out along the axis', () => {
+  it("pre-fills the target from the field at the ramp's FAR end", () => {
     const config = editorConfig()
-    const p0 = defaultMorphBoundaryPosition(config)
+    const startAngle = config.figures['4'].contactAngle
+    // One existing Origin at 0 reaching 400 toward 80.
+    config.morph = linearMorph([{ id: 'a', position: 0, reach: 400, sides: 'both', figures: { '4': { contactAngle: 80 } } }])
+    const reach = 4 * config.editor!.edgeLength
+    const fresh = buildMorphOrigin(config, 200)
+    // Far end sits at 200 + reach; the target matches the pre-insert field there.
+    const expected = morphFieldValue(config.morph, '4', 'contactAngle', startAngle, 200 + reach)
+    expect(fresh.figures['4'].contactAngle).toBeCloseTo(expected, 10)
+  })
+})
+
+describe('insertMorphOrigin', () => {
+  it('keeps the array sorted ascending by position regardless of insertion order', () => {
+    let origins = insertMorphOrigin([], bare('mid', 200))
+    origins = insertMorphOrigin(origins, bare('first', 0))
+    origins = insertMorphOrigin(origins, bare('last', 500))
+    expect(origins.map(x => x.id)).toEqual(['first', 'mid', 'last'])
+  })
+})
+
+describe('defaultMorphOriginPosition', () => {
+  it('spaces successive Add-Origin positions out along the axis', () => {
+    const config = editorConfig()
+    const p0 = defaultMorphOriginPosition(config)
     expect(p0).toBeGreaterThan(0)
-    config.morph = linearMorph([{ id: 'a', position: p0, figures: {} }])
-    const p1 = defaultMorphBoundaryPosition(config)
+    config.morph = linearMorph([bare('a', p0)])
+    const p1 = defaultMorphOriginPosition(config)
     expect(p1).toBeGreaterThan(p0)
   })
 
   it('keeps the spaced position when it is well inside the visible band', () => {
     const config = editorConfig()
     config.morph = linearMorph([])
-    const spaced = defaultMorphBoundaryPosition(config)
-    const p = defaultMorphBoundaryPosition(config, { min: 0, max: spaced * 4 })
+    const spaced = defaultMorphOriginPosition(config)
+    const p = defaultMorphOriginPosition(config, { min: 0, max: spaced * 4 })
     expect(p).toBe(spaced)
   })
 
@@ -123,15 +141,15 @@ describe('defaultMorphBoundaryPosition', () => {
     const config = editorConfig()
     config.morph = linearMorph([])
     const band = { min: -100, max: 100 } // spaced default (4×edgeLength) way outside
-    const p = defaultMorphBoundaryPosition(config, band)
+    const p = defaultMorphOriginPosition(config, band)
     expect(p).toBe(0) // band centre
   })
 
-  it('steps aside from a Boundary already sitting at the band centre', () => {
+  it('steps aside from an Origin already sitting at the band centre', () => {
     const config = editorConfig()
-    config.morph = linearMorph([{ id: 'a', position: 0, figures: {} }])
+    config.morph = linearMorph([bare('a', 0)])
     const band = { min: -100, max: 100 }
-    const p = defaultMorphBoundaryPosition(config, band)
+    const p = defaultMorphOriginPosition(config, band)
     expect(p).toBeGreaterThan(0)
     expect(p).toBeLessThanOrEqual(band.max)
   })
@@ -139,8 +157,8 @@ describe('defaultMorphBoundaryPosition', () => {
   it('ignores a degenerate band', () => {
     const config = editorConfig()
     config.morph = linearMorph([])
-    const spaced = defaultMorphBoundaryPosition(config)
-    expect(defaultMorphBoundaryPosition(config, { min: 5, max: 5 })).toBe(spaced)
+    const spaced = defaultMorphOriginPosition(config)
+    expect(defaultMorphOriginPosition(config, { min: 5, max: 5 })).toBe(spaced)
   })
 })
 
@@ -154,7 +172,7 @@ describe('visibleMorphBand', () => {
   })
 
   it('linear: respects a non-axis direction and a shifted origin', () => {
-    const m = linearMorph([], { origin: { x: 100, y: 0 }, direction: { x: 0, y: 1 } })
+    const m = linearMorph([], { axisOrigin: { x: 100, y: 0 }, direction: { x: 0, y: 1 } })
     const band = visibleMorphBand(m, bounds)
     expect(band.min).toBeCloseTo(-50)
     expect(band.max).toBeCloseTo(50)
@@ -168,7 +186,7 @@ describe('visibleMorphBand', () => {
   })
 
   it('radial: centre outside the rect starts at the nearest rect point', () => {
-    const m = linearMorph([], { mode: 'radial', origin: { x: -300, y: 0 } })
+    const m = linearMorph([], { mode: 'radial', axisOrigin: { x: -300, y: 0 } })
     const band = visibleMorphBand(m, bounds)
     expect(band.min).toBeCloseTo(200) // distance to the minX edge
     expect(band.max).toBeCloseTo(Math.hypot(600, 50))

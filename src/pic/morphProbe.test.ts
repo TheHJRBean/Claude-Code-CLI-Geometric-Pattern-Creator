@@ -52,31 +52,34 @@ function makeConfig(polys: Polygon[], startAngle: number, morph?: MorphConfig, e
   }
 }
 
-/** Linear morph along +x: angle `a0` at x ≤ x0, `a1` at x ≥ x1. */
-function linearMorph(polys: Polygon[], x0: number, a0: number, x1: number, a1: number): MorphConfig {
+/**
+ * Linear morph along +x: the config's BASE angle at x ≤ x0, ramping to `a1`
+ * by x1 and clamped beyond. Under the Origin model (#48) the Origin line
+ * holds the base recipe, so callers pair this with `makeConfig(polys, a0)`
+ * for the low end rather than passing `a0` here.
+ */
+function linearMorph(polys: Polygon[], x0: number, x1: number, a1: number): MorphConfig {
   return {
     enabled: true,
     mode: 'linear',
-    origin: { x: x0, y: 0 },
+    axisOrigin: { x: x0, y: 0 },
     direction: { x: 1, y: 0 },
     easing: 'linear',
-    boundaries: [
-      { id: 'b0', position: 0, figures: overlayFor(polys, { contactAngle: a0 }) },
-      { id: 'b1', position: x1 - x0, figures: overlayFor(polys, { contactAngle: a1 }) },
+    origins: [
+      { id: 'o0', position: 0, reach: x1 - x0, sides: 'positive', figures: overlayFor(polys, { contactAngle: a1 }) },
     ],
   }
 }
 
-/** Radial morph about the origin: `a0` inside r0, `a1` beyond r1. */
-function radialMorph(polys: Polygon[], r0: number, a0: number, r1: number, a1: number): MorphConfig {
+/** Radial morph about the centre: base angle inside r0, `a1` beyond r1. */
+function radialMorph(polys: Polygon[], r0: number, r1: number, a1: number): MorphConfig {
   return {
     enabled: true,
     mode: 'radial',
-    origin: { x: 0, y: 0 },
+    axisOrigin: { x: 0, y: 0 },
     easing: 'linear',
-    boundaries: [
-      { id: 'b0', position: r0, figures: overlayFor(polys, { contactAngle: a0 }) },
-      { id: 'b1', position: r1, figures: overlayFor(polys, { contactAngle: a1 }) },
+    origins: [
+      { id: 'o0', position: r0, reach: r1 - r0, sides: 'positive', figures: overlayFor(polys, { contactAngle: a1 }) },
     ],
   }
 }
@@ -226,17 +229,17 @@ const roundSeg = (s: Segment): string =>
     typeof v === 'number' ? v.toFixed(6) : v).join('|')
 
 describe('morph probe — uniform-field equivalence', () => {
-  it('empty-overlay stops reproduce the no-morph output exactly', () => {
+  it('empty-overlay Origins reproduce the no-morph output exactly', () => {
     const polys = archimedean('square')
     const morph: MorphConfig = {
       enabled: true,
       mode: 'linear',
-      origin: { x: -100, y: 0 },
+      axisOrigin: { x: -100, y: 0 },
       direction: { x: 1, y: 0 },
       easing: 'linear',
-      boundaries: [
-        { id: 'b0', position: 0, figures: {} },
-        { id: 'b1', position: 200, figures: {} },
+      origins: [
+        { id: 'o0', position: 0, reach: 200, sides: 'both', figures: {} },
+        { id: 'o1', position: 200, reach: 200, sides: 'both', figures: {} },
       ],
     }
     const plain = runPIC(polys, makeConfig(polys, 67.5))
@@ -244,9 +247,21 @@ describe('morph probe — uniform-field equivalence', () => {
     expect(morphed.map(roundSeg)).toEqual(plain.map(roundSeg))
   })
 
-  it('constant-valued stops reproduce the uniform run at that angle', () => {
+  it('a constant-valued field reproduces the uniform run at that angle', () => {
     const polys = archimedean('hexagonal')
-    const morph = linearMorph(polys, -100, 55, 100, 55)
+    // Far off to the left with zero reach: every polygon sits past the ramp,
+    // so the field is a flat 55 even though the base recipe says 40. Proves
+    // the morph path overrides the base, not merely that it agrees with it.
+    const morph: MorphConfig = {
+      enabled: true,
+      mode: 'linear',
+      axisOrigin: { x: -10000, y: 0 },
+      direction: { x: 1, y: 0 },
+      easing: 'linear',
+      origins: [
+        { id: 'o0', position: 0, reach: 0, sides: 'positive', figures: overlayFor(polys, { contactAngle: 55 }) },
+      ],
+    }
     const at55 = runPIC(polys, makeConfig(polys, 55))
     const morphed = runPIC(polys, makeConfig(polys, 40, morph))
     expect(morphed.map(roundSeg)).toEqual(at55.map(roundSeg))
@@ -266,7 +281,7 @@ describe('morph probe — regular tilings under gradients', () => {
   for (const c of cases) {
     it(`${c.tiling}: linear ${c.a0}°→${c.a1}° — invariants + shared-edge continuity`, () => {
       const polys = archimedean(c.tiling)
-      const segs = runPIC(polys, makeConfig(polys, c.a0, linearMorph(polys, -180, c.a0, 180, c.a1)))
+      const segs = runPIC(polys, makeConfig(polys, c.a0, linearMorph(polys, -180, 180, c.a1)))
       expect(segs.length).toBeGreaterThan(0)
       checkFieldInvariants(segs, polys)
       const r = checkSharedEdgeContinuity(segs, polys)
@@ -276,7 +291,7 @@ describe('morph probe — regular tilings under gradients', () => {
 
     it(`${c.tiling}: radial ${c.a0}°→${c.a1}° — invariants + shared-edge continuity`, () => {
       const polys = archimedean(c.tiling)
-      const segs = runPIC(polys, makeConfig(polys, c.a0, radialMorph(polys, 40, c.a0, 220, c.a1)))
+      const segs = runPIC(polys, makeConfig(polys, c.a0, radialMorph(polys, 40, 220, c.a1)))
       expect(segs.length).toBeGreaterThan(0)
       checkFieldInvariants(segs, polys)
       const r = checkSharedEdgeContinuity(segs, polys)
@@ -301,8 +316,8 @@ describe('morph probe — nasty cases (fragile emitStarArms / pairAtVertex branc
       it(`${c.tiling}: ${mode} ${c.a0}°→${c.a1}° — invariants + stub count vs uniform baseline`, () => {
         const polys = taprats(c.tiling)
         const morph = mode === 'linear'
-          ? linearMorph(polys, -200, c.a0, 200, c.a1)
-          : radialMorph(polys, 40, c.a0, 230, c.a1)
+          ? linearMorph(polys, -200, 200, c.a1)
+          : radialMorph(polys, 40, 230, c.a1)
         const segs = runPIC(polys, makeConfig(polys, c.a0, morph))
         expect(segs.length).toBeGreaterThan(0)
         checkFieldInvariants(segs, polys)
@@ -337,25 +352,30 @@ describe('morph probe — vertex lines through the field', () => {
       vertexContactAngle: 50,
       vertexAutoLineLength: true,
     }
+    // Base vertex angle 50 (from `extra`) ramping to 80 across the field.
     const morph: MorphConfig = {
       enabled: true,
       mode: 'linear',
-      origin: { x: -180, y: 0 },
+      axisOrigin: { x: -180, y: 0 },
       direction: { x: 1, y: 0 },
       easing: 'linear',
-      boundaries: [
-        { id: 'b0', position: 0, figures: overlayFor(polys, { vertexContactAngle: 50 }) },
-        { id: 'b1', position: 360, figures: overlayFor(polys, { vertexContactAngle: 80 }) },
+      origins: [
+        { id: 'o0', position: 0, reach: 360, sides: 'positive', figures: overlayFor(polys, { vertexContactAngle: 80 }) },
       ],
     }
     const segs = runPIC(polys, makeConfig(polys, 67.5, morph, extra))
     expect(segs.some(s => s.kind === 'vertex-line')).toBe(true)
     checkFieldInvariants(segs, polys)
 
-    // Constant vertex overlay ≡ uniform decoupled run at that angle.
+    // Constant vertex field ≡ uniform decoupled run at that angle. Zero reach
+    // far to the left puts every polygon past the ramp, so the field is a flat
+    // 55 despite the base recipe's 50 — the morph path drives the result.
     const constMorph: MorphConfig = {
       ...morph,
-      boundaries: morph.boundaries.map(b => ({ ...b, figures: overlayFor(polys, { vertexContactAngle: 55 }) })),
+      axisOrigin: { x: -10000, y: 0 },
+      origins: [
+        { id: 'o0', position: 0, reach: 0, sides: 'positive', figures: overlayFor(polys, { vertexContactAngle: 55 }) },
+      ],
     }
     const uniform = runPIC(polys, makeConfig(polys, 67.5, undefined, { ...extra, vertexContactAngle: 55 }))
     const morphed = runPIC(polys, makeConfig(polys, 67.5, constMorph, extra))
@@ -365,7 +385,7 @@ describe('morph probe — vertex lines through the field', () => {
   it('coupled vertex lines ride the contactAngle field: invariants hold', () => {
     const polys = archimedean('square')
     const extra: Partial<FigureConfig> = { vertexLinesEnabled: true }
-    const segs = runPIC(polys, makeConfig(polys, 45, linearMorph(polys, -180, 45, 180, 75), extra))
+    const segs = runPIC(polys, makeConfig(polys, 45, linearMorph(polys, -180, 180, 75), extra))
     expect(segs.some(s => s.kind === 'vertex-line')).toBe(true)
     checkFieldInvariants(segs, polys)
   })

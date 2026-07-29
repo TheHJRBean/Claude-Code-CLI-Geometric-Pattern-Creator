@@ -20,7 +20,20 @@ base        ╰────◉────╯             base  ─────�
         P-r     P     P+r                         P     P+r
 ```
 
-The blend is therefore continuous at the Origin in every case, and **Reach is literally "the distance over which the morph takes place"**. Where several Origins could apply, the **nearest Origin whose active side faces the point wins** — a hard handover at the midpoint, no blending between Origins and no compounding (user decision 2026-07-29). Where no Origin's active side faces a point, the base recipe applies unchanged.
+The blend is therefore continuous at the Origin in every case, and **Reach is literally "the distance over which the morph takes place"**.
+
+Where several Origins could apply, the one whose **ramp is least advanced** at that point wins — smallest `|d − position| / reach`, among Origins whose active side faces the point. There is no blending between Origins and no compounding: one Origin governs each point outright (user decision 2026-07-29). Where no Origin's active side faces a point, the base recipe applies unchanged.
+
+### Auto-fit and territory (#49)
+
+Comparing the *ramp parameter* rather than raw distance is what makes reach **claim territory**: two Origins hand over where their ramps meet, at `gap · rA / (rA + rB)` from A, so an Origin with 3× its neighbour's reach governs 3× as much of the gap. Equal reaches collapse this to the midpoint.
+
+`MorphOrigin.autoReach` (on by default for newly added Origins) resolves each side's reach live as **half the gap to the adjacent Origin on that side**, so neighbouring ramps meet exactly midway with no clamped plateau between them and no overlap — and the handover lands on the midpoint. It falls back to the stored `reach` on a side with no neighbour, and re-fits automatically as Origins are dragged. Switching it off freezes the resolved value into `reach` so the render doesn't jump.
+
+Two consequences worth stating plainly:
+
+- **Meeting halfway is smooth when adjacent targets are similar** (`base → T → base` is continuous). Two adjacent Origins with very different targets still step at the handover — that is inherent to one-Origin-governs-each-point, not something auto-fit can remove.
+- **Freezing an asymmetric auto Origin loses a side.** When the two neighbours sit at different distances the Origin resolves to two different reaches, and one stored number cannot preserve both; the reducer keeps the **tighter** of the two (the side actually fitted to a neighbour, and the one that can never overshoot into a neighbour's territory).
 
 This replaces the implicit-stop-at-0 machinery entirely: base is now simply the value everywhere no Origin reaches, so the ordinary sliders stay live without a special case. *History:* #37 first shipped CSS-gradient semantics with no implicit stop, which made one Boundary apply uniformly and left the base sliders inert; 2026-07-18 added an implicit stop at position 0 carrying the start recipe; #48 generalised that into a per-Origin ramp with an explicit Reach and Sides.
 
@@ -54,6 +67,7 @@ interface MorphOrigin {
   id: string
   position: number                        // world-space distance from axisOrigin
   reach: number                           // distance the blend runs over; 0 = hard step
+  autoReach?: boolean                     // #49 — fit to half the gap to each neighbour
   sides: MorphSides                       // which side(s) the blend extends into
   // Partial overlay per tileTypeId — the TARGET, reached at `reach`.
   // v1 reads contactAngle/vertexContactAngle.
@@ -64,9 +78,10 @@ interface MorphOrigin {
 Field evaluation at a world point `p`:
 
 - Linear: `d = dot(p − axisOrigin, direction)`; Radial: `d = |p − axisOrigin|`.
-- Pick the **nearest Origin whose active side faces `d`** (`s = d − position`; `both` always, `negative` iff `s ≤ 0`, `positive` iff `s ≥ 0`). Restricting the contest to active sides matters — an Origin that only morphs to its left must not shadow a further Origin that really does morph the point on its right.
+- Resolve each candidate's reach via `originReach` (honours `autoReach`).
+- Pick the Origin with the smallest `u = |s| / reach` **among those whose active side faces `d`** (`s = d − position`; `both` always, `negative` iff `s ≤ 0`, `positive` iff `s ≥ 0`). Restricting the contest to active sides matters — an Origin that only morphs to its left must not shadow a further Origin that really does morph the point on its right.
 - None ⇒ the base recipe, unchanged.
-- Otherwise `u = min(|s| / reach, 1)` and the value is `base·(1−u) + target·u`. A `reach` of 0 is a hard step: base exactly on the line, target either side of it.
+- Otherwise clamp `u` to 1 and the value is `base·(1−u) + target·u`. A `reach` of 0 is a hard step: base exactly on the line, target either side of it. A zero-reach Origin is fully advanced the instant you leave its line, so it claims no territory against a neighbour that has any reach — but a lone one still governs.
 
 **Legacy saves.** `readMorphConfig` accepts both the current `{ axisOrigin, origins }` and the pre-#48 `{ origin, boundaries }`. A legacy boundary `i` at `P_i` whose predecessor sat at `P_{i−1}` (`P_0 = 0`, the old implicit stop) becomes an Origin at `position = P_{i−1}` reaching `|P_i − P_{i−1}|` toward it. **Exact for a single boundary** — by far the common case; **approximate for chains of 2+**, since each converted Origin restarts from base where the old chain accumulated stop to stop. Deliberate: blending between Origins was explicitly ruled out, so an exact chain conversion isn't expressible.
 
@@ -88,7 +103,7 @@ Consequences inside PIC:
 Composition-Phase sidebar gains a **Morph section**:
 
 - Enable toggle + mode picker (Linear / Radial).
-- **Add Origin** button; a list of Origins, each expandable to **Position**, **Reach**, a **Sides** toggle (Both / Left / Right in Linear, Both / Inside / Outside in Radial) and per-Tile-type "*angle at reach*" sliders. A new Origin is pre-filled from the field's current effective value **at the far end of its ramp**, so adding one changes nothing until edited — with no other Origins that is simply the base recipe, a flat and invisible addition.
+- **Add Origin** button; a list of Origins, each expandable to **Position**, **Reach** (with a per-Origin **Auto — meet neighbours halfway** toggle that disables the slider while on), a **Sides** toggle (Both / Left / Right in Linear, Both / Inside / Outside in Radial) and per-Tile-type "*angle at reach*" sliders. The reach readout shows both sides when auto-fit resolves them differently (`400 / 300`). A new Origin is pre-filled from the field's current effective value **at the far end of its ramp**, so adding one changes nothing until edited — with no other Origins that is simply the base recipe, a flat and invisible addition.
 - On canvas: the axis point/centre and direction arrow are draggable handles; each Origin renders as a faint draggable line (Linear) / ring (Radial), plus a **dashed reach extent** at `position ± reach` on each active side marking where the target is fully reached. The extent is a read-only annotation — `reach` is edited on the sliders, so the line stays a pure position handle.
 - Selecting an Origin on canvas summons a **transient bar docked at the bottom of the screen** carrying Position, Reach and Sides — present only while an Origin is selected.
 - Morph edits are Composition-phase actions: **not** in the Design undo allowlist (`DESIGN_MODE_ACTIONS`), same footing as figure/strand tuning.

@@ -71,11 +71,11 @@ A spatial interpolation of **Figure recipe** parameters across the canvas, autho
 _Avoid_: gradient (collides with future colour gradients), transition, blend (casual ok — canonical noun is Morph)
 
 **Morph Origin** _(replaced "Morph Boundary" 2026-07-29, #48)_:
-One anchor of a **Morph** — rendered on canvas as a draggable line (Linear) or ring (Radial). The Origin's own line/ring holds the **live base recipe**; its per-Tile-type values are the **target**, reached at its **Reach** and clamped beyond. Where several Origins could apply, the nearest one whose active side faces the point wins. Selecting one summons a transient bar carrying Position, Reach and Sides.
+One anchor of a **Morph** — rendered on canvas as a draggable line (Linear) or ring (Radial). The Origin's own line/ring holds the **live base recipe**; its per-Tile-type values are the **target**, reached at its **Reach** and clamped beyond. Where several Origins could apply, the one whose ramp is least advanced governs — so a larger **Reach** claims more of the gap to its neighbour. Selecting one summons a transient bar carrying Position, Reach and Sides.
 _Avoid_: Morph Boundary (retired — "Boundary" now means only a Cell's perimeter), stop, keyframe, waypoint
 
 **Reach** _(Morph)_:
-How far from a **Morph Origin** its blend runs — the distance over which the morph takes place. The target values are reached at `position ± reach` and hold beyond it; a Reach of 0 is a hard step at the line. Drawn on canvas as a dashed extent on each active side.
+How far from a **Morph Origin** its blend runs — the distance over which the morph takes place. The target values are reached at `position ± reach` and hold beyond it; a Reach of 0 is a hard step at the line. Drawn on canvas as a dashed extent on each active side. Reach also decides how much of the gap to a neighbouring Origin this one governs. **Auto** (per Origin, on by default) fits it live to half the gap to the neighbour on each side, so adjacent ramps meet exactly midway; switching Auto off freezes the fitted value and lets one Origin dominate.
 
 **Sides** _(Morph)_:
 Which side(s) of a **Morph Origin** its blend extends into — **Both** / **Left** / **Right** in Linear mode, **Both** / **Inside** / **Outside** in Radial. The un-reached side stays at the base recipe.

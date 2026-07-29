@@ -730,12 +730,18 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       if (autoReach) {
         origins[idx] = { ...o, autoReach: true }
       } else {
-        // Freeze what's on screen: adopt the resolved reach as the stored one
-        // so taking manual control never moves the pattern. Sides that differ
-        // per side collapse to the one the Origin actually blends into
-        // (`both` keeps the positive side, which is what the row displays).
-        const side = o.sides === 'negative' ? -1 : 1
-        origins[idx] = { ...o, autoReach: false, reach: originReach(state.morph.origins, idx, side) }
+        // Freeze what's on screen: adopt the resolved reach as the stored one,
+        // so taking manual control doesn't move the pattern. A `both`-sided
+        // Origin whose neighbours sit at different distances resolves to two
+        // different reaches, and one stored number cannot preserve both — take
+        // the TIGHTER of the two, which is the side that was actually fitted
+        // to a neighbour (the loose side is usually the stored fallback where
+        // there is no neighbour at all) and which can never overshoot into a
+        // neighbour's territory.
+        const neg = originReach(state.morph.origins, idx, -1)
+        const pos = originReach(state.morph.origins, idx, 1)
+        const frozen = o.sides === 'negative' ? neg : o.sides === 'positive' ? pos : Math.min(neg, pos)
+        origins[idx] = { ...o, autoReach: false, reach: frozen }
       }
       return { ...state, morph: { ...state.morph, origins } }
     }

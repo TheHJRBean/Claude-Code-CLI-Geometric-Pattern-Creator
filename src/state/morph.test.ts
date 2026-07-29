@@ -142,6 +142,32 @@ describe('Morph — reducer actions (slice 2, #38)', () => {
     expect(originReach(s.morph!.origins, 0, 1)).toBe(resolved)
   })
 
+  it('freezing an asymmetric auto Origin collapses to the TIGHTER side', () => {
+    let s = base()
+    s = reducer(s, { type: 'SET_MORPH_ENABLED', payload: true })
+    s = reducer(s, { type: 'ADD_MORPH_ORIGIN', payload: { position: 0 } })
+    s = reducer(s, { type: 'ADD_MORPH_ORIGIN', payload: { position: 400 } })
+    // Origin 2 (index 1): negative side meets Origin 1 at 200; positive side
+    // has no neighbour, so it falls back to its larger stored reach.
+    const outer = s.morph!.origins[1]
+    expect(originReach(s.morph!.origins, 1, -1)).toBe(200)
+    expect(originReach(s.morph!.origins, 1, 1)).toBeGreaterThan(200)
+    s = reducer(s, { type: 'SET_MORPH_ORIGIN_AUTO_REACH', payload: { originId: outer.id, autoReach: false } })
+    expect(s.morph!.origins[1].reach).toBe(200)
+  })
+
+  it('freezing a one-sided Origin keeps that side, not the tighter one', () => {
+    let s = base()
+    s = reducer(s, { type: 'SET_MORPH_ENABLED', payload: true })
+    s = reducer(s, { type: 'ADD_MORPH_ORIGIN', payload: { position: 0 } })
+    s = reducer(s, { type: 'ADD_MORPH_ORIGIN', payload: { position: 400 } })
+    const outer = s.morph!.origins[1]
+    const loose = originReach(s.morph!.origins, 1, 1)
+    s = reducer(s, { type: 'SET_MORPH_ORIGIN_SIDES', payload: { originId: outer.id, sides: 'positive' } })
+    s = reducer(s, { type: 'SET_MORPH_ORIGIN_AUTO_REACH', payload: { originId: outer.id, autoReach: false } })
+    expect(s.morph!.origins[1].reach).toBe(loose)
+  })
+
   it('SET_MORPH_ORIGIN_AUTO_REACH back on re-couples to the neighbour', () => {
     let s = base()
     s = reducer(s, { type: 'SET_MORPH_ENABLED', payload: true })

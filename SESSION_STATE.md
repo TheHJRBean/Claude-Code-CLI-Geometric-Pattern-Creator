@@ -4,10 +4,37 @@
 
 ## ▶ RESUME HERE
 
-**Session ended at a clean milestone (2026-07-29).** Morph **Boundaries → Origins** with per-Origin **Reach** + **Sides** shipped and browser-verified (#48). Before that, two gradient stop-bar buttons (`30b602f`, `a871876`). Nothing mid-flight, no handoff.
+**Session ended at a clean milestone (2026-07-29).** Morph **Boundaries → Origins** with per-Origin **Reach** + **Sides** (#48), then **auto-fit reach + reach-claims-territory** (#49) — both shipped and browser-verified. Before that, two gradient stop-bar buttons (`30b602f`, `a871876`). Nothing mid-flight, no handoff.
 
 **NEXT — pick one:**
 0. **Issue hygiene (~10 min, Haiku).** Several shipped+verified epics are still OPEN on GitHub: #44 / #45 / #46 (gradients), #42 (line sets), #28 (Guides slice 3). Close them with a pointer to the verifying commit.
+
+---
+### ▶ 2026-07-29 (Morph: auto-fit Reach + reach claims territory — ✅ SHIPPED + BROWSER-VERIFIED, Opus, #49)
+
+**User:** *"when new origins are added the boundary of adjacent origins meet its own boundary half way so that transitions are smooth. This can be turned off so that one can dominate."*
+
+**Two locked decisions (AskUserQuestion):** (1) "dominate" = **claim territory** — a bigger Reach pushes the handover toward the neighbour (this *supersedes* #48's raw-distance nearest-wins). (2) The Auto toggle is **per Origin**.
+
+**The implementation trick:** compare the **ramp parameter** `|d − position| / reach` instead of raw distance. Two Origins then hand over at `gap · rA/(rA+rB)` — 3× reach ⇒ 3× the gap — and **equal reaches collapse to exactly the old midpoint**, so it's a strict generalisation and every pre-existing equal-reach test passed untouched.
+
+**Commits:** `54cddb8` (feature + tests), plus the freeze fix and docs below.
+
+- `MorphOrigin.autoReach?` is a **live constraint, not a stored number** — one `reach` can't express "meet both neighbours halfway" when they sit at different distances, so `originReach(origins, i, side)` resolves it per side from the sorted neighbours (allocation-free; it runs per edge midpoint in `runPIC`). Re-fits automatically as Origins are dragged.
+- Additive: absent ⇒ manual, so pre-#49 saves render identically. New Origins get `autoReach: true`.
+- Auto OFF **freezes** the resolved reach into `reach` so the render doesn't jump.
+- A zero-reach Origin claims no territory against a neighbour with reach, but a lone one still governs (the #48 hard step keeps working).
+- UI: Auto toggle + disabled-when-auto slider in MorphPanel and the bottom bar; readout shows both sides when they differ (`400 / 300`); canvas extents drawn from the resolved reach so you watch them meet.
+
+**Tests: 1279 green** (was 1257), tsc + build clean.
+
+**✅ BROWSER-VERIFIED 2026-07-29** — 11/11, 0 page errors (`/tmp/ga-verify/auto.mjs`, dev :5173). Two auto Origins at ±200: the **inner dashed extents coincide exactly at 0** (single line on canvas — screenshot `A1_auto_meet`); dragging one to +400 re-fits both live and they coincide at 100 (`A2_auto_refit`); row labels read `±400 / 300` and `±300 / 400`; Auto OFF leaves the render byte-identical and adopts 300; a manual reach of 2400 visibly claims territory (`A3_dominate`).
+
+**⚠️ TWO HONEST LIMITS (documented in the spec, not defects):**
+1. **"Meet halfway" is only smooth when adjacent targets are similar.** `base → T → base` is continuous; two adjacent Origins with very different targets still *step* at the handover, because one Origin governs each point outright (blending was ruled out in #48). Auto-fit tidies the ramps; it cannot remove that step.
+2. **Freezing an asymmetric auto Origin loses a side** — two resolved reaches, one stored number. The reducer keeps the **tighter** one (the side actually fitted to a neighbour, and the one that can't overshoot). Found during browser-verify: the first cut kept the positive side arbitrarily, which jumped.
+
+**Verify-script gotchas (new):** Origin rows **re-sort by position**, so clicking "Origin 2" can toggle the already-open row *shut* — make `expand()` retry until the row's sliders exist. Locate the Position/Reach sliders by their **min/max signature** (`-6000..6000` / `0..6000`), never a fixed index. And keep both Origins **inside the visible field** (|x| < ~360): `clipInfiniteLineToBounds` drops off-screen extents, so an Origin parked at 1000 silently contributes no dashed lines and the extent assertions look broken.
 
 ---
 ### ▶ 2026-07-29 (Morph: Boundaries become Origins — Reach + Sides — ✅ SHIPPED + BROWSER-VERIFIED, Opus, #48)

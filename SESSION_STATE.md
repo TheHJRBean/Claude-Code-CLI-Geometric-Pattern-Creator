@@ -4,6 +4,15 @@
 
 ## ▶ RESUME HERE
 
+**Session ended at a clean milestone (2026-07-29).** Two gradient stop-bar buttons shipped, browser-verified, pushed (`30b602f`, `a871876`). Nothing mid-flight, no handoff.
+
+**NEXT — pick one:**
+1. **⏳ Awaiting user verdict on `⇄ Reverse`.** The user asked for a "switch direction" button described as `position × -1` (`100 → -100`, `-50 → 50`). That is the SAME operation as the shipped `⇄ Reverse` — their example frames the bar as −100…+100 (centre 0) where ×-1 mirrors about the centre; the real bar is 0…100% (centre 50%) where the same mirror is `100 − x` = `1 − offset`. They hadn't seen the button yet ("sorry I didn't see that") and were going to try it. **If they come back saying it's still not right, the one genuinely different behaviour left is making the on-canvas axis handles physically SWAP ENDS** — today Reverse deliberately leaves those two draggable squares put and only flips the colours between them (see the design-call note in the `⇄ Reverse` entry). Don't build a second stop-mirroring button; it would be a duplicate.
+2. **Pre-existing test flake worth 5 min:** `src/appSmoke.test.ts` "fresh profile → Lab default" times out at 5000 ms under the *full* parallel suite but passes alone in ~2 s. Confirmed identical on a clean stashed tree, so it predates this session. Fix = bump `testTimeout` on that file.
+3. **Otherwise the roadmap is open** — a `/what-next` table was generated this session. Highest-value non-feature items were the two silent-data-loss load-path bugs: `PatternConfig` is unversioned + its validation allow-list silently strips unknown fields (morph/stamps/generator scores), and `configValidation.ts:50` force-flattens ALL figures to `'star'` on load (collides with the rosette epic).
+
+**Env:** dev server was left running on **:5174** (5173 was occupied). Browser-verify libs staged in `/tmp/ga-verify/libs` (ephemeral — recipe in the `headless-browser-no-sudo` memory; note the binary is `chrome-linux64/chrome`, with the `64`).
+
 ---
 ### ▶ 2026-07-29 (Gradient stop bar — `⇄ Reverse` direction switch — ✅ SHIPPED + BROWSER-VERIFIED, Opus)
 

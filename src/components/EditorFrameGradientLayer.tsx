@@ -29,8 +29,11 @@ interface Props {
   zoom: number
   /** Handle/axis colour. Defaults to the frame-gradient purple. */
   colour?: string
-  /** Handle drags (screen px; parent converts + dispatches). */
-  onDragLinear?: (which: 'start' | 'end', screen: Vec2) => void
+  /** Handle drags (screen px; parent converts + dispatches). `snap` is the
+   *  Shift state at the drag sample — the parent constrains the axis to fixed
+   *  angle detents while it's held (the snap needs the other endpoint, which
+   *  only the parent has in world coords). */
+  onDragLinear?: (which: 'start' | 'end', screen: Vec2, snap: boolean) => void
   onDragRadialCentre?: (screen: Vec2) => void
   onDragRadialRadius?: (screen: Vec2) => void
 }
@@ -52,7 +55,7 @@ export const EditorFrameGradientLayer = memo(function EditorFrameGradientLayer({
     return { x: e.clientX - (rect?.left ?? 0), y: e.clientY - (rect?.top ?? 0) }
   }
 
-  const dragHandle = (key: string, p: Vec2, onDrag: ((screen: Vec2) => void) | undefined) =>
+  const dragHandle = (key: string, p: Vec2, onDrag: ((screen: Vec2, snap: boolean) => void) | undefined) =>
     interactive
       ? (
         <rect
@@ -69,7 +72,7 @@ export const EditorFrameGradientLayer = memo(function EditorFrameGradientLayer({
           onPointerMove={e => {
             if (!(e.target as Element).hasPointerCapture?.(e.pointerId)) return
             e.stopPropagation()
-            onDrag?.(screenPos(e))
+            onDrag?.(screenPos(e), e.shiftKey)
           }}
           onPointerUp={e => (e.target as Element).releasePointerCapture?.(e.pointerId)}
         />
@@ -85,8 +88,8 @@ export const EditorFrameGradientLayer = memo(function EditorFrameGradientLayer({
             stroke={colour} strokeWidth={1.6} strokeOpacity={0.85}
             strokeDasharray="6 4" vectorEffect="non-scaling-stroke" pointerEvents="none"
           />
-          {dragHandle('start', gradient.start, s => onDragLinear?.('start', s))}
-          {dragHandle('end', gradient.end, s => onDragLinear?.('end', s))}
+          {dragHandle('start', gradient.start, (s, snap) => onDragLinear?.('start', s, snap))}
+          {dragHandle('end', gradient.end, (s, snap) => onDragLinear?.('end', s, snap))}
         </>
       ) : (
         <>

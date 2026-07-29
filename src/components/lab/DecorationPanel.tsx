@@ -3,7 +3,7 @@ import type { PatternConfig, StrandLineStyle } from '../../types/pattern'
 import type { Action } from '../../state/actions'
 import type { PaintTarget, StrandPaintScope, VoidPaintScope } from '../../rendering/DecorationPaintLayer'
 import type { PaintVoid } from '../../decoration/resolve'
-import { axisAngleDeg, bboxAxisAtAngle, pointsBBox, seedFrameGradientSpec, seedGradientSpec, type GradientDraft, type GradientSelection, type WorldBBox } from '../../decoration/gradients'
+import { axisAngleDeg, bboxAxisAtAngle, gradientCanonicalBox, pointsBBox, rotateAxisTo, seedFrameGradientSpec, seedGradientSpec, DEFAULT_GRADIENT_ANGLE_DEG, type GradientDraft, type GradientSelection, type WorldBBox } from '../../decoration/gradients'
 import type { Vec2 } from '../../utils/math'
 import { frameOutlinePolygon } from '../../editor/frame'
 import { compositionToPolygons } from '../../editor/compositionLattice'
@@ -14,6 +14,7 @@ import { ColourPicker, pushRecentColour } from '../ColourPicker'
 import { FieldLabel, segmentedButtonStyle } from './labShared'
 import { StampFocusEditor } from './StampFocusEditor'
 import { GradientFocusEditor } from './GradientFocusEditor'
+import { GradientAngleRow } from './GradientAngleRow'
 import { GradientStopBar } from './GradientStopBar'
 
 const decorationButtonStyle: React.CSSProperties = {
@@ -373,7 +374,7 @@ function GradientSection({ editor, dispatch, draft, onSetDraft, selection, onCle
     if (selection && selRec?.gradient && outline) {
       const spec = next.type === selRec.gradient.type
         ? { ...selRec.gradient, stops: next.stops }
-        : seedGradientSpec(next.type, next.stops, outline)
+        : seedGradientSpec(next.type, next.stops, outline, next.angleDeg)
       if (spec) {
         dispatch({
           type: 'SET_DECORATION_VOID_GRADIENT',
@@ -382,6 +383,45 @@ function GradientSection({ editor, dispatch, draft, onSetDraft, selection, onCle
       }
     }
   }
+
+  // Angle of the *painted* gradient when one is selected (it may have been
+  // reshaped in the focus editor), else the draft's — the number the next
+  // canvas click will seed at.
+  const selLinear = selRec?.gradient?.type === 'linear' ? selRec.gradient : null
+  const currentAngle = selLinear
+    ? axisAngleDeg(selLinear.start, selLinear.end)
+    : draft.angleDeg ?? DEFAULT_GRADIENT_ANGLE_DEG
+
+  const paintSelected = (gradient: GradientSpec) => {
+    if (!selection) return
+    dispatch({
+      type: 'SET_DECORATION_VOID_GRADIENT',
+      payload: { scope: selection.scope, key: selection.key, colour: gradient.stops[0].colour, gradient },
+    })
+  }
+
+  // Rotate in place: the draft carries the angle forward to the next paint, and
+  // a selected group's axis re-aims live without losing the extent it was given
+  // in the focus editor.
+  const setAngle = (deg: number) => {
+    onSetDraft({ ...draft, angleDeg: deg })
+    if (selLinear) paintSelected({ ...selLinear, ...rotateAxisTo(selLinear.start, selLinear.end, deg) })
+  }
+
+  // Fit needs a real shape to span, so it only appears with a group selected.
+  const fitAngle = outline && selLinear
+    ? () => {
+      const box = gradientCanonicalBox(outline)
+      if (!box) return
+      paintSelected({
+        ...selLinear,
+        ...bboxAxisAtAngle(
+          { minX: box.x, minY: box.y, maxX: box.x + box.width, maxY: box.y + box.height },
+          currentAngle,
+        ),
+      })
+    }
+    : undefined
 
   const stops = draft.stops
   const stopColour = selectedStop >= 0 && selectedStop < stops.length ? stops[selectedStop].colour : stops[0].colour
@@ -444,6 +484,15 @@ function GradientSection({ editor, dispatch, draft, onSetDraft, selection, onCle
         onSelect={setSelectedStop}
         onChange={s => updateDraft({ ...draft, stops: s })}
       />
+      {draft.type === 'linear' && (
+        <GradientAngleRow
+          angleDeg={currentAngle}
+          onAngle={setAngle}
+          onFit={fitAngle}
+          fitLabel="Fit to shape"
+          tooltip="Direction the gradient runs inside each Void. Pick a compass preset, drag the slider, or type an exact angle (fractions allowed). Measured in the shape's own frame — that's what keeps every congruent Void in the group matching, so it won't read as the same angle on screen for a rotated copy. With a group selected the axis re-aims live, keeping the length it was given in Focus mode; Fit to shape stretches it back across the whole shape."
+        />
+      )}
       <ColourPicker
         value={stopColour}
         onChange={c => updateDraft({
@@ -516,58 +565,34 @@ function GradientSection({ editor, dispatch, draft, onSetDraft, selection, onCle
  * type/stops (geometry rides through untouched on a same-type edit; a type flip
  * reseeds it). One gradient per composition — no scope ladder, no canvas paint.
  */
-/** Precise-angle control for a LINEAR gradient — shared by the frame + strand
- * washes. Horizontal / Vertical / diagonal presets plus a numeric degrees field;
- * each sets the axis to span the world bbox at that angle (`bboxAxisAtAngle`), a
- * full-frame wash in the chosen direction, complementing the free on-canvas drag
- * handles. Screen convention: 0° → right, 90° → down. Radial specs render
- * nothing (no axis angle). */
-function GradientAngleRow({ spec, getBox, onAxis }: {
+/**
+ * A world-space linear gradient's angle row (frame + strand washes). Typing /
+ * picking / dragging an angle **rotates the axis in place** (midpoint + length
+ * kept), so a hand-dragged extent survives; **Fit** re-spans it across the
+ * world bbox at the current angle for a full-frame wash. Radial specs have no
+ * axis angle and render nothing.
+ */
+function WorldGradientAngleRow({ spec, getBox, onAxis }: {
   spec: GradientSpec
   getBox: () => WorldBBox | null
   onAxis: (start: Vec2, end: Vec2) => void
 }) {
   if (spec.type !== 'linear') return null
   const current = axisAngleDeg(spec.start, spec.end)
-  const apply = (deg: number) => {
-    if (!isFinite(deg)) return
-    const box = getBox()
-    if (!box) return
-    const { start, end } = bboxAxisAtAngle(box, ((Math.round(deg) % 360) + 360) % 360)
-    onAxis(start, end)
-  }
-  const presets: [string, number][] = [['Horizontal', 0], ['Vertical', 90], ['↘', 45], ['↗', 315]]
   return (
-    <div style={{ marginTop: 8 }}>
-      <FieldLabel label="Angle" tooltip="Set the wash direction precisely. Use the Horizontal / Vertical / diagonal presets, or type an exact angle in degrees (0° points right, 90° points down). The axis spans the whole frame at that angle; the on-canvas handles still allow free placement." />
-      <div style={{ display: 'flex', gap: 0, marginBottom: 6 }}>
-        {presets.map(([label, deg]) => (
-          <button
-            key={deg}
-            onClick={() => apply(deg)}
-            style={segmentedButtonStyle(current === deg, { transition: false })}
-            title={`${label} (${deg}°)`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
-        {/* Uncontrolled + keyed on `current` so an on-canvas drag remounts it to
-            the new angle, while free typing commits on blur / Enter. */}
-        <input
-          key={current}
-          type="number"
-          defaultValue={current}
-          min={0}
-          max={360}
-          onBlur={e => apply(Number(e.currentTarget.value))}
-          onKeyDown={e => { if (e.key === 'Enter') apply(Number((e.target as HTMLInputElement).value)) }}
-          style={{ width: 60, background: 'var(--bg-elevated, #14141f)', color: 'inherit', border: '1px solid var(--border, #2a2a3a)', borderRadius: 4, padding: '3px 6px', fontSize: 11 }}
-        />
-        <span style={{ opacity: 0.7 }}>degrees</span>
-      </div>
-    </div>
+    <GradientAngleRow
+      angleDeg={current}
+      onAngle={deg => {
+        const { start, end } = rotateAxisTo(spec.start, spec.end, deg)
+        onAxis(start, end)
+      }}
+      onFit={() => {
+        const box = getBox()
+        if (!box) return
+        const { start, end } = bboxAxisAtAngle(box, current)
+        onAxis(start, end)
+      }}
+    />
   )
 }
 
@@ -667,7 +692,7 @@ function FrameGradientControls({ editor, dispatch, decorationColor, background }
             on the canvas to place the gradient.
           </div>
           {fg.type === 'linear' && (
-            <GradientAngleRow spec={fg} getBox={seedBox} onAxis={(start, end) => set({ type: 'linear', stops: fg.stops, start, end }, enabled)} />
+            <WorldGradientAngleRow spec={fg} getBox={seedBox} onAxis={(start, end) => set({ type: 'linear', stops: fg.stops, start, end }, enabled)} />
           )}
         </>
       )}
@@ -793,7 +818,7 @@ function StrandGradientControls({ editor, dispatch, decorationColor, background 
             on the canvas to place the gradient.
           </div>
           {sg.type === 'linear' && (
-            <GradientAngleRow spec={sg} getBox={seedBox} onAxis={(start, end) => set({ type: 'linear', stops: sg.stops, start, end }, enabled)} />
+            <WorldGradientAngleRow spec={sg} getBox={seedBox} onAxis={(start, end) => set({ type: 'linear', stops: sg.stops, start, end }, enabled)} />
           )}
           <div style={{ marginTop: 10 }}>
             <FieldLabel label="Scope" tooltip="Which Strands the wash covers. Pick a Reach above, then click a Strand on the canvas to narrow the wash to that group — the rest keep their flat colour. 'Wash all' clears the scope back to every Strand." />

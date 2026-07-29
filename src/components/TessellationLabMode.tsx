@@ -16,7 +16,7 @@ import {
 import { Canvas, type SelectedEdge } from './Canvas'
 import type { PaintTarget, StrandPaintScope, VoidPaintScope } from '../rendering/DecorationPaintLayer'
 import type { PaintVoid } from '../decoration/resolve'
-import { defaultGradientStops, seedGradientSpec, type GradientDraft, type GradientSelection } from '../decoration/gradients'
+import { axisAngleDeg, defaultGradientStops, seedGradientSpec, type GradientDraft, type GradientSelection } from '../decoration/gradients'
 import type { SectionKey } from './EditorBoundaryInwardLayer'
 import { SandstoneEdge } from './SandstoneEdge'
 import { TopBar } from './TopBar'
@@ -922,14 +922,24 @@ export function TessellationLabMode({
               existing.type === gradientDraft.type &&
               JSON.stringify(existing.stops) === JSON.stringify(gradientDraft.stops)
             if (!sameAsDraft) {
-              setGradientDraft({ type: existing.type, stops: existing.stops })
+              setGradientDraft({
+                type: existing.type,
+                stops: existing.stops,
+                // Adopt the picked gradient's angle so the panel's Angle row
+                // reads the thing you just selected, and the next paint
+                // matches it rather than snapping back to the default.
+                angleDeg: existing.type === 'linear'
+                  ? axisAngleDeg(existing.start, existing.end)
+                  : gradientDraft.angleDeg,
+              })
               setGradientSelection({ void: v, scope: p.scope, key: p.key })
               return
             }
           }
           // Seed the gradient's geometry off the clicked shape's canonical
-          // pose so the record replicates like a stamp (mirrors included).
-          const spec = seedGradientSpec(gradientDraft.type, gradientDraft.stops, v.keyPolygon ?? v.polygon)
+          // pose so the record replicates like a stamp (mirrors included), at
+          // the draft's angle (also canonical-pose — see `seedGradientSpec`).
+          const spec = seedGradientSpec(gradientDraft.type, gradientDraft.stops, v.keyPolygon ?? v.polygon, gradientDraft.angleDeg)
           if (!spec) return
           pushRecentColour(gradientDraft.stops[0].colour)
           dispatch({ type: 'SET_DECORATION_VOID_GRADIENT', payload: { ...p, colour: gradientDraft.stops[0].colour, gradient: spec, toggle: true } })

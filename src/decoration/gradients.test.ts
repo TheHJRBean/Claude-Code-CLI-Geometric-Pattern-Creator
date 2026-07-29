@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { Vec2 } from '../utils/math'
 import type { ColourRecord } from '../types/editor'
-import { axisAngleDeg, bboxAxisAtAngle, defaultGradientStops, evenlySpacedStops, gradientPreviewCss, pointsBBox, reversedStops, seedFrameGradientSpec, seedGradientSpec, sortedStops } from './gradients'
+import { angleDeltaDeg, axisAngleDeg, bboxAxisAtAngle, defaultGradientStops, evenlySpacedStops, gradientPreviewCss, pointsBBox, reversedStops, rotateAxisTo, seedFrameGradientSpec, seedGradientSpec, snapAngleDeg, snapPointToAngle, sortedStops } from './gradients'
 import { makeVoidFill } from './resolve'
 import { buildColourIndex, resolveFill } from './scopes'
 import { canonicalPose } from './stamps'
@@ -209,9 +209,101 @@ describe('gradient axis angle (#45/#46 precise-angle control)', () => {
   })
 
   it('round-trips a typed angle through the axis it produces', () => {
-    for (const deg of [0, 30, 45, 90, 120, 200, 315]) {
-      expect(axisAngleDeg(...Object.values(bboxAxisAtAngle(box, deg)) as [Vec2, Vec2])).toBe(deg)
+    // `axisAngleDeg` is exact, not rounded, so an axis built at 45° reads back
+    // as 44.99999999999999 — compare with a tolerance, never `===`.
+    for (const deg of [0, 30, 45, 90, 120, 200, 315, 37.5]) {
+      expect(axisAngleDeg(...Object.values(bboxAxisAtAngle(box, deg)) as [Vec2, Vec2])).toBeCloseTo(deg, 9)
     }
+  })
+
+  it('keeps fractional degrees instead of quantising them', () => {
+    const { start, end } = bboxAxisAtAngle(box, 12.25)
+    expect(axisAngleDeg(start, end)).toBeCloseTo(12.25, 9)
+  })
+})
+
+describe('angleDeltaDeg', () => {
+  it('is wrap-aware, so 359° and 1° are 2° apart', () => {
+    expect(angleDeltaDeg(359, 1)).toBeCloseTo(2, 9)
+    expect(angleDeltaDeg(1, 359)).toBeCloseTo(2, 9)
+  })
+  it('never exceeds 180°', () => {
+    expect(angleDeltaDeg(0, 190)).toBeCloseTo(170, 9)
+    expect(angleDeltaDeg(0, 180)).toBeCloseTo(180, 9)
+  })
+  it('absorbs the float error `===` would trip on', () => {
+    // Which angles come back bit-exact from atan2 is platform maths; the
+    // contract is that a near-miss still reads as the same angle, so preset
+    // highlighting can't flicker off by an ULP.
+    expect(angleDeltaDeg(44.99999999999999, 45)).toBeLessThan(1e-6)
+    for (const deg of [0, 30, 45, 90, 120, 200, 315]) {
+      const { start, end } = bboxAxisAtAngle({ minX: 0, minY: 0, maxX: 200, maxY: 100 }, deg)
+      expect(angleDeltaDeg(axisAngleDeg(start, end), deg)).toBeLessThan(1e-6)
+    }
+  })
+})
+
+describe('snapAngleDeg', () => {
+  it('snaps to the nearest multiple of the step', () => {
+    expect(snapAngleDeg(43, 15)).toBe(45)
+    expect(snapAngleDeg(37, 15)).toBe(30)
+    expect(snapAngleDeg(-10, 15)).toBe(345) // normalised, not negative
+  })
+  it('wraps 360 back to 0 rather than reporting an out-of-range angle', () => {
+    expect(snapAngleDeg(358, 15)).toBe(0)
+  })
+  it('is a plain normalise when the step is non-positive', () => {
+    expect(snapAngleDeg(400, 0)).toBe(40)
+  })
+})
+
+describe('rotateAxisTo — the rotate-in-place contract', () => {
+  const start = { x: 10, y: 50 }
+  const end = { x: 90, y: 50 } // length 80, midpoint (50,50), currently 0°
+
+  it('re-aims the axis to the requested angle', () => {
+    const r = rotateAxisTo(start, end, 90)
+    expect(axisAngleDeg(r.start, r.end)).toBeCloseTo(90, 9)
+  })
+
+  it('preserves length and midpoint — a hand-placed extent survives a typed angle', () => {
+    const r = rotateAxisTo(start, end, 217.5)
+    expect(Math.hypot(r.end.x - r.start.x, r.end.y - r.start.y)).toBeCloseTo(80, 9)
+    expect((r.start.x + r.end.x) / 2).toBeCloseTo(50, 9)
+    expect((r.start.y + r.end.y) / 2).toBeCloseTo(50, 9)
+  })
+
+  it('is what distinguishes it from bboxAxisAtAngle, which re-spans the box', () => {
+    const box = { minX: 0, minY: 0, maxX: 200, maxY: 100 }
+    const spanned = bboxAxisAtAngle(box, 0)
+    // Same angle from both, but the box version stretches to the full width.
+    expect(Math.hypot(spanned.end.x - spanned.start.x, spanned.end.y - spanned.start.y)).toBeCloseTo(200, 9)
+    const rotated = rotateAxisTo(start, end, 0)
+    expect(Math.hypot(rotated.end.x - rotated.start.x, rotated.end.y - rotated.start.y)).toBeCloseTo(80, 9)
+  })
+
+  it('leaves a zero-length axis alone rather than inventing an extent', () => {
+    const p = { x: 5, y: 5 }
+    expect(rotateAxisTo(p, p, 90)).toEqual({ start: p, end: p })
+  })
+})
+
+describe('snapPointToAngle — Shift-drag on an axis handle', () => {
+  const anchor = { x: 0, y: 0 }
+
+  it('snaps the direction while keeping the drag distance', () => {
+    const p = snapPointToAngle(anchor, { x: 100, y: 8 }, 15) // ~4.6° → 0°
+    expect(axisAngleDeg(anchor, p)).toBeCloseTo(0, 9)
+    expect(Math.hypot(p.x, p.y)).toBeCloseTo(Math.hypot(100, 8), 9)
+  })
+
+  it('reaches the next detent once the drag passes half a step', () => {
+    const p = snapPointToAngle(anchor, { x: 100, y: 100 }, 15) // 45° is a detent
+    expect(axisAngleDeg(anchor, p)).toBeCloseTo(45, 9)
+  })
+
+  it('passes a drag landing on the anchor through untouched (no direction)', () => {
+    expect(snapPointToAngle(anchor, anchor, 15)).toEqual(anchor)
   })
 })
 

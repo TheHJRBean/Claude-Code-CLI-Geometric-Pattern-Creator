@@ -3,9 +3,18 @@ import { createPortal } from 'react-dom'
 import type { GradientSpec } from '../../types/editor'
 import type { Vec2 } from '../../utils/math'
 import { canonicalPose, poseBBox } from '../../decoration/stamps'
-import { seedGradientSpec, sortedStops } from '../../decoration/gradients'
+import {
+  GRADIENT_ANGLE_SNAP_DEG,
+  axisAngleDeg,
+  bboxAxisAtAngle,
+  rotateAxisTo,
+  seedGradientSpec,
+  snapPointToAngle,
+  sortedStops,
+} from '../../decoration/gradients'
 import { polygonPath } from '../../rendering/svgGeometry'
 import { ColourPicker } from '../ColourPicker'
+import { GradientAngleRow } from './GradientAngleRow'
 import { GradientStopBar } from './GradientStopBar'
 
 /**
@@ -75,8 +84,16 @@ export function GradientFocusEditor({ spec, outline, title, onApply, onClose }: 
     if (!p) return
     setDraft(prev => {
       if (prev.type === 'linear') {
-        if (d.handle === 'start') return { ...prev, start: p }
-        if (d.handle === 'end') return { ...prev, end: p }
+        // Shift constrains the axis to 15° detents. The anchor is the endpoint
+        // that isn't moving, so dragging either end snaps the same axis
+        // directions (start→end and end→start differ by 180°, itself a
+        // multiple of the step).
+        if (d.handle === 'start') {
+          return { ...prev, start: e.shiftKey ? snapPointToAngle(prev.end, p, GRADIENT_ANGLE_SNAP_DEG) : p }
+        }
+        if (d.handle === 'end') {
+          return { ...prev, end: e.shiftKey ? snapPointToAngle(prev.start, p, GRADIENT_ANGLE_SNAP_DEG) : p }
+        }
         return prev
       }
       if (d.handle === 'centre') return { ...prev, centre: p }
@@ -204,8 +221,13 @@ export function GradientFocusEditor({ spec, outline, title, onApply, onClose }: 
           Gradient focus
         </span>
         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{title.slice(0, 8)}</span>
+        {draft.type === 'linear' && (
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--accent)' }}>
+            {axisAngleDeg(draft.start, draft.end).toFixed(1)}°
+          </span>
+        )}
         <span style={{ fontSize: 11, marginLeft: 'auto' }}>
-          Drag the handles to shape the gradient · Esc to cancel
+          Drag the handles to shape the gradient · Shift-drag snaps to {GRADIENT_ANGLE_SNAP_DEG}° · Esc to cancel
         </span>
       </div>
       <svg
@@ -257,6 +279,30 @@ export function GradientFocusEditor({ spec, outline, title, onApply, onClose }: 
             }))}
           />
         </div>
+        {draft.type === 'linear' && (
+          <div style={{ width: 210 }}>
+            <GradientAngleRow
+              angleDeg={axisAngleDeg(draft.start, draft.end)}
+              onAngle={deg => setDraft(prev => (
+                prev.type === 'linear'
+                  ? { ...prev, ...rotateAxisTo(prev.start, prev.end, deg) }
+                  : prev
+              ))}
+              onFit={() => setDraft(prev => (
+                prev.type === 'linear'
+                  ? {
+                    ...prev,
+                    ...bboxAxisAtAngle(
+                      { minX: box.x, minY: box.y, maxX: box.x + box.width, maxY: box.y + box.height },
+                      axisAngleDeg(prev.start, prev.end),
+                    ),
+                  }
+                  : prev
+              ))}
+              fitLabel="Fit to shape"
+            />
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
           <button
             style={buttonStyle}

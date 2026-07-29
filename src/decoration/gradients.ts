@@ -17,7 +17,17 @@ import { canonicalPose, poseBBox, type StampBBox } from './stamps'
 export interface GradientDraft {
   type: GradientSpec['type']
   stops: GradientStop[]
+  /** Linear axis angle (degrees) the next paint seeds at — the per-shape
+   *  gradient has no geometry until it lands on a Void, so the angle has to
+   *  ride on the draft. Absent ⇒ `DEFAULT_GRADIENT_ANGLE_DEG` (the original
+   *  top→bottom seed), which keeps pre-existing drafts painting identically.
+   *  Measured in the shape's CANONICAL POSE, not on screen — see
+   *  `seedGradientSpec`. Ignored for radial. */
+  angleDeg?: number
 }
+
+/** Seed angle for a linear gradient: 90° = top→bottom in screen convention. */
+export const DEFAULT_GRADIENT_ANGLE_DEG = 90
 
 /** The Void group last painted in Gradient mode — anchors the panel's
  * focus-editor flow (record looked up live by scope + key). */
@@ -44,21 +54,37 @@ export function gradientCanonicalBox(outline: Vec2[]): StampBBox | null {
   return box && box.width > 0 && box.height > 0 ? box : null
 }
 
-/** Seed a gradient spec over a Void outline: linear = vertical span of the
- * canonical box, radial = centre + half-diagonal-ish radius. Null when the
- * outline is degenerate. */
+/**
+ * Seed a gradient spec over a Void outline: linear = an axis across the
+ * canonical box at `angleDeg` (default 90° — the original top→bottom span),
+ * radial = centre + half-diagonal-ish radius. Null when the outline is
+ * degenerate.
+ *
+ * **The angle is in canonical-pose space, not screen space.** Void gradient
+ * geometry is stored in each shape's canonical pose so one spec replicates
+ * consistently onto every congruent instance (rotated/mirrored copies
+ * included) — the same replication model as stamp placement. So 45° here means
+ * 45° relative to the shape's own canonical frame, which is what keeps the
+ * group looking coherent; it is not 45° on screen for a rotated instance.
+ */
 export function seedGradientSpec(
   type: GradientSpec['type'],
   stops: GradientStop[],
   outline: Vec2[],
+  angleDeg: number = DEFAULT_GRADIENT_ANGLE_DEG,
 ): GradientSpec | null {
   const box = gradientCanonicalBox(outline)
   if (!box) return null
   const cx = box.x + box.width / 2
   const cy = box.y + box.height / 2
-  return type === 'linear'
-    ? { type, stops, start: { x: cx, y: box.y }, end: { x: cx, y: box.y + box.height } }
-    : { type, stops, centre: { x: cx, y: cy }, radius: Math.max(box.width, box.height) / 2 }
+  if (type !== 'linear') {
+    return { type, stops, centre: { x: cx, y: cy }, radius: Math.max(box.width, box.height) / 2 }
+  }
+  const { start, end } = bboxAxisAtAngle(
+    { minX: box.x, minY: box.y, maxX: box.x + box.width, maxY: box.y + box.height },
+    angleDeg,
+  )
+  return { type, stops, start, end }
 }
 
 /** A world-space axis-aligned bounding box (min/max corners). */
@@ -107,12 +133,75 @@ export function seedFrameGradientSpec(
   return { type, stops, centre: { x: cx, y: cy }, radius }
 }
 
-/** The angle (degrees, 0–359) of a linear gradient's start→end axis. Screen
- * convention: 0° points right (→), 90° down (↓). */
-export function axisAngleDeg(start: Vec2, end: Vec2): number {
-  const d = Math.round((Math.atan2(end.y - start.y, end.x - start.x) * 180) / Math.PI)
-  return ((d % 360) + 360) % 360
+/** Any degree value folded into [0, 360). */
+export function normaliseAngleDeg(deg: number): number {
+  return ((deg % 360) + 360) % 360
 }
+
+/**
+ * The angle (degrees, [0, 360)) of a linear gradient's start→end axis. Screen
+ * convention: 0° points right (→), 90° down (↓).
+ *
+ * **Exact, not rounded** — the panel controls allow fractional degrees, and
+ * rounding here would quantise the value a drag or a typed 37.5° round-trips
+ * through. Round at the point of display; compare with `angleDeltaDeg`, never
+ * with `===` (an axis built at 45° reads back as 44.99999999999999).
+ */
+export function axisAngleDeg(start: Vec2, end: Vec2): number {
+  return normaliseAngleDeg((Math.atan2(end.y - start.y, end.x - start.x) * 180) / Math.PI)
+}
+
+/** Smallest separation between two angles, 0–180° — wrap-aware, so 359° and 1°
+ *  are 2° apart. Use for "is this preset the current angle?" tests. */
+export function angleDeltaDeg(a: number, b: number): number {
+  const d = normaliseAngleDeg(a - b)
+  return d > 180 ? 360 - d : d
+}
+
+/** Nearest multiple of `stepDeg` (e.g. 15° while a modifier is held). A
+ *  non-positive step is a no-op beyond normalising. */
+export function snapAngleDeg(deg: number, stepDeg: number): number {
+  if (!(stepDeg > 0)) return normaliseAngleDeg(deg)
+  return normaliseAngleDeg(Math.round(deg / stepDeg) * stepDeg)
+}
+
+/**
+ * Spin a linear axis to `angleDeg` **about its own midpoint**, keeping its
+ * length — so setting an angle re-aims a hand-placed axis instead of throwing
+ * its extent away (`bboxAxisAtAngle` is the deliberate re-span, wired to the
+ * separate Fit control).
+ *
+ * A zero-length axis has no extent to preserve and is returned unchanged;
+ * there is no direction to rotate and inventing a length here would be a
+ * silent geometry change.
+ */
+export function rotateAxisTo(start: Vec2, end: Vec2, angleDeg: number): { start: Vec2; end: Vec2 } {
+  const half = Math.hypot(end.x - start.x, end.y - start.y) / 2
+  if (!(half > 0)) return { start, end }
+  const cx = (start.x + end.x) / 2
+  const cy = (start.y + end.y) / 2
+  const t = (angleDeg * Math.PI) / 180
+  const dx = Math.cos(t) * half
+  const dy = Math.sin(t) * half
+  return { start: { x: cx - dx, y: cy - dy }, end: { x: cx + dx, y: cy + dy } }
+}
+
+/**
+ * Constrain a dragged endpoint to the nearest `stepDeg` direction from
+ * `anchor` (the endpoint that isn't moving), keeping the drag's distance.
+ * Backs Shift-to-snap on the gradient axis handles. A drag landing exactly on
+ * the anchor has no direction and passes through untouched.
+ */
+export function snapPointToAngle(anchor: Vec2, p: Vec2, stepDeg: number): Vec2 {
+  const dist = Math.hypot(p.x - anchor.x, p.y - anchor.y)
+  if (!(dist > 0)) return p
+  const t = (snapAngleDeg(axisAngleDeg(anchor, p), stepDeg) * Math.PI) / 180
+  return { x: anchor.x + Math.cos(t) * dist, y: anchor.y + Math.sin(t) * dist }
+}
+
+/** Snap step (degrees) applied while a gradient axis handle is dragged with
+ *  Shift held — matches the Guides angle-snap idiom. */
+export const GRADIENT_ANGLE_SNAP_DEG = 15
 
 /**
  * Linear-gradient axis through a world bbox centre at `angleDeg`, extended to

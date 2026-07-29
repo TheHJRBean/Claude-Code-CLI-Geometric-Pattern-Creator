@@ -11,6 +11,7 @@ import { PatternSVG } from '../rendering/PatternSVG'
 import { screenToWorld, worldToScreen } from '../rendering/screenSpace'
 import { DecorationPaintLayer, type PaintPayload, type PaintTarget, type StrandPaintScope, type VoidPaintScope } from '../rendering/DecorationPaintLayer'
 import type { PaintVoid } from '../decoration/resolve'
+import { GRADIENT_ANGLE_SNAP_DEG, snapPointToAngle } from '../decoration/gradients'
 import { RotationDial } from './RotationDial'
 import { ZoomControl } from './ZoomControl'
 import type { ExposedEdge } from '../editor/exposedEdges'
@@ -1137,10 +1138,15 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   const frameGradient = config.editor?.decoration?.frameGradient
   const frameGradientOverlayVisible = paintTarget === 'gradient' && frameGradient?.enabled === true
 
-  const handleDragFrameGradientLinear = useCallback((which: 'start' | 'end', screen: Vec2) => {
+  // `snap` = Shift held: constrain the axis to 15° detents about the endpoint
+  // that isn't moving, so a wash can be aimed exactly by hand. Precise angles
+  // are also typeable in the panel's Angle row.
+  const handleDragFrameGradientLinear = useCallback((which: 'start' | 'end', screen: Vec2, snap: boolean) => {
     const fg = config.editor?.decoration?.frameGradient
     if (!fg || fg.type !== 'linear') return
-    const w = screenToWorld(screen, viewTransform, size.width, size.height)
+    const raw = screenToWorld(screen, viewTransform, size.width, size.height)
+    const anchor = which === 'start' ? fg.end : fg.start
+    const w = snap ? snapPointToAngle(anchor, raw, GRADIENT_ANGLE_SNAP_DEG) : raw
     onSetFrameGradient?.(which === 'start' ? { ...fg, start: w } : { ...fg, end: w })
   }, [config.editor?.decoration?.frameGradient, viewTransform, size.width, size.height, onSetFrameGradient])
 
@@ -1177,10 +1183,12 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   const strandGradient = config.editor?.decoration?.strandGradient
   const strandGradientOverlayVisible = paintTarget === 'strands' && strandGradient?.enabled === true
 
-  const handleDragStrandGradientLinear = useCallback((which: 'start' | 'end', screen: Vec2) => {
+  const handleDragStrandGradientLinear = useCallback((which: 'start' | 'end', screen: Vec2, snap: boolean) => {
     const sg = config.editor?.decoration?.strandGradient
     if (!sg || sg.type !== 'linear') return
-    const w = screenToWorld(screen, viewTransform, size.width, size.height)
+    const raw = screenToWorld(screen, viewTransform, size.width, size.height)
+    const anchor = which === 'start' ? sg.end : sg.start
+    const w = snap ? snapPointToAngle(anchor, raw, GRADIENT_ANGLE_SNAP_DEG) : raw
     onSetStrandGradient?.(which === 'start' ? { ...sg, start: w } : { ...sg, end: w })
   }, [config.editor?.decoration?.strandGradient, viewTransform, size.width, size.height, onSetStrandGradient])
 

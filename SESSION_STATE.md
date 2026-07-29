@@ -18,7 +18,7 @@
 
 **NEXT — pick one:**
 0. **Issue hygiene (~10 min, Haiku).** Shipped+verified epics still OPEN on GitHub: **#44 / #45 / #46** (gradients), **#42** (line sets), **#28** (Guides slice 3). Close each with a pointer to its verifying commit. *(#48/#49/#50 are already closed.)*
-0b. ~~Route `loadLabState` through `loadPatternConfig`~~ — **DONE 2026-07-29, see the entry below.** The remaining half of that risk is `PatternConfig` being **unversioned** (every migration is a shape sniff, no version to key off) — still open.
+0b. ~~Route `loadLabState` through `loadPatternConfig`~~ — **DONE 2026-07-29, see the entry below.** The remaining half of that risk is `PatternConfig` being **unversioned** (every migration is a shape sniff, no version to key off) — still open, and now briefed: **`HANDOFF-pattern-config-versioning.md`** at the repo root has the persistence-site census, the two concrete risks, and the four decisions needed before coding.
 
 ---
 ### ▶ 2026-07-29 (One schema gate: `loadLabState` now delegates to `loadPatternConfig` — ✅ SHIPPED + BROWSER-VERIFIED, Opus, #50 follow-up)

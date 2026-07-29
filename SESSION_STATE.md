@@ -10,6 +10,19 @@
 0. **Issue hygiene (~10 min, Haiku).** Several shipped+verified epics are still OPEN on GitHub: #44 / #45 / #46 (gradients), #42 (line sets), #28 (Guides slice 3). Close them with a pointer to the verifying commit.
 
 ---
+### ▶ 2026-07-29 (BUG: "add origin doesn't work" — stale persisted Lab morph crashed the Canvas — ✅ FIXED + VERIFIED, Opus, #50)
+
+**User:** *"add origin doesn't work. i'm on a preset, is that why?"* — **the preset was a red herring.** All 8 convertible presets add an Origin fine on a clean profile (verified headless, Linear + Radial, 1st and 2nd Origin).
+
+**Root cause:** `loadLabState` (`state/labDefaults.ts`) rehydrates the Lab's auto-persisted working config from `localStorage['lab-state-v1']` **without going through `loadPatternConfig`**. It migrates `editor` and `lacing` but passed `config.morph` through RAW. So a Lab session persisted before the #48 rename came back as `{ origin, boundaries }` while the live code reads `{ axisOrigin, origins }` — `morphActive`'s `m.origins.length` threw during render. **Hard Canvas crash out of stale localStorage, no in-app recovery** (clear site data was the only escape).
+
+**Fix (`e8fcbba`):** export `readMorphConfig` from `configValidation.ts` and call it in `loadLabState` — legacy shapes migrate through the same reader a file/library load uses; unreadable ones degrade to no-morph instead of a white screen. New `state/labDefaults.test.ts` covers the persist/rehydrate contract (5 cases). **1284 green.** Browser-verified against the exact crashing state: loads clean, legacy boundary at 300 → `Origin 1 — 0 · ±300`, Add Origin works, 0 errors.
+
+**⚠️ STANDING RISK — `loadLabState` is a SECOND, WEAKER schema gate.** It parallels `loadPatternConfig` with hand-written per-field branches, so **every** `PatternConfig` shape change must be migrated in BOTH, and only one of them is discoverable. Next time this area is touched, consider routing `loadLabState` through `loadPatternConfig` wholesale (it already degrades rather than throws for frame/morph) so the Lab boot path inherits migrations automatically. Compounded by `PatternConfig` being unversioned — no signal to key migrations off. Ticket #50 records this.
+
+**Debugging note for next time:** when a user reports a Lab feature "doesn't work" and it reproduces clean headlessly, suspect **their persisted `lab-state-v1`** before suspecting the feature. A headless run always starts from a fresh profile and will never see it.
+
+---
 ### ▶ 2026-07-29 (Morph: auto-fit Reach + reach claims territory — ✅ SHIPPED + BROWSER-VERIFIED, Opus, #49)
 
 **User:** *"when new origins are added the boundary of adjacent origins meet its own boundary half way so that transitions are smooth. This can be turned off so that one can dominate."*

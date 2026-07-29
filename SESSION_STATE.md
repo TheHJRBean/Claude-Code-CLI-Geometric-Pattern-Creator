@@ -6,9 +6,7 @@
 
 **Session ended at a clean milestone (2026-07-29).** Nothing mid-flight, no handoff. Tree clean, all commits pushed to `main`, tests **1288 green**, tsc + build clean.
 
-⏳ **Awaiting browser verification:** Gallery → "Edit in Lab" now stays **linked** to the save it came from (Save overwrites instead of forking an untitled copy). See the entry below.
-
-✅ **Verified this session:** precise gradient angle control on all three gradient surfaces (rotate-in-place + Fit + Shift-snap).
+**Both features this session are ✅ SHIPPED + BROWSER-VERIFIED:** the Gallery → Lab library link (Save updates the save instead of forking a copy) and precise gradient angle control on all three gradient surfaces (rotate-in-place + Fit + Shift-snap).
 
 **What shipped this session (all browser-verified, all tickets closed):**
 | | | |
@@ -49,7 +47,7 @@
 - *Shift-snap*: on-canvas free drag → 289.07° (off-detent); Shift-drag → exactly **240°**, a second elsewhere → exactly **120°**. In Focus mode: free → 37.28°, Shift → exactly **75°**.
 
 ---
-### ▶ 2026-07-29 (BUG: Gallery → Lab loaded as an untitled copy — ⏳ FIXED, awaiting browser verify, Opus)
+### ▶ 2026-07-29 (BUG: Gallery → Lab loaded as an untitled copy — ✅ FIXED + BROWSER-VERIFIED, Opus, `8581b2d`)
 
 **User:** *"when I load to lab from gallery it doesn't load it as the pre-saved file but as a new file, so I can't update a previous save with this method."*
 
@@ -64,7 +62,9 @@
 
 Tests: `linkedSavedIdFor` policy pair + 2 `savedId` persistence cases. **1288 green**, tsc + build clean.
 
-**To verify in-browser:** Gallery → open a Builder-sourced save → Edit in Lab → the "My Tessellations" dropdown should show that entry's name (+ its saved date) → edit → Save overwrites in place (no name prompt, no second card in the Gallery). Then reload the page and Save again — still the same entry. A legacy Archimedean save should still prompt for a name.
+**✅ BROWSER-VERIFIED 2026-07-29** — `/tmp/ga-verify/gallerylink.mjs`, 0 page errors. Saved a 4.8.8 Patch as "Wrapup Test Save" → Gallery → Edit in Lab → the **dropdown reads "Wrapup Test Save"** and `lab-state-v1.savedId` holds its id → **Save shows no name prompt and the library stays at 1 entry** (updated in place, not forked) → after a **page reload** the link still holds → a seeded legacy Archimedean save opened in the Lab comes back **unlinked** ("— select a saved tessellation —", `savedId: ''`), so the conversion can't overwrite the legacy original.
+
+*Test-harness note for next time:* the Gallery card's **name is a plain `div`** — only `.gallery-card__thumb` opens the detail view, so `getByText(name).click()` silently does nothing. And `getByRole('button', { name, exact: true })` did not match this app's top-bar nav; `locator('button').filter({ hasText: /^Gallery$/ })` does.
 
 ---
 ### ▶ 2026-07-29 (UI: Clear moved out of the Frame's visual group — ✅ SHIPPED + VERIFIED, `2ef9e19`)

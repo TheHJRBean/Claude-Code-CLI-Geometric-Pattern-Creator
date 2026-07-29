@@ -138,12 +138,23 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
     <>
       {/* Step 17.9 — Undo / Redo header (Q12). Visible in both phases:
           history is preserved across Design ↔ Strand flips, but only design-
-          mode actions ever push to it. */}
+          mode actions ever push to it.
+
+          Clear sits here rather than at the head of DesignPanel (moved
+          2026-07-29): DesignPanel renders directly under FramePanel, so a
+          Clear button at its top read as "clear the Frame" when it actually
+          wipes the whole Patch. Grouped with Undo/Redo it reads as the
+          patch-level history/reset action it is. Still Design-phase only —
+          it is destructive and has no business firing from Composition or
+          Decoration. */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
         {([
           { label: '↶ Undo', onClick: onUndo, disabled: !canUndo },
           { label: '↷ Redo', onClick: onRedo, disabled: !canRedo },
-        ] as const).map(b => (
+          ...(editorPhase === 'design'
+            ? [{ label: 'Clear', onClick: onClear, disabled: false }]
+            : []),
+        ]).map(b => (
           <button
             key={b.label}
             onClick={b.onClick}
@@ -254,7 +265,6 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
           picks={picks}
           multiMode={multiMode}
           onCancelComplete={onCancelComplete}
-          onClear={onClear}
           showNeighbours={showNeighbours}
           onToggleShowNeighbours={onToggleShowNeighbours}
           showNeighbourBoundaries={showNeighbourBoundaries}

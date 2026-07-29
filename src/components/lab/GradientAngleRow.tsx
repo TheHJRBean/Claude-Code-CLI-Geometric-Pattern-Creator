@@ -68,7 +68,7 @@ export function GradientAngleRow({ angleDeg, onAngle, onFit, fitLabel = 'Fit to 
         value={Math.round(current)}
         onChange={e => apply(Number(e.target.value))}
         style={{ width: '100%', marginBottom: 6 }}
-        aria-label="Gradient angle in degrees"
+        aria-label="Gradient angle slider"
       />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <NumberStepper

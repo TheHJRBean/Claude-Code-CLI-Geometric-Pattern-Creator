@@ -8,6 +8,8 @@
 
 ⏳ **Awaiting browser verification:** Gallery → "Edit in Lab" now stays **linked** to the save it came from (Save overwrites instead of forking an untitled copy). See the entry below.
 
+✅ **Verified this session:** precise gradient angle control on all three gradient surfaces (rotate-in-place + Fit + Shift-snap).
+
 **What shipped this session (all browser-verified, all tickets closed):**
 | | | |
 |---|---|---|
@@ -19,6 +21,32 @@
 **NEXT — pick one:**
 0. **Issue hygiene (~10 min, Haiku).** Shipped+verified epics still OPEN on GitHub: **#44 / #45 / #46** (gradients), **#42** (line sets), **#28** (Guides slice 3). Close each with a pointer to its verifying commit. *(#48/#49/#50 are already closed.)*
 0b. **Standing risk worth an hour (#50, Opus/Sonnet).** Route `loadLabState` through `loadPatternConfig` wholesale so the Lab boot path inherits every migration automatically instead of needing a hand-written branch per field — see the #50 entry below. Compounded by `PatternConfig` being unversioned.
+
+---
+### ▶ 2026-07-29 (Gradients: precise angle control on every surface — ✅ SHIPPED + BROWSER-VERIFIED, Opus, `823bab1`)
+
+**User:** *"Give me a more precise way of controlling the angles of gradients."*
+
+**Audit found one hole and three blunt edges.** Morph's direction already had degrees+slider+stepper; the across-frame (#45) and strand (#46) washes had a 4-preset + integer-degrees row; the **per-shape Void gradient (#44) had no angle control at all** — direction was whatever `seedGradientSpec` chose (always top→bottom), reshapeable only by dragging handles in Focus mode. And where the row did exist it called `bboxAxisAtAngle`, which **re-spans the axis across the whole bbox** — typing a number destroyed any extent you had dragged.
+
+**Two locked decisions (AskUserQuestion):** (1) all three surfaces; (2) an angle **rotates in place** — midpoint + length preserved — with re-spanning demoted to an explicit **Fit** button.
+
+**Geometry (`decoration/gradients.ts`, all pure + unit-tested):**
+- `rotateAxisTo(start, end, deg)` — spin about the axis's own midpoint, length kept. A zero-length axis returns unchanged rather than inventing an extent.
+- `axisAngleDeg` is now **exact, not rounded**, so fractional degrees survive a round trip. ⚠️ Compare angles with the new wrap-aware `angleDeltaDeg`, **never `===`** — an axis built at 45° can read back as 44.99999999999999. (Which angles come back bit-exact is platform maths; don't write a test that asserts inexactness.)
+- `snapAngleDeg` / `snapPointToAngle` + `GRADIENT_ANGLE_SNAP_DEG = 15` for Shift-drag.
+- `seedGradientSpec` takes an optional `angleDeg` (default 90 ⇒ byte-identical to the old seed).
+
+**UI:** shared `components/lab/GradientAngleRow.tsx` — 8 compass presets + slider + typed field at 0.1° + Fit — used by all three surfaces **and** the Void focus editor. `GradientDraft.angleDeg` (optional) carries the angle to the next paint; picking an existing gradient adopts its angle. Shift-drag snaps the axis handles to 15° on the canvas (`EditorFrameGradientLayer` now passes `shiftKey` up; Canvas does the snap since only it has both endpoints in world coords) and in Focus mode, which also gained a live angle readout.
+
+**⚠️ Void gradient angles are CANONICAL-POSE, not screen.** Void geometry is stored in each shape's canonical pose so one spec replicates onto every congruent instance (mirrors included) — that's what keeps a group coherent, but it means 45° won't read as 45° on screen for a rotated copy. Documented on `seedGradientSpec` and in the panel tooltip.
+
+**Tests: 1302 green** (was 1288), tsc + build clean.
+
+**✅ BROWSER-VERIFIED 2026-07-29** — 4 scripts, 0 page errors (`/tmp/ga-verify/angle*.mjs`, dev :5173, 4.8.8 preset):
+- *Frame wash*: seeded 90°/len 312.13 → preset `→` gives 0° with **len + midpoint unchanged** (rotate-in-place) → typed 37.5° holds len 312.13 → **Fit** keeps 37.5° and stretches to 393.43 → slider 210°.
+- *Void gradient*: the Angle row now exists on "This shape"; painted at 0° (def `void-fill-…-g0`, len 92.388) → 90° → 37.5° all with **len + midpoint frozen** → Fit to shape stretches to 116.452 at the same angle.
+- *Shift-snap*: on-canvas free drag → 289.07° (off-detent); Shift-drag → exactly **240°**, a second elsewhere → exactly **120°**. In Focus mode: free → 37.28°, Shift → exactly **75°**.
 
 ---
 ### ▶ 2026-07-29 (BUG: Gallery → Lab loaded as an untitled copy — ⏳ FIXED, awaiting browser verify, Opus)

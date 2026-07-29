@@ -5,6 +5,30 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-29 (Gradient stop bar — `≡ Even` distribute button — ✅ SHIPPED + BROWSER-VERIFIED, Opus)
+
+**User:** originally asked for a gradient *smoothing* slider, then re-scoped: *"Scrap that. I think the smoothness is ok. What would be more helpful would be to have a button to click that will arrange the control points in even spacing."*
+
+**Done (one commit):** new `evenlySpacedStops(stops)` in `decoration/gradients.ts` (next to `sortedStops`) + an `≡ Even` button in `GradientStopBar.tsx`'s button row (beside `+ Stop` / `− Stop` / `× Multiply`). n stops → offsets `0, 1/(n-1), … 1`.
+
+**Two invariants the implementation is built around:**
+1. **Storage order is preserved** — stops are ranked by current offset, but each stop keeps its *array index* and only its `offset` changes. This is the same contract `sortedStops` documents (storage stays in insertion order so the stop bar's selection index is stable). Verified in-browser: the readout went 14% → 67% with the **same** colour well still highlighted.
+2. **Stable sort for ties** — stops sharing an offset keep their relative order instead of swapping.
+Fewer than 2 stops returns unchanged (1/(n-1) would divide by zero).
+
+**Reach:** `GradientStopBar` is shared across **4 mount points** (DecorationPanel ×3 — This shape / Across frame / Strands — plus `GradientFocusEditor`), so the button lands in every gradient kind with no per-site wiring.
+
+**Tests:** +8 in `gradients.test.ts` (even spread, 2-stop snap-to-ends, out-of-order storage, index/colour preservation + input untouched, tie order, idempotence, <2 stops, ascending-for-render). **1228 green** (was 1220), tsc + build clean.
+
+**✅ BROWSER-VERIFIED 2026-07-29** (headless chromium-1228, 4.8.8, dev server :5174):
+- *Panel draft* (`scratchpad`-equivalent `/tmp/ga-verify/even.mjs`): 4 stops dragged to `[0, 6, 14, 100]%` → `≡ Even` → `[0, 33.3, 66.7, 100]%`; spans full range; second click idempotent; 0 page errors. Screenshots `10_uneven` / `11_even`.
+- *Render path* (`frame.mjs`): with the across-frame wash enabled, the live SVG def `#frame-gradient-bg` went `[0, 0.05, 0.12, 1]` → `[0, ⅓, ⅔, 1]` and the wash visibly re-spread. Proves it reaches the renderer, not just the panel draft. Screenshots `20_frame_uneven` / `21_frame_even`.
+
+**NB — pre-existing flake, NOT this change:** `src/appSmoke.test.ts` "fresh profile → Lab default" times out (5000ms) under the *full* parallel suite; passes alone in ~2s. Confirmed identical on a clean stashed tree (1 failed / 1220). Worth a `testTimeout` bump on that file if it keeps surfacing.
+
+**Browser-verify recipe gotcha:** the cached Chromium is at `chromium-1228/chrome-linux**64**/chrome` (memory file says `chrome-linux/chrome` — wrong). Stop-bar track is found by `div[style.height==='18px']` whose background is the `linear-gradient(90deg, rgb…)` preview — a naive `startsWith('linear-gradient(90deg')` match hits the Art-Deco `--divider` rules first. The across-frame Enable box is the **first** checkbox on the page (`getByLabel('Enable across-frame gradient')`), not the last — `.last()` hits "Show strands".
+
+---
 ### ▶ 2026-07-24 (Consolidate strand gradient into the gradient Mode bar — ✅ SHIPPED + BROWSER-VERIFIED, Opus)
 
 **User:** "add strands as an option in the same bar as 'this shape' and 'across frame'." **Done (`a8b43af`):** the Gradient paint target's Mode bar is now **[This shape · Across frame · Strands]**; the strand gradient moved there (Reach selector + StrandGradientControls in the Strands sub-mode). The old **Strands paint target → Flat/Gradient toggle is gone** — Strands target is now flat-only (no duplication). **Key trick — zero Canvas changes:** Canvas fully drives off `paintTarget` and already supports `'strands'`, so when the Strands sub-mode is active TessellationLabMode passes an **effective `paintTarget='strands'`** to Canvas (strand hits + scope clicks + strand-gradient handles) while the panel stays on the Gradient target; `strandGradientActive` also gates the onPaintStrand scope routing. `strandMode` state removed → `gradientMode` ('shape'|'frame'|'strands') lifted + threaded (TessLabMode→EditorDesignControls→DecorationPanel→GradientSection). **Verified 4.8.8:** bar shows 3 options, enable-from-bar renders wash + handles, reach scope works, Strands target flat-only. 1220 green. Script `scratchpad/bar.mjs`. NB removal path is now Gradient→Strands→uncheck Enable (the Flat-mode-disable shortcut is gone with the toggle; the uncheck bug fix `66c2035` stands).

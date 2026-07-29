@@ -22,7 +22,10 @@ via SVG gradient defs.
    to v2; canvas background stays flat.
 2. **Gradient vocabulary:** `linear` + `radial`. Arbitrary stops — min 2,
    soft cap ~8 — each stop has a draggable offset, add/remove, and its own
-   colour.
+   colour. `≡ Even` redistributes the whole set at equal intervals across
+   0..1 in its current left-to-right order (`evenlySpacedStops`), tidying a
+   hand-dragged set in one click; each stop keeps its array index so the
+   selected stop stays selected.
 3. **Per-shape geometry editing** happens in a **focus modal**
    (`StampFocusEditor` pattern): the shape rendered large in canonical pose,
    draggable handles for the linear start/end axis or radial centre/radius,

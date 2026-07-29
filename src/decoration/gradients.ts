@@ -152,3 +152,28 @@ export function sortedStops(stops: GradientStop[]): GradientStop[] {
 export function gradientPreviewCss(stops: GradientStop[]): string {
   return `linear-gradient(90deg, ${sortedStops(stops).map(s => `${s.colour} ${(s.offset * 100).toFixed(1)}%`).join(', ')})`
 }
+
+/**
+ * Redistribute stops at even intervals spanning the full 0..1 range, keeping
+ * their current left-to-right order (n stops → 0, 1/(n-1), … 1). Backs the stop
+ * bar's `≡ Even` button, which tidies a hand-dragged set in one click.
+ *
+ * **Storage order is preserved**: each stop keeps its array index and only its
+ * `offset` changes, so the caller's selected-stop index still points at the same
+ * colour (same contract as `sortedStops` — see its note on why storage stays in
+ * insertion order). Ranking uses a stable sort, so stops sharing an offset keep
+ * their relative order rather than swapping. Fewer than 2 stops is returned
+ * unchanged (nothing to space, and 1/(n-1) would divide by zero).
+ */
+export function evenlySpacedStops(stops: GradientStop[]): GradientStop[] {
+  if (stops.length < 2) return stops
+  const step = 1 / (stops.length - 1)
+  const out = stops.slice()
+  stops
+    .map((s, index) => ({ index, offset: s.offset }))
+    .sort((a, b) => a.offset - b.offset)
+    .forEach(({ index }, rank) => {
+      out[index] = { ...stops[index], offset: rank * step }
+    })
+  return out
+}

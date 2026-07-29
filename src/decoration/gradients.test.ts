@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { Vec2 } from '../utils/math'
 import type { ColourRecord } from '../types/editor'
-import { axisAngleDeg, bboxAxisAtAngle, defaultGradientStops, gradientPreviewCss, pointsBBox, seedFrameGradientSpec, seedGradientSpec, sortedStops } from './gradients'
+import { axisAngleDeg, bboxAxisAtAngle, defaultGradientStops, evenlySpacedStops, gradientPreviewCss, pointsBBox, seedFrameGradientSpec, seedGradientSpec, sortedStops } from './gradients'
 import { makeVoidFill } from './resolve'
 import { buildColourIndex, resolveFill } from './scopes'
 import { canonicalPose } from './stamps'
@@ -212,5 +212,53 @@ describe('gradient axis angle (#45/#46 precise-angle control)', () => {
     for (const deg of [0, 30, 45, 90, 120, 200, 315]) {
       expect(axisAngleDeg(...Object.values(bboxAxisAtAngle(box, deg)) as [Vec2, Vec2])).toBe(deg)
     }
+  })
+})
+
+describe('evenlySpacedStops', () => {
+  const atOffsets = (...offsets: number[]) =>
+    offsets.map((offset, i) => ({ offset, colour: `#00000${i}` }))
+
+  it('spreads stops at equal intervals spanning the full range', () => {
+    const out = evenlySpacedStops(atOffsets(0.1, 0.15, 0.2, 0.9))
+    expect(out.map(s => s.offset)).toEqual([0, 1 / 3, 2 / 3, 1])
+  })
+
+  it('snaps a 2-stop gradient out to the ends', () => {
+    expect(evenlySpacedStops(atOffsets(0.4, 0.5)).map(s => s.offset)).toEqual([0, 1])
+  })
+
+  it('keeps left-to-right order when storage order differs', () => {
+    // Stored out of offset order (a stop dragged past its neighbour): the
+    // right-most stop must still end up at 1, in its own array slot.
+    const out = evenlySpacedStops(atOffsets(0.8, 0.1, 0.5))
+    expect(out.map(s => s.offset)).toEqual([1, 0, 0.5])
+  })
+
+  it('preserves each stop index and colour so the selection stays put', () => {
+    const input = atOffsets(0.9, 0.2, 0.4)
+    const out = evenlySpacedStops(input)
+    expect(out.map(s => s.colour)).toEqual(input.map(s => s.colour))
+    expect(input.map(s => s.offset)).toEqual([0.9, 0.2, 0.4]) // input untouched
+  })
+
+  it('keeps insertion order for stops sharing an offset', () => {
+    const out = evenlySpacedStops(atOffsets(0.5, 0.5, 0.5))
+    expect(out.map(s => s.offset)).toEqual([0, 0.5, 1])
+  })
+
+  it('is idempotent — spacing an already-even set changes nothing', () => {
+    const once = evenlySpacedStops(atOffsets(0.1, 0.7, 0.75, 0.8))
+    expect(evenlySpacedStops(once)).toEqual(once)
+  })
+
+  it('returns fewer than 2 stops unchanged', () => {
+    expect(evenlySpacedStops([])).toEqual([])
+    expect(evenlySpacedStops(atOffsets(0.3))).toEqual(atOffsets(0.3))
+  })
+
+  it('produces stops already in ascending order for render', () => {
+    const out = evenlySpacedStops(atOffsets(0.8, 0.1, 0.5))
+    expect(sortedStops(out).map(s => s.colour)).toEqual(['#000001', '#000002', '#000000'])
   })
 })

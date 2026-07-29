@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import type { GradientStop } from '../../types/editor'
 import { GRADIENT_MAX_STOPS } from '../../types/editor'
-import { gradientPreviewCss } from '../../decoration/gradients'
+import { evenlySpacedStops, gradientPreviewCss } from '../../decoration/gradients'
 import { isHexColour, multiplyColour } from '../colourPicker.logic'
 
 /**
@@ -10,7 +10,8 @@ import { isHexColour, multiplyColour } from '../colourPicker.logic'
  * its colour to the shared `ColourPicker`); drag to move its offset;
  * double-click a marker to remove it. `+ Stop` / `− Stop` add/remove (min 2,
  * cap `GRADIENT_MAX_STOPS`); `× Multiply` deepens the selected stop's colour
- * (self-multiply, repeatable). Each stop also gets its own colour well under
+ * (self-multiply, repeatable); `≡ Even` redistributes every stop at equal
+ * intervals across 0..1 in its current order. Each stop also gets its own colour well under
  * the track with a `×` to delete that specific stop, so a stop can be removed
  * directly without selecting it first. Shared by the Decoration panel
  * (working draft) and the gradient focus editor.
@@ -69,6 +70,10 @@ export function GradientStopBar({ stops, selected, onSelect, onChange }: {
     if (!hasSelection) return
     onChange(stops.map((st, j) => (j === selected ? { ...st, colour: multiplyColour(st.colour) } : st)))
   }
+
+  // Space every stop evenly across 0..1, keeping left-to-right order (and each
+  // stop's array index, so the selection stays on the same colour).
+  const spaceEvenly = () => onChange(evenlySpacedStops(stops))
 
   return (
     <div style={{ marginBottom: 8 }}>
@@ -196,6 +201,13 @@ export function GradientStopBar({ stops, selected, onSelect, onChange }: {
           title="Multiply the selected stop's colour to deepen it — click again to intensify further"
         >
           × Multiply
+        </button>
+        <button
+          onClick={spaceEvenly}
+          style={stopButtonStyle}
+          title="Space the stops evenly across the gradient, keeping their order"
+        >
+          ≡ Even
         </button>
         <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
           {hasSelection ? `${(stops[selected].offset * 100).toFixed(0)}%` : ''}

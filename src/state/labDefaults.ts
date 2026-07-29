@@ -1,6 +1,5 @@
 import type { PatternConfig } from '../types/pattern'
-import { migrateEditorConfig } from '../editor/migrations'
-import { readMorphConfig } from './configValidation'
+import { readPatternConfig } from './configValidation'
 
 /**
  * Lab starts with no tessellation selected. Strands are off by default
@@ -42,68 +41,16 @@ export function loadLabState(): LabPersistedState {
     const raw = localStorage.getItem(LAB_STORAGE_KEY)
     if (!raw) return LAB_DEFAULT_PERSISTED
     const parsed = JSON.parse(raw) as Partial<LabPersistedState>
-    if (!parsed || typeof parsed !== 'object' || !parsed.config?.tiling) {
-      return LAB_DEFAULT_PERSISTED
-    }
-    // 2026-05-03 cleanup: dropped tiling categories `mandala` and
-    // `composition`. If a persisted config points at one of those types,
-    // reset to a blank tessellation rather than crash downstream.
-    const droppedTypes = new Set(['layered-mandala', 'composition'])
-    const config = { ...parsed.config }
-    if (droppedTypes.has(config.tiling.type)) {
-      config.tiling = { ...config.tiling, type: '' }
-    }
-    // Old persisted shapes carried `mandala` / `composition` payloads on
-    // the config — strip them silently.
-    delete (config as Record<string, unknown>).mandala
-    delete (config as Record<string, unknown>).composition
-    // v3 schema migration (ADR-0001): persisted Editor patches may be v1 / v2;
-    // run them through the migrator so the reducer always sees v3. Drop the
-    // editor and tiling type if migration fails so the Lab boots to a blank
-    // state instead of crashing.
-    if (config.editor) {
-      const migrated = migrateEditorConfig(config.editor)
-      if (migrated) {
-        config.editor = migrated
-      } else {
-        delete (config as Record<string, unknown>).editor
-        if (config.tiling.type === 'editor') {
-          config.tiling = { ...config.tiling, type: '' }
-        }
-      }
-    }
-    // Phase 6: persisted Lab state may still carry the legacy `lacing`
-    // block. Migrate to `strand` (the over/under interlace render path was
-    // removed; the canvas background colour formerly on `lacing.gapColor`
-    // moves to `strand.background`).
-    const legacyConfig = config as unknown as { lacing?: { strandWidth?: number; strandColor?: string; gapColor?: string }; strand?: PatternConfig['strand'] }
-    if (!legacyConfig.strand && legacyConfig.lacing) {
-      const l = legacyConfig.lacing
-      if (typeof l.strandWidth === 'number' && typeof l.strandColor === 'string' && typeof l.gapColor === 'string') {
-        config.strand = { width: l.strandWidth, color: l.strandColor, background: l.gapColor }
-      } else {
-        config.strand = LAB_DEFAULT_CONFIG.strand
-      }
-    }
-    if (!config.strand) {
-      config.strand = LAB_DEFAULT_CONFIG.strand
-    }
-    delete (config as Record<string, unknown>).lacing
-    // Step 20 Morph: run the persisted morph through the same reader the file
-    // /library load path uses. Without this a Lab session persisted before the
-    // #48 rename comes back with `boundaries`/`origin` instead of
-    // `origins`/`axisOrigin`, and `morphActive`'s `origins.length` throws
-    // during render — a hard Canvas crash from stale localStorage, with no way
-    // for the user to recover from inside the app. `readMorphConfig` migrates
-    // legacy shapes and returns undefined for anything it can't read, so a
-    // damaged morph degrades to "no morph" rather than a white screen.
-    if (config.morph !== undefined) {
-      const morph = readMorphConfig(config.morph)
-      if (morph) config.morph = morph
-      else delete (config as Record<string, unknown>).morph
-    }
+    if (!parsed || typeof parsed !== 'object') return LAB_DEFAULT_PERSISTED
+    // One schema gate, not two (#50). `readPatternConfig` repairs what it can
+    // and then runs the persisted blob through the same `loadPatternConfig`
+    // the file-import and library paths use, so every migration — editor
+    // schema version, legacy `lacing` → `strand`, retired tiling types, stray
+    // `mandala`/`composition` payloads, Gallery Frame clamping, the #48 morph
+    // Origin rename — is inherited here instead of being reimplemented and
+    // drifting. It never throws; null means nothing was salvageable.
     return {
-      config,
+      config: readPatternConfig(parsed.config, LAB_DEFAULT_CONFIG.strand) ?? LAB_DEFAULT_CONFIG,
       showStrands: typeof parsed.showStrands === 'boolean' ? parsed.showStrands : LAB_DEFAULT_PERSISTED.showStrands,
       outlineWidth: typeof parsed.outlineWidth === 'number' ? parsed.outlineWidth : LAB_DEFAULT_PERSISTED.outlineWidth,
       savedId: typeof parsed.savedId === 'string' ? parsed.savedId : LAB_DEFAULT_PERSISTED.savedId,

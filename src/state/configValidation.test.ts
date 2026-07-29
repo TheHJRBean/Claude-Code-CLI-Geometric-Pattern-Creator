@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { ConfigValidationError, loadPatternConfig } from './configValidation'
+import { ConfigValidationError, loadPatternConfig, readPatternConfig } from './configValidation'
 
 /**
  * Characterization tests for the load-time validator (Chunk 12). These pin the
@@ -327,5 +327,103 @@ describe('loadPatternConfig — morph (Step 20)', () => {
       expect(out.morph!.axisOrigin).toEqual({ x: 10, y: -5 })
       expect(out.morph!.origins.map(o => o.id)).toEqual(['o0', 'o1'])
     })
+  })
+})
+
+/**
+ * `readPatternConfig` — the lenient sibling used by the Lab's auto-restore.
+ * Its contract is the inverse of the strict loader's: never throw, keep as much
+ * of the session as possible, and — crucially — get every migration by
+ * DELEGATING to `loadPatternConfig` rather than reimplementing it. The tests
+ * below pin both halves: the repairs it makes, and the migrations it inherits.
+ */
+describe('readPatternConfig — lenient restore', () => {
+  const fallbackStrand = { width: 4, color: '#1a1a2e', background: '#f5f0e8' }
+  const read = (raw: unknown) => readPatternConfig(raw, fallbackStrand)
+
+  it('passes a valid config straight through', () => {
+    const out = read(minimalRaw())
+    expect(out?.tiling).toEqual({ type: '4.8.8', scale: 1 })
+  })
+
+  it('returns null — never throws — for input with no readable tiling', () => {
+    for (const bad of [null, undefined, 42, 'nope', {}, { tiling: 'square' }, { tiling: { type: 'square' } }]) {
+      expect(() => read(bad)).not.toThrow()
+      expect(read(bad)).toBeNull()
+    }
+  })
+
+  it('blanks a retired tiling type instead of rejecting the whole session', () => {
+    const raw = { ...minimalRaw(), tiling: { type: 'layered-mandala', scale: 1 } }
+    expect(() => loadPatternConfig(raw)).toThrow(ConfigValidationError) // strict path
+    const out = read(raw)
+    expect(out?.tiling.type).toBe('')
+    expect(out?.figures['8'].contactAngle).toBe(67.5) // rest of the session survives
+  })
+
+  it('substitutes the fallback strand when neither `strand` nor `lacing` reads', () => {
+    const raw = { ...minimalRaw(), strand: { width: 'wide' } }
+    expect(() => loadPatternConfig(raw)).toThrow(ConfigValidationError)
+    expect(read(raw)?.strand).toEqual(fallbackStrand)
+  })
+
+  it('empties a malformed figures map rather than failing', () => {
+    const raw = { ...minimalRaw(), figures: { '8': { contactAngle: 'sharp' } } }
+    expect(() => loadPatternConfig(raw)).toThrow(ConfigValidationError)
+    expect(read(raw)?.figures).toEqual({})
+  })
+
+  it('drops an unmigratable editor patch and blanks the editor tiling with it', () => {
+    const raw = { ...minimalRaw(), tiling: { type: 'editor', scale: 1 }, editor: { version: 99 } }
+    expect(() => loadPatternConfig(raw)).toThrow(ConfigValidationError)
+    const out = read(raw)
+    expect(out?.editor).toBeUndefined()
+    expect(out?.tiling.type).toBe('') // else the render path looks for a patch that isn't there
+  })
+
+  it('blanks an editor tiling whose payload is missing entirely', () => {
+    const raw = { ...minimalRaw(), tiling: { type: 'editor', scale: 1 } }
+    expect(read(raw)?.tiling.type).toBe('')
+  })
+
+  // ── Inherited from loadPatternConfig — the reason this delegates ──────────
+  it('inherits the legacy `lacing` → `strand` migration, weave fields included', () => {
+    const raw = {
+      tiling: { type: '4.8.8', scale: 1 },
+      figures: {},
+      lacing: { strandWidth: 3, strandColor: '#111', gapColor: '#eee', enabled: true, gapWidth: 5 },
+    }
+    expect(read(raw)?.strand).toEqual({
+      width: 3, color: '#111', background: '#eee', weave: true, weaveGap: 5,
+    })
+  })
+
+  it('inherits the pre-#48 morph Origin migration', () => {
+    const raw = {
+      ...minimalRaw(),
+      morph: {
+        enabled: true, mode: 'linear', easing: 'linear',
+        direction: { x: 1, y: 0 },
+        origin: { x: 0, y: 0 },                                  // pre-#48 name
+        boundaries: [{ id: 'b0', position: 300, figures: {} }],  // pre-#48 stops
+      },
+    }
+    const morph = read(raw)?.morph
+    expect(morph?.axisOrigin).toEqual({ x: 0, y: 0 })
+    expect(morph?.origins[0]).toMatchObject({ position: 0, reach: 300, sides: 'positive' })
+  })
+
+  it('inherits the Gallery Frame clamp rather than passing a degenerate outline through', () => {
+    const raw = { ...minimalRaw(), frame: { type: 'shape', shape: 'octagon', size: 99999 } }
+    const frame = read(raw)?.frame
+    expect(frame?.shape).toBe('octagon')
+    expect(frame!.size).toBeLessThan(99999)
+  })
+
+  it('inherits the allow-list, dropping payloads from retired subsystems', () => {
+    const raw = { ...minimalRaw(), mandala: { rings: 3 }, composition: { layers: [] } }
+    const out = read(raw) as unknown as Record<string, unknown>
+    expect(out.mandala).toBeUndefined()
+    expect(out.composition).toBeUndefined()
   })
 })

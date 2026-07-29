@@ -66,7 +66,7 @@ function coerceLegacyFigures(figures: Record<string, FigureConfig>): Record<stri
  */
 const STRAND_LINE_STYLES = new Set<StrandLineStyle>(['solid', 'double', 'triple', 'dashed', 'dotted'])
 
-function readStrandStyle(r: Record<string, unknown>): StrandStyle | null {
+export function readStrandStyle(r: Record<string, unknown>): StrandStyle | null {
   const direct = r.strand as Record<string, unknown> | undefined
   if (direct && typeof direct === 'object') {
     if (typeof direct.width === 'number'
@@ -310,4 +310,62 @@ export function loadPatternConfig(raw: unknown): PatternConfig {
   const morph = readMorphConfig(r.morph)
   if (morph) out.morph = morph
   return out
+}
+
+/**
+ * Lenient sibling of `loadPatternConfig`, for **auto-persisted working state**
+ * — the Lab's `lab-state-v1`, which is restored on every boot without the user
+ * asking for it. There, throwing means a white screen with no way back in
+ * (ticket #50), so this repairs instead of rejecting and returns null only when
+ * nothing is salvageable.
+ *
+ * It repairs the raw blob into a shape the strict loader accepts and then
+ * **delegates to `loadPatternConfig`**, so every migration — figure coercion,
+ * strand / legacy `lacing`, editor schema version, Gallery Frame clamping,
+ * morph Origins — is inherited rather than reimplemented. That delegation is
+ * the point: the Lab boot path used to be a second, weaker schema gate with its
+ * own hand-written per-field branches, so every `PatternConfig` change had to be
+ * migrated in two places and only one of them was discoverable. Keep the pair
+ * here, together, and a new field is handled once.
+ *
+ * Each repair below is a case the strict loader treats as **fatal** but a
+ * background restore should survive by keeping as much of the session as it can.
+ * Anything the strict loader merely *drops* (an unreadable morph, an n-ring
+ * top-level `frame`) needs no repair — it already degrades.
+ */
+export function readPatternConfig(raw: unknown, fallbackStrand: StrandStyle): PatternConfig | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const r = { ...(raw as Record<string, unknown>) }
+
+  // No readable tiling ⇒ nothing worth restoring.
+  if (!isTilingConfig(r.tiling)) return null
+  let tiling: TilingConfig = r.tiling
+
+  // Retired type → blank rather than fatal: the figures and strand style are
+  // still worth keeping, and a blank tiling is a state the Lab starts in
+  // anyway.
+  if (RETIRED_TILING_TYPES.has(tiling.type)) tiling = { ...tiling, type: '' }
+  if (!isFiguresMap(r.figures)) r.figures = {}
+  if (!readStrandStyle(r)) r.strand = fallbackStrand
+
+  // An editor patch that won't migrate is dropped (taking an editor tiling type
+  // with it) — booting into a blank Lab beats failing the whole restore. Note
+  // `loadPatternConfig` migrates again; the second pass runs on already-v3 data
+  // and is cheap, and paying it keeps this function free of its own schema
+  // knowledge.
+  if (r.editor !== undefined) {
+    const migrated = migrateEditorConfig(r.editor)
+    if (migrated) r.editor = migrated
+    else delete r.editor
+  }
+  if (tiling.type === 'editor' && r.editor === undefined) tiling = { ...tiling, type: '' }
+  r.tiling = tiling
+
+  try {
+    return loadPatternConfig(r)
+  } catch {
+    // A repair we didn't anticipate. Losing the session is bad; booting into a
+    // crash is worse.
+    return null
+  }
 }

@@ -7,12 +7,16 @@ import type { PatternConfig } from '../types/pattern'
  * Regression cover for the Lab's auto-persisted working state.
  *
  * The Lab writes the live `PatternConfig` to localStorage on every change and
- * rehydrates it on boot WITHOUT going through `loadPatternConfig`, so every
- * schema change has to be migrated here too. The morph cases below exist
- * because the #48 `boundaries`→`origins` / `origin`→`axisOrigin` rename was
- * not, and a session persisted before it crashed the Canvas on next load
- * (`morphActive` reading `origins.length` of undefined) with no in-app
- * recovery — the user could only clear storage.
+ * rehydrates it on boot. That restore used to reimplement its own migrations —
+ * a second, weaker schema gate — and the #48 `boundaries`→`origins` /
+ * `origin`→`axisOrigin` rename was missed there, so a session persisted before
+ * it crashed the Canvas on next load (`morphActive` reading `origins.length` of
+ * undefined) with no in-app recovery: the user could only clear storage.
+ *
+ * The boot path now goes through `readPatternConfig` → `loadPatternConfig`, so
+ * migrations are inherited rather than duplicated. These tests pin that at the
+ * localStorage boundary — the morph cases as regression cover for #50, and the
+ * inheritance cases to catch the gate being forked again.
  */
 
 /** In-memory localStorage so the persistence paths run under node. */
@@ -99,5 +103,84 @@ describe('loadLabState — linked library entry', () => {
   it('comes back unlinked for sessions persisted before the field existed', () => {
     persistRaw(baseConfig()) // raw payload has no `savedId`
     expect(loadLabState().savedId).toBe('')
+  })
+})
+
+describe('loadLabState — migrations inherited from loadPatternConfig', () => {
+  it('migrates a v1 editor patch to v3 on boot', () => {
+    const config = baseConfig() as unknown as Record<string, unknown>
+    config.tiling = { type: 'editor', scale: 100 }
+    // Legacy single-cell v1 shape: flat boundary fields, no `cells[]`.
+    config.editor = {
+      version: 1,
+      boundaryShape: 'square',
+      boundarySize: 200,
+      originSides: 4,
+      noSeed: true,
+      tiles: [],
+      edgeLength: 100,
+    }
+    persistRaw(config)
+    const out = loadLabState()
+    expect(out.config.editor?.version).toBe(3)
+    expect(out.config.tiling.type).toBe('editor')
+  })
+
+  it('boots blank instead of crashing when the editor patch will not migrate', () => {
+    const config = baseConfig() as unknown as Record<string, unknown>
+    config.tiling = { type: 'editor', scale: 100 }
+    config.editor = { version: 99 }
+    persistRaw(config)
+    const out = loadLabState()
+    expect(out.config.editor).toBeUndefined()
+    expect(out.config.tiling.type).toBe('')
+  })
+
+  it('migrates a legacy `lacing` block to `strand`, keeping the weave fields', () => {
+    // The old hand-written branch here dropped `enabled`/`gapWidth`; delegating
+    // to readStrandStyle carries them.
+    persistRaw({
+      tiling: { type: '4.8.8', scale: 100 },
+      figures: {},
+      lacing: { strandWidth: 3, strandColor: '#111', gapColor: '#eee', enabled: true, gapWidth: 5 },
+    })
+    const out = loadLabState()
+    expect(out.config.strand).toEqual({
+      width: 3, color: '#111', background: '#eee', weave: true, weaveGap: 5,
+    })
+    expect((out.config as unknown as Record<string, unknown>).lacing).toBeUndefined()
+  })
+
+  it('blanks a retired tiling type and strips its stray payload', () => {
+    const config = baseConfig() as unknown as Record<string, unknown>
+    config.tiling = { type: 'layered-mandala', scale: 100 }
+    config.mandala = { rings: 3 }
+    persistRaw(config)
+    const out = loadLabState()
+    expect(out.config.tiling.type).toBe('')
+    expect((out.config as unknown as Record<string, unknown>).mandala).toBeUndefined()
+  })
+
+  it('clamps a hand-edited Gallery Frame instead of restoring it raw', () => {
+    const config = baseConfig() as unknown as Record<string, unknown>
+    config.frame = { type: 'shape', shape: 'hexagon', size: 99999 }
+    persistRaw(config)
+    expect(loadLabState().config.frame!.size).toBeLessThan(99999)
+  })
+
+  it('falls back to the default config when nothing is salvageable', () => {
+    persistRaw({ tiling: 'not-an-object' })
+    expect(loadLabState().config).toEqual(LAB_DEFAULT_CONFIG)
+  })
+
+  it('keeps the surrounding Lab state when the config itself is unsalvageable', () => {
+    store.set('lab-state-v1', JSON.stringify({
+      config: { tiling: null }, showStrands: true, outlineWidth: 2.5, savedId: 'entry-9',
+    }))
+    const out = loadLabState()
+    expect(out.config).toEqual(LAB_DEFAULT_CONFIG)
+    expect(out.showStrands).toBe(true)
+    expect(out.outlineWidth).toBe(2.5)
+    expect(out.savedId).toBe('entry-9')
   })
 })

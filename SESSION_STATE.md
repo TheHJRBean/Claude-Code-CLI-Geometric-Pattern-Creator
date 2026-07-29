@@ -18,7 +18,36 @@
 
 **NEXT — pick one:**
 0. **Issue hygiene (~10 min, Haiku).** Shipped+verified epics still OPEN on GitHub: **#44 / #45 / #46** (gradients), **#42** (line sets), **#28** (Guides slice 3). Close each with a pointer to its verifying commit. *(#48/#49/#50 are already closed.)*
-0b. **Standing risk worth an hour (#50, Opus/Sonnet).** Route `loadLabState` through `loadPatternConfig` wholesale so the Lab boot path inherits every migration automatically instead of needing a hand-written branch per field — see the #50 entry below. Compounded by `PatternConfig` being unversioned.
+0b. ~~Route `loadLabState` through `loadPatternConfig`~~ — **DONE 2026-07-29, see the entry below.** The remaining half of that risk is `PatternConfig` being **unversioned** (every migration is a shape sniff, no version to key off) — still open.
+
+---
+### ▶ 2026-07-29 (One schema gate: `loadLabState` now delegates to `loadPatternConfig` — ✅ SHIPPED + BROWSER-VERIFIED, Opus, #50 follow-up)
+
+Closes the standing risk recorded with #50: the Lab's boot path was a **second, weaker schema gate** with hand-written per-field branches, so every `PatternConfig` shape change had to be migrated in two places and only one was discoverable. That's what made the #50 morph crash possible.
+
+**Shape of the fix — repair, then delegate.** A naive "call `loadPatternConfig` and catch" would have been a regression: the strict loader *throws* on cases the Lab currently survives (retired tiling type, unmigratable editor patch, missing strand), so every one of them would have turned a partial recovery into a full reset to a blank Lab. Instead `configValidation.ts` gained **`readPatternConfig(raw, fallbackStrand)`** — a lenient sibling that repairs exactly the strict-loader-*fatal* cases and then **delegates**. The two live side by side so a new field is handled once:
+
+| | `loadPatternConfig` | `readPatternConfig` |
+|---|---|---|
+| Used by | file import, config library | the Lab's auto-restore |
+| On bad input | **throws** `ConfigValidationError` | repairs; `null` only if nothing is salvageable |
+| Why | user asked for this file — an error is honest | a throw at boot is a white screen with no way back |
+
+Repairs: retired tiling type → blank (keep figures/strand); malformed `figures` → `{}`; unreadable strand *and* `lacing` → caller's fallback; unmigratable `editor` → dropped, taking an editor tiling type with it. Anything the strict loader merely *drops* (unreadable morph, n-ring top-level `frame`) needs no repair — it already degrades.
+
+**~55 lines of duplicated migration deleted from `labDefaults.ts`.** The Lab boot path now *inherits* things it never had: Gallery-Frame clamping, the allow-list drop of retired `mandala`/`composition` payloads, figure coercion, and a **strictly better `lacing`→`strand` migration** — the old hand-rolled branch dropped `enabled`/`gapWidth`, so weave settings were silently lost on every reload; `readStrandStyle` carries them.
+
+⚠️ **When adding a new REQUIRED field to `loadPatternConfig`, add its repair to `readPatternConfig` in the same edit.** That pairing is the whole point; skipping it re-forks the gate. (Checked and safe today: `PatternConfig` has exactly 8 fields and the allow-list carries all 8 — nothing is silently stripped.)
+
+Also worth recording: **`coerceLegacyFigures` flattens nothing today.** `FigureConfig.type` is a single-member union (`'star'`, `types/pattern.ts:57`), so forcing `type: 'star'` is a no-op for valid data and only strips `rosetteQ`/`rosetteS`. It's a landmine for when the rosette epic adds a second type, not a live bug — I'd over-ranked it going in.
+
+**Tests: 1320 green** (was 1302; +11 `readPatternConfig` cases, +7 Lab-boot inheritance cases), tsc + build clean.
+
+**✅ BROWSER-VERIFIED 2026-07-29** — `/tmp/ga-verify/labboot*.mjs`, 0 page errors across all four scenarios:
+- Built a decorated 4.8.8 (strands on, Void gradient painted at 45°) → reload → **persisted config byte-identical** (`JSON.stringify` equality), decoration `voidFills[0].gradient` intact, and back on the Decoration Phase the gradient axis renders at **identical coordinates**.
+- *(Diagnosed en route: the gradient looks "missing" straight after a reload only because **Phase is UI state and resets to Design** — pre-existing, not data loss.)*
+- Stale **pre-#48 morph** injected into `lab-state-v1` → migrates to `axisOrigin` + 1 Origin, legacy keys gone, no crash. #50 regression cover holds through the new path.
+- **Unsalvageable** config (`tiling: null, figures: 'nope'`) → boots blank with `showStrands`/`outlineWidth`/`savedId` preserved, 0 errors.
 
 ---
 ### ▶ 2026-07-29 (Gradients: precise angle control on every surface — ✅ SHIPPED + BROWSER-VERIFIED, Opus, `823bab1`)

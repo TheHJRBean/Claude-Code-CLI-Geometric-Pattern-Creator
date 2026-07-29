@@ -4,9 +4,38 @@
 
 ## ▶ RESUME HERE
 
-**Session ended at a clean milestone (2026-07-29).** Two gradient stop-bar buttons shipped, browser-verified, pushed (`30b602f`, `a871876`). Nothing mid-flight, no handoff.
+**Session ended at a clean milestone (2026-07-29).** Morph **Boundaries → Origins** with per-Origin **Reach** + **Sides** shipped and browser-verified (#48). Before that, two gradient stop-bar buttons (`30b602f`, `a871876`). Nothing mid-flight, no handoff.
 
 **NEXT — pick one:**
+0. **Issue hygiene (~10 min, Haiku).** Several shipped+verified epics are still OPEN on GitHub: #44 / #45 / #46 (gradients), #42 (line sets), #28 (Guides slice 3). Close them with a pointer to the verifying commit.
+
+---
+### ▶ 2026-07-29 (Morph: Boundaries become Origins — Reach + Sides — ✅ SHIPPED + BROWSER-VERIFIED, Opus, #48)
+
+**User:** *"in morph I want to be able to increase the distance from the boundary over which the morph takes place… Change the morph boundaries to morph origins. Introduce a slider that pushes and pulls that final stop out/in and a toggle for both sides / left side / right side. For radial, the same but both / inside / outside."*
+
+**Two locked decisions (AskUserQuestion):** (1) the line you place holds the **BASE** recipe; the slider-positioned far end is the **TARGET**. (2) Overlaps → **nearest Origin wins** (hard handover at the midpoint, no blending, no compounding).
+
+**Model change.** Each stop was a link in one sorted chain sharing an implicit base stop at `d=0`; each **Origin** is now a self-contained ramp — line holds base, overlay is the target reached at `position ± reach`, `sides` picks which side(s) the ramp runs into. The implicit stop is **deleted**: base is simply the value everywhere no Origin reaches, which gets the "ordinary sliders stay live" property the 2026-07-18 amendment existed for, without the special case.
+
+**Commits:** `2adc295` (types + engine + state + UI), `447eab9` (test rework), docs commit below.
+
+- **Types:** `MorphBoundary`→`MorphOrigin` (+`reach`, `sides: 'both'|'negative'|'positive'`), `boundaries`→`origins`, and **`MorphConfig.origin`→`axisOrigin`** (the old name collided once stops became Origins; it is only a measuring reference — labelled "Axis"/"Centre").
+- **Engine (`pic/morph.ts`):** `governingOrigin` + `sideActive` replace the merged stop sequence. **Load-bearing subtlety:** the nearest-wins contest is restricted to Origins whose *active side faces the point* — otherwise a left-only Origin shadows a further Origin that really does morph the point on its right.
+- **Migration:** `readMorphConfig` reads both schemas. Legacy boundary `i` at `P_i` (predecessor `P_{i-1}`, `P_0=0`) → Origin at `P_{i-1}` reaching `|P_i − P_{i-1}|`. Exact for 1 boundary; **approximate for chains** (each converted Origin restarts from base) — unavoidable once blending between Origins was ruled out.
+- **UI:** Reach slider + Sides toggle in MorphPanel *and* the transient bottom bar (`MorphBoundarySlider`→`MorphOriginSlider`); angle sliders relabelled "*… angle at reach*"; `EditorMorphLayer` draws a **dashed reach extent** at `position ± reach` per active side (read-only annotation — reach is edited on sliders so the line stays a pure position handle).
+
+**Tests: 1257 green** (was 1234), tsc + build clean.
+
+**✅ BROWSER-VERIFIED 2026-07-29** — 16/16 assertions, 0 page errors (`/tmp/ga-verify/morph.mjs`, 4.8.8 + Shape Frame, Composition, dev :5175). Gating proved by pushing the Origin clear of the viewport so there is no seam in view: `sides=Right` + Origin far LEFT ⇒ field **byte-identical** to the all-target reference; far RIGHT ⇒ byte-identical to the unmorphed field; `sides=Left` mirrors both. Reach proved at a fixed distance of ~3000 units: reach 100 ⇒ fully clamped at target, reach 3000/4500/6000 ⇒ three distinct partially-morphed states. Also: a fresh Origin is a **visual no-op** (pre-fill contract holds in-browser), extents at ±600 for reach 600, one-sided Origin draws exactly one extent, reach 0 draws none. Screenshots `V0_no_morph` / `V1_step_right` / `V2_step_left` / `V3_reach120` / `V4_reach700`.
+
+**⚠️ VERIFY-METHOD TRAP (cost ~5 iterations — read before writing the next morph verify script).** Comparing *x-banded* geometry across states does NOT isolate a side. Two independent contaminants: (a) `autoLineLength` rays terminate against a neighbour's ray, so a tile at the seam emits arms landing **hundreds of units** into the far half — points at x=−362 genuinely move when only x>0 tiles change θ; (b) a "flat morph" baseline (target == base) takes a different float path than the untouched base and flips 2dp rounding. Both made correct gating look broken. **The sound method is to remove the seam from the viewport entirely** (Origin at ±3000) and compare whole-field point sets, or compare against the true unmorphed field rather than a synthesised flat one. Also note the 4.8.8 base recipe is 67.5 for *both* tile types, so a wrong-looking reference is not automatically the bug.
+
+**Verify-env notes:** `playwright-core` is NOT installed anywhere — `npm install playwright-core --no-save` into `/tmp/ga-verify` (browser binaries are cached at `~/.cache/ms-playwright/chromium-1228/chrome-linux64/chrome`). Strands render as `<path>` under `#strand-layer` with **no ancestor transforms**, so path `d` coordinates ARE world coordinates — band and compare directly, no screen calibration. **"Show strands" must be ON** or the layer is empty. Morph panel range-input indices once a row is expanded: 8 Position, 9 Reach, 10/11 the two tile-type angles.
+
+**Deferred:** easing curves + length/curve overlays remain slice 3 (#39). Blending between overlapping Origins is explicitly out (nearest-wins was chosen).
+
+---
 1. **⏳ Awaiting user verdict on `⇄ Reverse`.** The user asked for a "switch direction" button described as `position × -1` (`100 → -100`, `-50 → 50`). That is the SAME operation as the shipped `⇄ Reverse` — their example frames the bar as −100…+100 (centre 0) where ×-1 mirrors about the centre; the real bar is 0…100% (centre 50%) where the same mirror is `100 − x` = `1 − offset`. They hadn't seen the button yet ("sorry I didn't see that") and were going to try it. **If they come back saying it's still not right, the one genuinely different behaviour left is making the on-canvas axis handles physically SWAP ENDS** — today Reverse deliberately leaves those two draggable squares put and only flips the colours between them (see the design-call note in the `⇄ Reverse` entry). Don't build a second stop-mirroring button; it would be a duplicate.
 2. **Pre-existing test flake worth 5 min:** `src/appSmoke.test.ts` "fresh profile → Lab default" times out at 5000 ms under the *full* parallel suite but passes alone in ~2 s. Confirmed identical on a clean stashed tree, so it predates this session. Fix = bump `testTimeout` on that file.
 3. **Otherwise the roadmap is open** — a `/what-next` table was generated this session. Highest-value non-feature items were the two silent-data-loss load-path bugs: `PatternConfig` is unversioned + its validation allow-list silently strips unknown fields (morph/stamps/generator scores), and `configValidation.ts:50` force-flattens ALL figures to `'star'` on load (collides with the rosette epic).

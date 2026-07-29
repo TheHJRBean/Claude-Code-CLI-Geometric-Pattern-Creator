@@ -66,13 +66,19 @@ _Avoid_: pick target / node / point as canonical nouns (casual ok, umbrella term
 The Builder phase where the **Patch** is composed into the rendered tiled output. The user sees the full **Composition** (output) here and tunes PIC settings (contact angle, figures, lacing) without mutating Tiles.
 _Avoid_: strand editor, strand mode, preview mode, render mode
 
-**Morph** _(planned, grilled 2026-07-17)_:
-A spatial interpolation of **Figure recipe** parameters across the canvas, configured from the **Composition** Phase onwards. The start state is the Patch's ordinary `figures`; the user adds **Morph Boundaries**, and parameters blend piecewise between consecutive stops (gradient-stop model — intermediate boundaries allow "morph out and back"). Two modes: **Linear** (blend along a direction) and **Radial** (blend by distance from a centre). v1 interpolates angles only (`contactAngle` / `vertexContactAngle`); the schema carries partial Figure-recipe overlays per stop so full-parameter morphing can land later. θ is evaluated per **edge midpoint** (not per polygon) so **Strands** stay straight through every contact point. Phase 2 (deferred): morphing the underlying **Tiling** topology between **Configurations**.
+**Morph** _(grilled 2026-07-17; Origin model 2026-07-29)_:
+A spatial interpolation of **Figure recipe** parameters across the canvas, authored in the **Composition** Phase (frozen but still rendered in **Decoration**). The base state is the Patch's ordinary `figures`; the user adds **Morph Origins**, each blending the base recipe to its own target over its **Reach**. Two modes: **Linear** (blend along a direction from the **Axis** point) and **Radial** (blend by distance from a **Centre**). v1 interpolates angles only (`contactAngle` / `vertexContactAngle`); the schema carries partial Figure-recipe overlays per Origin so full-parameter morphing can land later. θ is evaluated per **edge midpoint** (not per polygon) so **Strands** stay straight through every contact point. Phase 2 (deferred): morphing the underlying **Tiling** topology between **Configurations**.
 _Avoid_: gradient (collides with future colour gradients), transition, blend (casual ok — canonical noun is Morph)
 
-**Morph Boundary**:
-One stop of a **Morph** — rendered on canvas as a draggable line (Linear) or ring (Radial), carrying its own per-Tile-type angle values that the pattern must reach at that position. Selecting one summons a transient position slider; angles are edited per stop in the sidebar Morph section. The field clamps outside the first/last Boundary (pure first/last-stop pattern beyond).
-_Avoid_: stop, keyframe, waypoint (casual ok — canonical is Morph Boundary)
+**Morph Origin** _(replaced "Morph Boundary" 2026-07-29, #48)_:
+One anchor of a **Morph** — rendered on canvas as a draggable line (Linear) or ring (Radial). The Origin's own line/ring holds the **live base recipe**; its per-Tile-type values are the **target**, reached at its **Reach** and clamped beyond. Where several Origins could apply, the nearest one whose active side faces the point wins. Selecting one summons a transient bar carrying Position, Reach and Sides.
+_Avoid_: Morph Boundary (retired — "Boundary" now means only a Cell's perimeter), stop, keyframe, waypoint
+
+**Reach** _(Morph)_:
+How far from a **Morph Origin** its blend runs — the distance over which the morph takes place. The target values are reached at `position ± reach` and hold beyond it; a Reach of 0 is a hard step at the line. Drawn on canvas as a dashed extent on each active side.
+
+**Sides** _(Morph)_:
+Which side(s) of a **Morph Origin** its blend extends into — **Both** / **Left** / **Right** in Linear mode, **Both** / **Inside** / **Outside** in Radial. The un-reached side stays at the base recipe.
 
 ### Tiling — substrate vocabulary
 

@@ -1,10 +1,28 @@
 # Pattern Morph — Spec (v1)
 
-**Status:** Grilled + signed off 2026-07-17; **slice 1 (Engine, #37) shipped same day** — `pic/morph.ts` field evaluation, per-edge θ variants in `pic/stellation.ts`, `runPIC` threading, load validation, fast-path opt-out, probe suite `pic/morphProbe.test.ts`. **Slice 2 (UI, #38) shipped + browser-verified 2026-07-17** — sidebar Morph section, on-canvas draggable Boundaries/handles, transient bottom position slider, reducer actions; zero engine changes. Slice 3 (#39) open. Decisions in `docs/adr/0009-morph-boundaries.md`; vocabulary in `CONTEXT.md` (**Morph**, **Morph Boundary**). Idea provenance: memory `project_pattern_morph_idea.md`.
+**Status:** Grilled + signed off 2026-07-17; **slice 1 (Engine, #37) shipped same day** — `pic/morph.ts` field evaluation, per-edge θ variants in `pic/stellation.ts`, `runPIC` threading, load validation, fast-path opt-out, probe suite `pic/morphProbe.test.ts`. **Slice 2 (UI, #38) shipped + browser-verified 2026-07-17** — sidebar Morph section, on-canvas draggable stops/handles, transient bottom slider, reducer actions; zero engine changes. **Origin model (#48) shipped + browser-verified 2026-07-29** — Boundaries became **Morph Origins** with a per-Origin **Reach** and **Sides**; see §Origin model. Slice 3 (#39) open. Decisions in `docs/adr/0009-morph-boundaries.md`; vocabulary in `CONTEXT.md` (**Morph**, **Morph Origin**). Idea provenance: memory `project_pattern_morph_idea.md`.
 
-**Field-evaluation clarification (implemented semantics, amended 2026-07-18):** gradient stops = the explicit Boundaries **plus an implicit stop at position 0 carrying the live start recipe** (an explicit stop exactly at 0 replaces it). Below the first stop the field clamps to that stop's effective values, piecewise-linear blend between consecutive stops, clamp beyond the last. Consequences: the Origin line/Centre always holds the ordinary `figures` values (the usual Composition sliders stay live under an active Morph — they drive the Origin side), and a **single Boundary already yields a real gradient** (base at the Origin → its values at its line). *History:* #37 first shipped CSS-gradient semantics with no implicit stop ("start recipe = base every overlay patches, NOT a stop"), which made one Boundary apply uniformly everywhere and left the base sliders inert — reversed on user report 2026-07-18; this also restores the original §Field-evaluation intent ("the plain `figures` map applies at the origin side").
+A **Morph** spatially interpolates Figure-recipe parameters across the canvas of a Builder Composition. The start state is the Patch's ordinary `figures` map; the user adds one or more **Morph Origins** — draggable lines (Linear mode) or rings (Radial mode). Each Origin's own line/ring holds the live base recipe and blends to its own per-Tile-type target values over its **Reach**, on whichever **Sides** it is set to.
 
-A **Morph** spatially interpolates Figure-recipe parameters across the canvas of a Builder Composition. The start state is the Patch's ordinary `figures` map; the user adds one or more **Morph Boundaries** — draggable lines (Linear mode) or rings (Radial mode) — each carrying its own per-Tile-type values that the pattern reaches at that position. Parameters blend piecewise between consecutive stops, so an intermediate Boundary lets a pattern morph out and back.
+## Origin model (amended 2026-07-29, #48)
+
+The user asked to "increase the distance from the boundary over which the morph takes place". Under the previous model the only lever was dragging a stop further out, which also moved where its values took effect. Each stop is now a self-contained ramp instead of a link in a shared chain:
+
+- the Origin's line/ring holds the **live base recipe** (the ordinary Composition angle sliders),
+- its `figures` overlay is the **target**, reached at `position ± reach` and clamped beyond,
+- `sides` picks which side(s) the ramp extends into; the other side stays at the base recipe.
+
+```
+BOTH SIDES                          RIGHT SIDE ONLY
+target ───╮             ╭───        target                 ╭───
+           ╲           ╱                                  ╱
+base        ╰────◉────╯             base  ────────◉──────╯
+        P-r     P     P+r                         P     P+r
+```
+
+The blend is therefore continuous at the Origin in every case, and **Reach is literally "the distance over which the morph takes place"**. Where several Origins could apply, the **nearest Origin whose active side faces the point wins** — a hard handover at the midpoint, no blending between Origins and no compounding (user decision 2026-07-29). Where no Origin's active side faces a point, the base recipe applies unchanged.
+
+This replaces the implicit-stop-at-0 machinery entirely: base is now simply the value everywhere no Origin reaches, so the ordinary sliders stay live without a special case. *History:* #37 first shipped CSS-gradient semantics with no implicit stop, which made one Boundary apply uniformly and left the base sliders inert; 2026-07-18 added an implicit stop at position 0 carrying the start recipe; #48 generalised that into a per-Origin ramp with an explicit Reach and Sides.
 
 ## Scope
 
@@ -21,30 +39,36 @@ Top-level on `PatternConfig` (mirrors `figures` / `frame`; absent ⇒ no morph):
 interface MorphConfig {
   enabled: boolean
   mode: 'linear' | 'radial'
-  // Linear: origin + unit direction; t grows along dir from origin.
-  // Radial: origin = centre; t grows with distance.
-  origin: { x: number; y: number }        // world/Patch space
+  // The AXIS reference point — where `position` is measured from. Named
+  // `axisOrigin` so it doesn't collide with the per-stop Morph Origins.
+  // Labelled "Axis" (linear) / "Centre" (radial) in the UI.
+  axisOrigin: { x: number; y: number }    // world/Patch space
   direction?: { x: number; y: number }    // linear only, unit vector
   easing: 'linear'                        // reserved; only 'linear' in v1
-  // Ordered by position ascending. position = world-space distance from
-  // origin (along direction for linear, radially for radial).
-  boundaries: MorphBoundary[]
+  origins: MorphOrigin[]                  // ordered by position ascending
 }
 
-interface MorphBoundary {
+type MorphSides = 'both' | 'negative' | 'positive'   // UI: Both/Left/Right or Both/Inside/Outside
+
+interface MorphOrigin {
   id: string
-  position: number                        // world-space distance from origin
-  // Partial overlay per tileTypeId; v1 reads contactAngle/vertexContactAngle.
+  position: number                        // world-space distance from axisOrigin
+  reach: number                           // distance the blend runs over; 0 = hard step
+  sides: MorphSides                       // which side(s) the blend extends into
+  // Partial overlay per tileTypeId — the TARGET, reached at `reach`.
+  // v1 reads contactAngle/vertexContactAngle.
   figures: Record<string, Partial<FigureConfig>>
 }
 ```
 
 Field evaluation at a world point `p`:
 
-- Linear: `d = dot(p − origin, direction)`; Radial: `d = |p − origin|`.
-- Stop sequence = explicit Boundaries + an **implicit stop at `d = 0`** holding the start recipe (the plain `figures` map applies **at the origin side**; an explicit stop exactly at 0 replaces the implicit one).
-- Between consecutive stops → piecewise-linear blend of the two stops' effective values (a stop's effective value = start value overridden by its overlay).
-- Below the first / beyond the last stop of the merged sequence → clamp to that stop's values. (Clamped band — the morph is a controllable band, not viewport-relative.)
+- Linear: `d = dot(p − axisOrigin, direction)`; Radial: `d = |p − axisOrigin|`.
+- Pick the **nearest Origin whose active side faces `d`** (`s = d − position`; `both` always, `negative` iff `s ≤ 0`, `positive` iff `s ≥ 0`). Restricting the contest to active sides matters — an Origin that only morphs to its left must not shadow a further Origin that really does morph the point on its right.
+- None ⇒ the base recipe, unchanged.
+- Otherwise `u = min(|s| / reach, 1)` and the value is `base·(1−u) + target·u`. A `reach` of 0 is a hard step: base exactly on the line, target either side of it.
+
+**Legacy saves.** `readMorphConfig` accepts both the current `{ axisOrigin, origins }` and the pre-#48 `{ origin, boundaries }`. A legacy boundary `i` at `P_i` whose predecessor sat at `P_{i−1}` (`P_0 = 0`, the old implicit stop) becomes an Origin at `position = P_{i−1}` reaching `|P_i − P_{i−1}|` toward it. **Exact for a single boundary** — by far the common case; **approximate for chains of 2+**, since each converted Origin restarts from base where the old chain accumulated stop to stop. Deliberate: blending between Origins was explicitly ruled out, so an exact chain conversion isn't expressible.
 
 World-space means pan/zoom never changes the pattern and the field saves deterministically. Under the Lattice, each stamped Patch copy sees a different `t` — that is the point.
 
@@ -64,11 +88,11 @@ Consequences inside PIC:
 Composition-Phase sidebar gains a **Morph section**:
 
 - Enable toggle + mode picker (Linear / Radial).
-- **Add Boundary** button; a list of stops, each expandable to per-Tile-type end-angle sliders. A new Boundary is pre-filled from the *effective values at its position* (so adding one changes nothing until dragged).
-- On canvas: the origin/centre and direction arrow are draggable handles; each Boundary renders as a faint draggable line (Linear) / ring (Radial).
-- Selecting a Boundary on canvas summons a **transient position slider docked at the bottom of the screen** — present only while a Boundary is selected.
+- **Add Origin** button; a list of Origins, each expandable to **Position**, **Reach**, a **Sides** toggle (Both / Left / Right in Linear, Both / Inside / Outside in Radial) and per-Tile-type "*angle at reach*" sliders. A new Origin is pre-filled from the field's current effective value **at the far end of its ramp**, so adding one changes nothing until edited — with no other Origins that is simply the base recipe, a flat and invisible addition.
+- On canvas: the axis point/centre and direction arrow are draggable handles; each Origin renders as a faint draggable line (Linear) / ring (Radial), plus a **dashed reach extent** at `position ± reach` on each active side marking where the target is fully reached. The extent is a read-only annotation — `reach` is edited on the sliders, so the line stays a pure position handle.
+- Selecting an Origin on canvas summons a **transient bar docked at the bottom of the screen** carrying Position, Reach and Sides — present only while an Origin is selected.
 - Morph edits are Composition-phase actions: **not** in the Design undo allowlist (`DESIGN_MODE_ACTIONS`), same footing as figure/strand tuning.
-- Boundaries/handles are overlays: excluded from exports via the existing `data-export="exclude"` mechanism, hidden outside the Composition+ phases as appropriate.
+- Origins/handles/extents are overlays: excluded from exports via the existing `data-export="exclude"` mechanism, hidden outside the Composition+ phases as appropriate.
 
 ## Interactions with existing features
 

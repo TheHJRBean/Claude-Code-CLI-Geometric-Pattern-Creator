@@ -24,7 +24,11 @@ via SVG gradient defs.
    soft cap ~8 — each stop has a draggable offset, add/remove, and its own
    colour. `≡ Even` redistributes the whole set at equal intervals across
    0..1 in its current left-to-right order (`evenlySpacedStops`), tidying a
-   hand-dragged set in one click; each stop keeps its array index so the
+   hand-dragged set in one click. `⇄ Reverse` switches the gradient's
+   direction by mirroring every stop (`offset → 1 − offset`,
+   `reversedStops`) — the **stops** flip, never the axis, so the world-space
+   frame/strand gradients' draggable on-canvas handles stay put; radial
+   gradients swap inner↔outer. Both keep each stop's array index so the
    selected stop stays selected.
 3. **Per-shape geometry editing** happens in a **focus modal**
    (`StampFocusEditor` pattern): the shape rendered large in canonical pose,

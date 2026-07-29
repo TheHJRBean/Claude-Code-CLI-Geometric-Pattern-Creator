@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import type { GradientStop } from '../../types/editor'
 import { GRADIENT_MAX_STOPS } from '../../types/editor'
-import { evenlySpacedStops, gradientPreviewCss } from '../../decoration/gradients'
+import { evenlySpacedStops, gradientPreviewCss, reversedStops } from '../../decoration/gradients'
 import { isHexColour, multiplyColour } from '../colourPicker.logic'
 
 /**
@@ -11,7 +11,8 @@ import { isHexColour, multiplyColour } from '../colourPicker.logic'
  * double-click a marker to remove it. `+ Stop` / `− Stop` add/remove (min 2,
  * cap `GRADIENT_MAX_STOPS`); `× Multiply` deepens the selected stop's colour
  * (self-multiply, repeatable); `≡ Even` redistributes every stop at equal
- * intervals across 0..1 in its current order. Each stop also gets its own colour well under
+ * intervals across 0..1 in its current order; `⇄ Reverse` switches the
+ * gradient's direction by mirroring the stops (not the axis). Each stop also gets its own colour well under
  * the track with a `×` to delete that specific stop, so a stop can be removed
  * directly without selecting it first. Shared by the Decoration panel
  * (working draft) and the gradient focus editor.
@@ -74,6 +75,10 @@ export function GradientStopBar({ stops, selected, onSelect, onChange }: {
   // Space every stop evenly across 0..1, keeping left-to-right order (and each
   // stop's array index, so the selection stays on the same colour).
   const spaceEvenly = () => onChange(evenlySpacedStops(stops))
+
+  // Switch the gradient's direction — mirror the stops rather than the axis, so
+  // the on-canvas start/end handles stay where the user put them.
+  const reverse = () => onChange(reversedStops(stops))
 
   return (
     <div style={{ marginBottom: 8 }}>
@@ -208,6 +213,13 @@ export function GradientStopBar({ stops, selected, onSelect, onChange }: {
           title="Space the stops evenly across the gradient, keeping their order"
         >
           ≡ Even
+        </button>
+        <button
+          onClick={reverse}
+          style={stopButtonStyle}
+          title="Switch the gradient's direction — mirrors the colours end-for-end, leaving the axis handles put"
+        >
+          ⇄ Reverse
         </button>
         <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
           {hasSelection ? `${(stops[selected].offset * 100).toFixed(0)}%` : ''}

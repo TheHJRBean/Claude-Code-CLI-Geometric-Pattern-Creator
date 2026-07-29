@@ -5,6 +5,21 @@
 ## ▶ RESUME HERE
 
 ---
+### ▶ 2026-07-29 (Gradient stop bar — `⇄ Reverse` direction switch — ✅ SHIPPED + BROWSER-VERIFIED, Opus)
+
+**User:** *"Please also add 'switch direction'."* Follow-on to the `≡ Even` button below.
+
+**Done:** `reversedStops(stops)` in `decoration/gradients.ts` + a `⇄ Reverse` button beside `≡ Even`. Mirrors every stop (`offset → 1 − offset`).
+
+**KEY DESIGN CALL — mirror the STOPS, never the axis.** Reversing `start`/`end` geometry would give the same picture for a linear gradient but would **teleport the on-canvas drag handles** of the world-space frame + strand gradients (they render the axis endpoints as draggable squares). Mirroring stops leaves the axis untouched, and as a bonus it's type-agnostic: a **radial** gradient has no start/end to swap, but mirroring stops correctly swaps its inner↔outer colours. Same index-preserving contract as `evenlySpacedStops` (selection stays put). It's an involution — two clicks restore the original.
+
+**Float note:** `1 − (1 − 0.15)` = `0.15000000000000002`, so the involution + even-spacing round-trip tests assert `toBeCloseTo(…, 12)`, not exact equality. No clamping needed — `1 − x` for `x ∈ [0,1]` is always back in `[0,1]` under IEEE754.
+
+**Tests:** +6 (mirror, end-colour swap, index/colour preservation, involution, stays-in-range + even spacing survives, empty set). **1234 green** (was 1228), tsc + build clean.
+
+**✅ BROWSER-VERIFIED 2026-07-29** (`/tmp/ga-verify/reverse.mjs`, 4.8.8, across-frame wash, 3 asymmetric stops): offsets `[0, .2, 1]` → `[0, .8, 1]`; **end colours swapped** (`#c0392b`↔`#f5f0e8`); **axis attributes byte-identical before/after** (handles unmoved — the whole point); second click restored exactly; 0 page errors. Wash visibly flipped red-top → red-bottom, handles in place. Screenshots `30_before_reverse` / `31_after_reverse`.
+
+---
 ### ▶ 2026-07-29 (Gradient stop bar — `≡ Even` distribute button — ✅ SHIPPED + BROWSER-VERIFIED, Opus)
 
 **User:** originally asked for a gradient *smoothing* slider, then re-scoped: *"Scrap that. I think the smoothness is ok. What would be more helpful would be to have a button to click that will arrange the control points in even spacing."*

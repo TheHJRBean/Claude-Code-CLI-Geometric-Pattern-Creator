@@ -165,6 +165,22 @@ export function gradientPreviewCss(stops: GradientStop[]): string {
  * their relative order rather than swapping. Fewer than 2 stops is returned
  * unchanged (nothing to space, and 1/(n-1) would divide by zero).
  */
+/**
+ * Switch a gradient's direction by mirroring every stop end-for-end
+ * (`offset → 1 − offset`). Backs the stop bar's `⇄ Reverse` button.
+ *
+ * Works for **both** gradient types without touching their geometry: a linear
+ * gradient runs the other way along the same axis, and a radial one swaps its
+ * inner and outer colours. Keeping the axis fixed is what makes this safe to
+ * apply to the world-space frame / strand gradients, whose start & end are also
+ * draggable on-canvas handles — reversing the geometry instead would teleport
+ * the handles. As with `evenlySpacedStops`, each stop keeps its array index
+ * (only `offset` changes) so the caller's selected stop stays selected.
+ */
+export function reversedStops(stops: GradientStop[]): GradientStop[] {
+  return stops.map(s => ({ ...s, offset: 1 - s.offset }))
+}
+
 export function evenlySpacedStops(stops: GradientStop[]): GradientStop[] {
   if (stops.length < 2) return stops
   const step = 1 / (stops.length - 1)

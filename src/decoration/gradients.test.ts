@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { Vec2 } from '../utils/math'
 import type { ColourRecord } from '../types/editor'
-import { axisAngleDeg, bboxAxisAtAngle, defaultGradientStops, evenlySpacedStops, gradientPreviewCss, pointsBBox, seedFrameGradientSpec, seedGradientSpec, sortedStops } from './gradients'
+import { axisAngleDeg, bboxAxisAtAngle, defaultGradientStops, evenlySpacedStops, gradientPreviewCss, pointsBBox, reversedStops, seedFrameGradientSpec, seedGradientSpec, sortedStops } from './gradients'
 import { makeVoidFill } from './resolve'
 import { buildColourIndex, resolveFill } from './scopes'
 import { canonicalPose } from './stamps'
@@ -260,5 +260,46 @@ describe('evenlySpacedStops', () => {
   it('produces stops already in ascending order for render', () => {
     const out = evenlySpacedStops(atOffsets(0.8, 0.1, 0.5))
     expect(sortedStops(out).map(s => s.colour)).toEqual(['#000001', '#000002', '#000000'])
+  })
+})
+
+describe('reversedStops', () => {
+  const atOffsets = (...offsets: number[]) =>
+    offsets.map((offset, i) => ({ offset, colour: `#00000${i}` }))
+
+  it('mirrors every stop end-for-end', () => {
+    expect(reversedStops(atOffsets(0, 0.25, 1)).map(s => s.offset)).toEqual([1, 0.75, 0])
+  })
+
+  it('swaps which colour is at each end', () => {
+    const out = sortedStops(reversedStops(atOffsets(0, 0.3, 1)))
+    // The stop that was last (#000002) now leads the gradient.
+    expect(out.map(s => s.colour)).toEqual(['#000002', '#000001', '#000000'])
+  })
+
+  it('keeps each stop index and colour so the selection stays put', () => {
+    const input = atOffsets(0, 0.4, 1)
+    const out = reversedStops(input)
+    expect(out.map(s => s.colour)).toEqual(input.map(s => s.colour))
+    expect(input.map(s => s.offset)).toEqual([0, 0.4, 1]) // input untouched
+  })
+
+  it('is an involution — reversing twice restores the original', () => {
+    // Exact to within float round-trip noise: 1 - (1 - 0.15) = 0.15000000000000002.
+    const input = atOffsets(0, 0.15, 0.62, 1)
+    const back = reversedStops(reversedStops(input))
+    expect(back.map(s => s.colour)).toEqual(input.map(s => s.colour))
+    back.forEach((s, i) => expect(s.offset).toBeCloseTo(input[i].offset, 12))
+  })
+
+  it('stays within 0..1 and preserves even spacing', () => {
+    const out = reversedStops(evenlySpacedStops(atOffsets(0.2, 0.9, 0.95, 0.99)))
+    const offsets = sortedStops(out).map(s => s.offset)
+    offsets.forEach((v, i) => expect(v).toBeCloseTo(i / 3, 12))
+    expect(offsets.every(v => v >= 0 && v <= 1)).toBe(true)
+  })
+
+  it('handles an empty set', () => {
+    expect(reversedStops([])).toEqual([])
   })
 })

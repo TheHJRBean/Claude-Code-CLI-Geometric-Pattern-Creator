@@ -2,6 +2,7 @@ import { memo } from 'react'
 import type { MorphConfig } from '../types/pattern'
 import type { Vec2 } from '../utils/math'
 import { clipInfiniteLineToBounds } from '../editor/morph'
+import { originReach } from '../pic/morph'
 import type { WorldBounds } from '../editor/guides'
 
 /**
@@ -106,16 +107,24 @@ export const EditorMorphLayer = memo(function EditorMorphLayer({
   })
 
   /** Positions of an Origin's reach extents — the far ends of its ramp, one
-   *  per active side. Zero reach has no extent to draw (hard step). */
-  const reachExtents = (o: MorphConfig['origins'][number]): number[] => {
-    if (!(o.reach > 0)) return []
+   *  per active side. Resolved through `originReach` so auto-fit (#49) shows
+   *  the extents actually meeting the neighbours. Zero reach has no extent to
+   *  draw (hard step). */
+  const reachExtents = (i: number): number[] => {
+    const o = morph.origins[i]
     const out: number[] = []
-    if (o.sides !== 'positive') out.push(o.position - o.reach)
-    if (o.sides !== 'negative') out.push(o.position + o.reach)
+    if (o.sides !== 'positive') {
+      const r = originReach(morph.origins, i, -1)
+      if (r > 0) out.push(o.position - r)
+    }
+    if (o.sides !== 'negative') {
+      const r = originReach(morph.origins, i, 1)
+      if (r > 0) out.push(o.position + r)
+    }
     return out
   }
 
-  const renderOrigin = (o: MorphConfig['origins'][number]) => {
+  const renderOrigin = (o: MorphConfig['origins'][number], oi: number) => {
     const selected = o.id === selectedOriginId
     const width = selected ? 2.4 : 1.4
     const opacity = selected ? 0.95 : 0.5
@@ -150,7 +159,7 @@ export const EditorMorphLayer = memo(function EditorMorphLayer({
       if (!(o.position > 0)) return null
       return (
         <g key={o.id}>
-          {reachExtents(o).map((rad, i) => (
+          {reachExtents(oi).map((rad, i) => (
             // An inward extent can fall past the Centre — no ring to draw.
             rad > 0 ? (
               <circle
@@ -185,7 +194,7 @@ export const EditorMorphLayer = memo(function EditorMorphLayer({
     if (!span) return null
     return (
       <g key={o.id}>
-        {reachExtents(o).map((position, i) => {
+        {reachExtents(oi).map((position, i) => {
           const ext = lineAt(position)
           return ext ? (
             <line

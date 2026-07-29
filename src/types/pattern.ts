@@ -159,8 +159,15 @@ export interface MorphOrigin {
    * for linear, radially for radial). Origins are kept sorted ascending. */
   position: number
   /** Distance from the line/ring over which the base recipe blends to this
-   * Origin's target overlay. `0` ⇒ a hard step at the line. */
+   * Origin's target overlay. `0` ⇒ a hard step at the line. Ignored on a side
+   * where `autoReach` finds a neighbour — see `originReach`. */
   reach: number
+  /** When true, the reach on each side is computed live as HALF the gap to
+   * the adjacent Origin on that side, so neighbouring ramps meet exactly
+   * midway and the handover lands on the midpoint. Falls back to `reach` on a
+   * side with no neighbour. Absent ⇒ false, so pre-#49 saves are unchanged;
+   * newly added Origins set it true. */
+  autoReach?: boolean
   /** Which side(s) of the line/ring the blend extends into. */
   sides: MorphSides
   /** Partial overlay per tileTypeId — the TARGET values, reached at `reach`. */

@@ -63,7 +63,7 @@ import { midpoint as vecMidpoint, pointsEqual } from '../utils/math'
 import { EditorMorphLayer } from './EditorMorphLayer'
 import { EditorFrameGradientLayer } from './EditorFrameGradientLayer'
 import { MorphOriginSlider } from './MorphOriginSlider'
-import { morphDistance } from '../pic/morph'
+import { morphDistance, originReach } from '../pic/morph'
 
 /**
  * Each **Cell** in a Patch lives in Patch-local coords via its own `center` +
@@ -213,6 +213,7 @@ interface Props {
   onSetMorphDirection?: (d: Vec2) => void
   onSetMorphOriginPosition?: (originId: string, position: number) => void
   onSetMorphOriginReach?: (originId: string, reach: number) => void
+  onSetMorphOriginAutoReach?: (originId: string, autoReach: boolean) => void
   onSetMorphOriginSides?: (originId: string, sides: MorphSides) => void
   onDeleteMorphOrigin?: (originId: string) => void
   /** #45 — commit the reshaped across-frame gradient (handle drags). */
@@ -225,7 +226,7 @@ interface Props {
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, onPlaceTileOnAnchor, editorMode = 'place', constructSnap = true, constructAngleStep = DEFAULT_ANGLE_STEP, constructTool = 'line', showGuides = false, onAddGuide, onUpdateGuide, onDeleteGuide, picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature, onPaintGradientVoid, onDecorationVoids, showMorphOverlay = false, onSetMorphAxisOrigin, onSetMorphDirection, onSetMorphOriginPosition, onSetMorphOriginReach, onSetMorphOriginSides, onDeleteMorphOrigin, onSetFrameGradient, onSetStrandGradient, viewBoundsRef }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, onPlaceTileOnAnchor, editorMode = 'place', constructSnap = true, constructAngleStep = DEFAULT_ANGLE_STEP, constructTool = 'line', showGuides = false, onAddGuide, onUpdateGuide, onDeleteGuide, picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature, onPaintGradientVoid, onDecorationVoids, showMorphOverlay = false, onSetMorphAxisOrigin, onSetMorphDirection, onSetMorphOriginPosition, onSetMorphOriginReach, onSetMorphOriginAutoReach, onSetMorphOriginSides, onDeleteMorphOrigin, onSetFrameGradient, onSetStrandGradient, viewBoundsRef }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -1556,8 +1557,14 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
           key={selectedMorphOrigin.id}
           origin={selectedMorphOrigin}
           mode={config.morph.mode}
+          effectiveReach={originReach(
+            config.morph.origins,
+            config.morph.origins.indexOf(selectedMorphOrigin),
+            selectedMorphOrigin.sides === 'negative' ? -1 : 1,
+          )}
           onChangePosition={position => onSetMorphOriginPosition(selectedMorphOrigin.id, position)}
           onChangeReach={reach => onSetMorphOriginReach(selectedMorphOrigin.id, reach)}
+          onChangeAutoReach={auto => onSetMorphOriginAutoReach?.(selectedMorphOrigin.id, auto)}
           onChangeSides={sides => onSetMorphOriginSides(selectedMorphOrigin.id, sides)}
           onDelete={() => { onDeleteMorphOrigin(selectedMorphOrigin.id); setSelectedMorphOriginId(null) }}
           onClose={() => setSelectedMorphOriginId(null)}

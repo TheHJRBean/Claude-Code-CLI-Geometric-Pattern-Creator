@@ -3,6 +3,7 @@ import type { MorphConfig, MorphOrigin, PatternConfig } from '../types/pattern'
 import { DEFAULT_CONFIG } from '../state/defaults'
 import { createDefaultEditorConfig } from './createDefault'
 import {
+  autoReachAt,
   buildMorphOrigin,
   clipInfiniteLineToBounds,
   createDefaultMorph,
@@ -79,11 +80,22 @@ describe('buildMorphOrigin', () => {
     expect(b.figures['4'].vertexContactAngle).toBe(30)
   })
 
-  it('defaults to a both-sided ramp reaching 4 edge-lengths', () => {
+  it('defaults to a both-sided auto-fitting ramp reaching 4 edge-lengths', () => {
     const config = editorConfig()
     const o = buildMorphOrigin(config, 150)
     expect(o.sides).toBe('both')
+    expect(o.autoReach).toBe(true)
     expect(o.reach).toBe(4 * config.editor!.edgeLength)
+  })
+
+  it("samples the target at the AUTO far end when a neighbour is present", () => {
+    const config = editorConfig()
+    const startAngle = config.figures['4'].contactAngle
+    config.morph = linearMorph([{ id: 'a', position: 0, reach: 400, sides: 'both', figures: { '4': { contactAngle: 80 } } }])
+    // Auto reach for an Origin dropped at 600 = half the 600 gap = 300.
+    const fresh = buildMorphOrigin(config, 600)
+    const expected = morphFieldValue(config.morph, '4', 'contactAngle', startAngle, 600 + 300)
+    expect(fresh.figures['4'].contactAngle).toBeCloseTo(expected, 10)
   })
 
   it('with NO existing morph, the fresh Origin is flat at the base recipe', () => {
@@ -97,16 +109,30 @@ describe('buildMorphOrigin', () => {
     }
   })
 
-  it("pre-fills the target from the field at the ramp's FAR end", () => {
+  it('an explicit reach overrides the auto far end', () => {
     const config = editorConfig()
     const startAngle = config.figures['4'].contactAngle
-    // One existing Origin at 0 reaching 400 toward 80.
     config.morph = linearMorph([{ id: 'a', position: 0, reach: 400, sides: 'both', figures: { '4': { contactAngle: 80 } } }])
-    const reach = 4 * config.editor!.edgeLength
-    const fresh = buildMorphOrigin(config, 200)
-    // Far end sits at 200 + reach; the target matches the pre-insert field there.
-    const expected = morphFieldValue(config.morph, '4', 'contactAngle', startAngle, 200 + reach)
+    // buildMorphOrigin still auto-fits, so the caller's reach only sets the
+    // stored fallback — the sampled far end follows the auto value (100).
+    const fresh = buildMorphOrigin(config, 200, 4000)
+    expect(fresh.reach).toBe(4000)
+    const expected = morphFieldValue(config.morph, '4', 'contactAngle', startAngle, 300)
     expect(fresh.figures['4'].contactAngle).toBeCloseTo(expected, 10)
+  })
+})
+
+describe('autoReachAt', () => {
+  it('is half the gap to the nearest existing Origin', () => {
+    const os = [bare('a', 0), bare('b', 1000)]
+    expect(autoReachAt(os, 400, 999)).toBe(200)   // nearest is 'a' at 400 away
+    expect(autoReachAt(os, 700, 999)).toBe(150)   // nearest is 'b' at 300 away
+  })
+
+  it('falls back when there is nothing to meet', () => {
+    expect(autoReachAt([], 400, 999)).toBe(999)
+    // A coincident Origin is not something to meet halfway.
+    expect(autoReachAt([bare('a', 400)], 400, 999)).toBe(999)
   })
 })
 

@@ -173,6 +173,10 @@ export type Action =
   // #48 — the distance over which the base recipe blends to this Origin's
   // target, and which side(s) of the line/ring that ramp extends into.
   | { type: 'SET_MORPH_ORIGIN_REACH'; payload: { originId: string; reach: number } }
+  // #49 — auto-fit this Origin's reach to half the gap to its neighbours.
+  // Switching it OFF freezes the reach at whatever it currently resolves to,
+  // so the render never jumps at the moment you take manual control.
+  | { type: 'SET_MORPH_ORIGIN_AUTO_REACH'; payload: { originId: string; autoReach: boolean } }
   | { type: 'SET_MORPH_ORIGIN_SIDES'; payload: { originId: string; sides: MorphSides } }
   | { type: 'SET_MORPH_ORIGIN_ANGLE'; payload: { originId: string; tileTypeId: string; field: 'contactAngle' | 'vertexContactAngle'; angle: number } }
   | { type: 'DELETE_MORPH_ORIGIN'; payload: { originId: string } }

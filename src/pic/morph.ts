@@ -27,10 +27,20 @@ import type { Vec2 } from '../utils/math'
  * The blend is therefore always continuous at the Origin itself, and `reach`
  * is literally "the distance over which the morph takes place".
  *
- * Where several Origins could apply, the **nearest Origin whose active side
- * faces the point wins** — a hard handover at the midpoint, no blending and
- * no compounding (user decision 2026-07-29). Where no Origin's active side
- * faces a point, the base recipe applies unchanged.
+ * Where several Origins could apply, the one whose **ramp is least advanced**
+ * at that point wins — smallest `|d − position| / reach`, among Origins whose
+ * active side faces the point. There is no blending and no compounding: one
+ * Origin governs each point outright (user decision 2026-07-29).
+ *
+ * Comparing the *ramp parameter* rather than raw distance is what makes reach
+ * claim territory (#49): two Origins hand over where their ramps meet, at
+ * `gap · rA / (rA + rB)` from A, so an Origin with 3× its neighbour's reach
+ * governs 3× as much of the gap. Equal reaches collapse it to the midpoint —
+ * which is exactly what `autoReach` arranges, and what raw-distance
+ * nearest-wins used to do unconditionally.
+ *
+ * Where no Origin's active side faces a point, the base recipe applies
+ * unchanged.
  *
  * This replaces the pre-#48 model (one sorted stop sequence with an implicit
  * base stop spliced in at position 0). That implicit stop is gone: base is
@@ -93,27 +103,71 @@ function effectiveValue(
 }
 
 /**
- * The Origin governing distance `d`, or null when none reaches it.
+ * The reach Origin `i` actually uses on the side facing offset `s`.
  *
- * "Governing" = nearest by `|d − position|` **among Origins whose active side
- * faces `d`**. Restricting the contest to active sides matters: an Origin
- * that only morphs to its left must not shadow a further Origin that really
- * does morph the point on its right. Ties keep the earlier array entry — the
- * array is sorted ascending by position, so that is the lower position.
+ * With `autoReach` this is HALF the gap to the adjacent Origin on that side,
+ * so neighbouring ramps meet exactly midway and the handover lands on the
+ * midpoint (#49). `origins` is sorted ascending by position, so the
+ * neighbours are simply `i ∓ 1`. Falls back to the stored `reach` where there
+ * is no neighbour on that side, or where the gap is degenerate (coincident
+ * Origins) — a zero auto-reach would silently turn the Origin into a hard
+ * step, which is not what "meet halfway" should mean.
+ *
+ * Hot path: called per edge midpoint from `runPIC`, so it stays allocation-free.
  */
-export function governingOrigin(morph: MorphConfig, d: number): MorphOrigin | null {
-  let best: MorphOrigin | null = null
-  let bestDist = Infinity
-  for (const o of morph.origins) {
-    const s = d - o.position
-    if (!sideActive(o.sides, s)) continue
-    const dist = Math.abs(s)
-    if (dist < bestDist) {
-      best = o
-      bestDist = dist
+export function originReach(origins: readonly MorphOrigin[], i: number, s: number): number {
+  const o = origins[i]
+  if (!o.autoReach) return o.reach
+  const nb = s < 0 ? origins[i - 1] : origins[i + 1]
+  if (!nb) return o.reach
+  const gap = Math.abs(o.position - nb.position)
+  return gap > REACH_EPS ? gap / 2 : o.reach
+}
+
+/**
+ * How far along its ramp Origin `i` is at `d` — `|d − position| / reach`,
+ * unclamped, so it keeps discriminating past the end of the ramp. A
+ * zero-reach Origin is fully advanced the instant you leave its line, so it
+ * claims no territory against a neighbour that has any reach at all.
+ */
+function rampParam(origins: readonly MorphOrigin[], i: number, d: number): number {
+  const s = d - origins[i].position
+  const dist = Math.abs(s)
+  if (dist === 0) return 0
+  const r = originReach(origins, i, s)
+  return r <= REACH_EPS ? Infinity : dist / r
+}
+
+/**
+ * Index of the Origin governing distance `d`, or -1 when none reaches it.
+ *
+ * Least-advanced ramp wins, **among Origins whose active side faces `d`**.
+ * Restricting the contest to active sides matters: an Origin that only morphs
+ * to its left must not shadow a further Origin that really does morph the
+ * point on its right. Ties keep the earlier array entry — the array is sorted
+ * ascending by position, so that is the lower position. The first active-side
+ * candidate is always adopted even at `u = Infinity`, so a lone zero-reach
+ * Origin still governs (its hard step is the whole point).
+ */
+function governingIndex(morph: MorphConfig, d: number): number {
+  const os = morph.origins
+  let best = -1
+  let bestU = Infinity
+  for (let i = 0; i < os.length; i++) {
+    if (!sideActive(os[i].sides, d - os[i].position)) continue
+    const u = rampParam(os, i, d)
+    if (best === -1 || u < bestU) {
+      best = i
+      bestU = u
     }
   }
   return best
+}
+
+/** The Origin governing distance `d`, or null when none reaches it. */
+export function governingOrigin(morph: MorphConfig, d: number): MorphOrigin | null {
+  const i = governingIndex(morph, d)
+  return i === -1 ? null : morph.origins[i]
 }
 
 /**
@@ -129,14 +183,17 @@ export function morphFieldValue(
   startValue: number,
   d: number,
 ): number {
-  const o = governingOrigin(morph, d)
-  if (!o) return startValue
+  const i = governingIndex(morph, d)
+  if (i === -1) return startValue
 
-  const dist = Math.abs(d - o.position)
+  const o = morph.origins[i]
+  const s = d - o.position
+  const dist = Math.abs(s)
   const target = effectiveValue(o, tileTypeId, field, startValue)
+  const reach = originReach(morph.origins, i, s)
   // A zero reach is a hard step: base exactly on the line, target off it.
-  if (o.reach <= REACH_EPS) return dist > 0 ? target : startValue
-  const u = Math.min(dist / o.reach, 1)
+  if (reach <= REACH_EPS) return dist > 0 ? target : startValue
+  const u = Math.min(dist / reach, 1)
   return startValue * (1 - u) + target * u
 }
 

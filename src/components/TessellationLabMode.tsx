@@ -956,6 +956,7 @@ export function TessellationLabMode({
         onSetMorphDirection={d => dispatch({ type: 'SET_MORPH_DIRECTION', payload: d })}
         onSetMorphOriginPosition={(originId, position) => dispatch({ type: 'SET_MORPH_ORIGIN_POSITION', payload: { originId, position } })}
         onSetMorphOriginReach={(originId, reach) => dispatch({ type: 'SET_MORPH_ORIGIN_REACH', payload: { originId, reach } })}
+        onSetMorphOriginAutoReach={(originId, autoReach) => dispatch({ type: 'SET_MORPH_ORIGIN_AUTO_REACH', payload: { originId, autoReach } })}
         onSetMorphOriginSides={(originId, sides) => dispatch({ type: 'SET_MORPH_ORIGIN_SIDES', payload: { originId, sides } })}
         onDeleteMorphOrigin={originId => dispatch({ type: 'DELETE_MORPH_ORIGIN', payload: { originId } })}
         onSetFrameGradient={fg => dispatch({ type: 'SET_DECORATION_FRAME_GRADIENT', payload: fg })}

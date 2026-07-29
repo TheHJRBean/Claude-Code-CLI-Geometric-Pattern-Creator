@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { MorphConfig, MorphOrigin, MorphSides, PatternConfig } from '../types/pattern'
-import { activeMorph, governingOrigin, morphActive, morphDistance, morphFieldValue, morphValueAt, sideActive } from './morph'
+import { activeMorph, governingOrigin, morphActive, morphDistance, morphFieldValue, morphValueAt, originReach, sideActive } from './morph'
 import { DEFAULT_CONFIG } from '../state/defaults'
 
 const linearMorph = (origins: MorphOrigin[], overrides?: Partial<MorphConfig>): MorphConfig => ({
@@ -187,6 +187,103 @@ describe('morphFieldValue — overlapping Origins (nearest wins)', () => {
     const m = linearMorph([origin('a', 100, 100, 40), origin('b', 100, 100, 80)])
     expect(governingOrigin(m, 150)?.id).toBe('a')
     expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 150)).toBeCloseTo(53.75)
+  })
+})
+
+describe('reach claims territory (#49)', () => {
+  it('equal reaches hand over at the midpoint', () => {
+    const m = linearMorph([origin('a', 0, 300, 30), origin('b', 400, 300, 80)])
+    expect(governingOrigin(m, 199)?.id).toBe('a')
+    expect(governingOrigin(m, 201)?.id).toBe('b')
+  })
+
+  it('a 3× reach claims 3/4 of the gap', () => {
+    const m = linearMorph([origin('a', 0, 900, 30), origin('b', 400, 300, 80)])
+    // Handover at gap · rA/(rA+rB) = 400 · 900/1200 = 300.
+    expect(governingOrigin(m, 299)?.id).toBe('a')
+    expect(governingOrigin(m, 301)?.id).toBe('b')
+  })
+
+  it('the handover moves continuously as one reach grows', () => {
+    const at = (rA: number) => {
+      const m = linearMorph([origin('a', 0, rA, 30), origin('b', 400, 400, 80)])
+      let x = 0
+      while (x < 400 && governingOrigin(m, x)?.id === 'a') x += 1
+      return x
+    }
+    expect(at(100)).toBeLessThan(at(400))
+    expect(at(400)).toBeLessThan(at(1600))
+    // Equal reaches ⇒ the midpoint; the scan lands on 201 because the tie at
+    // exactly 200 goes to the earlier Origin.
+    expect(Math.abs(at(400) - 200)).toBeLessThanOrEqual(1)
+  })
+
+  it('a zero-reach Origin claims nothing against a neighbour with reach', () => {
+    const m = linearMorph([origin('a', 0, 0, 30), origin('b', 400, 400, 80)])
+    expect(governingOrigin(m, 10)?.id).toBe('b')
+    // …but a LONE zero-reach Origin still governs (its hard step is the point).
+    const solo = linearMorph([origin('a', 0, 0, 30)])
+    expect(governingOrigin(solo, 10)?.id).toBe('a')
+    expect(morphFieldValue(solo, '4', 'contactAngle', 67.5, 10)).toBe(30)
+  })
+})
+
+describe('autoReach — meet neighbours halfway (#49)', () => {
+  const auto = (o: MorphOrigin): MorphOrigin => ({ ...o, autoReach: true })
+
+  it('resolves to half the gap on each side', () => {
+    const os = [auto(origin('a', 0, 999)), auto(origin('b', 400, 999)), auto(origin('c', 1400, 999))]
+    expect(originReach(os, 1, -1)).toBe(200)   // gap to 'a' is 400
+    expect(originReach(os, 1, 1)).toBe(500)    // gap to 'c' is 1000
+  })
+
+  it('falls back to the stored reach where there is no neighbour', () => {
+    const os = [auto(origin('a', 0, 250)), auto(origin('b', 400, 250))]
+    expect(originReach(os, 0, -1)).toBe(250)   // nothing to the left
+    expect(originReach(os, 1, 1)).toBe(250)    // nothing to the right
+    expect(originReach(os, 0, 1)).toBe(200)    // meets 'b' halfway
+  })
+
+  it('falls back to the stored reach for coincident Origins', () => {
+    const os = [auto(origin('a', 100, 250)), auto(origin('b', 100, 250))]
+    expect(originReach(os, 0, 1)).toBe(250)
+  })
+
+  it('leaves a manual Origin on its stored reach', () => {
+    const os = [origin('a', 0, 250), auto(origin('b', 400, 250))]
+    expect(originReach(os, 0, 1)).toBe(250)    // manual
+    expect(originReach(os, 1, -1)).toBe(200)   // auto
+  })
+
+  it('two auto Origins meet exactly at the midpoint, and the ramps just touch', () => {
+    const m = linearMorph([auto(origin('a', 0, 999, 30)), auto(origin('b', 400, 999, 30))])
+    expect(governingOrigin(m, 199)?.id).toBe('a')
+    expect(governingOrigin(m, 201)?.id).toBe('b')
+    // Each ramp reaches its target exactly at the midpoint — with equal
+    // targets that makes the whole profile continuous: base → 30 → base.
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 0)).toBe(67.5)
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 200)).toBeCloseTo(30)
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 400)).toBe(67.5)
+    expect(morphFieldValue(m, '4', 'contactAngle', 67.5, 100)).toBeCloseTo(48.75)
+  })
+
+  it('auto tracks a dragged neighbour without any further edit', () => {
+    const near = linearMorph([auto(origin('a', 0, 999, 30)), auto(origin('b', 200, 999, 30))])
+    const far = linearMorph([auto(origin('a', 0, 999, 30)), auto(origin('b', 800, 999, 30))])
+    expect(originReach(near.origins, 0, 1)).toBe(100)
+    expect(originReach(far.origins, 0, 1)).toBe(400)
+    // Same fraction along the gap ⇒ same value, i.e. the ramp rescaled.
+    expect(morphFieldValue(near, '4', 'contactAngle', 67.5, 50))
+      .toBeCloseTo(morphFieldValue(far, '4', 'contactAngle', 67.5, 200))
+  })
+
+  it('a lone auto Origin is identical to a manual one', () => {
+    const manual = linearMorph([origin('a', 100, 300, 30)])
+    const automatic = linearMorph([auto(origin('a', 100, 300, 30))])
+    for (const d of [-200, 100, 250, 400, 900]) {
+      expect(morphFieldValue(automatic, '4', 'contactAngle', 67.5, d))
+        .toBe(morphFieldValue(manual, '4', 'contactAngle', 67.5, d))
+    }
   })
 })
 

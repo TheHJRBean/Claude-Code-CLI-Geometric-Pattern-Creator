@@ -35,6 +35,7 @@ import { autoCompleteCell, fitBoundarySize } from '../editor/autoComplete'
 import { computeBoundarySections, isBoundarySectionPlacementViable, placeRegularNGonOnBoundarySection, placeTilesOnBoundarySectionOrbit } from '../editor/boundaryInward'
 import { DEFAULT_EDITOR_FIGURE, seedFiguresForEditor } from '../editor/tileTypes'
 import { buildMorphOrigin, createDefaultMorph, insertMorphOrigin } from '../editor/morph'
+import { originReach } from '../pic/morph'
 import { activeCell, allCells, cellPlacementEdgeLength } from '../editor/active'
 import { clearMaskingRecords } from '../decoration/scopes'
 import {
@@ -717,6 +718,25 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       const next = Math.max(0, reach)
       if (!state.morph.origins.some(o => o.id === originId)) return state
       const origins = state.morph.origins.map(o => (o.id === originId ? { ...o, reach: next } : o))
+      return { ...state, morph: { ...state.morph, origins } }
+    }
+    case 'SET_MORPH_ORIGIN_AUTO_REACH': {
+      if (!state.morph) return state
+      const { originId, autoReach } = action.payload
+      const idx = state.morph.origins.findIndex(o => o.id === originId)
+      if (idx === -1) return state
+      const origins = [...state.morph.origins]
+      const o = origins[idx]
+      if (autoReach) {
+        origins[idx] = { ...o, autoReach: true }
+      } else {
+        // Freeze what's on screen: adopt the resolved reach as the stored one
+        // so taking manual control never moves the pattern. Sides that differ
+        // per side collapse to the one the Origin actually blends into
+        // (`both` keeps the positive side, which is what the row displays).
+        const side = o.sides === 'negative' ? -1 : 1
+        origins[idx] = { ...o, autoReach: false, reach: originReach(state.morph.origins, idx, side) }
+      }
       return { ...state, morph: { ...state.morph, origins } }
     }
     case 'SET_MORPH_ORIGIN_SIDES': {

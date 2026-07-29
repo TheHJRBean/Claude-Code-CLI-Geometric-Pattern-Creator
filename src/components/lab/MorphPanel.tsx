@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { MorphSides, PatternConfig } from '../../types/pattern'
+import type { MorphConfig, MorphSides, PatternConfig } from '../../types/pattern'
 import type { Action } from '../../state/actions'
 import {
   MORPH_POSITION_RANGE,
@@ -8,6 +8,7 @@ import {
   morphSideLabels,
   visibleMorphBand,
 } from '../../editor/morph'
+import { originReach } from '../../pic/morph'
 import type { WorldBounds } from '../../editor/guides'
 import { editorTileTypes } from '../../editor/tileTypes'
 import { FieldLabel, NumberStepper, NudgePad, SectionTitle } from './labShared'
@@ -18,6 +19,14 @@ const MORPH_AXIS_RANGE = 800
 const clampAxis = (n: number) => Math.min(MORPH_AXIS_RANGE, Math.max(-MORPH_AXIS_RANGE, n))
 
 const SIDES_ORDER: MorphSides[] = ['both', 'negative', 'positive']
+
+/** Reach readout — auto-fit can resolve differently per side when the two
+ *  neighbours sit at different distances, so show both when they diverge. */
+function reachLabel(morph: MorphConfig, i: number): string {
+  const neg = originReach(morph.origins, i, -1)
+  const pos = originReach(morph.origins, i, 1)
+  return Math.abs(neg - pos) < 0.5 ? pos.toFixed(0) : `${neg.toFixed(0)} / ${pos.toFixed(0)}`
+}
 
 const addButtonStyle: React.CSSProperties = {
   width: '100%',
@@ -294,7 +303,7 @@ export function MorphPanel({
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px' }}>
                   <button onClick={() => setExpandedId(open ? null : o.id)} style={rowHeaderButtonStyle}>
                     {morph.mode === 'radial' ? `Ring ${i + 1}` : `Origin ${i + 1}`} — {o.position.toFixed(0)}
-                    <span style={{ color: 'var(--text-muted)' }}> · ±{o.reach.toFixed(0)}</span>
+                    <span style={{ color: 'var(--text-muted)' }}> · ±{reachLabel(morph, i)}</span>
                   </button>
                   <button
                     onClick={() => dispatch({ type: 'DELETE_MORPH_ORIGIN', payload: { originId: o.id } })}
@@ -333,21 +342,27 @@ export function MorphPanel({
 
                     <FieldLabel
                       label="Reach"
-                      value={o.reach.toFixed(0)}
-                      tooltip="How far the morph takes place. The angles below are reached this far from the line/ring, and hold beyond it. Larger = a more gradual spread; 0 = a hard step at the line."
+                      value={reachLabel(morph, i)}
+                      tooltip="How far the morph takes place. The angles below are reached this far from the line/ring, and hold beyond it. Larger = a more gradual spread AND more of the gap to the next Origin; 0 = a hard step at the line."
+                    />
+                    <Toggle
+                      checked={o.autoReach === true}
+                      onChange={v => dispatch({ type: 'SET_MORPH_ORIGIN_AUTO_REACH', payload: { originId: o.id, autoReach: v } })}
+                      label="Auto — meet neighbours halfway"
                     />
                     <input
                       type="range"
                       min={0}
                       max={MORPH_REACH_RANGE}
                       step={1}
-                      value={o.reach}
+                      value={Math.round(originReach(morph.origins, i, 1))}
+                      disabled={o.autoReach === true}
                       onChange={e => dispatch({ type: 'SET_MORPH_ORIGIN_REACH', payload: { originId: o.id, reach: Number(e.target.value) } })}
-                      style={{ width: '100%', marginBottom: 6 }}
+                      style={{ width: '100%', marginBottom: 6, opacity: o.autoReach ? 0.45 : 1 }}
                     />
                     <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
                       <NumberStepper
-                        value={Math.round(o.reach)}
+                        value={Math.round(originReach(morph.origins, i, 1))}
                         onChange={v => dispatch({ type: 'SET_MORPH_ORIGIN_REACH', payload: { originId: o.id, reach: v } })}
                         min={0}
                         max={MORPH_REACH_RANGE}

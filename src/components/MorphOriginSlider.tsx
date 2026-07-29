@@ -19,8 +19,12 @@ import { NumberStepper } from './lab/labShared'
 interface Props {
   origin: MorphOrigin
   mode: MorphConfig['mode']
+  /** The reach the Origin actually resolves to — differs from `origin.reach`
+   *  while auto-fit is on (#49). */
+  effectiveReach: number
   onChangePosition: (position: number) => void
   onChangeReach: (reach: number) => void
+  onChangeAutoReach: (auto: boolean) => void
   onChangeSides: (sides: MorphSides) => void
   onDelete: () => void
   onClose: () => void
@@ -41,8 +45,10 @@ const labelStyle: React.CSSProperties = {
 export function MorphOriginSlider({
   origin,
   mode,
+  effectiveReach,
   onChangePosition,
   onChangeReach,
+  onChangeAutoReach,
   onChangeSides,
   onDelete,
   onClose,
@@ -157,18 +163,31 @@ export function MorphOriginSlider({
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <span style={{ ...labelStyle, width: 68 }}>Reach</span>
+        <label
+          title="Meet the neighbouring Origins halfway"
+          style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', flexShrink: 0 }}
+        >
+          <input
+            type="checkbox"
+            checked={origin.autoReach === true}
+            onChange={e => onChangeAutoReach(e.target.checked)}
+            aria-label="Auto reach"
+          />
+          Auto
+        </label>
         <input
           type="range"
           min={0}
           max={MORPH_REACH_RANGE}
           step={1}
-          value={origin.reach}
+          value={Math.round(effectiveReach)}
+          disabled={origin.autoReach === true}
           onChange={e => onChangeReach(Number(e.target.value))}
-          style={{ flex: 1 }}
+          style={{ flex: 1, opacity: origin.autoReach ? 0.45 : 1 }}
           aria-label="Morph Origin reach"
         />
         <NumberStepper
-          value={Math.round(origin.reach)}
+          value={Math.round(effectiveReach)}
           onChange={onChangeReach}
           min={0}
           max={MORPH_REACH_RANGE}

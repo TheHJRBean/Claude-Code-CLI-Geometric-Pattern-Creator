@@ -74,8 +74,13 @@ export function buildMorphOrigin(
 ): MorphOrigin {
   const morph = activeMorph(config)
   const tileTypeIds = morphTileTypeIds(config)
+  // New Origins auto-fit (#49), so the ramp's far end is half the gap to the
+  // nearest existing Origin — computed here from the pre-insert array so the
+  // target is sampled where it will actually land.
+  const autoReach = true
+  const effective = autoReach ? autoReachAt(config.morph?.origins ?? [], position, reach) : reach
   // Where the target is reached — the far end of the ramp on an active side.
-  const far = position + (sides === 'negative' ? -reach : reach)
+  const far = position + (sides === 'negative' ? -effective : effective)
   const figures: Record<string, Partial<FigureConfig>> = {}
   for (const id of tileTypeIds) {
     const fig = config.figures[id]
@@ -94,7 +99,22 @@ export function buildMorphOrigin(
     figures[id] = overlay
   }
   const count = config.morph?.origins.length ?? 0
-  return { id: `morph-${count}-${Date.now()}`, position, reach, sides, figures }
+  return { id: `morph-${count}-${Date.now()}`, position, reach, autoReach, sides, figures }
+}
+
+/**
+ * The auto reach an Origin dropped at `position` would take — half the gap to
+ * the nearest existing Origin on either side, or `fallback` when the Patch has
+ * none. Mirrors `pic/morph.ts::originReach` for the not-yet-inserted case,
+ * which can't use the sorted-neighbour shortcut.
+ */
+export function autoReachAt(origins: readonly MorphOrigin[], position: number, fallback: number): number {
+  let best = Infinity
+  for (const o of origins) {
+    const gap = Math.abs(o.position - position)
+    if (gap > 1e-9 && gap < best) best = gap
+  }
+  return best === Infinity ? fallback : best / 2
 }
 
 /** Insert an Origin and keep the array sorted ascending by `position` — the

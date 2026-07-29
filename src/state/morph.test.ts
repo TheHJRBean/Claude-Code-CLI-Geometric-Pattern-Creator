@@ -4,6 +4,7 @@ import { DEFAULT_CONFIG } from './defaults'
 import { createDefaultEditorConfig } from '../editor/createDefault'
 import type { PatternConfig } from '../types/pattern'
 import { createDefaultMorph } from '../editor/morph'
+import { originReach } from '../pic/morph'
 
 const base = (): PatternConfig => ({
   ...structuredClone(DEFAULT_CONFIG),
@@ -114,6 +115,61 @@ describe('Morph — reducer actions (slice 2, #38)', () => {
     s = reducer(s, { type: 'SET_MORPH_ORIGIN_REACH', payload: { originId: id, reach: -20 } })
     expect(s.morph!.origins[0].reach).toBe(0)
     const unchanged = reducer(s, { type: 'SET_MORPH_ORIGIN_REACH', payload: { originId: 'nope', reach: 5 } })
+    expect(unchanged).toBe(s)
+  })
+
+  it('ADD_MORPH_ORIGIN turns auto-reach ON, and the reach meets the neighbour halfway', () => {
+    let s = base()
+    s = reducer(s, { type: 'SET_MORPH_ENABLED', payload: true })
+    s = reducer(s, { type: 'ADD_MORPH_ORIGIN', payload: { position: 0 } })
+    expect(s.morph!.origins[0].autoReach).toBe(true)
+    s = reducer(s, { type: 'ADD_MORPH_ORIGIN', payload: { position: 400 } })
+    // Both auto ⇒ each resolves to half the 400 gap, so the ramps meet at 200.
+    expect(originReach(s.morph!.origins, 0, 1)).toBe(200)
+    expect(originReach(s.morph!.origins, 1, -1)).toBe(200)
+  })
+
+  it('SET_MORPH_ORIGIN_AUTO_REACH off FREEZES the resolved reach (no jump)', () => {
+    let s = base()
+    s = reducer(s, { type: 'SET_MORPH_ENABLED', payload: true })
+    s = reducer(s, { type: 'ADD_MORPH_ORIGIN', payload: { position: 0 } })
+    s = reducer(s, { type: 'ADD_MORPH_ORIGIN', payload: { position: 400 } })
+    const id = s.morph!.origins[0].id
+    const resolved = originReach(s.morph!.origins, 0, 1)
+    s = reducer(s, { type: 'SET_MORPH_ORIGIN_AUTO_REACH', payload: { originId: id, autoReach: false } })
+    expect(s.morph!.origins[0].autoReach).toBe(false)
+    expect(s.morph!.origins[0].reach).toBe(resolved)
+    expect(originReach(s.morph!.origins, 0, 1)).toBe(resolved)
+  })
+
+  it('SET_MORPH_ORIGIN_AUTO_REACH back on re-couples to the neighbour', () => {
+    let s = base()
+    s = reducer(s, { type: 'SET_MORPH_ENABLED', payload: true })
+    s = reducer(s, { type: 'ADD_MORPH_ORIGIN', payload: { position: 0 } })
+    s = reducer(s, { type: 'ADD_MORPH_ORIGIN', payload: { position: 400 } })
+    const id = s.morph!.origins[0].id
+    s = reducer(s, { type: 'SET_MORPH_ORIGIN_AUTO_REACH', payload: { originId: id, autoReach: false } })
+    s = reducer(s, { type: 'SET_MORPH_ORIGIN_REACH', payload: { originId: id, reach: 1200 } })
+    expect(originReach(s.morph!.origins, 0, 1)).toBe(1200)
+    s = reducer(s, { type: 'SET_MORPH_ORIGIN_AUTO_REACH', payload: { originId: id, autoReach: true } })
+    expect(originReach(s.morph!.origins, 0, 1)).toBe(200)
+  })
+
+  it('an auto Origin re-fits when its neighbour is dragged', () => {
+    let s = base()
+    s = reducer(s, { type: 'SET_MORPH_ENABLED', payload: true })
+    s = reducer(s, { type: 'ADD_MORPH_ORIGIN', payload: { position: 0 } })
+    s = reducer(s, { type: 'ADD_MORPH_ORIGIN', payload: { position: 400 } })
+    const neighbour = s.morph!.origins[1].id
+    s = reducer(s, { type: 'SET_MORPH_ORIGIN_POSITION', payload: { originId: neighbour, position: 1000 } })
+    expect(originReach(s.morph!.origins, 0, 1)).toBe(500)
+  })
+
+  it('SET_MORPH_ORIGIN_AUTO_REACH fails closed on an unknown id', () => {
+    let s = base()
+    s = reducer(s, { type: 'SET_MORPH_ENABLED', payload: true })
+    s = reducer(s, { type: 'ADD_MORPH_ORIGIN', payload: { position: 100 } })
+    const unchanged = reducer(s, { type: 'SET_MORPH_ORIGIN_AUTO_REACH', payload: { originId: 'nope', autoReach: false } })
     expect(unchanged).toBe(s)
   })
 

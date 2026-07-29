@@ -196,6 +196,21 @@ describe('loadPatternConfig — morph (Step 20)', () => {
     expect(out.morph!.origins.map(o => o.sides)).toEqual(['both', 'negative'])
   })
 
+  it('carries autoReach only when explicitly true (#49, additive)', () => {
+    const out = loadPatternConfig({
+      ...minimalRaw(),
+      morph: {
+        ...validMorph(),
+        origins: [
+          { id: 'o0', position: 0, reach: 10, sides: 'both', autoReach: true, figures: {} },
+          { id: 'o1', position: 50, reach: 10, sides: 'both', autoReach: 'yes', figures: {} },
+          { id: 'o2', position: 90, reach: 10, sides: 'both', figures: {} },
+        ],
+      },
+    })
+    expect(out.morph!.origins.map(o => o.autoReach)).toEqual([true, undefined, undefined])
+  })
+
   it('normalises a bad reach/sides rather than dropping the Origin', () => {
     const out = loadPatternConfig({
       ...minimalRaw(),

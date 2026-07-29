@@ -219,13 +219,16 @@ function readMorphConfig(v: unknown): MorphConfig | undefined {
     // Legacy stops carry neither field; `originsFromLegacyBoundaries` derives
     // both below, so the defaults here only ever backstop a hand-edited save.
     const sides = b.sides === 'both' || b.sides === 'negative' || b.sides === 'positive' ? b.sides : 'both'
-    stops.push({
+    const stop: MorphOrigin = {
       id: typeof b.id === 'string' && b.id.length > 0 ? b.id : `morph-${stops.length}`,
       position: b.position as number,
       reach: Number.isFinite(b.reach) ? Math.max(0, b.reach as number) : 0,
       sides,
       figures,
-    })
+    }
+    // Additive (#49); absent ⇒ manual, so pre-#49 saves render unchanged.
+    if (b.autoReach === true) stop.autoReach = true
+    stops.push(stop)
   }
   stops.sort((a, b) => a.position - b.position)
   const origins = legacy ? originsFromLegacyBoundaries(stops) : stops

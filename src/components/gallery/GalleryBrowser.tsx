@@ -18,10 +18,14 @@ import { editAvailabilityFor, toCardModel } from './galleryBrowser.logic'
  * directly and converts tier-1 legacy saves one-way (the saved copy is kept —
  * see `resolveEditInLab`). Authoring lives entirely in the Lab now (ADR-0006
  * flip): `onGoToLab` switches workspaces so an empty Gallery has a way forward.
+ *
+ * The save's id rides along so a verbatim load stays linked to its library
+ * entry and the Lab's Save updates it in place; the caller decides whether a
+ * conversion keeps that link.
  */
 interface Props {
   library: ConfigLibrary
-  onEditInLab: (config: PatternConfig) => void
+  onEditInLab: (config: PatternConfig, savedId: string) => void
   onGoToLab: () => void
 }
 
@@ -127,7 +131,7 @@ export function GalleryBrowser({ library, onEditInLab, onGoToLab }: Props) {
           badge={toCardModel(selected).badge}
           editAvailability={editAvailabilityFor(selected.config)}
           onBack={() => setSelectedId(null)}
-          onEditInLab={() => onEditInLab(selected.config)}
+          onEditInLab={() => onEditInLab(selected.config, selected.id)}
         />
       )}
 

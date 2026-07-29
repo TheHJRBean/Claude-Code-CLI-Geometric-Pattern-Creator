@@ -22,12 +22,19 @@ export interface LabPersistedState {
   config: PatternConfig
   showStrands: boolean
   outlineWidth: number
+  /** Library entry the working config is linked to, so a page reload doesn't
+   *  silently unlink it and turn the next Save into a duplicate. '' = unlinked.
+   *  Sessions persisted before this field simply come back unlinked; the id is
+   *  re-validated against the library on load (the entry may have been
+   *  deleted), so it is a hint, never a source of truth. */
+  savedId: string
 }
 
 export const LAB_DEFAULT_PERSISTED: LabPersistedState = {
   config: LAB_DEFAULT_CONFIG,
   showStrands: false,
   outlineWidth: 0.8,
+  savedId: '',
 }
 
 export function loadLabState(): LabPersistedState {
@@ -99,6 +106,7 @@ export function loadLabState(): LabPersistedState {
       config,
       showStrands: typeof parsed.showStrands === 'boolean' ? parsed.showStrands : LAB_DEFAULT_PERSISTED.showStrands,
       outlineWidth: typeof parsed.outlineWidth === 'number' ? parsed.outlineWidth : LAB_DEFAULT_PERSISTED.outlineWidth,
+      savedId: typeof parsed.savedId === 'string' ? parsed.savedId : LAB_DEFAULT_PERSISTED.savedId,
     }
   } catch {
     return LAB_DEFAULT_PERSISTED

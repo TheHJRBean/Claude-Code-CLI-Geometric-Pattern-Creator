@@ -5,7 +5,7 @@ import { GeneratorMode } from './components/GeneratorMode'
 import { reducer } from './state/reducer'
 import { LAB_DEFAULT_CONFIG, loadLabState, saveLabState } from './state/labDefaults'
 import { GalleryBrowser } from './components/gallery/GalleryBrowser'
-import { resolveEditInLab } from './components/gallery/galleryBrowser.logic'
+import { linkedSavedIdFor, resolveEditInLab } from './components/gallery/galleryBrowser.logic'
 import { patternLibrary } from './state/patternLibrary'
 import type { PatternConfig } from './types/pattern'
 import type { AppMode } from './types/appMode'
@@ -37,24 +37,40 @@ export default function App() {
   const [labConfig, labDispatch] = useReducer(reducer, initialLab.config ?? LAB_DEFAULT_CONFIG)
   const [labShowStrands, setLabShowStrands] = useState(initialLab.showStrands)
   const [labOutlineWidth, setLabOutlineWidth] = useState(initialLab.outlineWidth)
+  // Which library entry the Lab's working config is linked to ('' = unlinked,
+  // so the library panel's Save prompts for a name and creates a new entry).
+  // Lives here rather than in the Lab so "Edit in Lab" can set it as it hands
+  // the config over. The persisted id is re-validated — the entry may have
+  // been deleted since, in which case the config comes back unlinked.
+  const [labSavedId, setLabSavedId] = useState<string>(
+    () => (initialLab.savedId && patternLibrary.get(initialLab.savedId) ? initialLab.savedId : ''),
+  )
 
   useEffect(() => {
     saveLabState({
       config: labConfig,
       showStrands: labShowStrands,
       outlineWidth: labOutlineWidth,
+      savedId: labSavedId,
     })
-  }, [labConfig, labShowStrands, labOutlineWidth])
+  }, [labConfig, labShowStrands, labOutlineWidth, labSavedId])
 
   // "Edit in Lab" from the Gallery browser: load the (converted) config into
   // the Lab reducer and switch workspaces. Editor saves load verbatim; tier-1
   // legacy presets convert one-way (the saved copy is untouched — see
   // resolveEditInLab). Non-convertible legacy saves never reach here (the
   // detail view's button is disabled), so a null result is a safe no-op.
-  const handleEditInLab = useCallback((cfg: PatternConfig) => {
+  //
+  // A verbatim load stays *linked* to the save it came from, so the Lab's
+  // Save overwrites that entry instead of forking an untitled copy. A
+  // converted preset deliberately does not: the saved entry is still the
+  // legacy render, and overwriting it with the derived Patch would destroy
+  // the original the conversion promises to leave alone.
+  const handleEditInLab = useCallback((cfg: PatternConfig, savedId = '') => {
     const resolved = resolveEditInLab(cfg)
     if (!resolved) return
     labDispatch({ type: 'LOAD_CONFIG', payload: resolved.config })
+    setLabSavedId(linkedSavedIdFor(resolved, savedId))
     goToLab()
   }, [labDispatch, goToLab])
 
@@ -69,6 +85,8 @@ export default function App() {
         onToggleShowStrands={setLabShowStrands}
         outlineWidth={labOutlineWidth}
         onSetOutlineWidth={setLabOutlineWidth}
+        savedId={labSavedId}
+        onSetSavedId={setLabSavedId}
       />
     )
   }

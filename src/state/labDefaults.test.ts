@@ -46,7 +46,7 @@ describe('loadLabState — morph migration', () => {
       easing: 'linear',
       origins: [{ id: 'o0', position: 200, reach: 300, autoReach: true, sides: 'both', figures: {} }],
     }
-    saveLabState({ config, showStrands: false, outlineWidth: 0.8 })
+    saveLabState({ config, showStrands: false, outlineWidth: 0.8, savedId: '' })
     const out = loadLabState()
     expect(out.config.morph).toEqual(config.morph)
   })
@@ -87,5 +87,17 @@ describe('loadLabState — morph migration', () => {
 
   it('falls back to defaults when nothing is persisted', () => {
     expect(loadLabState()).toEqual(LAB_DEFAULT_PERSISTED)
+  })
+})
+
+describe('loadLabState — linked library entry', () => {
+  it('round-trips the linked save id so a reload keeps updating that entry', () => {
+    saveLabState({ config: baseConfig(), showStrands: false, outlineWidth: 0.8, savedId: 'entry-7' })
+    expect(loadLabState().savedId).toBe('entry-7')
+  })
+
+  it('comes back unlinked for sessions persisted before the field existed', () => {
+    persistRaw(baseConfig()) // raw payload has no `savedId`
+    expect(loadLabState().savedId).toBe('')
   })
 })

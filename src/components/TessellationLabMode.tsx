@@ -56,6 +56,11 @@ interface Props {
   onToggleShowStrands: (next: boolean) => void
   outlineWidth: number
   onSetOutlineWidth: (next: number) => void
+  /** Library entry the working config is linked to ('' = unlinked → Save
+   *  creates a new entry). Owned by App so the Gallery's "Edit in Lab" can
+   *  hand the save's id over with the config and Save overwrites in place. */
+  savedId: string
+  onSetSavedId: (next: string) => void
 }
 
 export function TessellationLabMode({
@@ -67,6 +72,8 @@ export function TessellationLabMode({
   onToggleShowStrands,
   outlineWidth,
   onSetOutlineWidth,
+  savedId: activeSavedId,
+  onSetSavedId: setActiveSavedId,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null)
   const segmentsRef = useRef<Segment[]>([])
@@ -371,9 +378,10 @@ export function TessellationLabMode({
   }, [multiMode, picks, dispatch])
 
   // ── Library ────────────────────────────────────────────
-  // Active-entry selection lives here so external buttons (Clear / New /
-  // Sample) can reset it via the controlled prop on `ConfigLibraryPanel`.
-  const [activeSavedId, setActiveSavedId] = useState<string>('')
+  // The active-entry selection is an App-level prop (see `savedId`): external
+  // buttons here (Clear / New / Sample / preset) reset it through the
+  // controlled prop on `ConfigLibraryPanel`, and the Gallery's "Edit in Lab"
+  // sets it from outside so Save updates that save instead of forking a copy.
 
   // Shelf click → fresh working copy (never the catalogue object itself).
   // Tier-1 loads a fresh conversion; view-only tiers load the legacy config.

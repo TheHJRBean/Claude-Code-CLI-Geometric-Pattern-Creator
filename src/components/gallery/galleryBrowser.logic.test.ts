@@ -4,6 +4,7 @@ import type { SavedConfig, SavedSourceCategory } from '../../state/configLibrary
 import {
   badgeForSave,
   editAvailabilityFor,
+  linkedSavedIdFor,
   nextBackfillId,
   resolveEditInLab,
   toCardModel,
@@ -71,6 +72,19 @@ describe('resolveEditInLab', () => {
   })
   it('returns null for a non-convertible legacy render', () => {
     expect(resolveEditInLab(cfg('rhombille'))).toBeNull()
+  })
+})
+
+describe('linkedSavedIdFor', () => {
+  it('keeps the link for a verbatim editor load, so Save updates that entry', () => {
+    const resolved = resolveEditInLab(cfg('editor'))!
+    expect(resolved.converted).toBe(false)
+    expect(linkedSavedIdFor(resolved, 'save-1')).toBe('save-1')
+  })
+  it('drops the link for a converted preset, so the legacy save is not overwritten', () => {
+    const resolved = resolveEditInLab(cfg('square'))!
+    expect(resolved.converted).toBe(true)
+    expect(linkedSavedIdFor(resolved, 'save-1')).toBe('')
   })
 })
 

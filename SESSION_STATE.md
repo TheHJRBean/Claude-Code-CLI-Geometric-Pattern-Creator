@@ -4,7 +4,9 @@
 
 ## ▶ RESUME HERE
 
-**Session ended at a clean milestone (2026-07-29).** Nothing mid-flight, no handoff. Tree clean, all 8 commits pushed to `main`, tests **1284 green**, tsc + build clean.
+**Session ended at a clean milestone (2026-07-29).** Nothing mid-flight, no handoff. Tree clean, all commits pushed to `main`, tests **1288 green**, tsc + build clean.
+
+⏳ **Awaiting browser verification:** Gallery → "Edit in Lab" now stays **linked** to the save it came from (Save overwrites instead of forking an untitled copy). See the entry below.
 
 **What shipped this session (all browser-verified, all tickets closed):**
 | | | |
@@ -17,6 +19,24 @@
 **NEXT — pick one:**
 0. **Issue hygiene (~10 min, Haiku).** Shipped+verified epics still OPEN on GitHub: **#44 / #45 / #46** (gradients), **#42** (line sets), **#28** (Guides slice 3). Close each with a pointer to its verifying commit. *(#48/#49/#50 are already closed.)*
 0b. **Standing risk worth an hour (#50, Opus/Sonnet).** Route `loadLabState` through `loadPatternConfig` wholesale so the Lab boot path inherits every migration automatically instead of needing a hand-written branch per field — see the #50 entry below. Compounded by `PatternConfig` being unversioned.
+
+---
+### ▶ 2026-07-29 (BUG: Gallery → Lab loaded as an untitled copy — ⏳ FIXED, awaiting browser verify, Opus)
+
+**User:** *"when I load to lab from gallery it doesn't load it as the pre-saved file but as a new file, so I can't update a previous save with this method."*
+
+**Root cause — a missing hand-off, not a load bug.** The config loaded fine; what was lost was the *link* to the library entry. `ConfigLibraryPanel` is a controlled component: `activeId` decides whether Save calls `library.update(id, …)` or falls through to Save-As. That id (`activeSavedId`) was **local state inside `TessellationLabMode`**, only ever set by the Lab's own saved-entries dropdown. `App.handleEditInLab` dispatched `LOAD_CONFIG` and switched workspaces without touching it — so a Gallery-loaded pattern always arrived unlinked and Save forked a new untitled entry.
+
+**Fix (3 seams):**
+1. `activeSavedId` **lifted to App** (`labSavedId`), passed to the Lab as `savedId` / `onSetSavedId`. Everything that already reset it (Clear / New patch / Show sample / preset shelf) now goes through the prop, unchanged in behaviour.
+2. `GalleryBrowser.onEditInLab` carries `selected.id` alongside the config; `handleEditInLab` sets the link from it.
+3. **Persisted** — `LabPersistedState.savedId` (`labDefaults.ts`), so a page reload keeps updating the same entry instead of silently unlinking. Re-validated against the library on boot in App, since the entry may have been deleted meanwhile; a pre-field session loads as `''`.
+
+**Deliberate exception:** a **converted** tier-1 preset does NOT inherit the link (`linkedSavedIdFor` in `galleryBrowser.logic.ts`). The saved entry is still the legacy BFS render, and `resolveEditInLab` promises to leave the original alone — overwriting it with the derived Patch would destroy the only copy of the legacy config. Verbatim (`tiling.type === 'editor'`) loads link; conversions stay unlinked and Save prompts for a name.
+
+Tests: `linkedSavedIdFor` policy pair + 2 `savedId` persistence cases. **1288 green**, tsc + build clean.
+
+**To verify in-browser:** Gallery → open a Builder-sourced save → Edit in Lab → the "My Tessellations" dropdown should show that entry's name (+ its saved date) → edit → Save overwrites in place (no name prompt, no second card in the Gallery). Then reload the page and Save again — still the same entry. A legacy Archimedean save should still prompt for a name.
 
 ---
 ### ▶ 2026-07-29 (UI: Clear moved out of the Frame's visual group — ✅ SHIPPED + VERIFIED, `2ef9e19`)

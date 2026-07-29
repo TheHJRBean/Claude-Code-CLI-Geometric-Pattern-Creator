@@ -82,6 +82,21 @@ export function resolveEditInLab(config: PatternConfig): EditInLabResult | null 
 }
 
 /**
+ * The library entry the Lab should stay linked to after "Edit in Lab" — i.e.
+ * which save its Save button overwrites. '' means unlinked (Save forks a new
+ * entry).
+ *
+ * A verbatim load keeps the link, so the Gallery is a real way back into a
+ * saved pattern rather than a one-way fork. A conversion drops it: the saved
+ * entry is still the legacy render, and `resolveEditInLab` promises to leave
+ * that original alone — overwriting it with the derived Patch would break the
+ * promise and lose the only copy of the legacy config.
+ */
+export function linkedSavedIdFor(result: EditInLabResult, savedId: string): string {
+  return result.converted ? '' : savedId
+}
+
+/**
  * The next save id needing a thumbnail — the first in list order whose id is
  * neither already stored nor previously attempted-and-failed — or null when
  * every save is covered. Pure so the backfill loop's selection is testable;

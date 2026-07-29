@@ -1,5 +1,6 @@
 import type { PatternConfig } from '../types/pattern'
 import { migrateEditorConfig } from '../editor/migrations'
+import { readMorphConfig } from './configValidation'
 
 /**
  * Lab starts with no tessellation selected. Strands are off by default
@@ -81,6 +82,19 @@ export function loadLabState(): LabPersistedState {
       config.strand = LAB_DEFAULT_CONFIG.strand
     }
     delete (config as Record<string, unknown>).lacing
+    // Step 20 Morph: run the persisted morph through the same reader the file
+    // /library load path uses. Without this a Lab session persisted before the
+    // #48 rename comes back with `boundaries`/`origin` instead of
+    // `origins`/`axisOrigin`, and `morphActive`'s `origins.length` throws
+    // during render — a hard Canvas crash from stale localStorage, with no way
+    // for the user to recover from inside the app. `readMorphConfig` migrates
+    // legacy shapes and returns undefined for anything it can't read, so a
+    // damaged morph degrades to "no morph" rather than a white screen.
+    if (config.morph !== undefined) {
+      const morph = readMorphConfig(config.morph)
+      if (morph) config.morph = morph
+      else delete (config as Record<string, unknown>).morph
+    }
     return {
       config,
       showStrands: typeof parsed.showStrands === 'boolean' ? parsed.showStrands : LAB_DEFAULT_PERSISTED.showStrands,

@@ -193,7 +193,7 @@ function originsFromLegacyBoundaries(
  * `{ origin, boundaries }`, the latter converted by
  * `originsFromLegacyBoundaries`. A save carrying both prefers the new keys.
  */
-function readMorphConfig(v: unknown): MorphConfig | undefined {
+export function readMorphConfig(v: unknown): MorphConfig | undefined {
   if (typeof v !== 'object' || v === null) return undefined
   const m = v as Record<string, unknown>
   if (m.mode !== 'linear' && m.mode !== 'radial') return undefined

@@ -4,10 +4,24 @@
 
 ## ▶ RESUME HERE
 
-**Session ended at a clean milestone (2026-07-29).** Morph **Boundaries → Origins** with per-Origin **Reach** + **Sides** (#48), then **auto-fit reach + reach-claims-territory** (#49) — both shipped and browser-verified. Before that, two gradient stop-bar buttons (`30b602f`, `a871876`). Nothing mid-flight, no handoff.
+**Session ended at a clean milestone (2026-07-29).** Nothing mid-flight, no handoff. Tree clean, all 8 commits pushed to `main`, tests **1284 green**, tsc + build clean.
+
+**What shipped this session (all browser-verified, all tickets closed):**
+| | | |
+|---|---|---|
+| **#48** | Morph **Boundaries → Origins** — per-Origin **Reach** + **Sides**; `MorphConfig.origin` → `axisOrigin` | `2adc295` `447eab9` `8632450` |
+| **#49** | **Auto-fit Reach** (adjacent ramps meet halfway, per-Origin toggle) + **reach claims territory** | `54cddb8` `c778ed8` |
+| **#50** | BUG: stale persisted Lab morph crashed the Canvas — `loadLabState` never migrated `config.morph` | `e8fcbba` `7c5e934` |
+| — | UI: **Clear** moved to the Undo/Redo row (it read as a Frame control under FramePanel) | `2ef9e19` |
 
 **NEXT — pick one:**
-0. **Issue hygiene (~10 min, Haiku).** Several shipped+verified epics are still OPEN on GitHub: #44 / #45 / #46 (gradients), #42 (line sets), #28 (Guides slice 3). Close them with a pointer to the verifying commit.
+0. **Issue hygiene (~10 min, Haiku).** Shipped+verified epics still OPEN on GitHub: **#44 / #45 / #46** (gradients), **#42** (line sets), **#28** (Guides slice 3). Close each with a pointer to its verifying commit. *(#48/#49/#50 are already closed.)*
+0b. **Standing risk worth an hour (#50, Opus/Sonnet).** Route `loadLabState` through `loadPatternConfig` wholesale so the Lab boot path inherits every migration automatically instead of needing a hand-written branch per field — see the #50 entry below. Compounded by `PatternConfig` being unversioned.
+
+---
+### ▶ 2026-07-29 (UI: Clear moved out of the Frame's visual group — ✅ SHIPPED + VERIFIED, `2ef9e19`)
+
+**User:** *"move the clear button further to the top as it looks a part of the frame UI."* Correct diagnosis — `DesignPanel` renders directly under `FramePanel`, and `Clear` was its leading element, so it sat immediately below the Frame buttons while actually firing `EDITOR_CLEAR` (wipes the whole Patch). Moved into the Undo/Redo header row, where it groups with the other patch-level history/reset actions and is separated from Frame by the Phase bar. **Kept Design-phase only** — it is destructive and shouldn't be reachable from Composition/Decoration (flagged to the user in case they want it always visible). `onClear` prop dropped from `DesignPanel`. Verified in-browser: level with Undo/Redo, above the Phase bar and every Frame control, absent in the other two phases, still wipes the patch (2 tiles → 0).
 
 ---
 ### ▶ 2026-07-29 (BUG: "add origin doesn't work" — stale persisted Lab morph crashed the Canvas — ✅ FIXED + VERIFIED, Opus, #50)

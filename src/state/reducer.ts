@@ -34,7 +34,7 @@ import { boundarySymmetries, applySym } from '../editor/symmetry'
 import { autoCompleteCell, fitBoundarySize } from '../editor/autoComplete'
 import { computeBoundarySections, isBoundarySectionPlacementViable, placeRegularNGonOnBoundarySection, placeTilesOnBoundarySectionOrbit } from '../editor/boundaryInward'
 import { DEFAULT_EDITOR_FIGURE, seedFiguresForEditor } from '../editor/tileTypes'
-import { buildMorphBoundary, createDefaultMorph, insertMorphBoundary } from '../editor/morph'
+import { buildMorphOrigin, createDefaultMorph, insertMorphOrigin } from '../editor/morph'
 import { activeCell, allCells, cellPlacementEdgeLength } from '../editor/active'
 import { clearMaskingRecords } from '../decoration/scopes'
 import {
@@ -671,7 +671,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     }
     case 'SET_MORPH_ENABLED': {
       // Absent + enabling → create fresh; otherwise just flip the flag
-      // without discarding Boundaries (the "keep authoring while previewing
+      // without discarding Origins (the "keep authoring while previewing
       // off" model — mirrors how Frame stays configured while hidden by
       // nothing in particular; here it's explicit via `enabled`).
       const morph = state.morph ?? createDefaultMorph()
@@ -681,9 +681,9 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       if (!state.morph) return state
       return { ...state, morph: { ...state.morph, mode: action.payload } }
     }
-    case 'SET_MORPH_ORIGIN': {
+    case 'SET_MORPH_AXIS_ORIGIN': {
       if (!state.morph) return state
-      return { ...state, morph: { ...state.morph, origin: action.payload } }
+      return { ...state, morph: { ...state.morph, axisOrigin: action.payload } }
     }
     case 'SET_MORPH_DIRECTION': {
       if (!state.morph) return state
@@ -692,38 +692,55 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       if (len < 1e-9) return state
       return { ...state, morph: { ...state.morph, direction: { x: x / len, y: y / len } } }
     }
-    case 'ADD_MORPH_BOUNDARY': {
+    case 'ADD_MORPH_ORIGIN': {
       if (!state.morph) return state
-      const boundary = buildMorphBoundary(state, action.payload.position)
+      const origin = buildMorphOrigin(state, action.payload.position)
       return {
         ...state,
-        morph: { ...state.morph, boundaries: insertMorphBoundary(state.morph.boundaries, boundary) },
+        morph: { ...state.morph, origins: insertMorphOrigin(state.morph.origins, origin) },
       }
     }
-    case 'SET_MORPH_BOUNDARY_POSITION': {
+    case 'SET_MORPH_ORIGIN_POSITION': {
       if (!state.morph) return state
-      const { boundaryId, position } = action.payload
-      if (!state.morph.boundaries.some(b => b.id === boundaryId)) return state
-      const boundaries = state.morph.boundaries
-        .map(b => (b.id === boundaryId ? { ...b, position } : b))
+      const { originId, position } = action.payload
+      if (!state.morph.origins.some(o => o.id === originId)) return state
+      const origins = state.morph.origins
+        .map(o => (o.id === originId ? { ...o, position } : o))
         .sort((a, b) => a.position - b.position)
-      return { ...state, morph: { ...state.morph, boundaries } }
+      return { ...state, morph: { ...state.morph, origins } }
     }
-    case 'SET_MORPH_BOUNDARY_ANGLE': {
+    case 'SET_MORPH_ORIGIN_REACH': {
       if (!state.morph) return state
-      const { boundaryId, tileTypeId, field, angle } = action.payload
-      const idx = state.morph.boundaries.findIndex(b => b.id === boundaryId)
+      const { originId, reach } = action.payload
+      // A negative reach would mirror the ramp and make `sides` a lie —
+      // clamp at 0 (a hard step at the line), which is the honest floor.
+      const next = Math.max(0, reach)
+      if (!state.morph.origins.some(o => o.id === originId)) return state
+      const origins = state.morph.origins.map(o => (o.id === originId ? { ...o, reach: next } : o))
+      return { ...state, morph: { ...state.morph, origins } }
+    }
+    case 'SET_MORPH_ORIGIN_SIDES': {
+      if (!state.morph) return state
+      const { originId, sides } = action.payload
+      if (!state.morph.origins.some(o => o.id === originId)) return state
+      const origins = state.morph.origins.map(o => (o.id === originId ? { ...o, sides } : o))
+      return { ...state, morph: { ...state.morph, origins } }
+    }
+    case 'SET_MORPH_ORIGIN_ANGLE': {
+      if (!state.morph) return state
+      const { originId, tileTypeId, field, angle } = action.payload
+      const idx = state.morph.origins.findIndex(o => o.id === originId)
       if (idx === -1) return state
-      const boundaries = [...state.morph.boundaries]
-      const b = boundaries[idx]
-      boundaries[idx] = { ...b, figures: { ...b.figures, [tileTypeId]: { ...b.figures[tileTypeId], [field]: angle } } }
-      return { ...state, morph: { ...state.morph, boundaries } }
+      const origins = [...state.morph.origins]
+      const o = origins[idx]
+      origins[idx] = { ...o, figures: { ...o.figures, [tileTypeId]: { ...o.figures[tileTypeId], [field]: angle } } }
+      return { ...state, morph: { ...state.morph, origins } }
     }
-    case 'DELETE_MORPH_BOUNDARY': {
+    case 'DELETE_MORPH_ORIGIN': {
       if (!state.morph) return state
-      const boundaries = state.morph.boundaries.filter(b => b.id !== action.payload.boundaryId)
-      if (boundaries.length === state.morph.boundaries.length) return state
-      return { ...state, morph: { ...state.morph, boundaries } }
+      const origins = state.morph.origins.filter(o => o.id !== action.payload.originId)
+      if (origins.length === state.morph.origins.length) return state
+      return { ...state, morph: { ...state.morph, origins } }
     }
     case 'REMOVE_MORPH': {
       if (!state.morph) return state

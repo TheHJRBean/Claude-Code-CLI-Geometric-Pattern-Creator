@@ -7,20 +7,25 @@ import type { WorldBounds } from '../editor/guides'
 /**
  * On-canvas Morph overlay (Step 20 slice 2, PATTERN_MORPH_SPEC.md §UI) —
  * modelled on `EditorGuideLayer`. Unlike a Guide (2 degrees of freedom per
- * shape, needing a dedicated handle per anchor), a Morph Boundary has
- * exactly one DOF (`position`), so its own stroke doubles as the drag
- * target — no separate handle rect. The Origin and (Linear-only) Direction
- * arrow tip get small drag-handle glyphs, same pattern as
- * `EditorGuideLayer`'s `dragHandle`.
+ * shape, needing a dedicated handle per anchor), a Morph Origin's draggable
+ * DOF is just `position`, so its own stroke doubles as the drag target — no
+ * separate handle rect. The Axis point and (Linear-only) Direction arrow tip
+ * get small drag-handle glyphs, same pattern as `EditorGuideLayer`'s
+ * `dragHandle`.
+ *
+ * Each Origin also draws its **reach extent** (#48): a dashed, fainter
+ * line/ring at `position ± reach` on whichever sides are active, marking
+ * where the target values are fully reached. The solid stroke is the Origin
+ * itself (base recipe); the dashed one is the far end of the ramp.
  *
  * Passive (`pointerEvents: none`) when `interactive` is false. Shown only
  * in the Composition Phase — Decoration freezes the Morph (field applies,
  * overlay hidden).
  */
 
-/** Boundaries — teal, distinct from Guides' blue/violet and the accent gold
- *  used for Origin/Direction. */
-const BOUNDARY_COLOUR = '#3f9e8f'
+/** Origins — teal, distinct from Guides' blue/violet and the accent gold
+ *  used for the Axis point / Direction arrow. */
+const ORIGIN_COLOUR = '#3f9e8f'
 
 interface Props {
   morph: MorphConfig
@@ -29,12 +34,12 @@ interface Props {
   interactive: boolean
   /** Current zoom — converts px glyph sizes into world units. */
   zoom: number
-  selectedBoundaryId: string | null
-  onSelectBoundary?: (id: string | null) => void
-  /** Handle/Boundary drag (screen px; parent converts + projects + dispatches). */
-  onDragOrigin?: (screen: Vec2) => void
+  selectedOriginId: string | null
+  onSelectOrigin?: (id: string | null) => void
+  /** Handle/Origin drag (screen px; parent converts + projects + dispatches). */
+  onDragAxisOrigin?: (screen: Vec2) => void
   onDragDirection?: (screen: Vec2) => void
-  onDragBoundary?: (id: string, screen: Vec2) => void
+  onDragOrigin?: (id: string, screen: Vec2) => void
 }
 
 const HANDLE_HALF = 5
@@ -46,11 +51,11 @@ export const EditorMorphLayer = memo(function EditorMorphLayer({
   bounds,
   interactive,
   zoom,
-  selectedBoundaryId,
-  onSelectBoundary,
-  onDragOrigin,
+  selectedOriginId,
+  onSelectOrigin,
+  onDragAxisOrigin,
   onDragDirection,
-  onDragBoundary,
+  onDragOrigin,
 }: Props) {
   const r = (px: number) => px / zoom
 
@@ -86,9 +91,10 @@ export const EditorMorphLayer = memo(function EditorMorphLayer({
   )
 
   const direction = morph.direction ?? { x: 1, y: 0 }
+  const axis = morph.axisOrigin
   const arrowTip = {
-    x: morph.origin.x + direction.x * r(ARROW_PX),
-    y: morph.origin.y + direction.y * r(ARROW_PX),
+    x: axis.x + direction.x * r(ARROW_PX),
+    y: axis.y + direction.y * r(ARROW_PX),
   }
   // Small arrowhead — two short strokes back from the tip, perpendicular-ish.
   const arrowBack = { x: -direction.x, y: -direction.y }
@@ -99,10 +105,24 @@ export const EditorMorphLayer = memo(function EditorMorphLayer({
     y: arrowTip.y + headLen * (arrowBack.y * 0.8 + sign * arrowSide.y * 0.6),
   })
 
-  const renderBoundary = (b: MorphConfig['boundaries'][number]) => {
-    const selected = b.id === selectedBoundaryId
+  /** Positions of an Origin's reach extents — the far ends of its ramp, one
+   *  per active side. Zero reach has no extent to draw (hard step). */
+  const reachExtents = (o: MorphConfig['origins'][number]): number[] => {
+    if (!(o.reach > 0)) return []
+    const out: number[] = []
+    if (o.sides !== 'positive') out.push(o.position - o.reach)
+    if (o.sides !== 'negative') out.push(o.position + o.reach)
+    return out
+  }
+
+  const renderOrigin = (o: MorphConfig['origins'][number]) => {
+    const selected = o.id === selectedOriginId
     const width = selected ? 2.4 : 1.4
     const opacity = selected ? 0.95 : 0.5
+    // The extent is a read-only annotation — dimmer, dashed, never a hit
+    // target (dragging it would be a second way to set `reach`, which the
+    // spec keeps on the sliders so the line stays a pure position handle).
+    const extentOpacity = selected ? 0.55 : 0.28
     const hit = (
       shape: React.ReactNode,
     ) => (
@@ -111,13 +131,13 @@ export const EditorMorphLayer = memo(function EditorMorphLayer({
             style={{ cursor: 'pointer' }}
             onPointerDown={e => {
               e.stopPropagation()
-              onSelectBoundary?.(b.id)
+              onSelectOrigin?.(o.id)
               ;(e.target as Element).setPointerCapture(e.pointerId)
             }}
             onPointerMove={e => {
               if (!(e.target as Element).hasPointerCapture?.(e.pointerId)) return
               e.stopPropagation()
-              onDragBoundary?.(b.id, screenPos(e))
+              onDragOrigin?.(o.id, screenPos(e))
             }}
             onPointerUp={e => (e.target as Element).releasePointerCapture?.(e.pointerId)}
           >
@@ -127,17 +147,28 @@ export const EditorMorphLayer = memo(function EditorMorphLayer({
     )
 
     if (morph.mode === 'radial') {
-      if (!(b.position > 0)) return null
+      if (!(o.position > 0)) return null
       return (
-        <g key={b.id}>
+        <g key={o.id}>
+          {reachExtents(o).map((rad, i) => (
+            // An inward extent can fall past the Centre — no ring to draw.
+            rad > 0 ? (
+              <circle
+                key={i}
+                cx={axis.x} cy={axis.y} r={rad}
+                fill="none" stroke={ORIGIN_COLOUR} strokeWidth={1.2} strokeOpacity={extentOpacity}
+                strokeDasharray="5 5" vectorEffect="non-scaling-stroke" pointerEvents="none"
+              />
+            ) : null
+          ))}
           <circle
-            cx={morph.origin.x} cy={morph.origin.y} r={b.position}
-            fill="none" stroke={BOUNDARY_COLOUR} strokeWidth={width} strokeOpacity={opacity}
+            cx={axis.x} cy={axis.y} r={o.position}
+            fill="none" stroke={ORIGIN_COLOUR} strokeWidth={width} strokeOpacity={opacity}
             vectorEffect="non-scaling-stroke" pointerEvents="none"
           />
           {hit(
             <circle
-              cx={morph.origin.x} cy={morph.origin.y} r={b.position}
+              cx={axis.x} cy={axis.y} r={o.position}
               fill="none" stroke="transparent" strokeWidth={12} vectorEffect="non-scaling-stroke"
             />,
           )}
@@ -145,15 +176,29 @@ export const EditorMorphLayer = memo(function EditorMorphLayer({
       )
     }
 
-    const point = { x: morph.origin.x + direction.x * b.position, y: morph.origin.y + direction.y * b.position }
     const perp = { x: -direction.y, y: direction.x }
-    const span = clipInfiniteLineToBounds(point, perp, bounds)
+    const lineAt = (position: number) => {
+      const point = { x: axis.x + direction.x * position, y: axis.y + direction.y * position }
+      return clipInfiniteLineToBounds(point, perp, bounds)
+    }
+    const span = lineAt(o.position)
     if (!span) return null
     return (
-      <g key={b.id}>
+      <g key={o.id}>
+        {reachExtents(o).map((position, i) => {
+          const ext = lineAt(position)
+          return ext ? (
+            <line
+              key={i}
+              x1={ext.a.x} y1={ext.a.y} x2={ext.b.x} y2={ext.b.y}
+              stroke={ORIGIN_COLOUR} strokeWidth={1.2} strokeOpacity={extentOpacity}
+              strokeDasharray="5 5" vectorEffect="non-scaling-stroke" pointerEvents="none"
+            />
+          ) : null
+        })}
         <line
           x1={span.a.x} y1={span.a.y} x2={span.b.x} y2={span.b.y}
-          stroke={BOUNDARY_COLOUR} strokeWidth={width} strokeOpacity={opacity}
+          stroke={ORIGIN_COLOUR} strokeWidth={width} strokeOpacity={opacity}
           vectorEffect="non-scaling-stroke" pointerEvents="none"
         />
         {hit(
@@ -168,13 +213,13 @@ export const EditorMorphLayer = memo(function EditorMorphLayer({
 
   return (
     <g id="editor-morph-layer" pointerEvents={interactive ? undefined : 'none'}>
-      {morph.boundaries.map(renderBoundary)}
+      {morph.origins.map(renderOrigin)}
 
-      {/* Direction arrow (Linear only) — drawn under the Origin handle. */}
+      {/* Direction arrow (Linear only) — drawn under the Axis handle. */}
       {morph.mode === 'linear' && (
         <g pointerEvents="none">
           <line
-            x1={morph.origin.x} y1={morph.origin.y} x2={arrowTip.x} y2={arrowTip.y}
+            x1={axis.x} y1={axis.y} x2={arrowTip.x} y2={arrowTip.y}
             stroke="var(--accent)" strokeWidth={1.6} vectorEffect="non-scaling-stroke"
           />
           <line x1={arrowTip.x} y1={arrowTip.y} x2={head(1).x} y2={head(1).y} stroke="var(--accent)" strokeWidth={1.6} vectorEffect="non-scaling-stroke" />
@@ -187,10 +232,10 @@ export const EditorMorphLayer = memo(function EditorMorphLayer({
           : <circle cx={arrowTip.x} cy={arrowTip.y} r={r(3.2)} fill="var(--accent)" pointerEvents="none" />
       )}
 
-      {/* Origin / Centre handle. */}
+      {/* Axis / Centre handle. */}
       {interactive
-        ? dragHandle('origin', morph.origin, onDragOrigin, 'var(--accent)')
-        : <circle cx={morph.origin.x} cy={morph.origin.y} r={r(3.6)} fill="var(--accent)" pointerEvents="none" />}
+        ? dragHandle('axis-origin', axis, onDragAxisOrigin, 'var(--accent)')
+        : <circle cx={axis.x} cy={axis.y} r={r(3.6)} fill="var(--accent)" pointerEvents="none" />}
     </g>
   )
 })

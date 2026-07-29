@@ -1,4 +1,4 @@
-import type { FigureLineSet, MorphConfig, PatternConfig, StrandStyle } from '../types/pattern'
+import type { FigureLineSet, MorphConfig, MorphSides, PatternConfig, StrandStyle } from '../types/pattern'
 import type { BoundaryShape, ConfigurationId, EditorConfig, EditorGuide, EditorGuidePatch, FrameConfig, FrameGradient, GradientSpec, GroupingScope, StrandGradient, SymmetryMode, VoidStampRecord } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import type { ClickedTargetKeys } from '../decoration/scopes'
@@ -158,19 +158,24 @@ export type Action =
   // `editor.*`). None of these are Design-Phase-undoable (same footing as
   // SET_CONTACT_ANGLE etc. — see PATTERN_MORPH_SPEC.md §UI).
   // Absent + true creates a fresh `createDefaultMorph()`; otherwise just
-  // flips `enabled` without discarding Boundaries.
+  // flips `enabled` without discarding Origins.
   | { type: 'SET_MORPH_ENABLED'; payload: boolean }
   | { type: 'SET_MORPH_MODE'; payload: MorphConfig['mode'] }
-  | { type: 'SET_MORPH_ORIGIN'; payload: Vec2 }
+  // The AXIS reference point (`morph.axisOrigin`) — not a Morph Origin.
+  | { type: 'SET_MORPH_AXIS_ORIGIN'; payload: Vec2 }
   // Normalized by the reducer — `pic/morph.ts` assumes a unit vector.
   | { type: 'SET_MORPH_DIRECTION'; payload: Vec2 }
-  // Builds via `editor/morph.ts::buildMorphBoundary` (pre-filled from the
-  // field's current effective values at `position` so adding one is a
-  // visual no-op until dragged) and inserts sorted by position.
-  | { type: 'ADD_MORPH_BOUNDARY'; payload: { position: number } }
-  | { type: 'SET_MORPH_BOUNDARY_POSITION'; payload: { boundaryId: string; position: number } }
-  | { type: 'SET_MORPH_BOUNDARY_ANGLE'; payload: { boundaryId: string; tileTypeId: string; field: 'contactAngle' | 'vertexContactAngle'; angle: number } }
-  | { type: 'DELETE_MORPH_BOUNDARY'; payload: { boundaryId: string } }
+  // Builds via `editor/morph.ts::buildMorphOrigin` (target pre-filled from
+  // the field's current effective value at the ramp's far end, so adding one
+  // is a visual no-op until edited) and inserts sorted by position.
+  | { type: 'ADD_MORPH_ORIGIN'; payload: { position: number } }
+  | { type: 'SET_MORPH_ORIGIN_POSITION'; payload: { originId: string; position: number } }
+  // #48 — the distance over which the base recipe blends to this Origin's
+  // target, and which side(s) of the line/ring that ramp extends into.
+  | { type: 'SET_MORPH_ORIGIN_REACH'; payload: { originId: string; reach: number } }
+  | { type: 'SET_MORPH_ORIGIN_SIDES'; payload: { originId: string; sides: MorphSides } }
+  | { type: 'SET_MORPH_ORIGIN_ANGLE'; payload: { originId: string; tileTypeId: string; field: 'contactAngle' | 'vertexContactAngle'; angle: number } }
+  | { type: 'DELETE_MORPH_ORIGIN'; payload: { originId: string } }
   // Fully clears `config.morph` (distinct from SET_MORPH_ENABLED(false),
-  // which keeps the Boundaries around for later re-enabling).
+  // which keeps the Origins around for later re-enabling).
   | { type: 'REMOVE_MORPH' }

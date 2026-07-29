@@ -952,10 +952,12 @@ export function TessellationLabMode({
         editorNeighbourBoundaries={showNeighbourBoundaries}
         editorNeighbourStrands={showNeighbourStrands}
         showMorphOverlay={editorPhase === 'strand' && showMorphBoundaries}
-        onSetMorphOrigin={p => dispatch({ type: 'SET_MORPH_ORIGIN', payload: p })}
+        onSetMorphAxisOrigin={p => dispatch({ type: 'SET_MORPH_AXIS_ORIGIN', payload: p })}
         onSetMorphDirection={d => dispatch({ type: 'SET_MORPH_DIRECTION', payload: d })}
-        onSetMorphBoundaryPosition={(boundaryId, position) => dispatch({ type: 'SET_MORPH_BOUNDARY_POSITION', payload: { boundaryId, position } })}
-        onDeleteMorphBoundary={boundaryId => dispatch({ type: 'DELETE_MORPH_BOUNDARY', payload: { boundaryId } })}
+        onSetMorphOriginPosition={(originId, position) => dispatch({ type: 'SET_MORPH_ORIGIN_POSITION', payload: { originId, position } })}
+        onSetMorphOriginReach={(originId, reach) => dispatch({ type: 'SET_MORPH_ORIGIN_REACH', payload: { originId, reach } })}
+        onSetMorphOriginSides={(originId, sides) => dispatch({ type: 'SET_MORPH_ORIGIN_SIDES', payload: { originId, sides } })}
+        onDeleteMorphOrigin={originId => dispatch({ type: 'DELETE_MORPH_ORIGIN', payload: { originId } })}
         onSetFrameGradient={fg => dispatch({ type: 'SET_DECORATION_FRAME_GRADIENT', payload: fg })}
         onSetStrandGradient={sg => dispatch({ type: 'SET_DECORATION_STRAND_GRADIENT', payload: sg })}
       />

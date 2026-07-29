@@ -131,19 +131,39 @@ export interface StrandStyle {
 }
 
 /**
- * A **Morph Boundary** — one gradient stop of a Morph (ADR-0009). Carries a
- * partial per-tile-type `FigureConfig` overlay; a stop's *effective* value for
- * a field is the start recipe's value overridden by the overlay, so an
- * untouched stop reproduces the start recipe. v1 reads `contactAngle` (and
- * `vertexContactAngle` when decoupled) from the overlay; other fields are
- * stored but held from the start recipe until slice 3.
+ * Which side(s) of a Morph Origin its blend extends into. Stored
+ * direction-relative so the same union serves both modes; the UI labels it
+ * per-mode (Linear → Left/Right, Radial → Inside/Outside).
  */
-export interface MorphBoundary {
+export type MorphSides = 'both' | 'negative' | 'positive'
+
+/**
+ * A **Morph Origin** — one anchor of a Morph (ADR-0009, amended 2026-07-29).
+ *
+ * The Origin's own line/ring holds the **live base recipe**; its `figures`
+ * overlay is the **target**, reached at `position ± reach` on whichever
+ * `sides` are active and clamped beyond. So the blend is always continuous at
+ * the Origin itself, and `reach` is exactly "the distance over which the
+ * morph takes place".
+ *
+ * v1 reads `contactAngle` (and `vertexContactAngle` when decoupled) from the
+ * overlay; other fields are stored but held from the start recipe until
+ * slice 3 (#39).
+ *
+ * Replaces the pre-2026-07-29 `MorphBoundary`, which was a gradient stop in a
+ * single sorted sequence sharing one implicit base stop at `d = 0`.
+ */
+export interface MorphOrigin {
   id: string
-  /** World-space distance from the Morph origin (along `direction` for
-   * linear, radially for radial). Boundaries are kept sorted ascending. */
+  /** World-space distance from the Morph's `axisOrigin` (along `direction`
+   * for linear, radially for radial). Origins are kept sorted ascending. */
   position: number
-  /** Partial overlay per tileTypeId. */
+  /** Distance from the line/ring over which the base recipe blends to this
+   * Origin's target overlay. `0` ⇒ a hard step at the line. */
+  reach: number
+  /** Which side(s) of the line/ring the blend extends into. */
+  sides: MorphSides
+  /** Partial overlay per tileTypeId — the TARGET values, reached at `reach`. */
   figures: Record<string, Partial<FigureConfig>>
 }
 
@@ -151,22 +171,28 @@ export interface MorphBoundary {
  * A **Morph** (ADR-0009, PATTERN_MORPH_SPEC.md) spatially interpolates
  * Figure-recipe angles across the canvas. Top-level on `PatternConfig`
  * (mirrors `figures` / `frame`); absent ⇒ no morph. Field evaluation is in
- * world/Patch space so pan/zoom never changes the pattern:
- * `d ≤ first stop` → first stop's effective values; between stops →
- * piecewise-linear blend; `d ≥ last stop` → last stop's values.
+ * world/Patch space so pan/zoom never changes the pattern.
+ *
+ * Each Origin owns a self-contained base→target ramp; where several could
+ * apply, the **nearest Origin whose active side faces the point wins** (hard
+ * handover at the midpoint, no blending, no compounding). Where no Origin's
+ * active side faces a point, the base recipe applies unchanged.
  */
 export interface MorphConfig {
   enabled: boolean
   mode: 'linear' | 'radial'
-  /** World/Patch space. Linear: d = dot(p − origin, direction); radial:
-   * d = |p − origin|. */
-  origin: { x: number; y: number }
+  /** The axis reference point in world/Patch space — where `position` is
+   * measured from. Linear: d = dot(p − axisOrigin, direction); radial:
+   * d = |p − axisOrigin|. Labelled "Axis" (linear) / "Centre" (radial) in the
+   * UI; named `axisOrigin` rather than `origin` so it doesn't collide with
+   * the per-stop Morph Origins. */
+  axisOrigin: { x: number; y: number }
   /** Linear mode only; unit vector. */
   direction?: { x: number; y: number }
   /** Reserved; only 'linear' in v1. */
   easing: 'linear'
   /** Ordered by `position` ascending. */
-  boundaries: MorphBoundary[]
+  origins: MorphOrigin[]
 }
 
 export interface PatternConfig {

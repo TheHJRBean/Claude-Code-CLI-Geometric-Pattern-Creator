@@ -1,4 +1,4 @@
-import type { FigureConfig, MorphBoundary, MorphConfig, PatternConfig, StrandLineStyle, StrandStyle, TilingConfig } from '../types/pattern'
+import type { FigureConfig, MorphConfig, MorphOrigin, PatternConfig, StrandLineStyle, StrandStyle, TilingConfig } from '../types/pattern'
 import type { FrameConfig, FrameShape } from '../types/editor'
 import { migrateEditorConfig } from '../editor/migrations'
 import { MIN_FRAME_SIZE, MAX_FRAME_SIZE, DEFAULT_FRAME_SIZE } from '../editor/frame'
@@ -145,25 +145,67 @@ function readGalleryFrame(v: unknown): FrameConfig | undefined {
 }
 
 /**
+ * Convert a pre-#48 `boundaries` stop chain into the Origin model.
+ *
+ * The old field was one sorted stop sequence sharing an IMPLICIT base stop at
+ * position 0; each boundary blended from its predecessor. The new model gives
+ * every Origin its own base→target ramp. So boundary `i` at `P_i`, whose
+ * predecessor sat at `P_{i-1}` (`P_0 = 0`, the implicit stop), becomes an
+ * Origin anchored at `P_{i-1}` reaching `|P_i − P_{i-1}|` toward it.
+ *
+ * **Exact for a single boundary** — by far the common case, and the shape the
+ * old UI nudged users into. **Approximate for chains of 2+**: each converted
+ * Origin restarts from the live base recipe, where the old chain accumulated
+ * stop to stop, so interior segments that ramped target→target now ramp
+ * base→target. Deliberate: blending between Origins was explicitly ruled out
+ * (nearest-Origin-wins), so an exact chain conversion isn't expressible.
+ */
+function originsFromLegacyBoundaries(
+  boundaries: Array<{ id: string; position: number; figures: Record<string, Partial<FigureConfig>> }>,
+): MorphOrigin[] {
+  const out: MorphOrigin[] = []
+  let prev = 0
+  for (const b of boundaries) {
+    const step = b.position - prev
+    out.push({
+      id: b.id,
+      position: prev,
+      reach: Math.abs(step),
+      sides: step < 0 ? 'negative' : 'positive',
+      figures: b.figures,
+    })
+    prev = b.position
+  }
+  return out.sort((a, b) => a.position - b.position)
+}
+
+/**
  * Read the top-level `morph` (Step 20). Mirrors the Gallery-frame policy:
  * degrade rather than throw — a dropped morph renders the base pattern, which
  * is harmless next to a failed load. Fields are normalised so a hand-edited
  * save can't feed a degenerate field into the per-edge θ evaluation:
- * unknown mode ⇒ drop; non-finite origin/positions ⇒ drop the config/stop;
- * linear direction defaulted to +x and normalised; easing forced 'linear';
- * stop overlays must be objects of objects (contents stay permissive, like
- * `figures`); stops sorted ascending by position (the evaluator's contract).
+ * unknown mode ⇒ drop; non-finite axis origin/positions ⇒ drop the
+ * config/stop; linear direction defaulted to +x and normalised; easing forced
+ * 'linear'; overlays must be objects of objects (contents stay permissive,
+ * like `figures`); Origins sorted ascending by position.
+ *
+ * Accepts both schemas: the current `{ axisOrigin, origins }` and the pre-#48
+ * `{ origin, boundaries }`, the latter converted by
+ * `originsFromLegacyBoundaries`. A save carrying both prefers the new keys.
  */
 function readMorphConfig(v: unknown): MorphConfig | undefined {
   if (typeof v !== 'object' || v === null) return undefined
   const m = v as Record<string, unknown>
   if (m.mode !== 'linear' && m.mode !== 'radial') return undefined
-  const o = m.origin as Record<string, unknown> | undefined
+  // `axisOrigin` (current) or `origin` (pre-#48, when it named the axis point).
+  const o = (m.axisOrigin ?? m.origin) as Record<string, unknown> | undefined
   if (!o || typeof o !== 'object' || !Number.isFinite(o.x) || !Number.isFinite(o.y)) return undefined
-  if (!Array.isArray(m.boundaries)) return undefined
+  const legacy = !Array.isArray(m.origins) && Array.isArray(m.boundaries)
+  const rawStops = Array.isArray(m.origins) ? m.origins : legacy ? m.boundaries : null
+  if (!rawStops) return undefined
 
-  const boundaries: MorphBoundary[] = []
-  for (const raw of m.boundaries as unknown[]) {
+  const stops: MorphOrigin[] = []
+  for (const raw of rawStops as unknown[]) {
     if (typeof raw !== 'object' || raw === null) continue
     const b = raw as Record<string, unknown>
     if (!Number.isFinite(b.position)) continue
@@ -174,20 +216,26 @@ function readMorphConfig(v: unknown): MorphConfig | undefined {
         figures[key] = overlay as Partial<FigureConfig>
       }
     }
-    boundaries.push({
-      id: typeof b.id === 'string' && b.id.length > 0 ? b.id : `morph-${boundaries.length}`,
+    // Legacy stops carry neither field; `originsFromLegacyBoundaries` derives
+    // both below, so the defaults here only ever backstop a hand-edited save.
+    const sides = b.sides === 'both' || b.sides === 'negative' || b.sides === 'positive' ? b.sides : 'both'
+    stops.push({
+      id: typeof b.id === 'string' && b.id.length > 0 ? b.id : `morph-${stops.length}`,
       position: b.position as number,
+      reach: Number.isFinite(b.reach) ? Math.max(0, b.reach as number) : 0,
+      sides,
       figures,
     })
   }
-  boundaries.sort((a, b) => a.position - b.position)
+  stops.sort((a, b) => a.position - b.position)
+  const origins = legacy ? originsFromLegacyBoundaries(stops) : stops
 
   const out: MorphConfig = {
     enabled: m.enabled === true,
     mode: m.mode,
-    origin: { x: o.x as number, y: o.y as number },
+    axisOrigin: { x: o.x as number, y: o.y as number },
     easing: 'linear',
-    boundaries,
+    origins,
   }
   if (m.mode === 'linear') {
     const d = m.direction as Record<string, unknown> | undefined

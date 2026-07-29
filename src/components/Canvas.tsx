@@ -1,5 +1,5 @@
 import { useRef, useEffect, useCallback, useState, useDeferredValue, useMemo } from 'react'
-import type { PatternConfig } from '../types/pattern'
+import type { MorphSides, PatternConfig } from '../types/pattern'
 import type { Segment } from '../types/geometry'
 import type { Vec2 } from '../utils/math'
 import { usePattern } from '../hooks/usePattern'
@@ -62,7 +62,7 @@ import { GuidePopupOverlay } from './GuidePopupOverlay'
 import { midpoint as vecMidpoint, pointsEqual } from '../utils/math'
 import { EditorMorphLayer } from './EditorMorphLayer'
 import { EditorFrameGradientLayer } from './EditorFrameGradientLayer'
-import { MorphBoundarySlider } from './MorphBoundarySlider'
+import { MorphOriginSlider } from './MorphOriginSlider'
 import { morphDistance } from '../pic/morph'
 
 /**
@@ -208,21 +208,24 @@ interface Props {
    *  Frozen in Decoration like Strand geometry (user decision 2026-07-18) —
    *  the morphed field still renders there, only authoring hides. */
   showMorphOverlay?: boolean
-  onSetMorphOrigin?: (p: Vec2) => void
+  /** The AXIS reference point, not a Morph Origin. */
+  onSetMorphAxisOrigin?: (p: Vec2) => void
   onSetMorphDirection?: (d: Vec2) => void
-  onSetMorphBoundaryPosition?: (boundaryId: string, position: number) => void
-  onDeleteMorphBoundary?: (boundaryId: string) => void
+  onSetMorphOriginPosition?: (originId: string, position: number) => void
+  onSetMorphOriginReach?: (originId: string, reach: number) => void
+  onSetMorphOriginSides?: (originId: string, sides: MorphSides) => void
+  onDeleteMorphOrigin?: (originId: string) => void
   /** #45 — commit the reshaped across-frame gradient (handle drags). */
   onSetFrameGradient?: (fg: FrameGradient) => void
   onSetStrandGradient?: (sg: StrandGradient) => void
   /** Written (never read) by Canvas: the current visible world-rect, for
-   *  view-aware defaults outside the canvas (MorphPanel's Add Boundary). */
+   *  view-aware defaults outside the canvas (MorphPanel's Add Origin). */
   viewBoundsRef?: React.MutableRefObject<WorldBounds | null>
 }
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, onPlaceTileOnAnchor, editorMode = 'place', constructSnap = true, constructAngleStep = DEFAULT_ANGLE_STEP, constructTool = 'line', showGuides = false, onAddGuide, onUpdateGuide, onDeleteGuide, picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature, onPaintGradientVoid, onDecorationVoids, showMorphOverlay = false, onSetMorphOrigin, onSetMorphDirection, onSetMorphBoundaryPosition, onDeleteMorphBoundary, onSetFrameGradient, onSetStrandGradient, viewBoundsRef }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, onPlaceTileOnAnchor, editorMode = 'place', constructSnap = true, constructAngleStep = DEFAULT_ANGLE_STEP, constructTool = 'line', showGuides = false, onAddGuide, onUpdateGuide, onDeleteGuide, picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature, onPaintGradientVoid, onDecorationVoids, showMorphOverlay = false, onSetMorphAxisOrigin, onSetMorphDirection, onSetMorphOriginPosition, onSetMorphOriginReach, onSetMorphOriginSides, onDeleteMorphOrigin, onSetFrameGradient, onSetStrandGradient, viewBoundsRef }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -1069,45 +1072,45 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     : null
 
   // ── Morph overlay (Step 20 slice 2, #38) ────────────────
-  // Selected Boundary drives the transient bottom position slider. Local —
-  // like `selectedGuideId`, not persisted, not synced with the sidebar's own
+  // Selected Origin drives the transient bottom slider. Local — like
+  // `selectedGuideId`, not persisted, not synced with the sidebar's own
   // expand/collapse (the spec only ties canvas selection to the bottom
   // slider).
-  const [selectedMorphBoundaryId, setSelectedMorphBoundaryId] = useState<string | null>(null)
+  const [selectedMorphOriginId, setSelectedMorphOriginId] = useState<string | null>(null)
   // Disabled ⇒ fully hidden ("keep authoring while previewing off" keeps the
   // CONFIG, not the overlay — a disabled Morph leaves no arrow behind).
   const morphOverlayVisible = showMorphOverlay && config.morph?.enabled === true
   useEffect(() => {
-    if (!morphOverlayVisible) setSelectedMorphBoundaryId(null)
+    if (!morphOverlayVisible) setSelectedMorphOriginId(null)
   }, [morphOverlayVisible])
-  // Drop a stale selection if the Boundary vanished (delete / undo / new patch).
+  // Drop a stale selection if the Origin vanished (delete / undo / new patch).
   useEffect(() => {
-    if (selectedMorphBoundaryId && !config.morph?.boundaries.some(b => b.id === selectedMorphBoundaryId)) {
-      setSelectedMorphBoundaryId(null)
+    if (selectedMorphOriginId && !config.morph?.origins.some(o => o.id === selectedMorphOriginId)) {
+      setSelectedMorphOriginId(null)
     }
-  }, [config.morph, selectedMorphBoundaryId])
+  }, [config.morph, selectedMorphOriginId])
 
-  const handleDragMorphOrigin = useCallback((screen: Vec2) => {
-    onSetMorphOrigin?.(screenToWorld(screen, viewTransform, size.width, size.height))
-  }, [viewTransform, size.width, size.height, onSetMorphOrigin])
+  const handleDragMorphAxisOrigin = useCallback((screen: Vec2) => {
+    onSetMorphAxisOrigin?.(screenToWorld(screen, viewTransform, size.width, size.height))
+  }, [viewTransform, size.width, size.height, onSetMorphAxisOrigin])
 
   const handleDragMorphDirection = useCallback((screen: Vec2) => {
     if (!config.morph) return
     const w = screenToWorld(screen, viewTransform, size.width, size.height)
-    const dx = w.x - config.morph.origin.x
-    const dy = w.y - config.morph.origin.y
+    const dx = w.x - config.morph.axisOrigin.x
+    const dy = w.y - config.morph.axisOrigin.y
     const len = Math.hypot(dx, dy)
     if (len < 1e-6) return
     onSetMorphDirection?.({ x: dx / len, y: dy / len })
   }, [config.morph, viewTransform, size.width, size.height, onSetMorphDirection])
 
-  const handleDragMorphBoundary = useCallback((id: string, screen: Vec2) => {
+  const handleDragMorphOrigin = useCallback((id: string, screen: Vec2) => {
     if (!config.morph) return
     const w = screenToWorld(screen, viewTransform, size.width, size.height)
     let position = morphDistance(config.morph, w)
     if (config.morph.mode === 'radial') position = Math.max(0, position)
-    onSetMorphBoundaryPosition?.(id, position)
-  }, [config.morph, viewTransform, size.width, size.height, onSetMorphBoundaryPosition])
+    onSetMorphOriginPosition?.(id, position)
+  }, [config.morph, viewTransform, size.width, size.height, onSetMorphOriginPosition])
 
   const morphLayer = morphOverlayVisible && config.morph ? (
     <EditorMorphLayer
@@ -1115,16 +1118,16 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       bounds={guideBounds}
       interactive
       zoom={viewTransform.zoom}
-      selectedBoundaryId={selectedMorphBoundaryId}
-      onSelectBoundary={setSelectedMorphBoundaryId}
-      onDragOrigin={handleDragMorphOrigin}
+      selectedOriginId={selectedMorphOriginId}
+      onSelectOrigin={setSelectedMorphOriginId}
+      onDragAxisOrigin={handleDragMorphAxisOrigin}
       onDragDirection={handleDragMorphDirection}
-      onDragBoundary={handleDragMorphBoundary}
+      onDragOrigin={handleDragMorphOrigin}
     />
   ) : null
 
-  const selectedMorphBoundary = selectedMorphBoundaryId
-    ? config.morph?.boundaries.find(b => b.id === selectedMorphBoundaryId) ?? null
+  const selectedMorphOrigin = selectedMorphOriginId
+    ? config.morph?.origins.find(o => o.id === selectedMorphOriginId) ?? null
     : null
 
   // Across-frame gradient handles (#45) — live while the Gradient paint target
@@ -1547,14 +1550,17 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
           }}
         />
       )}
-      {morphOverlayVisible && selectedMorphBoundary && config.morph && onSetMorphBoundaryPosition && onDeleteMorphBoundary && (
-        <MorphBoundarySlider
-          key={selectedMorphBoundary.id}
-          boundary={selectedMorphBoundary}
+      {morphOverlayVisible && selectedMorphOrigin && config.morph
+        && onSetMorphOriginPosition && onSetMorphOriginReach && onSetMorphOriginSides && onDeleteMorphOrigin && (
+        <MorphOriginSlider
+          key={selectedMorphOrigin.id}
+          origin={selectedMorphOrigin}
           mode={config.morph.mode}
-          onChange={position => onSetMorphBoundaryPosition(selectedMorphBoundary.id, position)}
-          onDelete={() => { onDeleteMorphBoundary(selectedMorphBoundary.id); setSelectedMorphBoundaryId(null) }}
-          onClose={() => setSelectedMorphBoundaryId(null)}
+          onChangePosition={position => onSetMorphOriginPosition(selectedMorphOrigin.id, position)}
+          onChangeReach={reach => onSetMorphOriginReach(selectedMorphOrigin.id, reach)}
+          onChangeSides={sides => onSetMorphOriginSides(selectedMorphOrigin.id, sides)}
+          onDelete={() => { onDeleteMorphOrigin(selectedMorphOrigin.id); setSelectedMorphOriginId(null) }}
+          onClose={() => setSelectedMorphOriginId(null)}
         />
       )}
       {overlapConfirm && (

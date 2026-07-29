@@ -1,39 +1,56 @@
-import type { FigureConfig, MorphBoundary, MorphConfig, PatternConfig } from '../types/pattern'
+import type { FigureConfig, MorphConfig, MorphOrigin, PatternConfig } from '../types/pattern'
 import type { Vec2 } from '../utils/math'
 
 /**
- * Step 20 (slice 1) — Morph field evaluation (ADR-0009, PATTERN_MORPH_SPEC.md).
+ * Step 20 — Morph field evaluation (ADR-0009, PATTERN_MORPH_SPEC.md).
  *
  * A Morph interpolates Figure-recipe angles across the canvas in world/Patch
- * space. The scalar field is a distance `d` from the Morph origin (along the
- * direction for linear mode, radial distance for radial mode); the value at a
- * point blends piecewise-linearly between consecutive stops, clamped to the
- * first/last stop's values beyond the band.
+ * space. The scalar field is a distance `d` from the Morph's axis origin
+ * (signed along `direction` for linear mode, radial distance for radial).
  *
- * The stop sequence = the explicit Morph Boundaries plus an IMPLICIT stop at
- * position 0 carrying the start recipe (amended 2026-07-18 — originally the
- * start recipe was only the value stops patch, which made a single Boundary
- * apply uniformly and left the ordinary angle sliders inert while a Morph was
- * active). The Origin line/Centre therefore always holds the live base
- * recipe, one Boundary already yields a real gradient, and an explicit stop
- * placed exactly at 0 replaces the implicit one.
+ * **Origin model (amended 2026-07-29, #48).** Each Morph **Origin** is a
+ * self-contained ramp rather than a stop in a shared sequence:
  *
- * A stop's *effective* value = the start recipe's value overridden by the
- * stop's partial `FigureConfig` overlay — so a freshly added stop (empty
- * overlay) reproduces the start recipe and adding it changes nothing.
+ * - the Origin's own line/ring holds the **live base recipe** (whatever the
+ *   ordinary angle sliders currently say),
+ * - its `figures` overlay is the **target**, reached at `position ± reach`
+ *   and clamped beyond,
+ * - `sides` picks which side(s) the ramp extends into — the other side is
+ *   left at the base recipe.
+ *
+ *       BOTH SIDES                      NEGATIVE SIDE ONLY
+ *       target ───╮         ╭───        target ───╮
+ *                  ╲       ╱                       ╲
+ *       base        ╰──◉──╯             base        ╰──◉────────
+ *               P-r    P   P+r                  P-r   P
+ *
+ * The blend is therefore always continuous at the Origin itself, and `reach`
+ * is literally "the distance over which the morph takes place".
+ *
+ * Where several Origins could apply, the **nearest Origin whose active side
+ * faces the point wins** — a hard handover at the midpoint, no blending and
+ * no compounding (user decision 2026-07-29). Where no Origin's active side
+ * faces a point, the base recipe applies unchanged.
+ *
+ * This replaces the pre-#48 model (one sorted stop sequence with an implicit
+ * base stop spliced in at position 0). That implicit stop is gone: base is
+ * now simply the value everywhere no Origin reaches.
  *
  * v1 interpolates angles only; the overlay schema is full-`FigureConfig`
- * shaped so lengths/curves can land later without migration (slice 3).
+ * shaped so lengths/curves can land later without migration (slice 3, #39).
  */
 
 /** The `FigureConfig` fields the v1 morph engine reads from stop overlays. */
 export type MorphAngleField = 'contactAngle' | 'vertexContactAngle'
 
+/** Below this, a `reach` is treated as a hard step at the Origin line. */
+const REACH_EPS = 1e-9
+
 /** The morph the render pipeline should apply, or null when there is none
- * (absent, disabled, or no stops — all render identically to no morph). */
+ * (absent, disabled, or no Origins — all render identically to no morph). */
 export function activeMorph(config: PatternConfig): MorphConfig | null {
   const m = config.morph
-  return m && m.enabled && m.boundaries.length > 0 ? m : null
+  return m && m.enabled && m.origins.length > 0 ? m : null
 }
 
 /** True when the config renders through the per-edge-θ morph path. Used by
@@ -43,33 +60,67 @@ export function morphActive(config: PatternConfig): boolean {
   return activeMorph(config) !== null
 }
 
-/** Scalar field parameter at a world point: distance from the Morph origin —
- * signed along `direction` for linear mode, radial for radial mode. */
+/** Scalar field parameter at a world point: distance from the Morph's axis
+ * origin — signed along `direction` for linear mode, radial for radial. */
 export function morphDistance(morph: MorphConfig, p: Vec2): number {
-  const dx = p.x - morph.origin.x
-  const dy = p.y - morph.origin.y
+  const dx = p.x - morph.axisOrigin.x
+  const dy = p.y - morph.axisOrigin.y
   if (morph.mode === 'radial') return Math.hypot(dx, dy)
   const dir = morph.direction ?? { x: 1, y: 0 }
   return dx * dir.x + dy * dir.y
 }
 
+/**
+ * Whether an Origin's ramp extends toward a point offset `s = d − position`
+ * from it. A point exactly on the line (`s === 0`) counts as on every side —
+ * the value there is the base recipe either way, so this only matters when
+ * choosing which Origin wins.
+ */
+export function sideActive(sides: MorphOrigin['sides'], s: number): boolean {
+  if (sides === 'both') return true
+  return sides === 'negative' ? s <= 0 : s >= 0
+}
+
 function effectiveValue(
-  b: MorphBoundary,
+  o: MorphOrigin,
   tileTypeId: string,
   field: MorphAngleField,
   startValue: number,
 ): number {
-  const overlay = b.figures[tileTypeId] as Partial<FigureConfig> | undefined
+  const overlay = o.figures[tileTypeId] as Partial<FigureConfig> | undefined
   const v = overlay?.[field]
   return typeof v === 'number' ? v : startValue
+}
+
+/**
+ * The Origin governing distance `d`, or null when none reaches it.
+ *
+ * "Governing" = nearest by `|d − position|` **among Origins whose active side
+ * faces `d`**. Restricting the contest to active sides matters: an Origin
+ * that only morphs to its left must not shadow a further Origin that really
+ * does morph the point on its right. Ties keep the earlier array entry — the
+ * array is sorted ascending by position, so that is the lower position.
+ */
+export function governingOrigin(morph: MorphConfig, d: number): MorphOrigin | null {
+  let best: MorphOrigin | null = null
+  let bestDist = Infinity
+  for (const o of morph.origins) {
+    const s = d - o.position
+    if (!sideActive(o.sides, s)) continue
+    const dist = Math.abs(s)
+    if (dist < bestDist) {
+      best = o
+      bestDist = dist
+    }
+  }
+  return best
 }
 
 /**
  * Evaluate one overlay field of the morph field at parameter `d`.
  * `startValue` is the start recipe's resolved value for the field (the caller
  * resolves `vertexContactAngle ?? contactAngle` fallbacks — this function
- * never falls across fields). Boundaries must be sorted ascending by
- * `position` (load validation and the reducer both maintain that).
+ * never falls across fields).
  */
 export function morphFieldValue(
   morph: MorphConfig,
@@ -78,38 +129,15 @@ export function morphFieldValue(
   startValue: number,
   d: number,
 ): number {
-  const bs = morph.boundaries
-  if (bs.length === 0) return startValue
+  const o = governingOrigin(morph, d)
+  if (!o) return startValue
 
-  // Merged stop sequence: explicit Boundaries (sorted ascending, invariant
-  // maintained by the reducer + load validation) with the implicit Origin
-  // stop spliced in at position 0. An explicit stop numerically at 0
-  // replaces the implicit one.
-  const stops: Array<{ position: number; value: number }> = []
-  let implicitPlaced = false
-  for (const b of bs) {
-    if (!implicitPlaced && b.position >= 0) {
-      if (b.position > 1e-9) stops.push({ position: 0, value: startValue })
-      implicitPlaced = true
-    }
-    stops.push({ position: b.position, value: effectiveValue(b, tileTypeId, field, startValue) })
-  }
-  if (!implicitPlaced) stops.push({ position: 0, value: startValue })
-
-  if (d <= stops[0].position) return stops[0].value
-  const last = stops[stops.length - 1]
-  if (d >= last.position) return last.value
-  for (let i = 0; i < stops.length - 1; i++) {
-    const b = stops[i + 1]
-    if (d > b.position) continue
-    const a = stops[i]
-    const span = b.position - a.position
-    // Coincident stops: no interior to blend across — the later stop wins.
-    if (span <= 1e-9) return b.value
-    const u = (d - a.position) / span
-    return a.value * (1 - u) + b.value * u
-  }
-  return last.value
+  const dist = Math.abs(d - o.position)
+  const target = effectiveValue(o, tileTypeId, field, startValue)
+  // A zero reach is a hard step: base exactly on the line, target off it.
+  if (o.reach <= REACH_EPS) return dist > 0 ? target : startValue
+  const u = Math.min(dist / o.reach, 1)
+  return startValue * (1 - u) + target * u
 }
 
 /** Evaluate one overlay field at a world point. */

@@ -6,7 +6,9 @@
 
 **Session ended at a clean milestone (2026-07-30, second entry).** Nothing mid-flight, no handoff. Tree clean, all pushed to `main`, tests **1349 green**, tsc clean.
 
-**⚠️ ONE THING OWED TO THE USER:** the Strand-editing enumeration is **incomplete by their own statement** — *"This isn't the full extent of it."* Three issues were captured and root-caused (below); **ask for the rest before starting any fix.** See the 2026-07-30 (Strand-editing enumeration) entry.
+**⚠️ ONE THING OWED TO THE USER:** the Strand-editing enumeration is **incomplete by their own statement** — *"This isn't the full extent of it."* Five issues are now captured, root-caused and **all five fixed** (below); **ask for the rest.** See the three 2026-07-30 entries.
+
+**⚠️ #52 needs a user decision.** They approved collapsing archimedes-star's 12-gon to a hexagon; the evidence says that would break strand continuity at 12 junctions, so it was **not** done and a correction is posted on the issue. Awaiting their call.
 
 **Last session (2026-07-29), both ✅ SHIPPED + BROWSER-VERIFIED:** the Gallery → Lab library link (Save updates the save instead of forking a copy) and precise gradient angle control on all three gradient surfaces (rotate-in-place + Fit + Shift-snap).
 
@@ -28,6 +30,21 @@
 4. **Roadmap design findings still open (Opus).** (a) **Pass-4 right-side Inspector** is blocked by the selection-state split (Canvas-local vertex state) + duplicated per-mode shell — the old "3rd-column-ready grid" claim is FALSE. (b) **Builder Configuration registry** — 7-site ladder to add one, with a silent square-basis fallback in `compositionCellBasis`. Memory: `project_thermonuclear_review_round2.md`.
 5. **Open bugs (unscheduled).** Force-overlapped Tiles emit their own Strands (decided 2026-06-14: make it a **toggle**, default self-contained); Strand-editing UX issues need enumerating. Memories: `project_overlap_tiles_strand_bug.md`, `project_strand_editing_debug.md`.
 6. **Cheap cleanup (Haiku).** Vitest has **no `testTimeout` set**, so the default 5 s makes 1–2 heavy render/geometry tests flake whenever the machine is busy (`appSmoke`'s App render: 1.7 s idle, 5.7–7.3 s under load). Verified pre-existing, not caused by any recent change. Raise it in `vite.config.ts`.
+
+---
+### ▶ 2026-07-30 (Rosette centre-pinning FIXED; #52 tile-data change REJECTED on evidence; Opus, `996787a`)
+
+Screenshots 2 + 3 (`pentagonal-rosette`, `archimedes-star`) turned out to be **one bug, and the same one behind #52**: `runRosettePIC`'s **centre-projection cap** pinning star tips onto the tile centre.
+
+**Mechanism.** The cap (`min(s, dot(center − V, bisector))`) was written for regular tiles, where a bisector aims at the centre but the natural tip only reaches it near θ=90° — so it never bit. On irregular tiles it *saturated*. On a **rhombus every vertex bisector IS a diagonal**, so it points exactly at the centre; at the obtuse vertices (close to the centre) the natural tip overshoots across most of the θ range and got clamped onto it — identically for every θ, so **the contact-angle slider did nothing to those arms**. Degenerate vertices did it harder: archimedes-star's 180° vertices push the natural tip to infinity, so 12 of that tile's 24 arms landed on the centre. That is the hub in the screenshots.
+
+**Fix (user picked "trim at nearest crossing"):** `bisectorTrimDist` applies Kaplan's trim in the bisector parametrisation. ⚠️ **Gated to the case the old cap would have bitten** — applying it unconditionally also shortens tips on REGULAR tiles and breaks the **Kepler baseline** (`runRosettePIC` must stay segment-identical to `runPIC` on regular tilings). Every currently-good figure stays byte identical. Rhombus obtuse tips: was 0 for all θ>37; now 3.76 @40, 8.78 @45, 14.26 @50. Centre-pinned tiling×θ combos 63 → 30; archimedes-star clears entirely. Above ~62° opposite arms overshoot *each other*, so meeting in the middle is geometry, not the cap.
+
+⚠️ **The first version of the regression test PASSED against the broken code.** The old cap reached the centre through floating-point arithmetic and read as **2.0e-14**, which sails through `toBeGreaterThan(0)`. The threshold is now size-relative (1% of inradius). Always verify a regression test red-first, and don't compare a computed geometric quantity to exact 0.
+
+**#52 — I was WRONG, and did NOT make the approved change.** The user approved collapsing archimedes-star's 12-gon to a true hexagon. Checking first: **every edge in that tiling is the same length (100)**; the hexagon's true side is 200, split into two half-edges, and **each half-edge abuts one triangle** (the triangle at `tx=2` has vertices `(2,0), (2.5,0.866), (1.5,0.866)` — its edge `(2,0)→(1.5,0.866)` *is* hexagon half-edge C0→M0). The 12-gon is what makes the tiling **edge-to-edge**; the 180° vertices are half-edge joints, not redundancy. Collapsing would move the hexagon's contact points to the triangles' shared *corners* and **break strands at all 12 junctions**. The "extra sets" were never extra — 12 ray pairs is correct for 12 real half-edges. Correction posted on #52; left open for the user. Only genuinely open sub-point is cosmetic: tile type `'12'`'s default θ=60 was chosen when it was read as a dodecagon.
+
+**Tests: 1355 green**, tsc + build clean. ⏳ **not browser-verified.**
 
 ---
 ### ▶ 2026-07-30 (#51 FIXED — collinear ray pairs; Opus, `897785d`)

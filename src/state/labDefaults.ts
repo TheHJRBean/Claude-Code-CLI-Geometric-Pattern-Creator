@@ -63,7 +63,15 @@ export function loadLabState(): LabPersistedState {
 
 export function saveLabState(state: LabPersistedState): void {
   try {
-    localStorage.setItem(LAB_STORAGE_KEY, JSON.stringify(state))
+    // Stamp the schema generation at the write boundary, not upstream. The
+    // working config is replaced wholesale by things that never met the loader
+    // — a Presets shelf click, `createDefault*`, a Generator sample opened in
+    // the Lab — each of which drops whatever `version` the previous config
+    // carried. Those configs are this build's shape by construction, so the
+    // write is the honest single place to record that; without it every fresh
+    // session persists unversioned and comes back as generation 0.
+    const config: PatternConfig = { ...state.config, version: CURRENT_PATTERN_CONFIG_VERSION }
+    localStorage.setItem(LAB_STORAGE_KEY, JSON.stringify({ ...state, config }))
   } catch {
     // ignore quota / unavailable storage
   }

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { loadLabState, saveLabState, LAB_DEFAULT_PERSISTED } from './labDefaults'
 import { LAB_DEFAULT_CONFIG } from './labDefaults'
+import { CURRENT_PATTERN_CONFIG_VERSION } from './configValidation'
 import type { PatternConfig } from '../types/pattern'
 
 /**
@@ -102,6 +103,22 @@ describe('loadLabState — morph migration', () => {
 
   it('falls back to defaults when nothing is persisted', () => {
     expect(loadLabState()).toEqual(LAB_DEFAULT_PERSISTED)
+  })
+})
+
+describe('saveLabState — schema version stamp', () => {
+  it('stamps the generation on write, even when the working config lost it', () => {
+    // Browser-verified gap (roadmap #6): a Presets shelf click replaces the
+    // working config wholesale with one built in memory, dropping whatever
+    // `version` the previous config carried — so stamping only at creation
+    // meant every fresh session persisted unversioned. The write boundary is
+    // the one place all those factories funnel through.
+    const config = legacyBaseConfig() as unknown as PatternConfig
+    expect(config.version).toBeUndefined()
+    saveLabState({ config, showStrands: false, outlineWidth: 0.8, savedId: '' })
+    const persisted = JSON.parse(store.get('lab-state-v1')!)
+    expect(persisted.config.version).toBe(CURRENT_PATTERN_CONFIG_VERSION)
+    expect(loadLabState().config.version).toBe(CURRENT_PATTERN_CONFIG_VERSION)
   })
 })
 

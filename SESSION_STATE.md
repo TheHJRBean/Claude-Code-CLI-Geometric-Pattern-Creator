@@ -4,7 +4,9 @@
 
 ## ▶ RESUME HERE
 
-**Session ended at a clean milestone (2026-07-30, PIC bug-fix session).** Nothing mid-flight, no handoff. Tree clean, all pushed to `main`, tests **1357 green**, tsc + build clean.
+**In flight (2026-07-30, Generator→Lab session): the Lab doors are open (`b1c86f4`), Decoration on the legacy substrate is NOT done and awaits a user go-ahead.** See the dated entry immediately below. Tests **1360 green**, tsc + build clean, pushed.
+
+**Previous milestone (2026-07-30, PIC bug-fix session).** Tests were 1357 green, tsc + build clean.
 
 **A whole PIC bug-fix session: 6 user-reported strand/figure defects, all fixed** (#51, #53 closed; #52 answered and left open). Four dated entries below carry the detail. Started from `/what-next` items #8 (vitest timeouts) and #1 (enumerate Strand-editing issues).
 
@@ -39,6 +41,37 @@
 4. **Roadmap design findings still open (Opus).** (a) **Pass-4 right-side Inspector** is blocked by the selection-state split (Canvas-local vertex state) + duplicated per-mode shell — the old "3rd-column-ready grid" claim is FALSE. (b) **Builder Configuration registry** — 7-site ladder to add one, with a silent square-basis fallback in `compositionCellBasis`. Memory: `project_thermonuclear_review_round2.md`.
 5. **Open bugs (unscheduled).** Force-overlapped Tiles emit their own Strands (decided 2026-06-14: make it a **toggle**, default self-contained); Strand-editing UX issues need enumerating. Memories: `project_overlap_tiles_strand_bug.md`, `project_strand_editing_debug.md`.
 6. **Cheap cleanup (Haiku).** Vitest has **no `testTimeout` set**, so the default 5 s makes 1–2 heavy render/geometry tests flake whenever the machine is busy (`appSmoke`'s App render: 1.7 s idle, 5.7–7.3 s under load). Verified pre-existing, not caused by any recent change. Raise it in `vite.config.ts`.
+
+---
+### ▶ 2026-07-30 (Generator → Lab: doors opened ✅ `b1c86f4`; Decoration on the legacy substrate ⏸ AWAITING GO-AHEAD, Opus)
+
+User: *"I want to be able to edit in lab patterns brought from the generator"* → clarified as two things: *"I saved the generated pattern and viewed it in gallery but I can't then go to edit in lab from there?"* and *"I can open it directly in the lab but then I can't open decoration view."*
+
+**Root cause of both: the substrate.** The Generator samples uniformly over all **26** shipped tilings; only **13** convert to a Builder Patch. For the other 13 (every `*-rosette`, `archimedes-star`, and the irregular Laves) the Lab is degraded.
+
+| Route | Before | After `b1c86f4` |
+|---|---|---|
+| Generator → "Open in Lab" | disabled | opens |
+| Gallery detail → "Edit in Lab" | disabled | opens |
+| Lab → My Tessellations → load | **worked already** | unchanged |
+| Then: Strands / Composition | worked | unchanged |
+| Then: **Decoration** | unreachable | **still unreachable** |
+
+**✅ Shipped.** `EditAvailability` traded `unavailable` for `view`: a tier-3 render hands over **verbatim** and keeps its library link (nothing was derived, so `linkedSavedIdFor` correctly preserves it). The disabled buttons were an inconsistency, not a safeguard — My Tessellations had always loaded these configs. The Lab's Editor panel now names the loaded substrate and warns that its two buttons **replace** the pattern; previously they read as the only action available and either one silently discarded it.
+
+New invariant test: every shipped tiling **and** 40 real `sampleRandomPattern` seeds must resolve a hand-over, with `figures` non-empty and `strand` preserved. All five new/changed assertions **verified red first** (`cairo-pentagonal` and a generated `heptagonal-rosette` both returned null).
+
+**⏸ NOT done — Decoration on the legacy substrate.** Four blockers, cheapest last:
+1. **Storage** — decoration lives on `EditorPatch.decoration`; ~29 touch points in `state/reducer.ts`. Moving it config-level is a **schema change** (`PATTERN_CONFIG_KEYS` + `readConfig` same commit, version dispatch in `configValidation.ts`).
+2. **Pipeline** — every decoration memo in `usePattern.ts` early-returns on `!editorBase` (~362, 375, 479, 495, 716); the legacy branch returns bare `{ polygons, segments }`.
+3. **Panel** — `DecorationPanel` is typed on `NonNullable<PatternConfig['editor']>`.
+4. **Phase switcher** — `editorPhase` pinned to `'design'` at `TessellationLabMode.tsx:295`; switcher lives inside Patch-only `EditorDesignControls`.
+
+**Why it's worth doing properly:** the decoration **core is already substrate-agnostic** — `extractVoids(segments, bound)`, `keyVoids`/`colourVoids`, `scopedKey`/`buildColourIndex`, `strandIdentity` all take segments + bound + world points. The legacy field would ride the **existing non-fast-path** route. Est. 4–6h with tests.
+
+**Rejected routes:** the irregular-tile Patch encoder (rosettes render via `runRosettePIC`, so freezing them as irregular Tiles changes the look — that's the star-tilings epic); restricting the sampler to convertible tilings (~15 min + `GENERATOR_VERSION` bump, but halves dataset substrate diversity at 457+ rated samples and does nothing for existing saves — user's call, not a default).
+
+Memory: `project_decoration_legacy_substrate_gap.md`.
 
 ---
 ### ▶ 2026-07-30 (#53 — vertex strands applied inconsistently; ✅ FIXED `e8b18cc`, Opus)

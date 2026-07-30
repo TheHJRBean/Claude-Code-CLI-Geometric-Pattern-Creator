@@ -1,4 +1,5 @@
 import type { PatternConfig } from '../types/pattern'
+import { CURRENT_PATTERN_CONFIG_VERSION } from '../state/configValidation'
 
 /**
  * Generator dataset store (ADR-0007, ticket #19) — a thin IndexedDB wrapper
@@ -42,9 +43,27 @@ export interface DatasetRecord {
    * standards consciously recalibrate. Absent = era 0. Scores are only
    * comparable WITHIN an era; training centres per era to absorb drift. */
   era?: number
+  /**
+   * Schema generation of the embedded `config` (roadmap #6).
+   *
+   * The record stamps this because the embedded config is stored **raw** —
+   * `allRecords()` never runs it through `loadPatternConfig`, deliberately
+   * (ADR-0007: the config is ground truth, not a reproducible seed). So a
+   * `PatternConfig` shape change would otherwise silently change what
+   * `features.ts` extracts from historical rows with no field to tell old
+   * shape from new, on data that cannot be regenerated.
+   *
+   * **Absent = generation 0**: the ~457 rows rated before this field are
+   * grandfathered rather than rewritten. Generations 0 and 1 are shape-
+   * identical for feature extraction, so nothing branches on it yet —
+   * `preprocess.ts` surfaces it per row so a future shape change can.
+   */
+  configVersion?: number
 }
 
-export type NewDatasetRecord = Omit<DatasetRecord, 'id'>
+/** Callers don't supply `configVersion` — `addRecord` stamps it, so a record
+ *  cannot be written unversioned by forgetting a field at the call site. */
+export type NewDatasetRecord = Omit<DatasetRecord, 'id' | 'configVersion'>
 
 let dbPromise: Promise<IDBDatabase | null> | null = null
 
@@ -91,9 +110,14 @@ function withStore<T>(
   })
 }
 
-/** Persist one rated (or flagged) sample. Resolves even on failure. */
+/** Persist one rated (or flagged) sample, stamped with the schema generation
+ *  of the config it embeds. Resolves even on failure. */
 export function addRecord(record: NewDatasetRecord): Promise<void> {
-  return withStore<IDBValidKey>('readwrite', s => s.add(record), '' as unknown as IDBValidKey).then(() => undefined)
+  const stamped: Omit<DatasetRecord, 'id'> = {
+    ...record,
+    configVersion: CURRENT_PATTERN_CONFIG_VERSION,
+  }
+  return withStore<IDBValidKey>('readwrite', s => s.add(stamped), '' as unknown as IDBValidKey).then(() => undefined)
 }
 
 /** Every record in the dataset, in insertion order. */

@@ -63,6 +63,21 @@ describe('preprocessRecords', () => {
     const ds = preprocessRecords([makeRecord({ flagged: true, score: 4 })])
     expect(ds.y).toEqual([4])
   })
+
+  it('surfaces the config schema generation per row, grandfathering absent as 0', () => {
+    // Roadmap #6. Records embed the full config raw and are never re-validated,
+    // so rows rated before `configVersion` existed have no way to be identified
+    // after the fact — absent must read as generation 0. Nothing branches on it
+    // yet (generations 0 and 1 are shape-identical to `extractFeatures`); it is
+    // surfaced so a future shape change is a filter here, not archaeology on
+    // unregenerable data.
+    const ds = preprocessRecords([
+      makeRecord({ id: 1, configVersion: 1 }),
+      makeRecord({ id: 2 }),
+    ])
+    expect(ds.configVersions).toEqual([1, 0])
+    expect(ds.configVersions).toHaveLength(ds.X.length)
+  })
 })
 
 describe('recordsFromJSONL', () => {

@@ -1,5 +1,10 @@
-import { describe, it, expect } from 'vitest'
-import { ConfigValidationError, loadPatternConfig, readPatternConfig } from './configValidation'
+import { describe, it, expect, vi } from 'vitest'
+import {
+  ConfigValidationError,
+  CURRENT_PATTERN_CONFIG_VERSION,
+  loadPatternConfig,
+  readPatternConfig,
+} from './configValidation'
 
 /**
  * Characterization tests for the load-time validator (Chunk 12). These pin the
@@ -425,5 +430,152 @@ describe('readPatternConfig — lenient restore', () => {
     const out = read(raw) as unknown as Record<string, unknown>
     expect(out.mandala).toBeUndefined()
     expect(out.composition).toBeUndefined()
+  })
+})
+
+/**
+ * Schema versioning (roadmap #6).
+ *
+ * The load-bearing property is the FIRST test: absent `version` means
+ * generation 0, and every save in every existing library lacks the field. If
+ * that default ever changes, the user's whole library becomes unreadable.
+ *
+ * The rest pin the narrowing that versioning buys — legacy shape sniffs run for
+ * generation 0 only, so they stay dated migrations instead of probes every
+ * future save keeps paying for — and the deliberate strict/lenient asymmetry on
+ * a newer-than-build config.
+ */
+describe('PatternConfig schema version', () => {
+  it('CURRENT_PATTERN_CONFIG_VERSION is 1', () => {
+    expect(CURRENT_PATTERN_CONFIG_VERSION).toBe(1)
+  })
+
+  it('an unversioned (generation-0) config still loads, unchanged but stamped', () => {
+    const raw = minimalRaw()
+    expect(raw.version).toBeUndefined()
+    const out = loadPatternConfig(raw)
+    expect(out.version).toBe(CURRENT_PATTERN_CONFIG_VERSION)
+    expect(out.tiling).toEqual({ type: '4.8.8', scale: 1 })
+    expect(out.figures['8'].contactAngle).toBe(67.5)
+    expect(out.strand).toEqual({ width: 2, color: '#000', background: '#fff' })
+  })
+
+  it('a version-1 config round-trips through save → load unchanged', () => {
+    const once = loadPatternConfig(minimalRaw())
+    const twice = loadPatternConfig(JSON.parse(JSON.stringify(once)))
+    expect(twice).toEqual(once)
+  })
+
+  it('treats a hand-edited non-generation `version` as generation 0', () => {
+    // Permissive on purpose: the generation-0 migrations are no-ops on an
+    // already-modern shape, so reading these as 0 costs nothing and refusing
+    // them would reject a save over a typo.
+    for (const version of [0, -3, 1.5, 'one', null]) {
+      expect(loadPatternConfig({ ...minimalRaw(), version }).version)
+        .toBe(CURRENT_PATTERN_CONFIG_VERSION)
+    }
+  })
+
+  describe('newer than this build', () => {
+    const future = () => ({ ...minimalRaw(), version: CURRENT_PATTERN_CONFIG_VERSION + 1 })
+
+    it('is refused by the strict loader, naming both versions', () => {
+      expect(() => loadPatternConfig(future())).toThrow(ConfigValidationError)
+      expect(() => loadPatternConfig(future())).toThrow(/newer version/)
+      expect(() => loadPatternConfig(future())).toThrow(/schema version 2/)
+    })
+
+    it('is read best-effort by the lenient restore instead of blanking the session', () => {
+      // The asymmetry is the point: refusing an import is honest, but refusing
+      // the session the user left open is a blank Lab with no way back (#50).
+      const out = readPatternConfig(future(), { width: 4, color: '#000', background: '#fff' })
+      expect(out).not.toBeNull()
+      expect(out!.tiling).toEqual({ type: '4.8.8', scale: 1 })
+      expect(out!.version).toBe(CURRENT_PATTERN_CONFIG_VERSION)
+    })
+  })
+
+  describe('generation-0-only migrations', () => {
+    it('generation 1 does not sniff for the legacy `lacing` block', () => {
+      const raw: Record<string, unknown> = {
+        ...minimalRaw(),
+        version: 1,
+        lacing: { strandWidth: 5, strandColor: '#222', gapColor: '#ddd' },
+      }
+      delete raw.strand
+      // `lacing` on a version-1 save is genuinely unrecognised, so the dev
+      // warning fires here by design — silenced to keep the run's output clean.
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      try {
+        expect(() => loadPatternConfig(raw)).toThrow(/strand/)
+      } finally {
+        warn.mockRestore()
+      }
+      // ...whereas the same payload at generation 0 migrates.
+      const { version: _v, ...gen0 } = raw
+      expect(loadPatternConfig(gen0).strand).toMatchObject({ width: 5, color: '#222', background: '#ddd' })
+    })
+
+    it('generation 1 does not sniff for the pre-#48 morph shape', () => {
+      const legacyMorph = {
+        enabled: true, mode: 'linear', easing: 'linear',
+        origin: { x: 0, y: 0 },
+        boundaries: [{ id: 'b0', position: 300, figures: {} }],
+      }
+      expect(loadPatternConfig({ ...minimalRaw(), version: 1, morph: legacyMorph }).morph).toBeUndefined()
+      expect(loadPatternConfig({ ...minimalRaw(), morph: legacyMorph }).morph).toBeDefined()
+    })
+
+    it('generation 1 preserves a recognised figure type instead of forcing it', () => {
+      // The retired landmine: an unconditional `type: 'star'` coercion flattens
+      // nothing while the union has one member, then silently destroys the
+      // second one the moment it exists (the rosette epic).
+      const out = loadPatternConfig({
+        ...minimalRaw(), version: 1,
+        figures: { '8': { contactAngle: 60, type: 'star' } },
+      })
+      expect(out.figures['8'].type).toBe('star')
+    })
+
+    it('generation 1 still defaults an ABSENT figure type', () => {
+      const out = loadPatternConfig({ ...minimalRaw(), version: 1, figures: { '8': { contactAngle: 60 } } })
+      expect(out.figures['8'].type).toBe('star')
+    })
+
+    it('generation 0 still coerces the removed rosette type and drops its petal fields', () => {
+      const out = loadPatternConfig({
+        ...minimalRaw(),
+        figures: { '8': { contactAngle: 60, type: 'rosette', rosetteQ: 3, rosetteS: 2 } },
+      })
+      expect(out.figures['8'].type).toBe('star')
+      expect((out.figures['8'] as unknown as Record<string, unknown>).rosetteQ).toBeUndefined()
+    })
+  })
+
+  describe('unknown fields', () => {
+    it('are stripped, and named in a dev warning', () => {
+      // The allow-list DELETES rather than ignores, and `list()` re-validates on
+      // read while the Lab re-persists on change — so a field added to
+      // PatternConfig but forgotten in readConfig dies library-wide in one
+      // load+save cycle. The warning is what makes that loud on load 1.
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      try {
+        const out = loadPatternConfig({ ...minimalRaw(), someNewField: 42 })
+        expect((out as unknown as Record<string, unknown>).someNewField).toBeUndefined()
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('someNewField'))
+      } finally {
+        warn.mockRestore()
+      }
+    })
+
+    it('stays quiet about deliberately retired keys on a generation-0 save', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      try {
+        loadPatternConfig({ ...minimalRaw(), lacing: { strandWidth: 1, strandColor: '#0', gapColor: '#1' }, mandala: { rings: 3 } })
+        expect(warn).not.toHaveBeenCalled()
+      } finally {
+        warn.mockRestore()
+      }
+    })
   })
 })

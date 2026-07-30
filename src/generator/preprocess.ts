@@ -23,6 +23,15 @@ export interface TrainingDataset {
   eras: number[]
   /** Sampler source per row (record.source, absent = 'random'). */
   sources: ('random' | 'guided')[]
+  /**
+   * `PatternConfig` schema generation per row (record.configVersion, absent =
+   * 0 — rows rated before the field existed). Nothing branches on it yet:
+   * generations 0 and 1 are shape-identical, so `extractFeatures` reads both
+   * the same way. It is surfaced so that when a generation DOES change what
+   * features mean, the split is a filter here rather than an archaeology
+   * problem on unregenerable data.
+   */
+  configVersions: number[]
 }
 
 /**
@@ -53,6 +62,7 @@ export function preprocessRecords(records: DatasetRecord[]): TrainingDataset {
   const ids: number[] = []
   const eras: number[] = []
   const sources: ('random' | 'guided')[] = []
+  const configVersions: number[] = []
   for (const record of records) {
     const score = normalizeScore(record)
     if (score === null) continue
@@ -61,8 +71,9 @@ export function preprocessRecords(records: DatasetRecord[]): TrainingDataset {
     ids.push(record.id)
     eras.push(record.era ?? 0)
     sources.push(record.source ?? 'random')
+    configVersions.push(record.configVersion ?? 0)
   }
-  return { featureNames, X, y, ids, eras, sources }
+  return { featureNames, X, y, ids, eras, sources, configVersions }
 }
 
 /**

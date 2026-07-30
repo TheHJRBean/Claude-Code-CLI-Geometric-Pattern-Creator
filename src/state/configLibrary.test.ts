@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { createConfigLibrary } from './configLibrary'
+import { CURRENT_PATTERN_CONFIG_VERSION } from './configValidation'
 import type { PatternConfig } from '../types/pattern'
 
 /**
@@ -70,6 +71,21 @@ describe('createConfigLibrary — save / list round-trip', () => {
     lib.save('a', cfg)
     cfg.tiling.type = 'mutated'
     expect(lib.list()[0].config.tiling.type).toBe('4.8.8')
+  })
+
+  it('stamps the schema version on write, even for a config that never met the loader', () => {
+    // Presets, Generator samples and `createDefault*` seeds are built in memory
+    // and never pass through `loadPatternConfig`, so the write is where we
+    // record which schema generation produced them (roadmap #6). Without this
+    // they persist unversioned and come back as generation 0.
+    const lib = createConfigLibrary(KEY)
+    const cfg = minimalConfig()
+    expect(cfg.version).toBeUndefined()
+    expect(lib.save('a', cfg).entry?.config.version).toBe(CURRENT_PATTERN_CONFIG_VERSION)
+    const id = lib.list()[0].id
+    expect(lib.update(id, minimalConfig()).entry?.config.version).toBe(CURRENT_PATTERN_CONFIG_VERSION)
+    // ...and it survives the round-trip back out of storage.
+    expect(lib.list()[0].config.version).toBe(CURRENT_PATTERN_CONFIG_VERSION)
   })
 })
 

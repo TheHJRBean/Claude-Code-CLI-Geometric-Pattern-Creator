@@ -371,3 +371,46 @@ describe('getTapratsTileTypes', () => {
     expect(types).toEqual([{ id: '3', sides: 3 }])
   })
 })
+
+describe('generateTapratsTiling — lattice stability under panning', () => {
+  /**
+   * The regression this guards: the lattice origin used to be the RAW viewport
+   * centre, so the whole tiling slid along with the camera. Combined with
+   * `usePattern`'s quantised generation viewport that read on screen as
+   * "pan to the edge of the render, then it snaps back" — reported against
+   * rhombille and the view-only (rosette-patch) presets.
+   *
+   * Invariant: a polygon that stays visible across a pan must keep the SAME
+   * world position. Tile positions are a property of the tiling, not of where
+   * the camera happens to be.
+   */
+  const centresIn = (polys: ReturnType<typeof generateTapratsTiling>, box: typeof viewport) =>
+    polys
+      .map(p => p.center)
+      .filter(c =>
+        c.x > box.x && c.x < box.x + box.width &&
+        c.y > box.y && c.y < box.y + box.height)
+      .map(c => `${Math.round(c.x * 100)},${Math.round(c.y * 100)}`)
+      .sort()
+
+  for (const key of ALL_KEYS) {
+    it(`${key}: tile centres are identical across a panned viewport`, () => {
+      // The two viewports' shared region. Both runs pad generation by 3×edgeLen
+      // (150) beyond their own rect, so any tile centred in here is emitted by
+      // both — the comparison is like-for-like, not an edge-of-generation
+      // artifact. Sized to hold at least one tile of even the coarsest tiling.
+      const overlap = { x: -60, y: -105, width: 255, height: 300 }
+
+      resetIds()
+      const before = generateTapratsTiling(key, viewport, edgeLen)
+      resetIds()
+      // Pan by a deliberately non-lattice amount — the snap has to do real work.
+      const panned = { ...viewport, x: viewport.x + 137, y: viewport.y + 91 }
+      const after = generateTapratsTiling(key, panned, edgeLen)
+
+      const a = centresIn(before, overlap)
+      expect(a.length).toBeGreaterThan(0)
+      expect(centresIn(after, overlap)).toEqual(a)
+    })
+  }
+})

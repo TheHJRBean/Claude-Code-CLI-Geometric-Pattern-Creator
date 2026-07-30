@@ -226,7 +226,7 @@ function isSameOrientation(seed: Polygon, candidate: Polygon, tol: number): bool
 }
 
 /** Snap `target` to the nearest point on the lattice spanned by t1, t2. */
-function snapToLattice(target: Vec2, t1: Vec2, t2: Vec2): Vec2 {
+export function snapToLattice(target: Vec2, t1: Vec2, t2: Vec2): Vec2 {
   const det = t1.x * t2.y - t1.y * t2.x
   if (Math.abs(det) < 1e-10) return { x: 0, y: 0 }
   const n = Math.round((target.x * t2.y - target.y * t2.x) / det)

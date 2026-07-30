@@ -14,6 +14,7 @@
  */
 import type { Polygon } from '../types/geometry'
 import type { Viewport } from './archimedean'
+import { snapToLattice } from './archimedean'
 import type { Vec2 } from '../utils/math'
 import { nextId, resetIds } from './shared'
 
@@ -183,9 +184,19 @@ export function generateTapratsTiling(
     }))
   )
 
-  // Viewport center for lattice origin
-  const cx = viewport.x + viewport.width / 2
-  const cy = viewport.y + viewport.height / 2
+  // Lattice origin — the viewport centre SNAPPED to the translation lattice.
+  //
+  // The snap is what keeps the tiling stationary while the camera moves. Using
+  // the raw viewport centre re-anchors the whole pattern under the camera on
+  // every regeneration, and because `usePattern` quantises the generation
+  // viewport (~12% steps), that reads on screen as: pan smoothly to the edge of
+  // the rendered patch, then watch it snap back. `generateTiling` has always
+  // snapped its BFS seed for exactly this reason; the Taprats path never did.
+  const desired: Vec2 = {
+    x: viewport.x + viewport.width / 2,
+    y: viewport.y + viewport.height / 2,
+  }
+  const { x: cx, y: cy } = snapToLattice(desired, t1, t2)
 
   // Padded viewport for edge tiles
   const pad = edgeLen * 3

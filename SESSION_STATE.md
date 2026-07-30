@@ -10,17 +10,30 @@
 
 **Previous session (2026-07-29), both ✅ SHIPPED + BROWSER-VERIFIED:** the Gallery → Lab library link (Save updates the save instead of forking a copy) and precise gradient angle control on all three gradient surfaces (rotate-in-place + Fit + Shift-snap).
 
-**What shipped this session (all browser-verified, all tickets closed):**
+**What shipped 2026-07-30 (this session):**
+| | | |
+|---|---|---|
+| roadmap **#6** | `PatternConfig` **schema versioning** — one reader per generation; absent = gen 0; write-boundary stamps; dataset `configVersion` | `0f6662f` `72a6a0e` `7f6d509` `ad60de3` |
+
+**What shipped 2026-07-29 (previous session, all browser-verified, all tickets closed):**
 | | | |
 |---|---|---|
 | **#48** | Morph **Boundaries → Origins** — per-Origin **Reach** + **Sides**; `MorphConfig.origin` → `axisOrigin` | `2adc295` `447eab9` `8632450` |
 | **#49** | **Auto-fit Reach** (adjacent ramps meet halfway, per-Origin toggle) + **reach claims territory** | `54cddb8` `c778ed8` |
 | **#50** | BUG: stale persisted Lab morph crashed the Canvas — `loadLabState` never migrated `config.morph` | `e8fcbba` `7c5e934` |
 | — | UI: **Clear** moved to the Undo/Redo row (it read as a Frame control under FramePanel) | `2ef9e19` |
+| — | Gallery → Lab library link; gradient angle control on all three surfaces | `8581b2d` `823bab1` |
+| — | One schema gate: `loadLabState` delegates to `loadPatternConfig` (#50 follow-up) | `448ed3b` |
 
 **NEXT — pick one:**
-0. **Issue hygiene (~10 min, Haiku).** Shipped+verified epics still OPEN on GitHub: **#44 / #45 / #46** (gradients), **#42** (line sets), **#28** (Guides slice 3). Close each with a pointer to its verifying commit. *(#48/#49/#50 are already closed.)*
-0b. ~~Route `loadLabState` through `loadPatternConfig`~~ — **DONE 2026-07-29.** ~~`PatternConfig` unversioned~~ — **DONE 2026-07-30 (roadmap #6), see the entry below.** Both halves of that risk are now closed.
+1. **Issue hygiene (~10 min, Haiku).** Shipped+verified epics still OPEN on GitHub: **#44 / #45 / #46** (gradients), **#42** (line sets), **#28** (Guides slice 3 — verified 2026-07-22). Close each with a pointer to its verifying commit.
+2. **Guides slices 4–6 (Fable/Opus).** **#29** symmetry-orbit drawing (linked Guide groups) → **#30** stamping under the Lattice + neighbour Anchors → **#31** Anchor vocabulary in CONTEXT.md → **#32** Girih preset reveal. **#34** (stamped Anchor Tiles land in `activeCell` regardless of geometric host Cell) is the known correctness gap and folds naturally into #30. Spec: `CONSTRUCTION_GUIDES_SPEC.md` + ADR-0008.
+3. **Decoration stamps v2 (Sonnet/Opus).** v1 ships for Voids only; remaining = **Tile**-stamping, explicit mirror toggle, asset library. Memory: `project_decoration_stamps_idea.md`.
+4. **Roadmap design findings still open (Opus).** (a) **Pass-4 right-side Inspector** is blocked by the selection-state split (Canvas-local vertex state) + duplicated per-mode shell — the old "3rd-column-ready grid" claim is FALSE. (b) **Builder Configuration registry** — 7-site ladder to add one, with a silent square-basis fallback in `compositionCellBasis`. Memory: `project_thermonuclear_review_round2.md`.
+5. **Open bugs (unscheduled).** Force-overlapped Tiles emit their own Strands (decided 2026-06-14: make it a **toggle**, default self-contained); Strand-editing UX issues need enumerating. Memories: `project_overlap_tiles_strand_bug.md`, `project_strand_editing_debug.md`.
+6. **Cheap cleanup found this session (Haiku).** Vitest has **no `testTimeout` set**, so the default 5 s makes 1–2 heavy render/geometry tests flake whenever the machine is busy (`appSmoke`'s App render: 1.7 s idle, 5.7–7.3 s under load). Verified pre-existing — flakes on the pre-#6 tree too. Raise it in `vite.config.ts`.
+
+*Done and closed, do not re-open:* ~~route `loadLabState` through `loadPatternConfig`~~ (2026-07-29, `448ed3b`) and ~~`PatternConfig` unversioned~~ (2026-07-30, roadmap #6). Both halves of that data-loss risk are shut.
 
 ---
 ### ▶ 2026-07-30 (`PatternConfig` schema versioning — ✅ SHIPPED + BROWSER-VERIFIED, Opus, roadmap #6, `0f6662f` `72a6a0e` `7f6d509`)

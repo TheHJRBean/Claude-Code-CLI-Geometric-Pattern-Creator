@@ -1,6 +1,6 @@
 import type { FigureConfig, MorphConfig, MorphOrigin, PatternConfig, StrandLineStyle, StrandStyle, TilingConfig } from '../types/pattern'
 import type { FrameConfig, FrameShape } from '../types/editor'
-import { migrateEditorConfig } from '../editor/migrations'
+import { migrateDecoration, migrateEditorConfig } from '../editor/migrations'
 import { MIN_FRAME_SIZE, MAX_FRAME_SIZE, DEFAULT_FRAME_SIZE } from '../editor/frame'
 
 /**
@@ -72,7 +72,7 @@ function readConfigVersion(r: Record<string, unknown>): number {
  */
 const PATTERN_CONFIG_KEYS: ReadonlySet<string> = new Set([
   'version', 'tiling', 'figures', 'edgeAngles', 'strand',
-  'smoothTransitions', 'editor', 'frame', 'morph',
+  'smoothTransitions', 'editor', 'frame', 'morph', 'decoration',
 ])
 
 /**
@@ -500,6 +500,14 @@ function readConfig(r: Record<string, unknown>, gen: ConfigGeneration): PatternC
   if (frame) out.frame = frame
   const morph = readMorphForGeneration(r.morph, gen)
   if (morph) out.morph = morph
+  // Legacy-substrate decoration. Same validator the Patch's own decoration
+  // goes through, so both homes accept exactly the same block; malformed
+  // decoration drops to undefined rather than failing the load. Only
+  // meaningful without a Patch (`decoration/store.ts` owns that rule), but it
+  // is read back unconditionally — silently dropping a field because of a
+  // sibling's value is how a library-wide deletion starts.
+  const decoration = migrateDecoration(r.decoration)
+  if (decoration) out.decoration = decoration
   return out
 }
 

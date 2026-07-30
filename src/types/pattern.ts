@@ -1,4 +1,4 @@
-import type { EditorConfig, FrameConfig } from './editor'
+import type { DecorationConfig, EditorConfig, FrameConfig } from './editor'
 
 export interface TilingConfig {
   type: string
@@ -231,6 +231,16 @@ export interface PatternConfig {
    * carries an inner `version` independent of the outer storage envelope.
    */
   editor?: EditorConfig
+  /**
+   * Decoration for a **legacy-substrate** pattern — one with no Builder Patch
+   * to hang it on (a Gallery preset, a Generator sample, any BFS / Taprats
+   * tiling). A Patch keeps its decoration on `editor.decoration` as it always
+   * has; the two homes are mutually exclusive, and `decoration/store.ts` is
+   * the only place that picks between them. Never read this field directly —
+   * use `patternDecoration(config)`, or a Patch's decoration is invisible to
+   * you.
+   */
+  decoration?: DecorationConfig
   /**
    * Gallery-mode **Frame** (clip-only). A parametric Shape Frame wrapped
    * around the infinite tiling: the pattern is clipped to its outline and the

@@ -143,9 +143,54 @@ describe('Step 19 — decoration reducer actions (scoped records)', () => {
     expect(s.editor!.decoration).toBeUndefined()
   })
 
-  it('decoration actions are no-ops without an editor patch', () => {
-    const s = structuredClone(DEFAULT_CONFIG)
+  it('decoration actions are no-ops with no substrate at all (empty Lab)', () => {
+    // EDITOR_CLEAR leaves `tiling.type === ''` and no patch — nothing to
+    // decorate, so a stray paint must not attach records that would be
+    // unreachable and ride along into every later save.
+    const s: PatternConfig = { ...structuredClone(DEFAULT_CONFIG), tiling: { type: '', scale: 1 } }
     expect(reducer(s, { type: 'SET_DECORATION_VOID_FILL', payload: { scope: 'congruent', key: 'x', colour: '#000' } } as Action)).toBe(s)
+  })
+})
+
+describe('Decoration on a legacy substrate (no Builder Patch)', () => {
+  // A Gallery preset / Generator sample has no Patch to hang decoration on,
+  // so it lives at the top level. `decoration/store.ts` owns the choice; the
+  // reducer never touches either field directly.
+  const legacy = (): PatternConfig => structuredClone(DEFAULT_CONFIG)
+
+  it('writes to config.decoration, not editor.decoration', () => {
+    let s = legacy()
+    expect(s.editor).toBeUndefined()
+    s = reducer(s, { type: 'SET_DECORATION_VOID_FILL', payload: { scope: 'congruent', key: 'abc', colour: '#111' } } as Action)
+    expect(s.decoration).toEqual({
+      version: 1,
+      strandColours: [],
+      voidFills: [{ scope: 'congruent', key: 'abc', colour: '#111' }],
+    })
+    expect(s.editor).toBeUndefined()
+  })
+
+  it('runs the same upsert / toggle-off ladder as a Patch', () => {
+    let s = legacy()
+    s = reducer(s, { type: 'SET_DECORATION_VOID_FILL', payload: { scope: 'instance', key: 'abc@1.00,2.00', colour: '#111' } } as Action)
+    expect(s.decoration!.voidFills).toHaveLength(1)
+    s = reducer(s, { type: 'SET_DECORATION_VOID_FILL', payload: { scope: 'instance', key: 'abc@1.00,2.00', colour: '#111' } } as Action)
+    expect(s.decoration!.voidFills).toEqual([])
+  })
+
+  it('CLEAR_DECORATION deletes the key rather than setting it undefined', () => {
+    let s = legacy()
+    s = reducer(s, { type: 'SET_DECORATION_STRAND_COLOR', payload: { scope: 'congruent', key: 'sig', colour: '#111' } } as Action)
+    expect(s.decoration!.strandColours).toHaveLength(1)
+    s = reducer(s, { type: 'CLEAR_DECORATION' } as Action)
+    expect('decoration' in s).toBe(false)
+  })
+
+  it('a Patch keeps its decoration on the Patch — the two homes never mix', () => {
+    let s = base()
+    s = reducer(s, { type: 'SET_DECORATION_VOID_FILL', payload: { scope: 'congruent', key: 'abc', colour: '#111' } } as Action)
+    expect(s.editor!.decoration!.voidFills).toHaveLength(1)
+    expect(s.decoration).toBeUndefined()
   })
 })
 

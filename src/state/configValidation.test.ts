@@ -128,6 +128,31 @@ describe('loadPatternConfig — optional passthrough fields', () => {
   })
 })
 
+describe('loadPatternConfig — legacy-substrate decoration', () => {
+  const deco = {
+    version: 1,
+    strandColours: [{ scope: 'congruent', key: 'sig', colour: '#111' }],
+    voidFills: [{ scope: 'instance', key: 'sig@1.00,2.00', colour: '#222' }],
+  }
+
+  it('round-trips a top-level decoration block', () => {
+    const out = loadPatternConfig({ ...minimalRaw(), decoration: deco })
+    expect(out.decoration).toEqual(deco)
+  })
+
+  it('survives a save/load cycle — the allow-list must not delete it', () => {
+    const once = loadPatternConfig({ ...minimalRaw(), decoration: deco })
+    const twice = loadPatternConfig(JSON.parse(JSON.stringify(once)))
+    expect(twice.decoration).toEqual(deco)
+  })
+
+  it('drops a malformed block rather than failing the load', () => {
+    const out = loadPatternConfig({ ...minimalRaw(), decoration: { version: 99 } })
+    expect(out.decoration).toBeUndefined()
+    expect(out.tiling.type).toBe('4.8.8')
+  })
+})
+
 describe('loadPatternConfig — Gallery Frame', () => {
   it('reads a valid shape frame and clamps the size', () => {
     const out = loadPatternConfig({

@@ -221,8 +221,13 @@ function migrateColourRecord(raw: unknown): ColourRecord | null {
 /** Step 19 — validate a persisted `DecorationConfig` (ADR-0005). Malformed
  * decoration drops to `undefined` (no decoration), never crashes the load.
  * Individual bad colour records are filtered out rather than failing the
- * whole block. */
-function migrateDecoration(raw: unknown): DecorationConfig | undefined {
+ * whole block.
+ *
+ * Exported because decoration has two homes (`decoration/store.ts`): a Patch's
+ * block arrives through `migrateEditorConfig` below, a legacy-substrate
+ * pattern's through `readConfig` in `state/configValidation.ts`. Both must
+ * accept exactly the same block, so both call this. */
+export function migrateDecoration(raw: unknown): DecorationConfig | undefined {
   if (typeof raw !== 'object' || raw === null) return undefined
   const r = raw as Record<string, unknown>
   if (r.version !== 1) return undefined

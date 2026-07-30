@@ -38,6 +38,7 @@ import { buildMorphOrigin, createDefaultMorph, insertMorphOrigin } from '../edit
 import { originReach } from '../pic/morph'
 import { activeCell, allCells, cellPlacementEdgeLength } from '../editor/active'
 import { clearMaskingRecords } from '../decoration/scopes'
+import { canDecorate, emptyDecoration, patternDecoration, withPatternDecoration } from '../decoration/store'
 import {
   applyCellTransform,
   existingTilesInHostFrame,
@@ -780,8 +781,8 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       // upsert by (scope, key). Re-painting a key with its current colour
       // toggles the record off — but only when nothing was unmasked, so a
       // visible change never doubles as a deselect.
-      if (!state.editor) return state
-      const deco = state.editor.decoration ?? { version: 1 as const, strandColours: [], voidFills: [] }
+      if (!canDecorate(state)) return state
+      const deco = patternDecoration(state) ?? emptyDecoration()
       const { scope, key, colour, clicked } = action.payload
       const { records: unmasked, removedAny } = clearMaskingRecords(deco.voidFills, scope, key, clicked)
       const existing = unmasked.find(r => r.scope === scope && r.key === key)
@@ -789,15 +790,15 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       if (removedAny || !existing || existing.colour.toLowerCase() !== colour.toLowerCase()) {
         voidFills.push({ scope, key, colour })
       }
-      return { ...state, editor: { ...state.editor, decoration: { ...deco, voidFills } } }
+      return withPatternDecoration(state, { ...deco, voidFills })
     }
     case 'SET_DECORATION_VOID_GRADIENT': {
       // Gradient Void fill (#44): same unmask-then-upsert ladder as
       // SET_DECORATION_VOID_FILL, with the gradient spec riding the record.
       // Toggle-off (canvas clicks only, `toggle`) requires an identical
       // gradient — a focus-editor Apply omits `toggle` so it always upserts.
-      if (!state.editor) return state
-      const deco = state.editor.decoration ?? { version: 1 as const, strandColours: [], voidFills: [] }
+      if (!canDecorate(state)) return state
+      const deco = patternDecoration(state) ?? emptyDecoration()
       const { scope, key, colour, gradient, clicked, toggle } = action.payload
       const { records: unmasked, removedAny } = clearMaskingRecords(deco.voidFills, scope, key, clicked)
       const existing = unmasked.find(r => r.scope === scope && r.key === key)
@@ -814,7 +815,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
           : gradient
         voidFills.push({ scope, key, colour, gradient: merged })
       }
-      return { ...state, editor: { ...state.editor, decoration: { ...deco, voidFills } } }
+      return withPatternDecoration(state, { ...deco, voidFills })
     }
     case 'SET_DECORATION_STRAND_COLOR': {
       // Scoped Strand colour (Stage 2): same unmask-then-upsert + guarded
@@ -823,8 +824,8 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       // colour). The colour string `'none'` is the hidden-strand sentinel
       // (panel "Remove strand colour"): it persists as an ordinary record and
       // renders as no stroke, so the Void fills meet underneath it.
-      if (!state.editor) return state
-      const deco = state.editor.decoration ?? { version: 1 as const, strandColours: [], voidFills: [] }
+      if (!canDecorate(state)) return state
+      const deco = patternDecoration(state) ?? emptyDecoration()
       const { scope, key, colour, clicked } = action.payload
       const { records: unmasked, removedAny } = clearMaskingRecords(deco.strandColours, scope, key, clicked)
       const existing = unmasked.find(r => r.scope === scope && r.key === key)
@@ -832,21 +833,21 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       if (colour !== null && (removedAny || !existing || existing.colour.toLowerCase() !== colour.toLowerCase())) {
         strandColours.push({ scope, key, colour })
       }
-      return { ...state, editor: { ...state.editor, decoration: { ...deco, strandColours } } }
+      return withPatternDecoration(state, { ...deco, strandColours })
     }
     case 'SET_DECORATION_VOID_STAMP': {
       // Void Stamp upsert by (scope, key) — one image per Void group. No
       // masking ladder yet (v1 is congruent-only); re-stamping a key just
       // replaces its image.
-      if (!state.editor) return state
-      const deco = state.editor.decoration ?? { version: 1 as const, strandColours: [], voidFills: [] }
+      if (!canDecorate(state)) return state
+      const deco = patternDecoration(state) ?? emptyDecoration()
       const { scope, key } = action.payload
       const voidStamps = (deco.voidStamps ?? []).filter(r => !(r.scope === scope && r.key === key))
       voidStamps.push(action.payload)
-      return { ...state, editor: { ...state.editor, decoration: { ...deco, voidStamps } } }
+      return withPatternDecoration(state, { ...deco, voidStamps })
     }
     case 'REMOVE_DECORATION_VOID_STAMP': {
-      const deco = state.editor?.decoration
+      const deco = patternDecoration(state)
       if (!deco?.voidStamps) return state
       const { scope, key } = action.payload
       const voidStamps = deco.voidStamps.filter(r => !(r.scope === scope && r.key === key))
@@ -854,28 +855,28 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       const next = { ...deco }
       if (voidStamps.length > 0) next.voidStamps = voidStamps
       else delete next.voidStamps
-      return { ...state, editor: { ...state.editor!, decoration: next } }
+      return withPatternDecoration(state, next)
     }
     case 'SET_DECORATION_FRAME_GRADIENT': {
       // Across-frame gradient underlay (#45) — dumb setter. `null` clears the
       // slot; a spec sets/replaces it (enable flag + world geometry + stops).
-      if (!state.editor) return state
-      const deco = state.editor.decoration ?? { version: 1 as const, strandColours: [], voidFills: [] }
+      if (!canDecorate(state)) return state
+      const deco = patternDecoration(state) ?? emptyDecoration()
       const next = { ...deco }
       if (action.payload) next.frameGradient = action.payload
       else delete next.frameGradient
-      return { ...state, editor: { ...state.editor, decoration: next } }
+      return withPatternDecoration(state, next)
     }
     case 'SET_DECORATION_STRAND_GRADIENT': {
       // Strand gradient (#46) — dumb setter, mirrors the frame gradient. `null`
       // clears the slot; a spec sets/replaces it (enable flag + world geometry
       // + stops). One per composition, stroked across every Strand.
-      if (!state.editor) return state
-      const deco = state.editor.decoration ?? { version: 1 as const, strandColours: [], voidFills: [] }
+      if (!canDecorate(state)) return state
+      const deco = patternDecoration(state) ?? emptyDecoration()
       const next = { ...deco }
       if (action.payload) next.strandGradient = action.payload
       else delete next.strandGradient
-      return { ...state, editor: { ...state.editor, decoration: next } }
+      return withPatternDecoration(state, next)
     }
     case 'SET_STRAND_GRADIENT_SCOPE': {
       // #46 follow-up — narrow the strand wash to one Strand group along the
@@ -885,9 +886,9 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       // positioned rungs (`cell` / `patch`) carry an explicit `scope`. No-op
       // when no strand gradient exists yet (nothing to scope). Undo follows the
       // gradient setter — not on the history allowlist.
-      const current = state.editor?.decoration?.strandGradient
+      const current = patternDecoration(state)?.strandGradient
       if (!current) return state
-      const deco = state.editor!.decoration!
+      const deco = patternDecoration(state)!
       const sg = { ...current }
       if (action.payload) {
         sg.scopeKey = action.payload.key
@@ -897,12 +898,11 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         delete sg.scopeKey
         delete sg.scope
       }
-      return { ...state, editor: { ...state.editor!, decoration: { ...deco, strandGradient: sg } } }
+      return withPatternDecoration(state, { ...deco, strandGradient: sg })
     }
     case 'CLEAR_DECORATION': {
-      if (!state.editor || !state.editor.decoration) return state
-      const { decoration: _drop, ...rest } = state.editor
-      return { ...state, editor: rest }
+      if (!patternDecoration(state)) return state
+      return withPatternDecoration(state, undefined)
     }
     case 'EDITOR_RUN_AUTO_COMPLETE': {
       if (!state.editor) return state

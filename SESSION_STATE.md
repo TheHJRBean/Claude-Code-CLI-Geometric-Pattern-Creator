@@ -30,6 +30,25 @@
 6. **Cheap cleanup (Haiku).** Vitest has **no `testTimeout` set**, so the default 5 s makes 1–2 heavy render/geometry tests flake whenever the machine is busy (`appSmoke`'s App render: 1.7 s idle, 5.7–7.3 s under load). Verified pre-existing, not caused by any recent change. Raise it in `vite.config.ts`.
 
 ---
+### ▶ 2026-07-30 (#51 FIXED — collinear ray pairs; Opus, `897785d`)
+
+User supplied two screenshots. The first is #51 in the wild (triangles drawing a chord instead of an arm). **Fixed and closed.**
+
+**The root cause was one step deeper than the ticket said.** At the degenerate angle the adjacent pair-A rays are not merely parallel — they are **collinear, aimed at each other**, origins one medial-side apart. `rayRayIntersect` reports that as parallel and returns null, so *every* vertex falls through to pair-B, whose meeting points sit exactly ON the polygon boundary. `pointInPolygon` then classifies those on-edge points **inconsistently between symmetric vertices** (inside at one, outside at the other two) — and *that* split is what broke the symmetry. The ticket's guess (a mixed pair-A/pair-B choice) was wrong, and the first fix I tried on that basis — skipping the vertex so the orphan fallback ran — made the output strictly worse. Worth remembering: on this bug the trace, not the hypothesis, was what paid.
+
+**Fix: `collinearApproach` (`pic/intersect.ts`).** Collinear opposing rays *do* meet; the symmetric answer is the midpoint of their origins, at half the separation along each ray. This is the **continuous limit**, not a special case — the triangle's inner vertex sits at radius 14.48 at θ=59.9° and 14.39 at θ=60.1°, and the origin-midpoint gives **14.43** at exactly 60°.
+
+⚠️ **Deliberately kept OUT of `rayRayIntersect`.** That function also backs `clipSegmentToPolygon` and `findOrphanRayEndpoint`, where a segment running collinear with a polygon edge **must** keep returning null. Only `probePair` opts in. Don't "simplify" this by folding it into the shared primitive.
+
+**Wider than reported:** the same degeneracy hit **every square at θ=45**. That is why the `4.8.8` golden moved (its square is pinned at 45) — both re-captured goldens had been *encoding the bug*. Fixes the default view of `triangular`, `3.6.3.6`, `3.3.3.4.4`, `3.3.4.3.4`, `3.3.3.3.6`, `davids-star`.
+
+**New invariant suite `pic/figureSymmetry.test.ts`** — every regular tile's figure must have the tile's own C_n symmetry, swept over every shipping tiling at θ=45/60/67.5, **dispatching through `runRosettePIC`/`runPIC` exactly as `usePattern` does** (the first draft pinned all 13 rosette-patch tilings against a path the app never takes — `6dc9600`), plus a continuity check either side of each degeneracy. Without the fix: 28 broken tiles at θ=45, 49 at θ=60.
+
+**Tests: 1353 green**, tsc + build clean. ⏳ **not browser-verified.**
+
+**Screenshot 2 is unresolved** — a `rosette-patch` tiling (pentagons) with a Frame and a gradient axis. Its star arms render through `runRosettePIC`, which has its **own** `probePair` (bisector × ray, `rosettePatch.ts:125`) and is untouched by this fix; the symmetry invariant is clean on it, so whatever is wrong is not a symmetry break on a regular tile. **Asked the user which preset it is and what specifically is wrong** — answer that before digging further.
+
+---
 ### ▶ 2026-07-30 (Strand-editing enumeration — 1 fixed, 2 filed; Opus)
 
 Picked up `/what-next` items **#8** (vitest timeouts) and **#1** (enumerate the Strand-editing issues, open and unenumerated since 2026-05-19).

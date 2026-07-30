@@ -4,7 +4,9 @@
 
 ## ▶ RESUME HERE
 
-**In flight (2026-07-30, Generator→Lab session): the Lab doors are open (`b1c86f4`), Decoration on the legacy substrate is NOT done and awaits a user go-ahead.** See the dated entry immediately below. Tests **1360 green**, tsc + build clean, pushed.
+**Latest (2026-07-30, Decoration-for-presets session): DONE and ✅ BROWSER-VERIFIED.** All four blockers cleared (`69045cf`, `2fee5fe`, `dd5db77`, `8f6ec61`, `60adb04`). A Gallery preset / Generator sample / any BFS or Taprats tiling now reaches the Decoration Phase in the Lab and paints. Tests **1384 green**, tsc + build clean, pushed. See the dated entry immediately below.
+
+**Previous (2026-07-30, Generator→Lab session): the Lab doors are open (`b1c86f4`).** Tests were 1360 green.
 
 **Previous milestone (2026-07-30, PIC bug-fix session).** Tests were 1357 green, tsc + build clean.
 
@@ -34,7 +36,7 @@
 - **Verify adjacency before calling tile data wrong** (#52). Two of the three initial hypotheses this session were wrong and the instrumented trace, not the theory, settled each one.
 
 **NEXT — pick one:**
-0. **Ask for the rest of the Strand-editing issues (Sonnet)**, then browser-verify this session's six fixes. Both owed above.
+0. **Ask for the rest of the Strand-editing issues (Sonnet)**, then browser-verify the six PIC fixes from the earlier session. Both owed above. (The Decoration work below IS browser-verified.)
 1. **Issue hygiene (~10 min, Haiku).** Shipped+verified epics still OPEN on GitHub: **#44 / #45 / #46** (gradients), **#42** (line sets), **#28** (Guides slice 3 — verified 2026-07-22). Close each with a pointer to its verifying commit. **#40** is now the *only* remaining reason a tile emits fewer than 2n vertex lines, and `figureSymmetry.test.ts`'s sweep makes its cases easy to enumerate — good moment to scope it.
 2. **Guides slices 4–6 (Fable/Opus).** **#29** symmetry-orbit drawing (linked Guide groups) → **#30** stamping under the Lattice + neighbour Anchors → **#31** Anchor vocabulary in CONTEXT.md → **#32** Girih preset reveal. **#34** (stamped Anchor Tiles land in `activeCell` regardless of geometric host Cell) is the known correctness gap and folds naturally into #30. Spec: `CONSTRUCTION_GUIDES_SPEC.md` + ADR-0008.
 3. **Decoration stamps v2 (Sonnet/Opus).** v1 ships for Voids only; remaining = **Tile**-stamping, explicit mirror toggle, asset library. Memory: `project_decoration_stamps_idea.md`.
@@ -43,7 +45,42 @@
 6. **Cheap cleanup (Haiku).** Vitest has **no `testTimeout` set**, so the default 5 s makes 1–2 heavy render/geometry tests flake whenever the machine is busy (`appSmoke`'s App render: 1.7 s idle, 5.7–7.3 s under load). Verified pre-existing, not caused by any recent change. Raise it in `vite.config.ts`.
 
 ---
-### ▶ 2026-07-30 (Generator → Lab: doors opened ✅ `b1c86f4`; Decoration on the legacy substrate ⏸ AWAITING GO-AHEAD, Opus)
+### ▶ 2026-07-30 (Decoration for presets — legacy substrate ✅ SHIPPED + BROWSER-VERIFIED, Opus)
+
+User: *"You were introducing decoration for the presets."* — picked up the four blockers scoped in the entry below and closed all four.
+
+**The premise held.** The decoration core (`extractVoids` → `keyVoids` → `colourVoids`, `scopedKey`/`buildColourIndex`, `strandIdentity`) really is substrate-agnostic: it takes segments, a bound and world points and never asks what produced them. Nothing in `src/decoration/` changed except one new file. All the work was in the four things wrapped around it.
+
+| Blocker | Fix | Commit |
+|---|---|---|
+| 1. Storage — decoration lived on `EditorPatch.decoration`, ~29 reducer touch points | New `PatternConfig.decoration` + `decoration/store.ts` (`patternDecoration` / `withPatternDecoration` / `canDecorate` / `dropDecoration`); every touch point routed through it | `69045cf` |
+| 2. Pipeline — every Decoration memo early-returned on `!editorBase` | `legacyField` / `legacyVoidData` / `legacyStrandHits` — the Builder chain's twins | `2fee5fe` |
+| 3. Panel — `DecorationPanel` typed on `NonNullable<PatternConfig['editor']>` | Retyped to `decoration` + `frame`/`onSetFrame` + `seedBBox` + a `substrate` discriminator | `dd5db77` |
+| 4. Phase switcher — `editorPhase` forced to `'design'` without a Patch | Phase legality follows the substrate; new `LegacySubstrateControls` | `8f6ec61` |
+
+**Design calls worth keeping:**
+
+- **Two homes, not a migration.** A Patch keeps its decoration on the Patch; only a Patch-less config uses the top level. Moving every existing save would rewrite the user's whole library to buy a symmetry only `store.ts`'s callers would see. The two are mutually exclusive by construction (`tiling.type === 'editor'` iff there is a Patch) and `store.ts` is the only place that picks.
+- **`legacyField` is hoisted OUT of the main memo**, for the reason `stampedField` was (19.4 snag #1): the main memo keys on the whole `config` and a paint mints a new one, so inline every click re-ran the tiling BFS + PIC over the padded viewport, and the fresh `segments` identity re-ran buildStrands + weave in StrandLayer on top.
+- **Two Reach rungs are WITHHELD, not shown inert.** With no lattice stamps `patch` collapses onto the world centroid (a duplicate of `instance`); with no Cells `cell` is a constant. `legacySubstrate.test.ts` pins both degeneracies. Legacy offers Matching/Single for Voids and All/Matching for Strands; `clampVoidScope`/`clampStrandScope` fold a stale Patch selection back so it can't cross a substrate switch as an unmatchable key.
+- **No Design Phase on this substrate** — the tiling comes from its `TilingDefinition`, not from Tiles the user placed. `'design'` folds to Composition.
+- **Strand identity comes from the rendered chains** (StrandLayer's existing no-`identitySource` fallback), so hit keys and stroke keys agree by construction. ⚠️ Consequence: an OPEN strand spanning the generated field has a field-dependent congruent class. Closed strands (star rings — the usual target) and the `all` rung are exact. Not yet a reported problem; the fix if it becomes one is a base-fragment identity source, which legacy has no natural candidate for.
+
+**Two defects the browser pass caught that unit tests could not:**
+
+1. **Stale decoration survived a substrate swap.** Decorate a preset → "New patch" → the top-level block rode along on the new Patch: invisible, unreachable, and written into every later save. Fixed by `dropDecoration` on EDITOR_NEW / EDITOR_CLEAR / SET_TILING_TYPE — the same reasoning that already resets `figures` on a tiling change.
+2. **Composition and Decoration rendered bare Tile outlines.** The Lab's persisted "Show strands" defaults **off** (it exists so a Patch author can see Tiles while placing them), so landing on a preset in Decoration gave an empty canvas with nothing to paint. Both Phases are *defined* by the Strands, so entering either turns them on — one-directional, so unticking sticks. This was latent for Patches too.
+
+**✅ Browser-verified** (headless Chromium, no console errors, screenshots in the session scratchpad): pentagonal-rosette + archimedes-star → Decoration → congruent paint spreads across the whole field, survives a pan, `instance` paints exactly one Void, strand colour applies; Reach shows exactly the offered rungs; records persist to `config.decoration` and survive a reload; the Patch path still shows 3 Phases + 4 rungs and paints to `editor.decoration` with the top level untouched.
+
+⚠️ **Known-and-intended:** the Phase is local UI state, so reopening the Lab lands in Composition and painted decoration is hidden until you click Decoration. Same for Patches — pre-existing, not introduced here. The Gallery detail view and thumbnails DO show it (`faithfulRenderFlags` now turns decoration on for the legacy branch).
+
+**Not done (deliberately out of scope):** Void **Stamps** and **gradients** are wired on this substrate but only smoke-level exercised — the gradient seed box falls back to the visible view rect, which is the honest extent for an infinite field but means a seeded gradient depends on where you were looking. Worth a look if the user reaches for it.
+
+Memory: `project_decoration_legacy_substrate_gap.md`.
+
+---
+### ▶ 2026-07-30 (Generator → Lab: doors opened ✅ `b1c86f4`; Decoration on the legacy substrate ⏸ AWAITING GO-AHEAD — now DONE, see above, Opus)
 
 User: *"I want to be able to edit in lab patterns brought from the generator"* → clarified as two things: *"I saved the generated pattern and viewed it in gallery but I can't then go to edit in lab from there?"* and *"I can open it directly in the lab but then I can't open decoration view."*
 

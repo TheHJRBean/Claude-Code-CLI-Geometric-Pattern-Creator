@@ -9,6 +9,7 @@ import type { Vec2 } from '../../utils/math'
 import { FieldLabel, segmentedButtonStyle } from './labShared'
 import { CompositionPanel } from './CompositionPanel'
 import { DecorationPanel } from './DecorationPanel'
+import { patchSeedBBox } from './decorationSeedBox'
 import { FramePanel } from './FramePanel'
 import { MorphPanel } from './MorphPanel'
 import { DesignPanel } from './DesignPanel'
@@ -213,7 +214,11 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
 
       {inDecoration && (
         <DecorationPanel
-          editor={editor}
+          substrate="patch"
+          decoration={editor.decoration}
+          frame={editor.frame}
+          onSetFrame={f => dispatch({ type: 'SET_FRAME', payload: f })}
+          seedBBox={() => patchSeedBBox(editor)}
           dispatch={dispatch}
           decorationColor={decorationColor}
           onSetDecorationColor={onSetDecorationColor}

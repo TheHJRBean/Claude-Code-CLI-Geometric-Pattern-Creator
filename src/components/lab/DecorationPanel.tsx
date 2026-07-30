@@ -1,14 +1,11 @@
 import { useRef, useState } from 'react'
-import type { PatternConfig, StrandLineStyle } from '../../types/pattern'
+import type { StrandLineStyle } from '../../types/pattern'
 import type { Action } from '../../state/actions'
 import type { PaintTarget, StrandPaintScope, VoidPaintScope } from '../../rendering/DecorationPaintLayer'
 import type { PaintVoid } from '../../decoration/resolve'
-import { axisAngleDeg, bboxAxisAtAngle, gradientCanonicalBox, pointsBBox, rotateAxisTo, seedFrameGradientSpec, seedGradientSpec, DEFAULT_GRADIENT_ANGLE_DEG, type GradientDraft, type GradientSelection, type WorldBBox } from '../../decoration/gradients'
+import { axisAngleDeg, bboxAxisAtAngle, gradientCanonicalBox, rotateAxisTo, seedFrameGradientSpec, seedGradientSpec, DEFAULT_GRADIENT_ANGLE_DEG, type GradientDraft, type GradientSelection, type WorldBBox } from '../../decoration/gradients'
 import type { Vec2 } from '../../utils/math'
-import { frameOutlinePolygon } from '../../editor/frame'
-import { compositionToPolygons } from '../../editor/compositionLattice'
-import { editorTilesToPolygons } from '../../editor/buildEditorPolygons'
-import type { GradientSpec } from '../../types/editor'
+import type { DecorationConfig, FrameConfig, GradientSpec } from '../../types/editor'
 import { downloadAllVoidShapeCanvases, downloadVoidShapePNG, downloadVoidShapeSVG, importStampImage, voidStampCanvas } from '../../export/stampAssets'
 import { ColourPicker, pushRecentColour } from '../ColourPicker'
 import { FieldLabel, segmentedButtonStyle } from './labShared'
@@ -16,6 +13,46 @@ import { StampFocusEditor } from './StampFocusEditor'
 import { GradientFocusEditor } from './GradientFocusEditor'
 import { GradientAngleRow } from './GradientAngleRow'
 import { GradientStopBar } from './GradientStopBar'
+
+/**
+ * Which substrate the Decoration Phase is painting.
+ *
+ * - `'patch'`  — a Builder Patch: a Lattice of repeats built from Cells, so
+ *                every Reach rung means something.
+ * - `'legacy'` — a Gallery preset / Generator sample / any BFS or Taprats
+ *                tiling. No Patch, so no Lattice orbit and no Cells.
+ */
+export type DecorationSubstrate = 'patch' | 'legacy'
+
+/**
+ * The Reach rungs offered per substrate.
+ *
+ * On a legacy substrate `patch` and `cell` are withheld rather than shown
+ * inert: `usePattern` keys those Voids with empty stamp and Cell-frame sets,
+ * which makes the `patch` key a duplicate of `instance` and the `cell` key a
+ * constant (`legacySubstrate.test.ts` pins both). Offering them would give the
+ * user two rungs that quietly do something other than what they say.
+ */
+const VOID_SCOPES: Record<DecorationSubstrate, readonly (readonly [VoidPaintScope, string])[]> = {
+  patch: [['congruent', 'Matching'], ['cell', 'Twins'], ['patch', 'Repeat'], ['instance', 'Single']],
+  legacy: [['congruent', 'Matching'], ['instance', 'Single']],
+}
+
+const STRAND_SCOPES: Record<DecorationSubstrate, readonly (readonly [StrandPaintScope, string])[]> = {
+  patch: [['all', 'All'], ['congruent', 'Matching'], ['cell', 'Twins'], ['patch', 'Single']],
+  legacy: [['all', 'All'], ['congruent', 'Matching']],
+}
+
+/** Clamp a Reach the substrate can't express back to its coarsest rung. The
+ *  Lab keeps one scope selection across substrate switches, so a Patch's
+ *  `Twins` must not survive into a preset as an unmatchable key. */
+export function clampVoidScope(scope: VoidPaintScope, substrate: DecorationSubstrate): VoidPaintScope {
+  return VOID_SCOPES[substrate].some(([s]) => s === scope) ? scope : 'congruent'
+}
+
+export function clampStrandScope(scope: StrandPaintScope, substrate: DecorationSubstrate): StrandPaintScope {
+  return STRAND_SCOPES[substrate].some(([s]) => s === scope) ? scope : 'congruent'
+}
 
 const decorationButtonStyle: React.CSSProperties = {
   padding: '5px 8px',
@@ -31,7 +68,21 @@ const decorationButtonStyle: React.CSSProperties = {
 }
 
 interface DecorationPanelProps {
-  editor: NonNullable<PatternConfig['editor']>
+  /** Which substrate is being painted — decides the Reach ladder. */
+  substrate: DecorationSubstrate
+  /** The config's decoration, from whichever home its substrate uses
+   *  (`decoration/store.ts` picks; this panel never looks). */
+  decoration: DecorationConfig | undefined
+  /** The Frame carrying the decorative border stroke: the Patch's own Frame in
+   *  the Builder, the Gallery clip Frame on a legacy substrate. Absent ⇒ the
+   *  border-stroke block is hidden. */
+  frame: FrameConfig | undefined
+  /** Write the Frame back to whichever home it came from. */
+  onSetFrame: (f: FrameConfig) => void
+  /** World bbox anchoring a freshly seeded gradient — the Frame outline, the
+   *  Patch's content, or the visible field. Null ⇒ nothing to span, and the
+   *  gradient toggles stay inert. */
+  seedBBox: () => WorldBBox | null
   dispatch: React.Dispatch<Action>
   decorationColor: string
   onSetDecorationColor: (c: string) => void
@@ -69,7 +120,11 @@ interface DecorationPanelProps {
  * Extracted from `EditorDesignControls`.
  */
 export function DecorationPanel({
-  editor,
+  substrate,
+  decoration,
+  frame,
+  onSetFrame,
+  seedBBox,
   dispatch,
   decorationColor,
   onSetDecorationColor,
@@ -89,10 +144,10 @@ export function DecorationPanel({
   gradientSelection,
   onClearGradientSelection,
 }: DecorationPanelProps) {
-  const strandRec = editor.decoration?.strandColours.find(r => r.scope === 'congruent' && r.key === '*')
-  const strandRecCount = editor.decoration?.strandColours.length ?? 0
-  const voidCount = editor.decoration?.voidFills.length ?? 0
-  const stampCount = editor.decoration?.voidStamps?.length ?? 0
+  const strandRec = decoration?.strandColours.find(r => r.scope === 'congruent' && r.key === '*')
+  const strandRecCount = decoration?.strandColours.length ?? 0
+  const voidCount = decoration?.voidFills.length ?? 0
+  const stampCount = decoration?.voidStamps?.length ?? 0
   const hasDecoration = strandRecCount > 0 || voidCount > 0 || stampCount > 0
   // The Decoration seg buttons match the phase switch minus the hover
   // transition (they snap on click).
@@ -127,7 +182,7 @@ export function DecorationPanel({
         <>
           <FieldLabel label="Reach" tooltip="How far one click spreads. Matching = every Void with the clicked shape, everywhere. Twins = the clicked Void plus its rotation/mirror twins within its Cell, in every repeat. Repeat = the clicked Void's spot in every Patch repeat. Single = only the Void you click." />
           <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
-            {([['congruent', 'Matching'], ['cell', 'Twins'], ['patch', 'Repeat'], ['instance', 'Single']] as const).map(([s, label]) => (
+            {VOID_SCOPES[substrate].map(([s, label]) => (
               <button key={s} onClick={() => onSetVoidScope(s)} style={segButtonStyle(voidScope === s)}>
                 {label}
               </button>
@@ -141,7 +196,7 @@ export function DecorationPanel({
               paint target's [This shape · Across frame · Strands] bar. */}
           <FieldLabel label="Reach" tooltip="How far one click spreads. All = every Strand at once. Matching = every Strand with the clicked Strand's shape. Twins = the clicked Strand plus its rotation/mirror twins within its Cell, in every repeat. Single = just the clicked Strand (it still repeats with the Patch — the pattern stays periodic)." />
           <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
-            {([['all', 'All'], ['congruent', 'Matching'], ['cell', 'Twins'], ['patch', 'Single']] as const).map(([s, label]) => (
+            {STRAND_SCOPES[substrate].map(([s, label]) => (
               <button key={s} onClick={() => onSetStrandScope(s)} style={segButtonStyle(strandScope === s)}>
                 {label}
               </button>
@@ -150,11 +205,13 @@ export function DecorationPanel({
         </>
       )}
       {paintTarget === 'stamp' && (
-        <StampSection editor={editor} dispatch={dispatch} selection={stampSelection} getStampVoids={getStampVoids} />
+        <StampSection decoration={decoration} dispatch={dispatch} selection={stampSelection} getStampVoids={getStampVoids} />
       )}
       {paintTarget === 'gradient' && (
         <GradientSection
-          editor={editor}
+          substrate={substrate}
+          decoration={decoration}
+          seedBBox={seedBBox}
           dispatch={dispatch}
           draft={gradientDraft}
           onSetDraft={onSetGradientDraft}
@@ -244,11 +301,9 @@ export function DecorationPanel({
       {/* Frame border stroke — the Decoration styling slot ADR-0004
           reserved. Replaces the accent guide line with a real border
           that's part of the artwork (and exports). */}
-      {editor.frame && (() => {
-        const frame = editor.frame
+      {frame && (() => {
         const stroke = frame.stroke
-        const setStroke = (s: typeof stroke) =>
-          dispatch({ type: 'SET_FRAME', payload: { ...frame, stroke: s } })
+        const setStroke = (s: typeof stroke) => onSetFrame({ ...frame, stroke: s })
         return (
           <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--border-subtle)' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
@@ -341,8 +396,10 @@ export function DecorationPanel({
  * painted group's gradient geometry. Draft edits live-update the selected
  * record (stops/type), so tweaking colours after painting shows immediately.
  */
-function GradientSection({ editor, dispatch, draft, onSetDraft, selection, onClearSelection, decorationColor, background, mode, onSetMode, strandScope, onSetStrandScope }: {
-  editor: NonNullable<PatternConfig['editor']>
+function GradientSection({ substrate, decoration, seedBBox, dispatch, draft, onSetDraft, selection, onClearSelection, decorationColor, background, mode, onSetMode, strandScope, onSetStrandScope }: {
+  substrate: DecorationSubstrate
+  decoration: DecorationConfig | undefined
+  seedBBox: () => WorldBBox | null
   dispatch: React.Dispatch<Action>
   draft: GradientDraft
   onSetDraft: (d: GradientDraft) => void
@@ -361,10 +418,10 @@ function GradientSection({ editor, dispatch, draft, onSetDraft, selection, onCle
   const [selectedStop, setSelectedStop] = useState(0)
   const [focusOpen, setFocusOpen] = useState(false)
   const selRec = selection
-    ? editor.decoration?.voidFills.find(r => r.scope === selection.scope && r.key === selection.key && r.gradient)
+    ? decoration?.voidFills.find(r => r.scope === selection.scope && r.key === selection.key && r.gradient)
     : undefined
   const outline = selection ? (selection.void.keyPolygon ?? selection.void.polygon) : null
-  const gradientCount = editor.decoration?.voidFills.filter(r => r.gradient).length ?? 0
+  const gradientCount = decoration?.voidFills.filter(r => r.gradient).length ?? 0
 
   // Draft edits mirror onto the selected record so painted gradients restyle
   // live. Same-type changes keep the record's (possibly focus-edited)
@@ -441,12 +498,12 @@ function GradientSection({ editor, dispatch, draft, onSetDraft, selection, onCle
         ))}
       </div>
       {mode === 'frame' ? (
-        <FrameGradientControls editor={editor} dispatch={dispatch} decorationColor={decorationColor} background={background} />
+        <FrameGradientControls decoration={decoration} seedBBox={seedBBox} dispatch={dispatch} decorationColor={decorationColor} background={background} />
       ) : mode === 'strands' ? (
         <>
           <FieldLabel label="Reach" tooltip="How far a Strand click scopes the wash. All = every Strand (the default wash). Matching = the clicked Strand's shape everywhere. Twins = its rotation/mirror twins within its Cell. Single = the clicked Strand's Lattice orbit. Pick a reach, then click a Strand on the canvas — the rest keep their flat colour." />
           <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
-            {([['all', 'All'], ['congruent', 'Matching'], ['cell', 'Twins'], ['patch', 'Single']] as const).map(([s, label]) => (
+            {STRAND_SCOPES[substrate].map(([s, label]) => (
               <button
                 key={s}
                 onClick={() => {
@@ -462,7 +519,7 @@ function GradientSection({ editor, dispatch, draft, onSetDraft, selection, onCle
               </button>
             ))}
           </div>
-          <StrandGradientControls editor={editor} dispatch={dispatch} decorationColor={decorationColor} background={background} />
+          <StrandGradientControls decoration={decoration} seedBBox={seedBBox} dispatch={dispatch} decorationColor={decorationColor} background={background} />
         </>
       ) : (
         <>
@@ -596,29 +653,20 @@ function WorldGradientAngleRow({ spec, getBox, onAxis }: {
   )
 }
 
-function FrameGradientControls({ editor, dispatch, decorationColor, background }: {
-  editor: NonNullable<PatternConfig['editor']>
+function FrameGradientControls({ decoration, seedBBox, dispatch, decorationColor, background }: {
+  decoration: DecorationConfig | undefined
+  seedBBox: () => WorldBBox | null
   dispatch: React.Dispatch<Action>
   decorationColor: string
   background: string
 }) {
   const [selectedStop, setSelectedStop] = useState(0)
-  const fg = editor.decoration?.frameGradient
+  const fg = decoration?.frameGradient
   const enabled = fg?.enabled === true
 
-  // World bbox anchoring the seed: the Frame outline when present, else the
-  // patch's world content, else null (a degenerate patch — toggle stays inert).
-  const seedBox = (): WorldBBox | null => {
-    if (editor.frame) {
-      const outline = frameOutlinePolygon(editor.frame)
-      const b = outline ? pointsBBox(outline) : null
-      if (b) return b
-    }
-    const polys = editor.cells.length > 1
-      ? compositionToPolygons(editor)
-      : editor.cells.flatMap(c => editorTilesToPolygons(c))
-    return pointsBBox(polys.flatMap(p => p.vertices))
-  }
+  // The world bbox the seed spans is substrate-specific (Frame outline, Patch
+  // content, or the visible field) — injected rather than derived here.
+  const seedBox = seedBBox
 
   // `enabled: on` after `...next` — toggling OFF passes the current spec (with
   // `enabled: true`) as `next`, which must not clobber the `on=false` (else the
@@ -711,29 +759,20 @@ function FrameGradientControls({ editor, dispatch, decorationColor, background }
  * the Gradient paint target's **Strands** sub-mode; the Reach selector above it
  * + a canvas Strand click scope the wash to a group (#46 ladder).
  */
-function StrandGradientControls({ editor, dispatch, decorationColor, background }: {
-  editor: NonNullable<PatternConfig['editor']>
+function StrandGradientControls({ decoration, seedBBox, dispatch, decorationColor, background }: {
+  decoration: DecorationConfig | undefined
+  seedBBox: () => WorldBBox | null
   dispatch: React.Dispatch<Action>
   decorationColor: string
   background: string
 }) {
   const [selectedStop, setSelectedStop] = useState(0)
-  const sg = editor.decoration?.strandGradient
+  const sg = decoration?.strandGradient
   const enabled = sg?.enabled === true
 
-  // World bbox anchoring the seed: the Frame outline when present, else the
-  // patch's world content, else null (a degenerate patch — toggle stays inert).
-  const seedBox = (): WorldBBox | null => {
-    if (editor.frame) {
-      const outline = frameOutlinePolygon(editor.frame)
-      const b = outline ? pointsBBox(outline) : null
-      if (b) return b
-    }
-    const polys = editor.cells.length > 1
-      ? compositionToPolygons(editor)
-      : editor.cells.flatMap(c => editorTilesToPolygons(c))
-    return pointsBBox(polys.flatMap(p => p.vertices))
-  }
+  // The world bbox the seed spans is substrate-specific (Frame outline, Patch
+  // content, or the visible field) — injected rather than derived here.
+  const seedBox = seedBBox
 
   // Preserve any active scope (#46) across type / stop / enable edits — the
   // reducer setter is a dumb replace, so a dropped scope/scopeKey would silently
@@ -851,8 +890,8 @@ function StrandGradientControls({ editor, dispatch, decorationColor, background 
  * externally), and upload an image that fills every congruent Void, clipped
  * to the shape. One stamp record per Void signature (v1 congruent scope).
  */
-function StampSection({ editor, dispatch, selection, getStampVoids }: {
-  editor: NonNullable<PatternConfig['editor']>
+function StampSection({ decoration, dispatch, selection, getStampVoids }: {
+  decoration: DecorationConfig | undefined
   dispatch: React.Dispatch<Action>
   selection: PaintVoid | null
   getStampVoids: () => PaintVoid[]
@@ -876,7 +915,7 @@ function StampSection({ editor, dispatch, selection, getStampVoids }: {
       setExportingAll(false)
     }
   }
-  const stamps = editor.decoration?.voidStamps ?? []
+  const stamps = decoration?.voidStamps ?? []
   const selRec = selection
     ? stamps.find(r => r.scope === 'congruent' && r.key === selection.signature)
     : undefined

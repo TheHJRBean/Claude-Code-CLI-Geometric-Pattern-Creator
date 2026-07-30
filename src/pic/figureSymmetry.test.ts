@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { runPIC } from './index'
+import { runRosettePIC } from './rosettePatch'
 import { generateTiling } from '../tilings/archimedean'
 import { generateRosettePatch } from '../tilings/rosettePatch'
 import { TILINGS } from '../tilings/index'
@@ -76,7 +77,11 @@ describe('figure rotational symmetry — every regular tile keeps its own C_n', 
         // One θ for every tile type present, so each tile is judged on its own.
         const figures: Record<string, FigureConfig> = {}
         for (const p of polys) figures[p.tileTypeId] = fig(theta)
-        const segs = runPIC(polys, { figures } as unknown as PatternConfig)
+        // Match `usePattern`'s dispatch (hooks/usePattern.ts) — rosette-patch
+        // tilings render through runRosettePIC, so pinning them against runPIC
+        // would test a path the app never takes.
+        const run = def.category === 'rosette-patch' ? runRosettePIC : runPIC
+        const segs = run(polys, { figures } as unknown as PatternConfig)
 
         const byPoly = new Map<string, typeof segs>()
         for (const s of segs) {

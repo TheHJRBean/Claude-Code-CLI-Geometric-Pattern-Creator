@@ -10,6 +10,8 @@
 
 **⚠️ #52 needs a user decision.** They approved collapsing archimedes-star's 12-gon to a hexagon; the evidence says that would break strand continuity at 12 junctions, so it was **not** done and a correction is posted on the issue. Awaiting their call.
 
+**⚠️ #53 filed, NOT fixed — vertex strands applied inconsistently** ("this is common"). Fully root-caused with a reproducible trace; deliberately left for a **Fable** session because part 2 is a semantic decision (what a vertex line means at a 180° vertex), not just a patch. See the 2026-07-30 vertex-strand entry.
+
 **Last session (2026-07-29), both ✅ SHIPPED + BROWSER-VERIFIED:** the Gallery → Lab library link (Save updates the save instead of forking a copy) and precise gradient angle control on all three gradient surfaces (rotate-in-place + Fit + Shift-snap).
 
 **What shipped 2026-07-29 (all browser-verified, all tickets closed):**
@@ -30,6 +32,21 @@
 4. **Roadmap design findings still open (Opus).** (a) **Pass-4 right-side Inspector** is blocked by the selection-state split (Canvas-local vertex state) + duplicated per-mode shell — the old "3rd-column-ready grid" claim is FALSE. (b) **Builder Configuration registry** — 7-site ladder to add one, with a silent square-basis fallback in `compositionCellBasis`. Memory: `project_thermonuclear_review_round2.md`.
 5. **Open bugs (unscheduled).** Force-overlapped Tiles emit their own Strands (decided 2026-06-14: make it a **toggle**, default self-contained); Strand-editing UX issues need enumerating. Memories: `project_overlap_tiles_strand_bug.md`, `project_strand_editing_debug.md`.
 6. **Cheap cleanup (Haiku).** Vitest has **no `testTimeout` set**, so the default 5 s makes 1–2 heavy render/geometry tests flake whenever the machine is busy (`appSmoke`'s App render: 1.7 s idle, 5.7–7.3 s under load). Verified pre-existing, not caused by any recent change. Raise it in `vite.config.ts`.
+
+---
+### ▶ 2026-07-30 (#53 filed — vertex strands applied inconsistently; DIAGNOSED, NOT FIXED; Opus)
+
+User: *"the final screenshot shows inconsistent application of vertex strands. **This is common.**"*
+
+**Confirmed and broad.** A tile with `vertexLinesEnabled` should emit `2n` vertex lines. Sweeping every shipping tiling × θ ∈ {30,45,60,67.5,71,80}: **19 combos come up short, silently.** `archimedes-star @θ=71` (the screenshot) → **12/24**. `rhombille` and `pentagonal-rosette` quads → **0/8**, i.e. the toggle does nothing visible on those tiles. Only **irregular** tiles are affected; every regular tiling emits the full `2n`.
+
+**Root cause.** `emitVertexPass` does `if (!pair) continue` — a failed pair means that edge emits **nothing**. `pairVertexAtEdge`'s table is only `aInside → bInside → aValid → bValid`: unlike `pairAtVertex` it has **no asymmetric tiers**, and unlike `emitEdgePass` there is **no per-ray orphan/Kaplan-trim fallback**.
+
+**Why it looks arbitrary.** archimedes-star's 12-gon is **C6-symmetric** (angles `120,180,120,180,…`, equal edges), so edges 0,2,4,6,8,10 must behave identically. Traced at θ=71: six pairs succeed, six return null, and the winning set (2,4,5,6,7,9) **is not a symmetry orbit**. On geometry this symmetric that is floating-point sign deciding, not shape — the same family as #51's `pointInPolygon` split. The 180° vertices aggravate it: no corner ⇒ degenerate vertex-ray construction ⇒ pair t-values on a knife edge.
+
+**Predicted in-code:** the standing note at `pic/index.ts:382-391` warns `pairVertexAtEdge` shares the hazard and ends *"No user-facing report yet."* There is now.
+
+**Left unfixed on purpose.** Part 1 (completeness — never emit nothing) is mechanical, but part 2 is a **semantic decision**: what *is* a vertex line at a 180° vertex, where there's no corner to anchor it? Skip such vertices by rule, or give them a canonical direction (the inward edge normal, as `rosettePatch.ts::vertexFrame` already does)? That's a design call, and it touches emission for every tiling. Ticket recommends **Fable**. Also noted there: extend `pic/figureSymmetry.test.ts` with a vertex-lines variant + a `2n` completeness assertion — the current sweep only exercises edge lines, which is exactly why this was invisible to it.
 
 ---
 ### ▶ 2026-07-30 (Rosette centre-pinning FIXED; #52 tile-data change REJECTED on evidence; Opus, `996787a`)

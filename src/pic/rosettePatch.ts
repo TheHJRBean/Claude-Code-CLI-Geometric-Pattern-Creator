@@ -22,8 +22,10 @@ import { EPSILON, dist, dot, midpoint, normalize, perp, sub, add, scale, cross, 
  * the bisector as line∩line, and the tip sits at the MINIMUM of the two
  * bisector offsets (min, not mean — the mean drags arms sideways on uneven
  * vertices). The offset is then capped by the boundary-exit distance along
- * the bisector and by the centre projection, and pinned to 0 at reflex
- * vertices (tip AT the notch). Every edge midpoint anchors exactly two arms,
+ * the bisector and — where the tip would otherwise run past the tile centre —
+ * by the Kaplan trim against other edges' rays (`bisectorTrimDist`), and
+ * pinned to 0 at reflex vertices (tip AT the notch). Every edge midpoint
+ * anchors exactly two arms,
  * so the figure is closed by construction — no pointInPolygon, no t≤0
  * branches, no edge-slide, no per-ray fallback.
  *
@@ -84,6 +86,48 @@ function vertexFrame(vertices: Vec2[], k: number, windingSign: number): VertexFr
 
   const bis = normalize(sum)
   return { bisector: reflex ? scale(bis, -1) : bis, reflex }
+}
+
+/**
+ * Distance from V along `bisector` to the first crossing with a contact ray
+ * belonging to some OTHER edge — Kaplan's trim, expressed in the bisector
+ * parametrisation this construction uses. Infinity if the bisector meets none.
+ *
+ * This replaced a centre-projection cap (`min(s, dot(center - V, bisector))`).
+ * That cap was written for regular tiles, where a bisector aims at the centre
+ * but the natural tip only reaches it near θ=90°, so it effectively never bit.
+ * On irregular tiles it bit constantly and *saturated*: on a rhombus every
+ * bisector IS a diagonal, so it points exactly at the centre, and at the obtuse
+ * vertices — which sit close to the centre — the natural tip overshoots for
+ * most of the θ range. The tip was then pinned exactly ON the centre,
+ * identically for every θ, so several arms converged into a hub and the contact
+ * angle stopped moving them at all. Degenerate vertices did the same thing
+ * harder: archimedes-star's 180° vertices push the natural tip to infinity, so
+ * half that tile's arms landed on the centre.
+ *
+ * Trimming against the neighbouring rays instead gives a tip that keeps
+ * responding to θ and closes the figure against its own geometry, which is the
+ * rule `runPIC` already uses (`findOrphanRayEndpoint`).
+ */
+function bisectorTrimDist(
+  V: Vec2,
+  bisector: Vec2,
+  rays: ContactRay[],
+  prevEdge: number,
+  currEdge: number,
+): number {
+  let nearest = Infinity
+  for (const ray of rays) {
+    // The two edges meeting at V own this vertex's own arms — trimming against
+    // them would clamp the tip to the vertex itself.
+    if (ray.edgeIndex === prevEdge || ray.edgeIndex === currEdge) continue
+    const res = rayRayIntersect(V, bisector, ray.origin, ray.dir)
+    if (!res) continue
+    if (res.t1 < EPSILON) continue  // behind the vertex
+    if (res.t2 < EPSILON) continue  // behind the other ray's own origin
+    if (res.t1 < nearest) nearest = res.t1
+  }
+  return nearest
 }
 
 /**
@@ -179,14 +223,26 @@ export function runRosettePIC(polygons: Polygon[], config: PatternConfig): Segme
 
         if (fig.autoLineLength) {
           // Caps on the bisector offset: boundary exit (arms never leave the
-          // tile), centre projection when positive (regular-safe — a regular
-          // polygon's natural tip only reaches the centre at θ=90°), and
-          // reflex pin at 0 (any positive offset sends bowtie/gap-star tips
+          // tile), the Kaplan trim against other edges' rays (see
+          // `bisectorTrimDist` — this replaced a centre-projection cap that
+          // saturated on irregular tiles and froze arms onto the tile centre),
+          // and reflex pin at 0 (any positive offset sends bowtie/gap-star tips
           // across the waist → rule-invariant crossings).
           let s = pair.offset
           s = Math.min(s, boundaryExitDist(verts, k, V, bisector))
+          // Only where the old centre cap would actually have bitten. Applying
+          // the trim unconditionally also shortens tips on REGULAR tiles, whose
+          // natural tip is already correct — that breaks the Kepler baseline
+          // (runRosettePIC must stay segment-identical to runPIC on regular
+          // tilings). Gating it here keeps every currently-good figure byte
+          // identical and changes only the pinned-to-centre case.
           const centreProj = dot(sub(poly.center, V), bisector)
-          if (centreProj > 0) s = Math.min(s, centreProj)
+          if (centreProj > 0 && s > centreProj) {
+            const trim = bisectorTrimDist(V, bisector, rays, prevEdge, k)
+            // No crossing at all (a lone tile, or rays that all diverge) — fall
+            // back to the old centre pin rather than letting the tip run on.
+            s = Math.min(s, Number.isFinite(trim) ? trim : centreProj)
+          }
           if (reflex) s = 0
           if (!Number.isFinite(s)) s = 0
 

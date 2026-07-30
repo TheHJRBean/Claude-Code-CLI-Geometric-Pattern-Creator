@@ -8,7 +8,7 @@ import {
   emitVertexArms,
   dedupPolygonSegments,
 } from './index'
-import { EPSILON, dist, dot, midpoint, normalize, perp, sub, add, scale, cross, type Vec2 } from '../utils/math'
+import { EPSILON, dist, dot, midpoint, normalize, perp, signedArea, sub, add, scale, cross, type Vec2 } from '../utils/math'
 
 /**
  * Bespoke star-figure construction for rosette-patch (irregular / concave)
@@ -39,18 +39,6 @@ import { EPSILON, dist, dot, midpoint, normalize, perp, sub, add, scale, cross, 
  * in the spike; the crossings render as a weave, so it ships as-is (candidate
  * polish: a mutual-trim pass).
  */
-
-/** Shoelace signed area — sign encodes winding (positive = CCW in math coords). */
-function signedArea(vertices: Vec2[]): number {
-  let a = 0
-  const n = vertices.length
-  for (let i = 0; i < n; i++) {
-    const p = vertices[i]
-    const q = vertices[(i + 1) % n]
-    a += p.x * q.y - q.x * p.y
-  }
-  return a / 2
-}
 
 interface VertexFrame {
   /** Unit interior bisector at the vertex (flipped inward at reflex vertices). */

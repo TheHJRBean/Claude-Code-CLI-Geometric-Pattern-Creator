@@ -29,6 +29,22 @@ export const perp = (v: Vec2): Vec2 => ({ x: -v.y, y: v.x })
 
 export const midpoint = (a: Vec2, b: Vec2): Vec2 => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 })
 
+/**
+ * Shoelace signed area — the sign encodes winding (positive = CCW in math
+ * coords). Callers generally want only the sign, to decide which perpendicular
+ * of an edge points into the polygon.
+ */
+export const signedArea = (vertices: Vec2[]): number => {
+  let a = 0
+  const n = vertices.length
+  for (let i = 0; i < n; i++) {
+    const p = vertices[i]
+    const q = vertices[(i + 1) % n]
+    a += p.x * q.y - q.x * p.y
+  }
+  return a / 2
+}
+
 export const dist = (a: Vec2, b: Vec2): number => len(sub(a, b))
 
 export const pointsEqual = (a: Vec2, b: Vec2, eps = EPSILON): boolean =>

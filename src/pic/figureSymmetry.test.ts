@@ -131,3 +131,98 @@ describe('figure rotational symmetry — every regular tile keeps its own C_n', 
     }
   })
 })
+
+/**
+ * Vertex-line invariants (#53). The sweep above only exercises edge lines,
+ * which is why silent vertex-line dropouts went unnoticed for so long.
+ *
+ * The invariant is CONSISTENCY, not a fixed count: a tile with C_m rotational
+ * symmetry must emit a C_m vertex-line set. That is exactly what the user saw
+ * violated — on archimedes-star's C6 12-gon the six edges that emitted were not
+ * a symmetry orbit, because a zero-length bisector at the straight vertices left
+ * floating point to decide which ones survived.
+ *
+ * Deliberately NOT asserted: "every tile emits 2n". Two mechanisms legitimately
+ * reduce the count, and pinning 2n would fight both —
+ *  - **#40**, vertex rays leaking past the tile once α exceeds the interior
+ *    half-angle (e.g. a 60° rhombus vertex at θ=45): those arms would leave the
+ *    tile, so suppressing them is right.
+ *  - `dedupPolygonSegments` collapsing genuinely coincident lines, the same way
+ *    it does for edge lines at degenerate angles.
+ * Both preserve symmetry, which is why symmetry is the honest invariant.
+ */
+describe('vertex lines are complete and symmetric', () => {
+  const vfig = (contactAngle: number): FigureConfig =>
+    ({ type: 'star', contactAngle, lineLength: 1, autoLineLength: true, vertexLinesEnabled: true }) as FigureConfig
+
+  /** The tile's own rotational symmetry order: largest m | n whose rotation maps the vertex set onto itself. */
+  const tileSymmetryOrder = (p: Polygon): number => {
+    const n = p.vertices.length
+    const q = (v: { x: number; y: number }) => `${Math.round(v.x * 1e3)},${Math.round(v.y * 1e3)}`
+    const base = new Set(p.vertices.map(q))
+    for (let m = n; m >= 2; m--) {
+      if (n % m !== 0) continue
+      const th = (2 * Math.PI) / m
+      const co = Math.cos(th), si = Math.sin(th)
+      const ok = p.vertices.every(v => {
+        const dx = v.x - p.center.x, dy = v.y - p.center.y
+        return base.has(q({ x: p.center.x + dx * co - dy * si, y: p.center.y + dx * si + dy * co }))
+      })
+      if (ok) return m
+    }
+    return 1
+  }
+
+  it('a tile with C_m symmetry emits a C_m vertex-line set, across every tiling and θ', () => {
+    const broken: string[] = []
+    for (const key of Object.keys(TILINGS)) {
+      const def = TILINGS[key]
+      const polys = def.category === 'rosette-patch'
+        ? generateRosettePatch(def, VP, 100)
+        : generateTiling(def, VP, 100)
+      if (!polys.length) continue
+      const run = def.category === 'rosette-patch' ? runRosettePIC : runPIC
+
+      for (const theta of [30, 45, 60, 67.5, 71, 80]) {
+        const figures: Record<string, FigureConfig> = {}
+        for (const p of polys) figures[p.tileTypeId] = vfig(theta)
+        const segs = run(polys, { figures } as unknown as PatternConfig)
+        const byPoly = new Map<string, typeof segs>()
+        for (const s of segs) {
+          if (s.kind !== 'vertex-line') continue
+          const arr = byPoly.get(s.polygonId)
+          if (arr) arr.push(s); else byPoly.set(s.polygonId, [s])
+        }
+        for (const p of polys) {
+          if (Math.hypot(p.center.x, p.center.y) > 150) continue
+          const m = tileSymmetryOrder(p)
+          if (m < 2) continue  // no symmetry to violate
+          const own = byPoly.get(p.id) ?? []
+          if (!own.length) continue  // fully suppressed (#40) — still symmetric
+          const order = symmetryOrder(own, p.center, m)
+          if (order !== m) {
+            broken.push(`${key}@θ=${theta} ${p.sides}-gon(${p.tileTypeId}): C${order} of C${m}, ${own.length} lines`)
+          }
+        }
+      }
+    }
+    expect([...new Set(broken)]).toEqual([])
+  })
+
+  it("archimedes-star's C6 12-gon emits a C6 vertex-line set", () => {
+    const def = TILINGS['archimedes-star']
+    const polys = generateRosettePatch(def, VP, 100)
+    for (const theta of [45, 60, 71, 80]) {
+      const figures: Record<string, FigureConfig> = {}
+      for (const p of polys) figures[p.tileTypeId] = vfig(theta)
+      const segs = runRosettePIC(polys, { figures } as unknown as PatternConfig)
+      for (const p of polys) {
+        if (p.sides !== 12 || Math.hypot(p.center.x, p.center.y) > 120) continue
+        const own = segs.filter(s => s.polygonId === p.id && s.kind === 'vertex-line')
+        expect(own.length, `θ=${theta}: only ${own.length} vertex lines`).toBe(24)
+        // The tile is a hexagon with subdivided edges: C6, not C12.
+        expect(symmetryOrder(own, p.center, 6), `θ=${theta}: vertex lines not C6`).toBe(6)
+      }
+    }
+  })
+})

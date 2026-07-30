@@ -1,4 +1,4 @@
-import { Vec2, normalize, rotate, perp, midpoint, degToRad, sub, add } from '../utils/math'
+import { Vec2, normalize, rotate, perp, midpoint, degToRad, signedArea, sub, add } from '../utils/math'
 import type { Polygon } from '../types/geometry'
 
 export interface ContactRay {
@@ -100,6 +100,7 @@ export function computeVertexRaysPerVertex(
   angleDegForVertex: (vertexIndex: number, vertex: Vec2) => number,
 ): VertexRay[] {
   const rays: VertexRay[] = []
+  const windingSign = signedArea(poly.vertices) > 0 ? 1 : -1
 
   for (let k = 0; k < poly.sides; k++) {
     const V = poly.vertices[k]
@@ -111,8 +112,28 @@ export function computeVertexRaysPerVertex(
     const toPrev = normalize(sub(prev, V))
     const toNext = normalize(sub(next, V))
 
-    // Interior angle bisector (points inward for convex polygons)
-    const bisector = normalize(add(toPrev, toNext))
+    // Interior angle bisector (points inward for convex polygons).
+    //
+    // At a STRAIGHT (180°) vertex `toPrev` and `toNext` are exact opposites, so
+    // their sum is the zero vector and `normalize` returns whatever direction
+    // the rounding error happens to point in. Both rays at that vertex are then
+    // junk, and — because `pairVertexAtEdge` pairs adjacent vertices — every
+    // edge touching it inherits the noise: on archimedes-star's C6 12-gon
+    // (angles 120,180,120,180,…) that decided which edges emitted vertex lines
+    // at all, so six edges silently produced nothing and the surviving six were
+    // not a symmetry orbit (#53).
+    //
+    // Straight vertices are real here: they are the half-edge joints that keep
+    // that tiling edge-to-edge. The interior direction is simply the inward edge
+    // normal, which is what `rosettePatch.ts::vertexFrame` already uses for the
+    // same degeneracy.
+    const sum = add(toPrev, toNext)
+    const bisector = Math.hypot(sum.x, sum.y) < 1e-6
+      ? (() => {
+          const nrm = perp(normalize(sub(next, V)))
+          return windingSign > 0 ? nrm : { x: -nrm.x, y: -nrm.y }
+        })()
+      : normalize(sum)
 
     rays.push({
       origin: V,

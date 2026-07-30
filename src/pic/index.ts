@@ -19,13 +19,25 @@ function probePair(
   r1: { origin: Vec2; dir: Vec2 },
   r2: { origin: Vec2; dir: Vec2 },
   polyVertices: Vec2[],
+  resolveCollinear = false,
 ): { result: IntersectResult | null; valid: boolean; inside: boolean } {
   // `collinearApproach` covers the degenerate pairing `rayRayIntersect` calls
   // parallel: two rays on the same line aimed at each other, which meet at the
   // midpoint of their origins. Falling through to the next pairing instead
   // costs the tile its rotational symmetry — see the note on that function.
+  //
+  // EDGE lines only, hence the opt-in. For edge lines the collinear pairing is
+  // a genuine star tip: the meeting point is the continuous limit of the tips
+  // just either side of the degenerate angle (#51). For VERTEX lines the same
+  // configuration means something else entirely — it arises when α equals the
+  // interior half-angle, where the vertex rays lie exactly ALONG the tile's own
+  // edges (the #40 boundary). Resolving those draws "vertex lines" on top of
+  // the tile boundary, and on a real tiling it comes out orientation-dependent:
+  // an equilateral triangle at θ=60 emits a C3 set in isolation but a C1 one in
+  // the field. So vertex lines keep the old behaviour and let the pairing fall
+  // through.
   const result = rayRayIntersect(r1.origin, r1.dir, r2.origin, r2.dir)
-    ?? collinearApproach(r1.origin, r1.dir, r2.origin, r2.dir)
+    ?? (resolveCollinear ? collinearApproach(r1.origin, r1.dir, r2.origin, r2.dir) : null)
   const valid = !!result && result.t1 > EPSILON && result.t2 > EPSILON
   const inside = valid && pointInPolygon(result!.point, polyVertices)
   return { result, valid, inside }
@@ -69,11 +81,11 @@ function pairAtVertex(
 ): { ray1: ContactRay; ray2: ContactRay; result: IntersectResult } | null {
   const rA1 = rays[prevEdge * 2 + 1]
   const rA2 = rays[currEdge * 2]
-  const a = probePair(rA1, rA2, polyVertices)
+  const a = probePair(rA1, rA2, polyVertices, true)
 
   const rB1 = rays[prevEdge * 2]
   const rB2 = rays[currEdge * 2 + 1]
-  const b = probePair(rB1, rB2, polyVertices)
+  const b = probePair(rB1, rB2, polyVertices, true)
 
   const aAsym = !!a.result && (a.result.t1 > EPSILON || a.result.t2 > EPSILON) && !a.valid
   const bAsym = !!b.result && (b.result.t1 > EPSILON || b.result.t2 > EPSILON) && !b.valid
@@ -409,11 +421,24 @@ export function pairVertexAtEdge(
   const rB2 = vertexRays[vIdx2 * 2 + 1]
   const b = probePair(rB1, rB2, polyVertices)
 
+  // Asymmetric tiers, mirroring `pairAtVertex` (#53). Without them this table
+  // ends at `bValid`, and on an irregular tile where NEITHER pairing is valid
+  // it returned null — whereupon `emitVertexPass` skipped the edge and it
+  // silently emitted nothing at all. That is why rhombille's and
+  // pentagonal-rosette's quads produced 0 of their 8 vertex lines: enabling the
+  // toggle did nothing visible on those tiles. An asymmetric pair still has one
+  // ray meeting ahead of its origin, which `emitVertexArms` clips to the
+  // polygon, so it yields a real arm rather than a dropout.
+  const aAsym = !!a.result && (a.result.t1 > EPSILON || a.result.t2 > EPSILON) && !a.valid
+  const bAsym = !!b.result && (b.result.t1 > EPSILON || b.result.t2 > EPSILON) && !b.valid
+
   const cases: { cond: boolean; ray1: VertexRay; ray2: VertexRay; result: IntersectResult | null }[] = [
     { cond: a.inside, ray1: rA1, ray2: rA2, result: a.result },
+    { cond: aAsym, ray1: rA1, ray2: rA2, result: a.result },
     { cond: b.inside, ray1: rB1, ray2: rB2, result: b.result },
     { cond: a.valid, ray1: rA1, ray2: rA2, result: a.result },
     { cond: b.valid, ray1: rB1, ray2: rB2, result: b.result },
+    { cond: bAsym, ray1: rB1, ray2: rB2, result: b.result },
   ]
   for (const c of cases) {
     if (c.cond) return { ray1: c.ray1, ray2: c.ray2, result: c.result! }
@@ -459,8 +484,18 @@ export function emitVertexArms(
 
   // Vertex arms start at a polygon vertex (incident to two edges); t1 > EPSILON
   // alone rejects the trivial self-intersection so no skipEdgeIdx is needed.
-  pushSegment(segments, ctx, ray1.origin, clipSegmentToPolygon(ray1.origin, to1Natural, polyVertices, -1).point, edgeMid, ray1.side)
-  pushSegment(segments, ctx, ray2.origin, clipSegmentToPolygon(ray2.origin, to2Natural, polyVertices, -1).point, edgeMid, ray2.side)
+  //
+  // Degenerate-length guard: an ASYMMETRIC pairing (the tiers added for #53) can
+  // put the tip essentially on a ray's own origin, which would emit a
+  // zero-length segment — invisible, but it pollutes the Strand graph and
+  // Decoration's region extraction. `emitEdgePass` drops its equivalent via
+  // ORPHAN_MIN_LEN_FRACTION; vertex arms had no guard at all. Scale-relative so
+  // it means the same thing on a tiling drawn at any size.
+  const minLen = Math.max(EPSILON, circumradius * 1e-9)
+  const end1 = clipSegmentToPolygon(ray1.origin, to1Natural, polyVertices, -1).point
+  const end2 = clipSegmentToPolygon(ray2.origin, to2Natural, polyVertices, -1).point
+  if (dist(ray1.origin, end1) > minLen) pushSegment(segments, ctx, ray1.origin, end1, edgeMid, ray1.side)
+  if (dist(ray2.origin, end2) > minLen) pushSegment(segments, ctx, ray2.origin, end2, edgeMid, ray2.side)
 }
 
 /**

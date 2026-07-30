@@ -4,9 +4,11 @@
 
 ## ▶ RESUME HERE
 
-**Session ended at a clean milestone (2026-07-29).** Nothing mid-flight, no handoff. Tree clean, all commits pushed to `main`, tests **1288 green**, tsc + build clean.
+**Session ended at a clean milestone (2026-07-30).** Nothing mid-flight, no handoff. Tree clean, all commits pushed to `main`, tests **1336 green**, tsc clean.
 
-**Both features this session are ✅ SHIPPED + BROWSER-VERIFIED:** the Gallery → Lab library link (Save updates the save instead of forking a copy) and precise gradient angle control on all three gradient surfaces (rotate-in-place + Fit + Shift-snap).
+**`PatternConfig` is now versioned — roadmap #6 ✅ SHIPPED + BROWSER-VERIFIED (2026-07-30).** All four slices of `HANDOFF-pattern-config-versioning.md` landed; the brief is deleted (delivered). See the entry below.
+
+**Previous session (2026-07-29), both ✅ SHIPPED + BROWSER-VERIFIED:** the Gallery → Lab library link (Save updates the save instead of forking a copy) and precise gradient angle control on all three gradient surfaces (rotate-in-place + Fit + Shift-snap).
 
 **What shipped this session (all browser-verified, all tickets closed):**
 | | | |
@@ -18,7 +20,37 @@
 
 **NEXT — pick one:**
 0. **Issue hygiene (~10 min, Haiku).** Shipped+verified epics still OPEN on GitHub: **#44 / #45 / #46** (gradients), **#42** (line sets), **#28** (Guides slice 3). Close each with a pointer to its verifying commit. *(#48/#49/#50 are already closed.)*
-0b. ~~Route `loadLabState` through `loadPatternConfig`~~ — **DONE 2026-07-29, see the entry below.** The remaining half of that risk is `PatternConfig` being **unversioned** (every migration is a shape sniff, no version to key off) — still open, and now briefed: **`HANDOFF-pattern-config-versioning.md`** at the repo root has the persistence-site census, the two concrete risks, and the four decisions needed before coding.
+0b. ~~Route `loadLabState` through `loadPatternConfig`~~ — **DONE 2026-07-29.** ~~`PatternConfig` unversioned~~ — **DONE 2026-07-30 (roadmap #6), see the entry below.** Both halves of that risk are now closed.
+
+---
+### ▶ 2026-07-30 (`PatternConfig` schema versioning — ✅ SHIPPED + BROWSER-VERIFIED, Opus, roadmap #6, `0f6662f` `72a6a0e` `7f6d509`)
+
+Delivers all four slices of `HANDOFF-pattern-config-versioning.md` (brief now deleted). `PatternConfig` was the unversioned hole in an otherwise-versioned stack — library envelope, editor patch, decoration block and dataset record all carry a version, so every migration in `loadPatternConfig` was a **permanent shape sniff** with nothing to key off.
+
+**Four decisions locked with the user up front** (all as recommended in the brief): version lives **on `PatternConfig`** (it rides in four carriers, two with no envelope version); unknown fields **stripped + dev warning**; a newer-than-build config **refused on import, best-effort on Lab restore**; absent `version` **must** mean generation 0 and invalidate nothing.
+
+| Generation | Identified by | Accepts |
+|---|---|---|
+| **0** | absence of `version` (every save before 2026-07-30) | current shape **or** legacy `lacing`, pre-#48 `{origin, boundaries}` morph, rosette figure type |
+| **1** | `version: 1` | current shape only |
+
+`readConfig(r, gen)` reads field by field with `gen` selecting which *input* shapes are accepted; `loadPatternConfig` dispatches and stamps the current version on output. Generation-0 acceptance is unchanged by construction — it tries the current shape first, then the legacy one, covering every mix the old reader took (including half-renamed morphs like `origin` + `origins`, which the pre-#6 reader accepted and a naive split would have silently dropped).
+
+**Retired the `coerceLegacyFigures` landmine on the current path.** Last session I recorded it as "flattens nothing today"; that was right, and it was still the correct thing to fix *here* — an unconditional `type: 'star'` on every load destroys the second figure type the moment the rosette epic adds one. Generation 1 uses `readFigures`: default when absent or unrecognised, **preserve a recognised type**. Adding to `FIGURE_TYPES` is now the only change a new figure type needs to survive a round-trip.
+
+**⚠️ The write boundary, not creation, is where the stamp belongs — found only in the browser.** Stamping `LAB_DEFAULT_CONFIG` looked sufficient and wasn't: the working config is replaced *wholesale* by factories that never meet the loader (a Presets shelf click, `createDefault*`, a Generator sample opened in the Lab), so the first preset click dropped the version and every fresh session persisted unversioned (`builtVersion: null` against a real profile). `saveLabState`, `saveJSON` and `configLibrary.save/update` now all stamp on write — one chokepoint per carrier instead of one stamp per factory.
+
+**Generator dataset (§2b, the expensive risk).** Records embed the full config raw and are never re-validated, so a shape change would silently alter what `features.ts` extracts from unregenerable data. `DatasetRecord.configVersion` is stamped **inside `addRecord`** (not at the call site, so it can't be forgotten) and `NewDatasetRecord` omits it. The ~457 existing rows are **grandfathered** — absent = 0 — and `preprocessRecords` surfaces `configVersions` per row beside `eras`/`sources`, so a future split is a filter rather than archaeology.
+
+**Tests: 1336 green** (was 1320; +16), tsc clean. Two `labDefaults` fixtures had built legacy sub-shapes on top of the now-stamped default — a shape that never existed — so they were made faithfully unversioned; without that they'd have stopped testing the #50 and retired-payload paths.
+
+**✅ BROWSER-VERIFIED 2026-07-30** — `/tmp/ga-verify/version6.mjs`, 4 cases against real localStorage, 0 page errors:
+- A **pre-versioning save** (real session with `version` stripped — the state every existing profile is in) reloads **losslessly** and comes back stamped.
+- A **version-99** config keeps the session on the Lab restore path (downgraded to 1) instead of booting blank — decision 3's asymmetry, live.
+- An **unknown field** is dropped and named in the dev warning.
+- A **pre-versioning library entry** still lists and opens.
+
+*Flake note:* the suite intermittently fails 1–2 heavy render/geometry tests when the machine is busy. Reproduced under artificial CPU load on **both** this commit and the pre-#6 tree (worse there) — vitest's default 5 s `testTimeout`, pre-existing and unrelated. `appSmoke`'s App render takes 1.7 s alone, 5.7–7.3 s under contention. Worth raising `testTimeout` some day.
 
 ---
 ### ▶ 2026-07-29 (One schema gate: `loadLabState` now delegates to `loadPatternConfig` — ✅ SHIPPED + BROWSER-VERIFIED, Opus, #50 follow-up)

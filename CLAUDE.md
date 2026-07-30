@@ -77,7 +77,7 @@ The geometry pipeline runs entirely in pure TypeScript (no React), memoized in `
 
 ### Key types
 
-- `PatternConfig` (`types/pattern.ts`) — the serialisable state (saved to JSON). Contains `tiling`, `figures` (Figure recipes per Tile type), and `lacing` config.
+- `PatternConfig` (`types/pattern.ts`) — the serialisable state (saved to JSON). Contains `tiling`, `figures` (Figure recipes per Tile type), `strand`, `edgeAngles`, `smoothTransitions`, `editor`, `frame`, `morph`, and a schema `version`. **Versioned (roadmap #6):** `CURRENT_PATTERN_CONFIG_VERSION` in `state/configValidation.ts` owns the dispatch — one reader per generation, mirroring `editor/migrations.ts`. Absent `version` = generation 0 (pre-2026-07-30) and gets the legacy sniffs (`lacing`→`strand`, pre-#48 morph, rosette→star); generation 1+ accepts only the current shape. Newer-than-build is refused by `loadPatternConfig` and downgraded best-effort by `readPatternConfig`. Adding a field means adding it to **`PATTERN_CONFIG_KEYS` and `readConfig`** in the same commit — the allow-list *deletes* unlisted fields, and a dev-only warning names anything dropped.
 - `ViewTransform` (`hooks/usePanZoom.ts`) — pan/zoom state; **not** part of `PatternConfig`, lives in Canvas local state. Encoded entirely in SVG `viewBox`, no CSS transforms.
 - `TilingDefinition` (`types/tiling.ts`) — static descriptor for each tiling type, including its Configuration array (vertex configuration in literature).
 

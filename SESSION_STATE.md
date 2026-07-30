@@ -4,7 +4,9 @@
 
 ## ▶ RESUME HERE
 
-**Session ended at a clean milestone (2026-07-30).** Nothing mid-flight, no handoff. Tree clean, all commits pushed to `main`, tests **1336 green**, tsc clean.
+**Session ended at a clean milestone (2026-07-30, second entry).** Nothing mid-flight, no handoff. Tree clean, all pushed to `main`, tests **1349 green**, tsc clean.
+
+**⚠️ ONE THING OWED TO THE USER:** the Strand-editing enumeration is **incomplete by their own statement** — *"This isn't the full extent of it."* Three issues were captured and root-caused (below); **ask for the rest before starting any fix.** See the 2026-07-30 (Strand-editing enumeration) entry.
 
 **Last session (2026-07-29), both ✅ SHIPPED + BROWSER-VERIFIED:** the Gallery → Lab library link (Save updates the save instead of forking a copy) and precise gradient angle control on all three gradient surfaces (rotate-in-place + Fit + Shift-snap).
 
@@ -19,12 +21,40 @@
 | — | One schema gate: `loadLabState` delegates to `loadPatternConfig` (#50 follow-up) | `448ed3b` |
 
 **NEXT — pick one:**
+0. **Finish the Strand-editing enumeration (Sonnet), then #51 / #52.** The user has more issues to list. #51 (triangle C3 break, **Fable**) and #52 (archimedes-star tile, **Opus**) are filed, root-caused and ready to implement — but #52 needs a data-vs-PIC decision from the user first.
 1. **Issue hygiene (~10 min, Haiku).** Shipped+verified epics still OPEN on GitHub: **#44 / #45 / #46** (gradients), **#42** (line sets), **#28** (Guides slice 3 — verified 2026-07-22). Close each with a pointer to its verifying commit.
 2. **Guides slices 4–6 (Fable/Opus).** **#29** symmetry-orbit drawing (linked Guide groups) → **#30** stamping under the Lattice + neighbour Anchors → **#31** Anchor vocabulary in CONTEXT.md → **#32** Girih preset reveal. **#34** (stamped Anchor Tiles land in `activeCell` regardless of geometric host Cell) is the known correctness gap and folds naturally into #30. Spec: `CONSTRUCTION_GUIDES_SPEC.md` + ADR-0008.
 3. **Decoration stamps v2 (Sonnet/Opus).** v1 ships for Voids only; remaining = **Tile**-stamping, explicit mirror toggle, asset library. Memory: `project_decoration_stamps_idea.md`.
 4. **Roadmap design findings still open (Opus).** (a) **Pass-4 right-side Inspector** is blocked by the selection-state split (Canvas-local vertex state) + duplicated per-mode shell — the old "3rd-column-ready grid" claim is FALSE. (b) **Builder Configuration registry** — 7-site ladder to add one, with a silent square-basis fallback in `compositionCellBasis`. Memory: `project_thermonuclear_review_round2.md`.
 5. **Open bugs (unscheduled).** Force-overlapped Tiles emit their own Strands (decided 2026-06-14: make it a **toggle**, default self-contained); Strand-editing UX issues need enumerating. Memories: `project_overlap_tiles_strand_bug.md`, `project_strand_editing_debug.md`.
 6. **Cheap cleanup (Haiku).** Vitest has **no `testTimeout` set**, so the default 5 s makes 1–2 heavy render/geometry tests flake whenever the machine is busy (`appSmoke`'s App render: 1.7 s idle, 5.7–7.3 s under load). Verified pre-existing, not caused by any recent change. Raise it in `vite.config.ts`.
+
+---
+### ▶ 2026-07-30 (Strand-editing enumeration — 1 fixed, 2 filed; Opus)
+
+Picked up `/what-next` items **#8** (vitest timeouts) and **#1** (enumerate the Strand-editing issues, open and unenumerated since 2026-05-19).
+
+**#8 — `f4521e1`.** `vite.config.ts` had no `testTimeout`, so the 5 s default flaked the heaviest tests on a busy machine (`appSmoke`'s App render: 1.7 s idle, 5.7–7.3 s under load). Now `testTimeout` + `hookTimeout` at 30 s.
+
+**#1 — the user gave three issues and explicitly said the list is not complete.** All three root-caused in one pass:
+
+| | Issue | Outcome |
+|---|---|---|
+| 1 | Triangles show a "double vertex set on 1 pair of vertices" at the default angle | **#51** filed, root-caused |
+| 2 | archimedes-star has extra ray sets, wrong for a hexagonal tile | **#52** filed, root-caused |
+| 3 | Rhombille + view-only presets pan to the edge of the render and snap back | ✅ **FIXED `1cf6979`** |
+
+**Issue 3 — fixed.** `tapratsTiling.ts` anchored its lattice at the **raw viewport centre**, so the whole tiling slid along with the camera; `usePattern` quantises the generation viewport (~12% steps), which turned the drift into a visible snap-back. `generateTiling` has snapped its BFS seed to the translation lattice since day one for exactly this reason — the Taprats path never did. `snapToLattice` is now exported from `archimedean.ts` and reused rather than copied. Affects all **13** `rosette-patch` tilings (that's the "view-only presets" set — they are non-convertible tier-3 by construction, which is why the report clustered there).
+Regression cover: tile centres inside the shared window must be identical across a **non-lattice** pan, asserted per Taprats key. Verified all 13 fail without the snap.
+
+**Issue 1 — #51, triangles lose C3 at θ=60.** At exactly 60° (the shipped default for every `3` tile type) all six contact rays of an equilateral triangle pass through the centroid, so pair-A goes **collinear at one vertex** → `rayRayIntersect` null → falls through to `bInside`, whose intersection is the far edge midpoint. That vertex draws a chord across the tile instead of an arm. 6 segments emitted, `dedupPolygonSegments` catches only the one endpoint-identical duplicate → **5 segments**, and a C3 figure cannot have 5 arms. 59.9° and 60.1° are a clean symmetric 6.
+Same failure class as the `aAsym`-before-`bInside` fix in CLAUDE.md and the `feedback_pic_pair_selection` memory. A per-tile rotational-symmetry sweep (rotate a regular tile's segment set by 2π/n; it must map onto itself) fails in **6 tilings** — `triangular`, `3.6.3.6`, `3.3.3.4.4`, `3.3.4.3.4`, `3.3.3.3.6`, `davids-star` — and clears every other regular tile. **That probe is worth landing as a permanent invariant test whichever fix is chosen** (recommended in the ticket).
+
+**Issue 2 — #52, the tile is wrong, not the behaviour.** `archimedes-star`'s tile type `'12'` is labelled "Hexagon (12-gon)" and really is one: 12 equal edges with alternating **120°/180°** interior angles — a regular hexagon whose every edge is split by a redundant midpoint vertex. PIC dutifully emits a contact-ray pair at all 12 midpoints (the "extra sets"), and the pair logic is meaningless at a 180° vertex. Ticket lays out the three options (fix the data + re-key `12`→`6` with a migration / drop collinear vertices in PIC / both); **needs a user decision before implementation.**
+
+Both tickets were left unimplemented deliberately — #51 touches the emission path for every pattern and needs the golden fingerprints re-reviewed, not re-baselined.
+
+**Tests: 1349 green** (was 1336; +13 Taprats pan-stability cases), tsc + build clean. ⏳ Not browser-verified — the pan fix should be eyeballed on rhombille.
 
 ---
 ### ▶ 2026-07-29 (One schema gate: `loadLabState` now delegates to `loadPatternConfig` — ✅ SHIPPED + BROWSER-VERIFIED, Opus, #50 follow-up)

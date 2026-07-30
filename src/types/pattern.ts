@@ -203,6 +203,19 @@ export interface MorphConfig {
 }
 
 export interface PatternConfig {
+  /**
+   * Schema generation of this config (roadmap #6). Optional because **absent
+   * means "pre-versioning"** — every save written before 2026-07-30 lacks it
+   * and must keep loading unchanged.
+   *
+   * Owned by `state/configValidation.ts`: `loadPatternConfig` dispatches on it
+   * and stamps `CURRENT_PATTERN_CONFIG_VERSION` on everything it returns, and
+   * the library stamps it on write. Independent of the carriers it rides in —
+   * the library envelope, `lab-state-v1`, a Generator dataset record and an
+   * exported `.json` each version themselves separately (two of them not at
+   * all), which is exactly why this lives on the config.
+   */
+  version?: number
   tiling: TilingConfig
   /** keyed by tile type ID (e.g. "6", "6.1", "6.2") */
   figures: Record<string, FigureConfig>

@@ -13,6 +13,10 @@ import { MIN_FRAME_SIZE, MAX_FRAME_SIZE, DEFAULT_FRAME_SIZE } from '../editor/fr
  * dispatch hook). All other categories pass through as-is — they were
  * already serialised wholesale and the live tree's reducer treats them
  * permissively.
+ *
+ * `PatternConfig` carries its own `version` (roadmap #6) and this module owns
+ * the dispatch — one reader per schema generation, mirroring
+ * `editor/migrations.ts`. See `CURRENT_PATTERN_CONFIG_VERSION`.
  */
 
 const RETIRED_TILING_TYPES = new Set(['layered-mandala', 'composition'])
@@ -22,6 +26,92 @@ export class ConfigValidationError extends Error {
     super(message)
     this.name = 'ConfigValidationError'
   }
+}
+
+/**
+ * The `PatternConfig` schema generation this build writes and understands.
+ *
+ * Generation history:
+ * - **0** — pre-versioning: no `version` field at all. Every save written
+ *   before 2026-07-30. Identified by *absence*, migrated by the generation-0
+ *   branch of `readConfig`: legacy `lacing` → `strand`, the pre-#48
+ *   `{ origin, boundaries }` morph → Origins, and the removed rosette figure
+ *   type → star.
+ * - **1** — current. Adds the `version` field itself; otherwise
+ *   content-identical to a *modern-shape* generation-0 save, which is why
+ *   slice 1 of #6 was a no-op for existing libraries.
+ *
+ * Bumping this: add the new number here, add a `case` to the switch in
+ * `loadPatternConfig`, and write a reader for the generation you just froze.
+ * Do **not** widen the newest reader to also sniff for the new shape — that
+ * permanent-shape-probe habit is exactly what versioning exists to end.
+ */
+export const CURRENT_PATTERN_CONFIG_VERSION = 1
+
+/** The generations `readConfig` knows how to read. */
+type ConfigGeneration = 0 | 1
+
+/**
+ * Read a config's schema generation.
+ *
+ * **Absent ⇒ 0**, and that default is load-bearing: every save in every
+ * existing library lacks the field and must keep loading byte-for-byte as it
+ * did before #6. A non-integer or non-positive `version` is a hand-edit rather
+ * than a generation, so it also reads as 0 — the permissive choice, since the
+ * generation-0 migrations are no-ops on an already-modern shape.
+ */
+function readConfigVersion(r: Record<string, unknown>): number {
+  const v = r.version
+  if (typeof v !== 'number' || !Number.isInteger(v) || v < 1) return 0
+  return v
+}
+
+/**
+ * Every key `readConfig` carries onto its output — the allow-list, named so
+ * the dev warning below can be derived from it rather than drift from it.
+ */
+const PATTERN_CONFIG_KEYS: ReadonlySet<string> = new Set([
+  'version', 'tiling', 'figures', 'edgeAngles', 'strand',
+  'smoothTransitions', 'editor', 'frame', 'morph',
+])
+
+/**
+ * Top-level fields `PatternConfig` used to have. A generation-0 save may
+ * legitimately still carry these, so they are deliberately-retired keys rather
+ * than a forgotten new field, and the warning below stays quiet about them.
+ * `lacing` is *consumed* (migrated into `strand`); the rest are genuinely gone
+ * with their tiling types (`layered-mandala` / `composition`).
+ */
+const RETIRED_CONFIG_KEYS: ReadonlySet<string> = new Set([
+  'lacing', 'mandala', 'composition', 'figureRouting',
+])
+
+/**
+ * Dev-only warning naming keys the allow-list is about to drop.
+ *
+ * `readConfig` builds its output field by field, so a field added to
+ * `PatternConfig` but forgotten here is **absent from the returned object** —
+ * and because `configLibrary.list()` re-validates every entry on read while
+ * the Lab re-persists on every change, one load+save cycle then destroys that
+ * field across the user's entire library, silently. The allow-list itself
+ * stays (junk must not reach the render path); this just makes the omission
+ * loud on the very first load instead of discovered months later.
+ *
+ * Dev-only because in production a dropped key is either a field we retired on
+ * purpose or a newer build's field this one cannot use — neither is actionable
+ * by the user.
+ */
+function warnDroppedKeys(r: Record<string, unknown>, gen: ConfigGeneration): void {
+  if (!import.meta.env.DEV) return
+  const dropped = Object.keys(r).filter(k =>
+    !PATTERN_CONFIG_KEYS.has(k) && !(gen === 0 && RETIRED_CONFIG_KEYS.has(k)),
+  )
+  if (dropped.length === 0) return
+  console.warn(
+    `[configValidation] dropping unrecognised PatternConfig key(s): ${dropped.join(', ')}. `
+    + 'If one of these is a NEW field, add it to PATTERN_CONFIG_KEYS *and* read it in '
+    + 'readConfig — otherwise the next load+save cycle deletes it library-wide.',
+  )
 }
 
 function isTilingConfig(v: unknown): v is TilingConfig {
@@ -38,10 +128,18 @@ function isFiguresMap(v: unknown): v is Record<string, FigureConfig> {
 }
 
 /**
- * Coerce legacy rosette figure entries to star. The rosette figure type was
- * removed in 2026-05-11; old saved configs may still carry `type: 'rosette'`
- * along with `rosetteQ` / `rosetteS` fields. Drop the petal fields and force
- * `type` back to 'star' so PIC renders them as plain stars.
+ * Coerce legacy rosette figure entries to star — **generation 0 only**. The
+ * rosette figure type was removed in 2026-05-11; pre-versioning saves may still
+ * carry `type: 'rosette'` along with `rosetteQ` / `rosetteS` fields. Drop the
+ * petal fields and force `type` back to 'star' so PIC renders them as plain
+ * stars.
+ *
+ * The unconditional force is correct *here* and only here. It used to run on
+ * every load, which was a landmine: `FigureConfig.type` is a single-member
+ * union today, so it flattens nothing — but the moment a second figure type
+ * exists (the rosette epic), an every-load coercion silently destroys it. The
+ * version switch is what lets this stay dated instead of becoming permanent;
+ * generation 1 uses `readFigures` below.
  */
 function coerceLegacyFigures(figures: Record<string, FigureConfig>): Record<string, FigureConfig> {
   const out: Record<string, FigureConfig> = {}
@@ -52,17 +150,33 @@ function coerceLegacyFigures(figures: Record<string, FigureConfig>): Record<stri
   return out
 }
 
+/** Figure types this build renders. Extend when a second one lands. */
+const FIGURE_TYPES: ReadonlySet<string> = new Set<FigureConfig['type']>(['star'])
+
 /**
- * Read a `StrandStyle` from raw JSON.
+ * Normalise a generation-1 `figures` map.
  *
- * Accepts two shapes:
- *   - Current: `{ width, color, background, weave?, weaveGap? }` keyed
- *     under `strand`.
- *   - Legacy `lacing`: `{ strandWidth, strandColor, gapColor, enabled,
- *     gapWidth }` — migrated to the current shape; `enabled`/`gapWidth`
- *     map onto the reintroduced weave fields.
+ * `FigureConfig.type` is required but has only ever had one member, so a save
+ * may reasonably omit it: absent or unrecognised ⇒ default to `'star'`, but a
+ * **recognised** type is preserved untouched. That distinction is the whole
+ * point of splitting this from `coerceLegacyFigures` — adding a member to
+ * `FIGURE_TYPES` is then the only change needed to make a new figure type
+ * survive a save/load round-trip.
+ */
+function readFigures(figures: Record<string, FigureConfig>): Record<string, FigureConfig> {
+  const out: Record<string, FigureConfig> = {}
+  for (const [key, fig] of Object.entries(figures)) {
+    out[key] = FIGURE_TYPES.has(fig.type) ? fig : { ...fig, type: 'star' }
+  }
+  return out
+}
+
+/**
+ * Read the current `StrandStyle` shape — `{ width, color, background, weave?,
+ * weaveGap?, lineStyle?, innerFill? }` keyed under `strand`.
  *
- * Returns `null` if neither shape parses.
+ * Returns `null` if it doesn't parse; callers on the generation-0 path fall
+ * back to `readLegacyLacing`.
  */
 const STRAND_LINE_STYLES = new Set<StrandLineStyle>(['solid', 'double', 'triple', 'dashed', 'dotted'])
 
@@ -84,6 +198,16 @@ export function readStrandStyle(r: Record<string, unknown>): StrandStyle | null 
       return out
     }
   }
+  return null
+}
+
+/**
+ * **Generation 0 only** — the pre-`strand` `lacing` block:
+ * `{ strandWidth, strandColor, gapColor, enabled, gapWidth }`. Migrated to the
+ * current shape, with `enabled`/`gapWidth` mapping onto the reintroduced weave
+ * fields.
+ */
+function readLegacyLacing(r: Record<string, unknown>): StrandStyle | null {
   const legacy = r.lacing as Record<string, unknown> | undefined
   if (legacy && typeof legacy === 'object') {
     if (typeof legacy.strandWidth === 'number'
@@ -100,6 +224,17 @@ export function readStrandStyle(r: Record<string, unknown>): StrandStyle | null 
     }
   }
   return null
+}
+
+/**
+ * Strand style for a given generation. Generation 0 accepts the modern shape
+ * *or* legacy `lacing` — modern first, because almost every existing save is a
+ * modern-shape generation-0 save.
+ */
+function readStrandForGeneration(r: Record<string, unknown>, gen: ConfigGeneration): StrandStyle | null {
+  const direct = readStrandStyle(r)
+  if (direct || gen !== 0) return direct
+  return readLegacyLacing(r)
 }
 
 const FRAME_SHAPES = new Set<FrameShape>(['square', 'pentagon', 'hexagon', 'octagon'])
@@ -180,32 +315,18 @@ function originsFromLegacyBoundaries(
 }
 
 /**
- * Read the top-level `morph` (Step 20). Mirrors the Gallery-frame policy:
- * degrade rather than throw — a dropped morph renders the base pattern, which
- * is harmless next to a failed load. Fields are normalised so a hand-edited
- * save can't feed a degenerate field into the per-edge θ evaluation:
- * unknown mode ⇒ drop; non-finite axis origin/positions ⇒ drop the
- * config/stop; linear direction defaulted to +x and normalised; easing forced
- * 'linear'; overlays must be objects of objects (contents stay permissive,
- * like `figures`); Origins sorted ascending by position.
+ * Normalise a raw stop array into `MorphOrigin`s, sorted ascending by position.
  *
- * Accepts both schemas: the current `{ axisOrigin, origins }` and the pre-#48
- * `{ origin, boundaries }`, the latter converted by
- * `originsFromLegacyBoundaries`. A save carrying both prefers the new keys.
+ * Shared by the current and pre-#48 morph readers: the two schemas differ in
+ * their *key names* and in how `reach`/`sides` are derived, not in how an
+ * individual stop is validated. A hand-edited save can't feed a degenerate
+ * field into the per-edge θ evaluation — non-finite positions drop the stop,
+ * and overlays must be objects of objects (contents stay permissive, like
+ * `figures`).
  */
-export function readMorphConfig(v: unknown): MorphConfig | undefined {
-  if (typeof v !== 'object' || v === null) return undefined
-  const m = v as Record<string, unknown>
-  if (m.mode !== 'linear' && m.mode !== 'radial') return undefined
-  // `axisOrigin` (current) or `origin` (pre-#48, when it named the axis point).
-  const o = (m.axisOrigin ?? m.origin) as Record<string, unknown> | undefined
-  if (!o || typeof o !== 'object' || !Number.isFinite(o.x) || !Number.isFinite(o.y)) return undefined
-  const legacy = !Array.isArray(m.origins) && Array.isArray(m.boundaries)
-  const rawStops = Array.isArray(m.origins) ? m.origins : legacy ? m.boundaries : null
-  if (!rawStops) return undefined
-
+function readMorphStops(rawStops: unknown[]): MorphOrigin[] {
   const stops: MorphOrigin[] = []
-  for (const raw of rawStops as unknown[]) {
+  for (const raw of rawStops) {
     if (typeof raw !== 'object' || raw === null) continue
     const b = raw as Record<string, unknown>
     if (!Number.isFinite(b.position)) continue
@@ -217,7 +338,7 @@ export function readMorphConfig(v: unknown): MorphConfig | undefined {
       }
     }
     // Legacy stops carry neither field; `originsFromLegacyBoundaries` derives
-    // both below, so the defaults here only ever backstop a hand-edited save.
+    // both, so the defaults here only ever backstop a hand-edited save.
     const sides = b.sides === 'both' || b.sides === 'negative' || b.sides === 'positive' ? b.sides : 'both'
     const stop: MorphOrigin = {
       id: typeof b.id === 'string' && b.id.length > 0 ? b.id : `morph-${stops.length}`,
@@ -231,12 +352,20 @@ export function readMorphConfig(v: unknown): MorphConfig | undefined {
     stops.push(stop)
   }
   stops.sort((a, b) => a.position - b.position)
-  const origins = legacy ? originsFromLegacyBoundaries(stops) : stops
+  return stops
+}
 
+/** Assemble the non-stop morph fields. `easing` is forced 'linear' (the only
+ *  member); a linear direction is defaulted to +x and normalised. */
+function buildMorphConfig(
+  m: Record<string, unknown>,
+  axisOrigin: { x: number; y: number },
+  origins: MorphOrigin[],
+): MorphConfig {
   const out: MorphConfig = {
     enabled: m.enabled === true,
-    mode: m.mode,
-    axisOrigin: { x: o.x as number, y: o.y as number },
+    mode: m.mode as 'linear' | 'radial',
+    axisOrigin,
     easing: 'linear',
     origins,
   }
@@ -253,20 +382,77 @@ export function readMorphConfig(v: unknown): MorphConfig | undefined {
 }
 
 /**
- * Validate an unvalidated value as a `PatternConfig`. Throws
- * `ConfigValidationError` with a human-readable message on failure.
+ * Read the top-level `morph` (Step 20) in its **current** shape —
+ * `{ mode, axisOrigin, origins }`.
+ *
+ * Mirrors the Gallery-frame policy: degrade rather than throw — a dropped morph
+ * renders the base pattern, which is harmless next to a failed load. Unknown
+ * mode or a non-finite axis origin ⇒ drop the whole config.
+ */
+export function readMorphConfig(v: unknown): MorphConfig | undefined {
+  if (typeof v !== 'object' || v === null) return undefined
+  const m = v as Record<string, unknown>
+  if (m.mode !== 'linear' && m.mode !== 'radial') return undefined
+  const o = m.axisOrigin as Record<string, unknown> | undefined
+  if (!o || typeof o !== 'object' || !Number.isFinite(o.x) || !Number.isFinite(o.y)) return undefined
+  if (!Array.isArray(m.origins)) return undefined
+  return buildMorphConfig(m, { x: o.x as number, y: o.y as number }, readMorphStops(m.origins))
+}
+
+/**
+ * **Generation 0 only** — the pre-#48 morph, which named the axis point
+ * `origin` and the stop chain `boundaries`. Boundaries are converted to the
+ * Origin model by `originsFromLegacyBoundaries`.
+ *
+ * Deliberately tolerant of half-renamed saves (`origin` + `origins`, or
+ * `axisOrigin` + `boundaries`): the pre-#6 reader accepted every mix of the two
+ * key generations, and a stricter split here would silently drop a morph that
+ * used to load. Generation 1 gets the strict reader above instead.
+ */
+function readLegacyMorphConfig(v: unknown): MorphConfig | undefined {
+  if (typeof v !== 'object' || v === null) return undefined
+  const m = v as Record<string, unknown>
+  if (m.mode !== 'linear' && m.mode !== 'radial') return undefined
+  const o = (m.axisOrigin ?? m.origin) as Record<string, unknown> | undefined
+  if (!o || typeof o !== 'object' || !Number.isFinite(o.x) || !Number.isFinite(o.y)) return undefined
+  const legacyStops = !Array.isArray(m.origins) && Array.isArray(m.boundaries)
+  const rawStops = Array.isArray(m.origins) ? m.origins : legacyStops ? m.boundaries : null
+  if (!rawStops) return undefined
+  const stops = readMorphStops(rawStops as unknown[])
+  return buildMorphConfig(
+    m,
+    { x: o.x as number, y: o.y as number },
+    legacyStops ? originsFromLegacyBoundaries(stops) : stops,
+  )
+}
+
+/** Morph for a given generation — current shape first, since almost every
+ *  existing save is a modern-shape generation-0 save. */
+function readMorphForGeneration(v: unknown, gen: ConfigGeneration): MorphConfig | undefined {
+  const direct = readMorphConfig(v)
+  if (direct || gen !== 0) return direct
+  return readLegacyMorphConfig(v)
+}
+
+/**
+ * Read a `PatternConfig` field by field, at a given schema generation.
+ *
+ * `gen` selects which **input** shapes are accepted. Generation 0
+ * (pre-versioning) additionally accepts the legacy `lacing` strand block, the
+ * pre-#48 `{ origin, boundaries }` morph, and the removed rosette figure type.
+ * Generation 1 accepts only the current shape, and that narrowing is the point
+ * of #6: the legacy readers become dated migrations instead of permanent shape
+ * probes that every future save keeps paying for.
+ *
+ * The output is always current-generation and stamped with
+ * `CURRENT_PATTERN_CONFIG_VERSION`.
  *
  * Editor configs are migrated via `migrateEditorConfig`; if the editor field
  * is present but invalid, the load fails (we don't strip it silently — the
  * user expected to load an editor patch and getting a stripped non-editor
  * config back would be more confusing than an error).
  */
-export function loadPatternConfig(raw: unknown): PatternConfig {
-  if (typeof raw !== 'object' || raw === null) {
-    throw new ConfigValidationError('File is not a JSON object.')
-  }
-  const r = raw as Record<string, unknown>
-
+function readConfig(r: Record<string, unknown>, gen: ConfigGeneration): PatternConfig {
   if (!isTilingConfig(r.tiling)) {
     throw new ConfigValidationError('Missing or malformed `tiling` field.')
   }
@@ -278,14 +464,19 @@ export function loadPatternConfig(raw: unknown): PatternConfig {
   if (!isFiguresMap(r.figures)) {
     throw new ConfigValidationError('Missing or malformed `figures` map.')
   }
-  const strand = readStrandStyle(r)
+  const strand = readStrandForGeneration(r, gen)
   if (!strand) {
-    throw new ConfigValidationError('Missing or malformed `strand` (or legacy `lacing`) style.')
+    throw new ConfigValidationError(
+      gen === 0
+        ? 'Missing or malformed `strand` (or legacy `lacing`) style.'
+        : 'Missing or malformed `strand` style.',
+    )
   }
 
   const out: PatternConfig = {
+    version: CURRENT_PATTERN_CONFIG_VERSION,
     tiling: r.tiling,
-    figures: coerceLegacyFigures(r.figures),
+    figures: gen === 0 ? coerceLegacyFigures(r.figures) : readFigures(r.figures),
     strand,
   }
   if (r.edgeAngles && typeof r.edgeAngles === 'object') {
@@ -307,9 +498,40 @@ export function loadPatternConfig(raw: unknown): PatternConfig {
   }
   const frame = readGalleryFrame(r.frame)
   if (frame) out.frame = frame
-  const morph = readMorphConfig(r.morph)
+  const morph = readMorphForGeneration(r.morph, gen)
   if (morph) out.morph = morph
   return out
+}
+
+/**
+ * Validate an unvalidated value as a `PatternConfig`. Throws
+ * `ConfigValidationError` with a human-readable message on failure.
+ *
+ * The **strict** gate, used by file import and the config library. A config
+ * from a newer schema generation is refused rather than half-read: the honest
+ * answer on a path the user explicitly initiated. The lenient sibling
+ * `readPatternConfig` makes the opposite call for background restores.
+ */
+export function loadPatternConfig(raw: unknown): PatternConfig {
+  if (typeof raw !== 'object' || raw === null) {
+    throw new ConfigValidationError('File is not a JSON object.')
+  }
+  const r = raw as Record<string, unknown>
+
+  const version = readConfigVersion(r)
+  if (version > CURRENT_PATTERN_CONFIG_VERSION) {
+    throw new ConfigValidationError(
+      `This pattern was saved by a newer version of the app (schema version ${version}; `
+      + `this build reads up to ${CURRENT_PATTERN_CONFIG_VERSION}). Update the app to open it.`,
+    )
+  }
+  const gen = version as ConfigGeneration
+  warnDroppedKeys(r, gen)
+
+  // One reader per schema generation, mirroring `migrateEditorConfig`. When
+  // generation 2 lands this becomes a switch: generation 1 gets its own frozen
+  // reader and the new one is added here.
+  return readConfig(r, gen)
 }
 
 /**
@@ -337,6 +559,17 @@ export function readPatternConfig(raw: unknown, fallbackStrand: StrandStyle): Pa
   if (typeof raw !== 'object' || raw === null) return null
   const r = { ...(raw as Record<string, unknown>) }
 
+  // A generation this build doesn't know → read it as the current one and keep
+  // what parses, instead of the strict loader's refusal. Downgrading a *file
+  // import* would be dishonest, but this is the session the user left open:
+  // refusing it is a blank Lab with no way back to their work, and the fields
+  // this build understands are still worth restoring.
+  const version = readConfigVersion(r)
+  const gen: ConfigGeneration = version > CURRENT_PATTERN_CONFIG_VERSION
+    ? CURRENT_PATTERN_CONFIG_VERSION
+    : version as ConfigGeneration
+  r.version = gen
+
   // No readable tiling ⇒ nothing worth restoring.
   if (!isTilingConfig(r.tiling)) return null
   let tiling: TilingConfig = r.tiling
@@ -346,7 +579,10 @@ export function readPatternConfig(raw: unknown, fallbackStrand: StrandStyle): Pa
   // anyway.
   if (RETIRED_TILING_TYPES.has(tiling.type)) tiling = { ...tiling, type: '' }
   if (!isFiguresMap(r.figures)) r.figures = {}
-  if (!readStrandStyle(r)) r.strand = fallbackStrand
+  // Generation-aware: a pre-versioning blob carrying only `lacing` has a
+  // perfectly good strand style, and clobbering it with the fallback would
+  // discard the user's colours on every boot.
+  if (!readStrandForGeneration(r, gen)) r.strand = fallbackStrand
 
   // An editor patch that won't migrate is dropped (taking an editor tiling type
   // with it) — booting into a blank Lab beats failing the whole restore. Note

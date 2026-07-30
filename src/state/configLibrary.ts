@@ -1,6 +1,6 @@
 import type { PatternConfig } from '../types/pattern'
 import { TILINGS } from '../tilings/index'
-import { ConfigValidationError, loadPatternConfig } from './configValidation'
+import { ConfigValidationError, CURRENT_PATTERN_CONFIG_VERSION, loadPatternConfig } from './configValidation'
 
 /**
  * Generic in-app config library — list / save / rename / delete / duplicate
@@ -58,6 +58,20 @@ function structuredCloneSafe<T>(value: T): T {
     try { return structuredClone(value) } catch { /* fall through */ }
   }
   return JSON.parse(JSON.stringify(value)) as T
+}
+
+/**
+ * Snapshot a live config for persistence, stamped with the schema generation
+ * that wrote it.
+ *
+ * `loadPatternConfig` stamps everything it *reads*, but plenty of configs never
+ * pass through it — presets built by `buildPresetConfig`, Generator samples
+ * opened in the Lab, anything `createDefault*` seeds. Those are this build's
+ * shape by construction, so the write is the honest place to say so; without
+ * this they'd persist unversioned and come back as generation 0.
+ */
+function snapshotForWrite(config: PatternConfig): PatternConfig {
+  return { ...structuredCloneSafe(config), version: CURRENT_PATTERN_CONFIG_VERSION }
 }
 
 export interface ConfigLibrary {
@@ -167,7 +181,7 @@ export function createConfigLibrary(storageKey: string): ConfigLibrary {
       id: uuid(),
       name: trimmed,
       createdAt: Date.now(),
-      config: structuredCloneSafe(config),
+      config: snapshotForWrite(config),
       sourceCategory: categoryFor(config),
     }
     const error = writeAll([...entries, entry])
@@ -184,7 +198,7 @@ export function createConfigLibrary(storageKey: string): ConfigLibrary {
     const updated: SavedConfig = {
       ...entries[index],
       createdAt: Date.now(),
-      config: structuredCloneSafe(config),
+      config: snapshotForWrite(config),
       sourceCategory: categoryFor(config),
     }
     const next = [...entries]

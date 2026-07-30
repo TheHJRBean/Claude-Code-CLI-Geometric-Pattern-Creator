@@ -1,11 +1,12 @@
 import type { PatternConfig } from '../types/pattern'
-import { readPatternConfig } from './configValidation'
+import { CURRENT_PATTERN_CONFIG_VERSION, readPatternConfig } from './configValidation'
 
 /**
  * Lab starts with no tessellation selected. Strands are off by default
  * (Lab focuses on the polygon tessellation; PIC overlay is opt-in).
  */
 export const LAB_DEFAULT_CONFIG: PatternConfig = {
+  version: CURRENT_PATTERN_CONFIG_VERSION,
   tiling: { type: '', scale: 100 },
   figures: {},
   strand: {

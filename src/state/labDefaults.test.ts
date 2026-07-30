@@ -38,6 +38,12 @@ const persistRaw = (config: unknown) => {
   store.set('lab-state-v1', JSON.stringify({ config, showStrands: false, outlineWidth: 0.8 }))
 }
 const baseConfig = () => structuredClone(LAB_DEFAULT_CONFIG) as PatternConfig
+/** `baseConfig` as a pre-versioning (schema generation 0) payload — no
+ *  `version` field, the way every save written before 2026-07-30 looks. */
+const legacyBaseConfig = (): Record<string, unknown> => {
+  const { version: _v, ...rest } = baseConfig()
+  return rest as unknown as Record<string, unknown>
+}
 
 describe('loadLabState — morph migration', () => {
   it('round-trips a current-shape morph untouched', () => {
@@ -56,7 +62,12 @@ describe('loadLabState — morph migration', () => {
   })
 
   it('migrates a pre-#48 persisted morph instead of crashing on it', () => {
-    const config = baseConfig() as unknown as Record<string, unknown>
+    // Unversioned on purpose: a session persisted before #48 predates the
+    // `PatternConfig.version` field (#6) entirely, so it must arrive as schema
+    // generation 0 — the only generation whose reader still sniffs for the old
+    // `origin`/`boundaries` names. Stamping a version here would make the
+    // fixture a shape that never existed and quietly stop testing the #50 path.
+    const config = legacyBaseConfig()
     config.morph = {
       enabled: true,
       mode: 'linear',
@@ -152,7 +163,9 @@ describe('loadLabState — migrations inherited from loadPatternConfig', () => {
   })
 
   it('blanks a retired tiling type and strips its stray payload', () => {
-    const config = baseConfig() as unknown as Record<string, unknown>
+    // Unversioned: `mandala` was a top-level field retired with its tiling type,
+    // so only a generation-0 save can carry one.
+    const config = legacyBaseConfig()
     config.tiling = { type: 'layered-mandala', scale: 100 }
     config.mandala = { rings: 3 }
     persistRaw(config)

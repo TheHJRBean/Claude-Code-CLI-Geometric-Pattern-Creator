@@ -304,6 +304,18 @@ export function TessellationLabMode({
     setEditorPhase(p => (p === 'design' ? 'strand' : p))
   }, [config])
 
+  // Composition and Decoration are both defined by the Strands — Composition
+  // IS Tiling + Strands, and Decoration paints the Voids *between* them — so
+  // the Lab's persisted "Show strands" being off renders bare Tile outlines
+  // there, and in Decoration leaves nothing to paint and nothing to see. Turn
+  // it on when such a Phase is entered. One-directional: unticking it
+  // afterwards sticks, and `setState(true)` on an already-true value is a
+  // no-op, so this can't loop.
+  useEffect(() => {
+    if (editorPhase !== 'design') onToggleShowStrands(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editorPhase])
+
   // A Reach the substrate can't express folds back to its coarsest rung — the
   // scope selection is Lab-level state and survives a substrate switch, so a
   // Patch's `Twins` must not paint an unmatchable key onto a preset.

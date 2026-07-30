@@ -60,6 +60,25 @@ export function withPatternDecoration(
 }
 
 /**
+ * Return `config` with its decoration removed from BOTH homes.
+ *
+ * For the actions that swap the substrate out from under it — a new Patch, a
+ * cleared Lab, a different tiling. Decoration keys are shape signatures and
+ * world positions of the *old* substrate's Voids and Strands, so none of them
+ * can match the new one; left in place they are invisible, unreachable, and
+ * ride along into every later save of the config.
+ */
+export function dropDecoration(config: PatternConfig): PatternConfig {
+  const next = withPatternDecoration(config, undefined)
+  // `withPatternDecoration` writes to one home; a config mid-substrate-swap
+  // can be carrying the other.
+  if (!next.decoration) return next
+  const { decoration: _drop, ...rest } = next
+  void _drop
+  return rest
+}
+
+/**
  * Whether there is anything to decorate. False only for the empty Lab (after
  * EDITOR_CLEAR, which leaves `tiling.type === ''`) — a guard so a stray paint
  * action can't attach decoration to a config with no substrate under it, where

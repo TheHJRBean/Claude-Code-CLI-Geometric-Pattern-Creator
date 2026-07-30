@@ -186,6 +186,29 @@ describe('Decoration on a legacy substrate (no Builder Patch)', () => {
     expect('decoration' in s).toBe(false)
   })
 
+  it('swapping the substrate drops the decoration it was keyed to', () => {
+    // Records are shape signatures and world positions of the OLD substrate's
+    // Voids — none can match the new one, and left behind they are invisible
+    // and ride into every later save.
+    let s = legacy()
+    s = reducer(s, { type: 'SET_DECORATION_VOID_FILL', payload: { scope: 'congruent', key: 'abc', colour: '#111' } } as Action)
+    expect(s.decoration).toBeDefined()
+
+    // ...to a different tiling
+    const retiled = reducer(s, { type: 'SET_TILING_TYPE', payload: '4.8.8' } as Action)
+    expect('decoration' in retiled).toBe(false)
+
+    // ...to a fresh Builder Patch
+    const patched = reducer(s, { type: 'EDITOR_NEW' } as Action)
+    expect('decoration' in patched).toBe(false)
+    expect(patched.editor!.decoration).toBeUndefined()
+
+    // ...and out again to an empty Lab
+    const cleared = reducer(patched, { type: 'EDITOR_CLEAR' } as Action)
+    expect('decoration' in cleared).toBe(false)
+    expect(cleared.editor).toBeUndefined()
+  })
+
   it('a Patch keeps its decoration on the Patch — the two homes never mix', () => {
     let s = base()
     s = reducer(s, { type: 'SET_DECORATION_VOID_FILL', payload: { scope: 'congruent', key: 'abc', colour: '#111' } } as Action)

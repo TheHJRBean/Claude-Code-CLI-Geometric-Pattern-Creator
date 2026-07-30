@@ -38,7 +38,7 @@ import { buildMorphOrigin, createDefaultMorph, insertMorphOrigin } from '../edit
 import { originReach } from '../pic/morph'
 import { activeCell, allCells, cellPlacementEdgeLength } from '../editor/active'
 import { clearMaskingRecords } from '../decoration/scopes'
-import { canDecorate, emptyDecoration, patternDecoration, withPatternDecoration } from '../decoration/store'
+import { canDecorate, dropDecoration, emptyDecoration, patternDecoration, withPatternDecoration } from '../decoration/store'
 import {
   applyCellTransform,
   existingTilesInHostFrame,
@@ -184,8 +184,10 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       // settings across tilings (vertex strands enabled on a `square`'s "4"
       // bleeding onto 3.3.4.3.4's squares). Both are the reported bug.
       if (action.payload === state.tiling.type) return state
+      // Decoration goes the same way as `figures`, and for the same reason:
+      // its keys are the old tiling's Void shapes and positions.
       return {
-        ...state,
+        ...dropDecoration(state),
         tiling: { ...state.tiling, type: action.payload },
         figures: { ...(def.defaultConfig.figures ?? {}) },
       }
@@ -325,15 +327,20 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       return { ...cfg, figures: pruneFigures(cfg.figures, cfg.tiling.type) }
     }
     case 'EDITOR_NEW': {
+      // A fresh Patch is a new substrate — any decoration painted on the one
+      // being replaced is keyed to its Voids and can never match again.
       const editor = createDefaultEditorConfig()
       return seedFigures({
-        ...dropMorph(state),
+        ...dropDecoration(dropMorph(state)),
         tiling: { ...state.tiling, type: 'editor' },
         editor,
       })
     }
     case 'EDITOR_CLEAR': {
-      const { editor: _drop, ...rest } = dropMorph(state)
+      // The Patch's own decoration leaves with it; a top-level block from an
+      // earlier legacy substrate would otherwise survive into an empty Lab,
+      // where nothing can reach it and every later save carries it.
+      const { editor: _drop, ...rest } = dropDecoration(dropMorph(state))
       void _drop
       return { ...rest, tiling: { ...state.tiling, type: '' } }
     }

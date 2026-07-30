@@ -16,5 +16,10 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    // The heaviest tests are full App renders and geometry sweeps: ~1.7 s idle,
+    // but 5.7-7.3 s on a loaded machine — over vitest's 5 s default. Raised so a
+    // busy machine doesn't turn a green suite red.
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
   },
 })

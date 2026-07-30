@@ -6,11 +6,11 @@
 
 **Session ended at a clean milestone (2026-07-30, second entry).** Nothing mid-flight, no handoff. Tree clean, all pushed to `main`, tests **1349 green**, tsc clean.
 
-**⚠️ ONE THING OWED TO THE USER:** the Strand-editing enumeration is **incomplete by their own statement** — *"This isn't the full extent of it."* Five issues are now captured, root-caused and **all five fixed** (below); **ask for the rest.** See the three 2026-07-30 entries.
+**⚠️ ONE THING OWED TO THE USER:** the Strand-editing enumeration is **incomplete by their own statement** — *"This isn't the full extent of it."* Six issues are now captured, root-caused and **all six fixed** (below); **ask for the rest.** See the four 2026-07-30 entries.
 
 **⚠️ #52 needs a user decision.** They approved collapsing archimedes-star's 12-gon to a hexagon; the evidence says that would break strand continuity at 12 junctions, so it was **not** done and a correction is posted on the issue. Awaiting their call.
 
-**⚠️ #53 filed, NOT fixed — vertex strands applied inconsistently** ("this is common"). Fully root-caused with a reproducible trace; deliberately left for a **Fable** session because part 2 is a semantic decision (what a vertex line means at a 180° vertex), not just a patch. See the 2026-07-30 vertex-strand entry.
+**#53 vertex strands — ✅ FIXED `e8b18cc`.** See the 2026-07-30 vertex-strand entry; it also records a regression I introduced in `897785d` and then corrected.
 
 **Last session (2026-07-29), both ✅ SHIPPED + BROWSER-VERIFIED:** the Gallery → Lab library link (Save updates the save instead of forking a copy) and precise gradient angle control on all three gradient surfaces (rotate-in-place + Fit + Shift-snap).
 
@@ -34,7 +34,22 @@
 6. **Cheap cleanup (Haiku).** Vitest has **no `testTimeout` set**, so the default 5 s makes 1–2 heavy render/geometry tests flake whenever the machine is busy (`appSmoke`'s App render: 1.7 s idle, 5.7–7.3 s under load). Verified pre-existing, not caused by any recent change. Raise it in `vite.config.ts`.
 
 ---
-### ▶ 2026-07-30 (#53 filed — vertex strands applied inconsistently; DIAGNOSED, NOT FIXED; Opus)
+### ▶ 2026-07-30 (#53 — vertex strands applied inconsistently; ✅ FIXED `e8b18cc`, Opus)
+
+**Fixed after the diagnosis below.** Three defects, plus a regression of my own:
+
+1. **Zero-vector bisector at straight vertices.** `computeVertexRaysPerVertex` built the bisector as `normalize(toPrev + toNext)`; at a 180° vertex those are exact opposites, so it **normalised the zero vector** and took its direction from the rounding error. Because `pairVertexAtEdge` pairs *adjacent* vertices, every edge touching one inherited the noise — that is why the C6 12-gon's survivors were not a symmetry orbit. Fixed with the inward edge normal, mirroring `rosettePatch.ts::vertexFrame`. `signedArea` promoted to `utils/math.ts` rather than copied.
+2. **No fallback tier** — added `aAsym`/`bAsym` mirroring `pairAtVertex`. This is what fixes the **0/8** cases (rhombille, pentagonal-rosette quads).
+3. **Zero-length arms** — the new asym tiers can put the tip on a ray's own origin (morph probe caught 1.4e-13). `emitEdgePass` guards this via `ORPHAN_MIN_LEN_FRACTION`; vertex arms had none. Added a scale-relative guard.
+
+⚠️ **Regression I introduced in `897785d` and corrected here:** `collinearApproach` (#51) was applied in the **shared** `probePair`, so vertex lines picked it up. For vertex lines that configuration means something else — it arises when α equals the interior half-angle, where the rays lie exactly **along** the tile's edges (#40's boundary); resolving them drew vertex lines on the tile boundary and was **orientation-dependent** (equilateral triangle at θ=60: C3 isolated, **C1 in the field**). Now opt-in, edge lines only. **Lesson: `probePair` is shared by both pairing paths — anything added there hits vertex lines too.**
+
+⚠️ **The ticket's proposed invariant ("2n per tile") was wrong** and pinning it would have fought two legitimate behaviours: **#40** (rays leaking past the tile once α exceeds the interior half-angle — correct to suppress) and `dedupPolygonSegments` collapsing coincident lines. Both preserve symmetry, so the assertion landed as **consistency**: a tile with C_m symmetry must emit a C_m vertex-line set. **#40 is now the only remaining reason a tile emits fewer than 2n.**
+
+**Tests: 1357 green**, tsc + build clean. Both new cases verified failing before the fix. ⏳ **not browser-verified.**
+
+---
+### ▶ 2026-07-30 (#53 original diagnosis)
 
 User: *"the final screenshot shows inconsistent application of vertex strands. **This is common.**"*
 

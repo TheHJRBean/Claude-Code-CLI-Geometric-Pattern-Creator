@@ -592,9 +592,28 @@ export function TessellationLabMode({
                   color: 'var(--text-muted)',
                   lineHeight: 1.5,
                 }}>
-                  Build a tessellation patch from a chosen boundary and origin
-                  polygon. Start with "New patch", or load the hand-built
-                  sample to see what the renderer accepts.
+                  {def ? (
+                    // A legacy-substrate pattern is loaded (a Gallery preset,
+                    // a Generator sample, or a saved legacy render opened via
+                    // "Edit in Lab"). Say so, and say what it costs — the
+                    // Strands section below is fully live, but Design and
+                    // Decoration need a Patch this tiling cannot form yet.
+                    // Without this the two buttons below read as the only
+                    // thing to do here, and either one DISCARDS the pattern.
+                    <>
+                      <strong>{def.label}</strong> is loaded on the legacy
+                      substrate — tune it in <em>Strands</em> below. The Design
+                      and Decoration Phases need a Patch, which this tiling
+                      can't form yet. The buttons below replace the loaded
+                      pattern with a new Patch.
+                    </>
+                  ) : (
+                    <>
+                      Build a tessellation patch from a chosen boundary and
+                      origin polygon. Start with "New patch", or load the
+                      hand-built sample to see what the renderer accepts.
+                    </>
+                  )}
                 </p>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {([

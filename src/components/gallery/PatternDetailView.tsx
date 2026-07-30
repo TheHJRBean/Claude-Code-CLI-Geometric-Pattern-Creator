@@ -28,8 +28,8 @@ export function PatternDetailView({ save, badge, editAvailability, onBack, onEdi
   const flags = faithfulRenderFlags(save.config)
 
   const editTitle =
-    editAvailability === 'unavailable'
-      ? "This pattern can't be edited in the Lab yet"
+    editAvailability === 'view'
+      ? 'Open in the Lab on the legacy substrate — Strand controls work; the Design and Decoration Phases need a Patch this tiling cannot form yet'
       : editAvailability === 'convert'
         ? 'Convert to an editable Patch (your saved copy is kept)'
         : 'Open in the Lab'
@@ -64,7 +64,6 @@ export function PatternDetailView({ save, badge, editAvailability, onBack, onEdi
         <button
           className="gallery-detail__btn gallery-detail__btn--primary"
           onClick={onEditInLab}
-          disabled={editAvailability === 'unavailable'}
           title={editTitle}
         >
           Edit in Lab

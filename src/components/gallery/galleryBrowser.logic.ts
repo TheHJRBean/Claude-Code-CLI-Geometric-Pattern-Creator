@@ -14,10 +14,19 @@ import { convertPresetToEditorConfig, isConvertiblePreset } from '../../editor/p
  */
 
 /** How "Edit in Lab" resolves for a save:
- *  - `direct`     — already an editor Patch; loads verbatim.
- *  - `convert`    — a tier-1 legacy preset; converts one-way (original kept).
- *  - `unavailable`— tier-2/3 legacy render with no conversion yet; not editable. */
-export type EditAvailability = 'direct' | 'convert' | 'unavailable'
+ *  - `direct`  — already an editor Patch; loads verbatim.
+ *  - `convert` — a tier-1 legacy preset; converts one-way (original kept).
+ *  - `view`    — a tier-3 legacy render with no Patch conversion yet; loads
+ *                verbatim onto the **legacy substrate**, where the Lab's
+ *                Composition-level controls (θ, Figure recipes, line sets,
+ *                curves, strand style) all work but the Design and Decoration
+ *                Phases — which need a Patch — do not.
+ *
+ * There is deliberately no `unavailable`: the Lab's own My Tessellations panel
+ * has always loaded any saved config verbatim, so gating the Gallery and
+ * Generator doors shut was an inconsistency, not a safeguard. A tiling that
+ * cannot become a Patch is a *reduced* editing experience, not a closed one. */
+export type EditAvailability = 'direct' | 'convert' | 'view'
 
 export interface CardModel {
   id: string
@@ -48,7 +57,7 @@ export function badgeForSave(save: SavedConfig): string | null {
 /** Whether — and how — a config opens in the Lab. Mirrors `resolveEditInLab`. */
 export function editAvailabilityFor(config: PatternConfig): EditAvailability {
   if (config.tiling.type === 'editor') return 'direct'
-  return isConvertiblePreset(config.tiling.type) ? 'convert' : 'unavailable'
+  return isConvertiblePreset(config.tiling.type) ? 'convert' : 'view'
 }
 
 export function toCardModel(save: SavedConfig): CardModel {
@@ -72,13 +81,22 @@ export interface EditInLabResult {
 /**
  * Resolve a save's config for "Edit in Lab". Editor-sourced configs load
  * verbatim; convertible tier-1 legacy presets convert one-way (the original
- * save is untouched — the caller preserves it); anything else returns null
- * (not editable as a Patch yet — tier-2/3). The input is never mutated.
+ * save is untouched — the caller preserves it); a tier-3 legacy render also
+ * loads **verbatim**, onto the legacy substrate (`view` availability), because
+ * the Lab renders and tunes that path perfectly well — it just has no Patch to
+ * run the Design/Decoration Phases against. The input is never mutated.
+ *
+ * Null is now unreachable in practice; the signature keeps it so callers that
+ * already guard (App's `handleEditInLab`) stay correct if a future tier is
+ * added that genuinely cannot be handed over.
  */
 export function resolveEditInLab(config: PatternConfig): EditInLabResult | null {
   if (config.tiling.type === 'editor') return { config, converted: false }
   const converted = convertPresetToEditorConfig(config)
-  return converted ? { config: converted, converted: true } : null
+  if (converted) return { config: converted, converted: true }
+  // Tier-3: no Patch encoder yet, but nothing about the config stops the Lab
+  // loading it. Not a conversion, so the caller keeps the library link.
+  return { config, converted: false }
 }
 
 /**

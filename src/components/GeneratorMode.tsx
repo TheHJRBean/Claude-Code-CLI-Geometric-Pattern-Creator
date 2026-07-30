@@ -194,8 +194,8 @@ export function GeneratorMode({ onOpenInLab }: Props) {
   }
 
   const editAvailability = editAvailabilityFor(sample.config)
-  const openInLabTitle = editAvailability === 'unavailable'
-    ? "This tiling can't be opened in the Lab yet"
+  const openInLabTitle = editAvailability === 'view'
+    ? 'Open in the Lab on the legacy substrate — Strand controls work; the Design and Decoration Phases need a Patch this tiling cannot form yet'
     : 'Open in the Lab'
 
   const flags = faithfulRenderFlags(sample.config)
@@ -259,7 +259,6 @@ export function GeneratorMode({ onOpenInLab }: Props) {
         <button
           className="gallery-detail__btn"
           onClick={() => onOpenInLab(sample.config)}
-          disabled={editAvailability === 'unavailable'}
           title={openInLabTitle}
         >
           Open in Lab

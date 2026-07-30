@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import type { PatternConfig } from '../../types/pattern'
 import type { SavedConfig, SavedSourceCategory } from '../../state/configLibrary'
+import { TILING_NAMES } from '../../tilings/index'
+import { sampleRandomPattern } from '../../generator/randomPattern'
 import {
   badgeForSave,
   editAvailabilityFor,
@@ -50,8 +52,9 @@ describe('editAvailabilityFor', () => {
     expect(editAvailabilityFor(cfg('square'))).toBe('convert')
     expect(editAvailabilityFor(cfg('4.8.8'))).toBe('convert')
   })
-  it('tier-2/3 legacy renders are unavailable', () => {
-    expect(editAvailabilityFor(cfg('rhombille'))).toBe('unavailable')
+  it('tier-3 legacy renders open on the legacy substrate, not blocked', () => {
+    expect(editAvailabilityFor(cfg('rhombille'))).toBe('view')
+    expect(editAvailabilityFor(cfg('pentagonal-rosette'))).toBe('view')
   })
 })
 
@@ -70,8 +73,41 @@ describe('resolveEditInLab', () => {
     expect(r?.config.editor?.presetId).toBe('square')
     expect(JSON.stringify(c)).toBe(before)
   })
-  it('returns null for a non-convertible legacy render', () => {
-    expect(resolveEditInLab(cfg('rhombille'))).toBeNull()
+  it('hands a non-convertible legacy render over verbatim, unconverted', () => {
+    // The Lab's My Tessellations panel has always loaded these; the Gallery
+    // and Generator doors now agree with it instead of disabling.
+    const c = cfg('rhombille')
+    expect(resolveEditInLab(c)).toEqual({ config: c, converted: false })
+  })
+  it('keeps the library link for a verbatim legacy load — nothing was derived', () => {
+    const resolved = resolveEditInLab(cfg('rhombille'))!
+    expect(linkedSavedIdFor(resolved, 'save-9')).toBe('save-9')
+  })
+})
+
+describe('every pattern can reach the Lab', () => {
+  // The Generator samples uniformly over the shipped tilings, so a rating
+  // session hands the user patterns on ALL of them. Half of those have no
+  // Patch conversion (rosette patches, irregular Laves) and used to hit a
+  // disabled "Open in Lab" / "Edit in Lab" button — a dead end for a pattern
+  // the user had just rated and saved. No tiling may be a dead end.
+  it('resolves a hand-over for every shipped tiling', () => {
+    for (const type of TILING_NAMES) {
+      expect(resolveEditInLab(cfg(type)), `${type} must open in the Lab`).not.toBeNull()
+      expect(editAvailabilityFor(cfg(type))).not.toBe('unavailable')
+    }
+  })
+
+  it('resolves a hand-over for real generated samples', () => {
+    for (let seed = 0; seed < 40; seed++) {
+      const { config } = sampleRandomPattern(seed)
+      const resolved = resolveEditInLab(config)
+      expect(resolved, `seed ${seed} (${config.tiling.type}) must open in the Lab`).not.toBeNull()
+      // The generated look must survive the hand-over: a tier-1 conversion
+      // carries `figures` onto the Patch, a tier-3 load keeps them verbatim.
+      expect(Object.keys(resolved!.config.figures ?? {}).length).toBeGreaterThan(0)
+      expect(resolved!.config.strand).toEqual(config.strand)
+    }
   })
 })
 

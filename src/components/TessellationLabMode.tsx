@@ -36,6 +36,7 @@ import { buildExportMenuItems } from '../export/exportActions'
 import type { AppMode, EditorMode } from '../types/appMode'
 import type { EditorGuide, EditorGuidePatch } from '../types/editor'
 import { DEFAULT_ANGLE_STEP, type GuideTool, type WorldBounds } from '../editor/guides'
+import { patternDecoration } from '../decoration/store'
 
 
 /**
@@ -933,7 +934,7 @@ export function TessellationLabMode({
           // gradient without clobbering it. A group whose gradient already
           // matches the draft falls through to the paint/unpaint toggle below,
           // so a just-painted group can still be clicked off.
-          const existing = config.editor?.decoration?.voidFills.find(
+          const existing = patternDecoration(config)?.voidFills.find(
             r => r.scope === p.scope && r.key === p.key && r.gradient,
           )?.gradient
           if (existing) {

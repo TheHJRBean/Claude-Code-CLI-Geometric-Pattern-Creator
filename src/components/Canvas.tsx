@@ -10,6 +10,7 @@ import type { PanZoomHandlers } from '../hooks/usePanZoom'
 import { PatternSVG } from '../rendering/PatternSVG'
 import { screenToWorld, worldToScreen } from '../rendering/screenSpace'
 import { DecorationPaintLayer, type PaintPayload, type PaintTarget, type StrandPaintScope, type VoidPaintScope } from '../rendering/DecorationPaintLayer'
+import { patternDecoration } from '../decoration/store'
 import type { PaintVoid } from '../decoration/resolve'
 import { GRADIENT_ANGLE_SNAP_DEG, snapPointToAngle } from '../decoration/gradients'
 import { RotationDial } from './RotationDial'
@@ -276,6 +277,11 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
 
   // Mirror the Void hit-targets up so the Decoration panel can export every
   // distinct shape without re-running the extraction.
+  // Decoration lives on the Patch for a Builder config and at the top level
+  // for a legacy substrate; `decoration/store.ts` is the only place that
+  // picks. Read it once here so every consumer below sees the same block.
+  const decoration = patternDecoration(config)
+
   useEffect(() => {
     onDecorationVoids?.(decorationVoids ?? [])
   }, [decorationVoids, onDecorationVoids])
@@ -1135,35 +1141,35 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // Across-frame gradient handles (#45) — live while the Gradient paint target
   // is active with an enabled frame gradient (Decoration Phase; `paintTarget`
   // is already gated to 'off' outside Decoration by the parent).
-  const frameGradient = config.editor?.decoration?.frameGradient
+  const frameGradient = decoration?.frameGradient
   const frameGradientOverlayVisible = paintTarget === 'gradient' && frameGradient?.enabled === true
 
   // `snap` = Shift held: constrain the axis to 15° detents about the endpoint
   // that isn't moving, so a wash can be aimed exactly by hand. Precise angles
   // are also typeable in the panel's Angle row.
   const handleDragFrameGradientLinear = useCallback((which: 'start' | 'end', screen: Vec2, snap: boolean) => {
-    const fg = config.editor?.decoration?.frameGradient
+    const fg = decoration?.frameGradient
     if (!fg || fg.type !== 'linear') return
     const raw = screenToWorld(screen, viewTransform, size.width, size.height)
     const anchor = which === 'start' ? fg.end : fg.start
     const w = snap ? snapPointToAngle(anchor, raw, GRADIENT_ANGLE_SNAP_DEG) : raw
     onSetFrameGradient?.(which === 'start' ? { ...fg, start: w } : { ...fg, end: w })
-  }, [config.editor?.decoration?.frameGradient, viewTransform, size.width, size.height, onSetFrameGradient])
+  }, [decoration?.frameGradient, viewTransform, size.width, size.height, onSetFrameGradient])
 
   const handleDragFrameGradientCentre = useCallback((screen: Vec2) => {
-    const fg = config.editor?.decoration?.frameGradient
+    const fg = decoration?.frameGradient
     if (!fg || fg.type !== 'radial') return
     const w = screenToWorld(screen, viewTransform, size.width, size.height)
     onSetFrameGradient?.({ ...fg, centre: w })
-  }, [config.editor?.decoration?.frameGradient, viewTransform, size.width, size.height, onSetFrameGradient])
+  }, [decoration?.frameGradient, viewTransform, size.width, size.height, onSetFrameGradient])
 
   const handleDragFrameGradientRadius = useCallback((screen: Vec2) => {
-    const fg = config.editor?.decoration?.frameGradient
+    const fg = decoration?.frameGradient
     if (!fg || fg.type !== 'radial') return
     const w = screenToWorld(screen, viewTransform, size.width, size.height)
     const radius = Math.max(1, Math.hypot(w.x - fg.centre.x, w.y - fg.centre.y))
     onSetFrameGradient?.({ ...fg, radius })
-  }, [config.editor?.decoration?.frameGradient, viewTransform, size.width, size.height, onSetFrameGradient])
+  }, [decoration?.frameGradient, viewTransform, size.width, size.height, onSetFrameGradient])
 
   const frameGradientLayer = frameGradientOverlayVisible && frameGradient ? (
     <EditorFrameGradientLayer
@@ -1180,32 +1186,32 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // centre/radius), shown while the Strands paint target is active with an
   // enabled strand gradient. It and the frame-gradient overlay never coexist
   // (distinct paint targets). Drag maths mirror the frame gradient's.
-  const strandGradient = config.editor?.decoration?.strandGradient
+  const strandGradient = decoration?.strandGradient
   const strandGradientOverlayVisible = paintTarget === 'strands' && strandGradient?.enabled === true
 
   const handleDragStrandGradientLinear = useCallback((which: 'start' | 'end', screen: Vec2, snap: boolean) => {
-    const sg = config.editor?.decoration?.strandGradient
+    const sg = decoration?.strandGradient
     if (!sg || sg.type !== 'linear') return
     const raw = screenToWorld(screen, viewTransform, size.width, size.height)
     const anchor = which === 'start' ? sg.end : sg.start
     const w = snap ? snapPointToAngle(anchor, raw, GRADIENT_ANGLE_SNAP_DEG) : raw
     onSetStrandGradient?.(which === 'start' ? { ...sg, start: w } : { ...sg, end: w })
-  }, [config.editor?.decoration?.strandGradient, viewTransform, size.width, size.height, onSetStrandGradient])
+  }, [decoration?.strandGradient, viewTransform, size.width, size.height, onSetStrandGradient])
 
   const handleDragStrandGradientCentre = useCallback((screen: Vec2) => {
-    const sg = config.editor?.decoration?.strandGradient
+    const sg = decoration?.strandGradient
     if (!sg || sg.type !== 'radial') return
     const w = screenToWorld(screen, viewTransform, size.width, size.height)
     onSetStrandGradient?.({ ...sg, centre: w })
-  }, [config.editor?.decoration?.strandGradient, viewTransform, size.width, size.height, onSetStrandGradient])
+  }, [decoration?.strandGradient, viewTransform, size.width, size.height, onSetStrandGradient])
 
   const handleDragStrandGradientRadius = useCallback((screen: Vec2) => {
-    const sg = config.editor?.decoration?.strandGradient
+    const sg = decoration?.strandGradient
     if (!sg || sg.type !== 'radial') return
     const w = screenToWorld(screen, viewTransform, size.width, size.height)
     const radius = Math.max(1, Math.hypot(w.x - sg.centre.x, w.y - sg.centre.y))
     onSetStrandGradient?.({ ...sg, radius })
-  }, [config.editor?.decoration?.strandGradient, viewTransform, size.width, size.height, onSetStrandGradient])
+  }, [decoration?.strandGradient, viewTransform, size.width, size.height, onSetStrandGradient])
 
   const strandGradientLayer = strandGradientOverlayVisible && strandGradient ? (
     <EditorFrameGradientLayer
@@ -1427,12 +1433,12 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         voidFills={voidFills}
         instanceVoidFills={instanceVoidFills}
         voidStamps={voidStamps}
-        strandRecords={decorationActive ? config.editor?.decoration?.strandColours : undefined}
+        strandRecords={decorationActive ? decoration?.strandColours : undefined}
         orbitStamps={decorationOrbitStamps}
         cellFrames={decorationCellFrames}
         strandIdentitySource={strandIdentitySource}
-        strandGradient={decorationActive ? config.editor?.decoration?.strandGradient : undefined}
-        frameGradient={decorationActive ? config.editor?.decoration?.frameGradient : undefined}
+        strandGradient={decorationActive ? decoration?.strandGradient : undefined}
+        frameGradient={decorationActive ? decoration?.frameGradient : undefined}
       />
       {pickerScreenPos && onPlaceTile && onSelectEdge && selectedEdgeData && (
         <EditorPickerOverlay

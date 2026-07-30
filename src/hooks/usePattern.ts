@@ -22,7 +22,7 @@ import { runPIC } from '../pic/index'
 import { morphActive } from '../pic/morph'
 import { runRosettePIC } from '../pic/rosettePatch'
 import { recordPerf, periodicityEnabled } from '../utils/perf'
-import { colourVoids, keyVoids, makeVoidFill, type PaintVoid, type StrandHit, type VoidFill } from '../decoration/resolve'
+import { colourVoids, keyVoids, makeVoidFill, type KeyedVoid, type PaintVoid, type StrandHit, type VoidFill } from '../decoration/resolve'
 import { resolveVoidStamps, type StampPlacement } from '../decoration/stamps'
 import { extractVoids, pairCurvedOutlines, type VoidRegion } from '../decoration/voids'
 import { buildColourIndex, orbitOffset, resolveFill, scopedKey } from '../decoration/scopes'
@@ -30,6 +30,7 @@ import { cellFramesFromOutlines, cellOrbitKey, reduceToOrbit, type CellFrame } f
 import { strandIdentities, strandIdentitiesFromBase } from '../decoration/strandGroups'
 import { curvesEnabled, flattenStrandsToSegments, flattenSegmentPolylines } from '../decoration/flatten'
 import { overlapsExisting } from '../editor/tileOverlap'
+import { patternDecoration } from '../decoration/store'
 
 export interface PatternData {
   polygons: Polygon[]
@@ -775,6 +776,92 @@ export function usePattern(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [decorationActive, decorationPaintTarget, stampedField, editorBase, decorationCellFrames, config.figures, config.smoothTransitions])
 
+  // ── Legacy substrate (no Builder Patch) ─────────────────────────────────
+  // A Gallery preset, a Generator sample, any BFS / Taprats tiling. Hoisted
+  // out of the main memo for the same reason `stampedField` was (19.4 snag
+  // #1): the main memo keys on the whole `config`, and a Decoration paint
+  // mints a new one — inline, every click re-ran the tiling generator and PIC
+  // over the padded viewport, and the fresh `segments` identity re-ran
+  // buildStrands + weave in StrandLayer on top. Keyed on the generator's read
+  // set (`tiling`) plus PIC's (`figures` + `morph` — same set `editorBase`
+  // uses) and the quantised viewport, so paints reuse the refs and the
+  // memoised render layers bail. Null in the Builder and on an unknown tiling.
+  const legacyField = useMemo(() => {
+    const def = TILINGS[config.tiling.type]
+    if (!def) return null
+    const viewport = { x: genX, y: genY, width: genW, height: genH }
+    const polygons = def.category === 'rosette-patch'
+      ? generateRosettePatch(def, viewport, config.tiling.scale)
+      : generateTiling(def, viewport, config.tiling.scale)
+    return { polygons, segments: runPICForCategory(def.category, polygons, config) }
+    // `config` is read only for `figures` + `morph` (runPICForCategory) and
+    // `tiling` — all listed. Widening this to `config` reinstates the paint
+    // re-run described above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config.tiling.type, config.tiling.scale, config.figures, config.morph, genX, genY, genW, genH])
+
+  // Legacy-substrate Decoration extraction — the `nonFastVoidData` twin for a
+  // pattern with no Patch. Field- and bound-keyed, never decoration- or
+  // Paint-target-keyed, so painting and switching Paint targets reuse it.
+  //
+  // `keyVoids` gets empty stamp and Cell-frame sets because neither exists on
+  // this substrate: the `patch` key then collapses onto the world centroid
+  // (making it a duplicate of `instance`) and the `cell` key degrades to a
+  // constant. Both rungs are withheld from the panel here rather than left to
+  // resolve as lookalikes — see `SUBSTRATE_VOID_SCOPES` in DecorationPanel.
+  const legacyBoundSig = decorationActive && legacyField ? `${qx},${qy},${vw},${vh}` : null
+  const legacyVoidData = useMemo<KeyedVoid[] | null>(() => {
+    if (!legacyBoundSig || !legacyField) return null
+    const bound: Vec2[] = [
+      { x: qx, y: qy }, { x: qx + vw, y: qy },
+      { x: qx + vw, y: qy + vh }, { x: qx, y: qy + vh },
+    ]
+    return keyVoids(extractDecorationVoids(legacyField.segments, bound, config), [], [])
+    // Curve reads: curvesEnabled/flatten → config.figures + config.smoothTransitions.
+    // qx/qy/vw/vh are captured via legacyBoundSig.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [legacyBoundSig, legacyField, config.figures, config.smoothTransitions])
+
+  // Legacy-substrate Strand hit-targets. Identities come from the RENDERED
+  // chains — there is no base fragment to key from on this substrate, which is
+  // the same fallback `StrandLayer` already applies when `identitySource` is
+  // undefined, so the hit keys and the stroke keys agree by construction.
+  // Consequence: an OPEN strand spanning the generated field has a
+  // field-dependent signature, so its congruent class shifts as the field
+  // regrows on pan. Closed strands (the rings a star figure makes — the usual
+  // paint target) are bounded and stable, and the `all` rung is exact for
+  // everything. The panel says so.
+  const legacyStrandHits = useMemo<StrandHit[] | null>(() => {
+    if (!decorationActive || decorationPaintTarget !== 'strands' || !legacyField) return null
+    const segments = legacyField.segments
+    const ids = strandIdentities(segments)
+    // No lattice stamps ⇒ `orbitOffset` is the identity, so the patch key is
+    // the world centroid. Emitted for shape only; the `patch` rung is not
+    // offered on this substrate.
+    const patchKeys = ids.strands.map(s => scopedKey(s.signature, s.centroid))
+    const polys = curvesEnabled(config)
+      ? flattenSegmentPolylines(segments, ids.strandData, config)
+      : null
+    const hits: StrandHit[] = []
+    for (let i = 0; i < segments.length; i++) {
+      const strandIdx = ids.strandOfSegment[i]
+      if (strandIdx < 0) continue
+      hits.push({
+        from: segments[i].from,
+        to: segments[i].to,
+        poly: polys?.[i] ?? undefined,
+        strandId: strandIdx,
+        signature: ids.strands[strandIdx].signature,
+        patchKey: patchKeys[strandIdx],
+        cellKey: `${ids.strands[strandIdx].signature}#c?`,
+      })
+    }
+    return hits
+    // Curve reads: curvesEnabled/flattenSegmentPolylines → config.figures +
+    // config.smoothTransitions.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [decorationActive, decorationPaintTarget, legacyField, config.figures, config.smoothTransitions])
+
   return useMemo(() => {
     // Step 17 Builder: when a Patch is active, render its Tiles directly.
     // Design Phase = single Patch; Composition Phase = lattice-stamped across
@@ -1041,16 +1128,26 @@ export function usePattern(
       return { polygons: picPolygons, segments, boundaryOutlines, strandIdentitySource }
     }
 
-    const def = TILINGS[config.tiling.type]
-    if (!def) return { polygons: [], segments: [] }
+    if (!legacyField) return { polygons: [], segments: [] }
+    if (!decorationActive) return legacyField
 
-    const viewport = { x: genX, y: genY, width: genW, height: genH }
-
-    const polygons = def.category === 'rosette-patch'
-      ? generateRosettePatch(def, viewport, config.tiling.scale)
-      : generateTiling(def, viewport, config.tiling.scale)
-    const segments = runPICForCategory(def.category, polygons, config)
-
-    return { polygons, segments }
-  }, [config, editorBase, stampedField, decorationFills, baseStrandIds, decorationOrbitRing, decorationCellFrames, nonFastVoidData, nonFastStrandHits, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview, editorNeighbourBoundaries, editorNeighbourStrands, editorFrame, decorationActive, decorationPaintActive, decorationPaintTarget])
+    // Decoration on a legacy substrate. Everything here is world-space (there
+    // is no periodic fragment to clone into), so every offered rung resolves
+    // straight into `voidFills` and only this cheap colouring pass re-runs on
+    // a paint. Empty orbit stamps / Cell frames are the truthful values, not
+    // placeholders — StrandLayer's `patch` and `cell` rungs then never match,
+    // matching the scopes the panel offers.
+    const keyed = legacyVoidData ?? []
+    const deco = patternDecoration(config)
+    return {
+      polygons: legacyField.polygons,
+      segments: legacyField.segments,
+      voidFills: colourVoids(keyed, deco),
+      voidStamps: resolveVoidStamps(keyed, deco?.voidStamps),
+      decorationVoids: keyed,
+      decorationStrandHits: legacyStrandHits ?? undefined,
+      decorationOrbitStamps: [],
+      decorationCellFrames: [],
+    }
+  }, [config, editorBase, stampedField, decorationFills, baseStrandIds, decorationOrbitRing, decorationCellFrames, nonFastVoidData, nonFastStrandHits, legacyField, legacyVoidData, legacyStrandHits, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview, editorNeighbourBoundaries, editorNeighbourStrands, editorFrame, decorationActive, decorationPaintActive, decorationPaintTarget])
 }

@@ -1,4 +1,5 @@
 import type { PatternConfig } from '../types/pattern'
+import { patternDecoration } from '../decoration/store'
 
 /**
  * The Canvas flags that render a saved pattern as its *finished artifact* —
@@ -10,7 +11,9 @@ import type { PatternConfig } from '../types/pattern'
  *   Frame when it has one.
  * - Legacy BFS/Taprats saves render the plain field with Strands on; Canvas
  *   clips them to their Gallery Frame internally. Tile outlines stay off to
- *   match the Gallery's default look.
+ *   match the Gallery's default look. Decoration layers here too when the save
+ *   carries any (it lives at the top level on this substrate) — without that a
+ *   decorated preset's thumbnail and detail view would show it bare.
  *
  * Everything here is read-only: passing no selection / placement / paint
  * callbacks to Canvas leaves it a viewer (no editor or paint overlays).
@@ -29,7 +32,7 @@ export function faithfulRenderFlags(config: PatternConfig): FaithfulRenderFlags 
       showTileLayer: true,
       showLines: true,
       editorStrandMode: true,
-      decorationActive: !!config.editor.decoration,
+      decorationActive: !!patternDecoration(config),
       editorFrame: !!config.editor.frame,
     }
   }
@@ -37,7 +40,7 @@ export function faithfulRenderFlags(config: PatternConfig): FaithfulRenderFlags 
     showTileLayer: false,
     showLines: true,
     editorStrandMode: false,
-    decorationActive: false,
+    decorationActive: !!patternDecoration(config),
     editorFrame: false,
   }
 }

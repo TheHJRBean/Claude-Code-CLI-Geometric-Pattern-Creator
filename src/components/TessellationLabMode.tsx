@@ -36,7 +36,9 @@ import { buildExportMenuItems } from '../export/exportActions'
 import type { AppMode, EditorMode } from '../types/appMode'
 import type { EditorGuide, EditorGuidePatch } from '../types/editor'
 import { DEFAULT_ANGLE_STEP, type GuideTool, type WorldBounds } from '../editor/guides'
-import { patternDecoration } from '../decoration/store'
+import { canDecorate, patternDecoration } from '../decoration/store'
+import { LegacySubstrateControls } from './lab/LegacySubstrateControls'
+import { clampStrandScope, clampVoidScope, type DecorationSubstrate } from './lab/DecorationPanel'
 
 
 /**
@@ -291,10 +293,24 @@ export function TessellationLabMode({
   const [showNeighbourStrands, setShowNeighbourStrands] = useState(false)
   // Mirror Gallery's tile-visibility toggle.
   const [showTiles, setShowTiles] = useState(true)
-  // Drop Composition Phase if the Patch goes away.
+  // Which Phases the loaded substrate has. A Builder Patch has all three. A
+  // legacy substrate has no Design Phase — its tiling comes from a
+  // `TilingDefinition`, not from Tiles the user placed — so `design` (the
+  // initial value) folds to Composition and Decoration stays reachable. An
+  // empty Lab has no substrate at all and falls back to Design.
   useEffect(() => {
-    if (config.tiling.type !== 'editor' || !config.editor) setEditorPhase('design')
-  }, [config.tiling.type, config.editor])
+    if (config.tiling.type === 'editor' && config.editor) return
+    if (!canDecorate(config)) { setEditorPhase('design'); return }
+    setEditorPhase(p => (p === 'design' ? 'strand' : p))
+  }, [config])
+
+  // A Reach the substrate can't express folds back to its coarsest rung — the
+  // scope selection is Lab-level state and survives a substrate switch, so a
+  // Patch's `Twins` must not paint an unmatchable key onto a preset.
+  const substrate: DecorationSubstrate =
+    config.tiling.type === 'editor' && config.editor ? 'patch' : 'legacy'
+  const effectiveVoidScope = clampVoidScope(voidScope, substrate)
+  const effectiveStrandScope = clampStrandScope(strandScope, substrate)
   // Reset picker state when patch changes or mode flips.
   const resetPicks = () => { setPicks([]); setMultiMode(false) }
   useEffect(() => { resetPicks() }, [editorMode, config.editor])
@@ -538,9 +554,9 @@ export function TessellationLabMode({
                 onSetDecorationColor={setDecorationColor}
                 paintTarget={paintTarget}
                 onSetPaintTarget={setPaintTarget}
-                voidScope={voidScope}
+                voidScope={effectiveVoidScope}
                 onSetVoidScope={setVoidScope}
-                strandScope={strandScope}
+                strandScope={effectiveStrandScope}
                 onSetStrandScope={setStrandScope}
                 gradientMode={gradientMode}
                 onSetGradientMode={setGradientMode}
@@ -585,43 +601,61 @@ export function TessellationLabMode({
               />
             ) : (
               <>
-                <p style={{
-                  marginTop: 0,
-                  marginBottom: 10,
-                  fontFamily: "'EB Garamond', Georgia, serif",
-                  fontSize: 12.5,
-                  color: 'var(--text-muted)',
-                  lineHeight: 1.5,
-                }}>
-                  {def ? (
-                    // A legacy-substrate pattern is loaded (a Gallery preset,
-                    // a Generator sample, or a saved legacy render opened via
-                    // "Edit in Lab"). Say so, and say what it costs — the
-                    // Strands section below is fully live, but Design and
-                    // Decoration need a Patch this tiling cannot form yet.
-                    // Without this the two buttons below read as the only
-                    // thing to do here, and either one DISCARDS the pattern.
-                    <>
-                      <strong>{def.label}</strong> is loaded on the legacy
-                      substrate — tune it in <em>Strands</em> below. The Design
-                      and Decoration Phases need a Patch, which this tiling
-                      can't form yet. The buttons below replace the loaded
-                      pattern with a new Patch.
-                    </>
-                  ) : (
-                    <>
-                      Build a tessellation patch from a chosen boundary and
-                      origin polygon. Start with "New patch", or load the
-                      hand-built sample to see what the renderer accepts.
-                    </>
-                  )}
-                </p>
+                {def ? (
+                  // A legacy-substrate pattern is loaded (a Gallery preset, a
+                  // Generator sample, or a saved legacy render opened via "Edit
+                  // in Lab"). Its Composition and Decoration Phases are live;
+                  // only Design needs a Patch. Naming the substrate matters:
+                  // without it the two buttons below read as the only thing to
+                  // do here, and either one DISCARDS the loaded pattern.
+                  <LegacySubstrateControls
+                    config={config}
+                    dispatch={dispatch}
+                    tilingLabel={def.label}
+                    viewBoundsRef={viewBoundsRef}
+                    editorPhase={editorPhase}
+                    onSetEditorPhase={setEditorPhase}
+                    decorationColor={decorationColor}
+                    onSetDecorationColor={setDecorationColor}
+                    paintTarget={paintTarget}
+                    onSetPaintTarget={setPaintTarget}
+                    voidScope={effectiveVoidScope}
+                    onSetVoidScope={setVoidScope}
+                    strandScope={effectiveStrandScope}
+                    onSetStrandScope={setStrandScope}
+                    gradientMode={gradientMode}
+                    onSetGradientMode={setGradientMode}
+                    stampSelection={stampSelection}
+                    getStampVoids={getStampVoids}
+                    gradientDraft={gradientDraft}
+                    onSetGradientDraft={setGradientDraft}
+                    gradientSelection={gradientSelection}
+                    onClearGradientSelection={() => setGradientSelection(null)}
+                  />
+                ) : (
+                  <p style={{
+                    marginTop: 0,
+                    marginBottom: 10,
+                    fontFamily: "'EB Garamond', Georgia, serif",
+                    fontSize: 12.5,
+                    color: 'var(--text-muted)',
+                    lineHeight: 1.5,
+                  }}>
+                    Build a tessellation patch from a chosen boundary and
+                    origin polygon. Start with "New patch", or load the
+                    hand-built sample to see what the renderer accepts.
+                  </p>
+                )}
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {([
                     {
                       label: 'New patch',
                       onClick: () => {
                         setActiveSavedId('')
+                        // A Patch has a Design Phase and an empty one has
+                        // nothing to decorate — don't inherit the legacy
+                        // substrate's Phase.
+                        setEditorPhase('design')
                         dispatch({ type: 'EDITOR_NEW' })
                       },
                     },
@@ -629,6 +663,7 @@ export function TessellationLabMode({
                       label: 'Show sample patch',
                       onClick: () => {
                         setActiveSavedId('')
+                        setEditorPhase('design')
                         dispatch({
                           type: 'LOAD_CONFIG',
                           payload: {
@@ -921,11 +956,11 @@ export function TessellationLabMode({
         // Strands sub-mode of the Gradient bar drives the canvas as a strand
         // target (strand hits for scope clicks + the strand-gradient handles).
         paintTarget={editorPhase === 'decoration' ? (strandGradientActive ? 'strands' : paintTarget) : 'off'}
-        paintVoidScope={voidScope}
+        paintVoidScope={effectiveVoidScope}
         // The Reach selector drives both modes: flat paints the group, gradient
         // scopes the wash to it. Either way the hover highlight previews exactly
         // the group a click will act on (#46 Reach ladder).
-        paintStrandScope={strandScope}
+        paintStrandScope={effectiveStrandScope}
         onPaintVoid={p => { pushRecentColour(decorationColor); dispatch({ type: 'SET_DECORATION_VOID_FILL', payload: { ...p, colour: decorationColor } }) }}
         onPaintGradientVoid={(v, p) => {
           // Pick-to-edit: if the clicked group already carries a *different*

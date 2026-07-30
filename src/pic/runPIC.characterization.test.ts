@@ -91,8 +91,16 @@ const CASES: Case[] = [
 const GOLDEN: Record<string, ReturnType<typeof fingerprint>> = {
   'square@67.5': { n: 968, len: 37044, arms: 968, vtx: 0 },
   'hexagonal@60': { n: 540, len: 21600, arms: 540, vtx: 0 },
-  'triangular@60': { n: 1648, len: 38916, arms: 1648, vtx: 0 },
-  '4.8.8': { n: 551, len: 21315, arms: 551, vtx: 0 },
+  // Re-captured 2026-07-30 (#51). Both of these cases sit exactly ON a
+  // collinear degeneracy — the triangle at θ=60 and the square at θ=45 — and
+  // the OLD numbers pinned the bug: adjacent pair-A rays go collinear, which
+  // `rayRayIntersect` reported as parallel, so the figure fell through to
+  // pair-B and emitted 5 asymmetric segments on a tile that must be C3/C4.
+  // `collinearApproach` now resolves the pairing at the origin-midpoint, the
+  // continuous limit from either side. Fewer world-units (long chords across
+  // the tile replaced by short arms), more segments (a complete figure).
+  'triangular@60': { n: 2004, len: 30060, arms: 2004, vtx: 0 },
+  '4.8.8': { n: 592, len: 19752, arms: 592, vtx: 0 },
   // vtx == arms: vertex lines emit on EVERY edge (no shared-edge gate, 2026-06-17),
   // including the field-boundary squares the old gate suppressed (was vtx 880).
   'square-vertexlines': { n: 1936, len: 89432, arms: 968, vtx: 968 },

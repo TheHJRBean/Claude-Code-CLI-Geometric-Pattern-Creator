@@ -2,7 +2,7 @@ import type { Polygon, RaySide, Segment, SegmentKind } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
 import { computeContactRays, computeContactRaysPerEdge, computeVertexRays, computeVertexRaysPerVertex, type ContactRay, type VertexRay } from './stellation'
 import { activeMorph, morphValueAt } from './morph'
-import { rayRayIntersect, type IntersectResult } from './intersect'
+import { rayRayIntersect, collinearApproach, type IntersectResult } from './intersect'
 import { EPSILON, dist, midpoint, pointInPolygon, isConvexPolygon, type Vec2 } from '../utils/math'
 
 /**
@@ -20,7 +20,12 @@ function probePair(
   r2: { origin: Vec2; dir: Vec2 },
   polyVertices: Vec2[],
 ): { result: IntersectResult | null; valid: boolean; inside: boolean } {
+  // `collinearApproach` covers the degenerate pairing `rayRayIntersect` calls
+  // parallel: two rays on the same line aimed at each other, which meet at the
+  // midpoint of their origins. Falling through to the next pairing instead
+  // costs the tile its rotational symmetry — see the note on that function.
   const result = rayRayIntersect(r1.origin, r1.dir, r2.origin, r2.dir)
+    ?? collinearApproach(r1.origin, r1.dir, r2.origin, r2.dir)
   const valid = !!result && result.t1 > EPSILON && result.t2 > EPSILON
   const inside = valid && pointInPolygon(result!.point, polyVertices)
   return { result, valid, inside }

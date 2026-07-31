@@ -16,40 +16,27 @@
 
 **Previous milestone (2026-07-30, PIC bug-fix session).** Tests were 1357 green, tsc + build clean.
 
-**A whole PIC bug-fix session: 6 user-reported strand/figure defects, all fixed** (#51, #53 closed; #52 answered and left open). Four dated entries below carry the detail. Started from `/what-next` items #8 (vitest timeouts) and #1 (enumerate Strand-editing issues).
+**Older milestone (2026-07-30, PIC bug-fix session):** 6 user-reported strand/figure defects fixed (#51, #53 closed; #52 answered and left open). Dated entries further below carry the detail. **⏳ Those six were never browser-verified** — worth a pass on `triangular`/`3.6.3.6` triangles at default θ, a square at θ=45, `rhombille` panning, `pentagonal-rosette` rhombi, `archimedes-star` at θ≈71, and vertex strands on any irregular tile. `feedback_headless_browser_no_sudo` has the no-sudo Chrome recipe.
 
-**⚠️ TWO THINGS OWED TO THE USER — do these first:**
-1. **The enumeration is incomplete by their own statement** — *"This isn't the full extent of it."* Six issues captured and fixed; **ask for the rest** before starting anything else.
-2. **⏳ NOTHING THIS SESSION IS BROWSER-VERIFIED.** Six geometry fixes landed on unit tests alone. Worth a pass on: `triangular`/`3.6.3.6` triangles at default θ, a square at θ=45, `rhombille` panning, `pentagonal-rosette` rhombi, `archimedes-star` at θ≈71, and vertex strands on any irregular tile. `feedback_headless_browser_no_sudo` has the no-sudo Chrome recipe.
+**⚠️ Still owed to the user:** their strand-editing enumeration was explicitly incomplete — *"This isn't the full extent of it."* Six captured and fixed, plus three more this session. **Ask for the rest.**
 
-**⚠️ #52 awaits a user decision.** They approved collapsing archimedes-star's 12-gon to a true hexagon; checking first showed that would **break strand continuity at 12 junctions** (the 12-gon is what keeps the tiling edge-to-edge), so it was **not** done. Correction posted on the issue; only genuinely open sub-point is cosmetic (its default θ=60 was picked when the tile was read as a dodecagon).
+**⚠️ #52 awaits a user decision.** They approved collapsing archimedes-star's 12-gon to a true hexagon; checking first showed that would **break strand continuity at 12 junctions** (the 12-gon is what keeps the tiling edge-to-edge), so it was **not** done. Correction posted on the issue; the only genuinely open sub-point is cosmetic (its default θ=60 was picked when the tile was read as a dodecagon).
 
-**What shipped this session:**
-| | | |
-|---|---|---|
-| **#51** | Collinear ray pairs resolved at the origin-midpoint — triangles keep C3 at θ=60, squares keep C4 at θ=45 | `897785d` |
-| **#53** | Vertex strands made consistent — zero-vector bisector at 180° vertices, asym pairing tiers, degenerate-length guard | `e8b18cc` |
-| — | Rosette star tips trimmed against neighbouring rays instead of pinned to the tile centre | `996787a` |
-| — | Taprats lattice origin snapped — `rosette-patch` tilings no longer drift with the camera | `1cf6979` |
-| — | vitest `testTimeout`/`hookTimeout` → 30 s (pre-existing flake on a loaded machine) | `f4521e1` |
-| — | Symmetry invariant dispatches like `usePattern` (13 rosette tilings were pinned to a dead path) | `6dc9600` |
-
-**New permanent safety nets:** `pic/figureSymmetry.test.ts` (every regular tile's figure is C_n; vertex-line sets are C_m; continuity either side of each degeneracy) and `pic/rosetteCentrePin.test.ts`. Both verified red before their fixes.
-
-**Three traps this session is worth remembering for:**
-- **`probePair` is shared** by `pairAtVertex` (edge lines) and `pairVertexAtEdge` (vertex lines). Adding `collinearApproach` there silently broke vertex lines; it is now opt-in per call site.
-- **A regression test passed against the broken code** — the old cap reached the tile centre via floating point and read as `2.0e-14`, sailing through `toBeGreaterThan(0)`. Use size-relative thresholds; never compare a computed geometric quantity to exact 0; always verify red-first.
-- **Verify adjacency before calling tile data wrong** (#52). Two of the three initial hypotheses this session were wrong and the instrumented trace, not the theory, settled each one.
+**Standing traps (earned, still true):**
+- **`probePair` is shared** by `pairAtVertex` (edge lines) and `pairVertexAtEdge` (vertex lines) — changes there hit both.
+- **A regression test can pass against broken code.** A cap that reached the tile centre via floating point read as `2.0e-14` and sailed through `toBeGreaterThan(0)`. Use size-relative thresholds, never compare a computed geometric quantity to exact 0, always verify red-first.
+- **Instrument before theorising.** Repeatedly this month the first hypothesis was wrong and a trace settled it. Same again 2026-07-31: "alternating parity is broken" was only half of it; measuring `dot(normal, cwTangent) ≈ 1e-15` found the larger defect.
+- **Check which emitters and line families a per-segment change reaches** — see the recurring-shape note above.
 
 **NEXT — pick one:**
-0. **Ask for the rest of the Strand-editing issues (Sonnet)**, then browser-verify the six PIC fixes from the earlier session. Both owed above. (The Decoration work below IS browser-verified.)
-1. **Issue hygiene (~10 min, Haiku).** Shipped+verified epics still OPEN on GitHub: **#44 / #45 / #46** (gradients), **#42** (line sets), **#28** (Guides slice 3 — verified 2026-07-22). Close each with a pointer to its verifying commit. **#40** is now the *only* remaining reason a tile emits fewer than 2n vertex lines, and `figureSymmetry.test.ts`'s sweep makes its cases easy to enumerate — good moment to scope it.
-2. **Guides slices 4–6 (Fable/Opus).** **#29** symmetry-orbit drawing (linked Guide groups) → **#30** stamping under the Lattice + neighbour Anchors → **#31** Anchor vocabulary in CONTEXT.md → **#32** Girih preset reveal. **#34** (stamped Anchor Tiles land in `activeCell` regardless of geometric host Cell) is the known correctness gap and folds naturally into #30. Spec: `CONSTRUCTION_GUIDES_SPEC.md` + ADR-0008.
-3. **Decoration stamps v2 (Sonnet/Opus).** v1 ships for Voids only; remaining = **Tile**-stamping, explicit mirror toggle, asset library. Memory: `project_decoration_stamps_idea.md`.
-4. **Roadmap design findings still open (Opus).** (a) **Pass-4 right-side Inspector** is blocked by the selection-state split (Canvas-local vertex state) + duplicated per-mode shell — the old "3rd-column-ready grid" claim is FALSE. (b) **Builder Configuration registry** — 7-site ladder to add one, with a silent square-basis fallback in `compositionCellBasis`. Memory: `project_thermonuclear_review_round2.md`.
-5. **Open bugs (unscheduled).** Force-overlapped Tiles emit their own Strands (decided 2026-06-14: make it a **toggle**, default self-contained); Strand-editing UX issues need enumerating. Memories: `project_overlap_tiles_strand_bug.md`, `project_strand_editing_debug.md`.
-6. **Gallery name filter (~20 min, Haiku/Sonnet).** Offered and deliberately *not* built in the 2026-07-31 sorting session — out of the ask's scope, user hasn't said yes. A search box over `entries` beside the sort control; the sort module is already pure and the grid already renders from a derived list, so it is a filter step in the same `useMemo` plus one input. Pairs naturally with the sorts that just landed.
-7. **Cheap cleanup (Haiku).** Vitest has **no `testTimeout` set**, so the default 5 s makes 1–2 heavy render/geometry tests flake whenever the machine is busy (`appSmoke`'s App render: 1.7 s idle, 5.7–7.3 s under load). Verified pre-existing, not caused by any recent change. Raise it in `vite.config.ts`.
+1. **Browser-verify this session (Sonnet/Opus).** `296f9ac` alternating curves is the only unverified piece of today's three. Tile-edges set + curve on: alternating off ⇒ every edge bulges outward consistently; on ⇒ scallops flip edge to edge. Expect odd-length closed strands (floret pentagons) to stay symmetric **by design** — correct, but reads as "alternating did nothing" on those strands. Also confirm control-point handles now sit ON an extra set's curve.
+2. **Ask for the rest of the Strand-editing issues (Sonnet).** Owed above; the user has surfaced three more since the list was written, so there are likely others.
+3. **Issue hygiene (~10 min, Haiku).** Shipped+verified epics still OPEN on GitHub: **#44 / #45 / #46** (gradients), **#42** (line sets — now genuinely complete after `e420218`/`296f9ac`), **#28** (Guides slice 3, verified 2026-07-22). Close each with a pointer to its verifying commit. **#40** is the *only* remaining reason a tile emits fewer than 2n vertex lines; `figureSymmetry.test.ts`'s sweep makes its cases easy to enumerate — good moment to scope it.
+4. **Guides slices 4–6 (Fable/Opus).** **#29** symmetry-orbit drawing (linked Guide groups) → **#30** stamping under the Lattice + neighbour Anchors → **#31** Anchor vocabulary in CONTEXT.md → **#32** Girih preset reveal. **#34** (stamped Anchor Tiles land in `activeCell` regardless of geometric host Cell) is the known correctness gap and folds naturally into #30. Spec: `CONSTRUCTION_GUIDES_SPEC.md` + ADR-0008.
+5. **Decoration stamps v2 (Sonnet/Opus).** v1 ships for Voids only; remaining = **Tile**-stamping, explicit mirror toggle, asset library. Memory: `project_decoration_stamps_idea.md`.
+6. **Roadmap design findings still open (Opus).** (a) **Pass-4 right-side Inspector** is blocked by the selection-state split (Canvas-local vertex state) + duplicated per-mode shell — the old "3rd-column-ready grid" claim is FALSE. (b) **Builder Configuration registry** — 7-site ladder to add one, with a silent square-basis fallback in `compositionCellBasis`. Memory: `project_thermonuclear_review_round2.md`.
+7. **Open bugs (unscheduled).** Force-overlapped Tiles emit their own Strands (decided 2026-06-14: make it a **toggle**, default self-contained). Memories: `project_overlap_tiles_strand_bug.md`, `project_strand_editing_debug.md`.
+8. **Gallery name filter (~20 min, Haiku/Sonnet).** Offered and deliberately *not* built in the 2026-07-31 sorting session — out of that ask's scope, user hasn't said yes. A search box over `entries` beside the sort control; the sort module is already pure and the grid renders from a derived list, so it is a filter step in the same `useMemo` plus one input.
 
 ---
 ### ▶ 2026-07-31 (Alternating curves broken on Tile-edge sets — FIXED `296f9ac`, ⏳ browser-verify, Opus)

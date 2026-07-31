@@ -162,6 +162,18 @@ function mergeFigureSet(s: FigureLineSet, patch: Partial<FigureLineSet>): Figure
   return { ...s, ...patch, id: s.id, kind: s.kind }
 }
 
+/** Extra sets that are actually emitting. The "never go fully dark" guards key
+ *  on THIS, not on `extraSets.length`: a disabled set draws nothing, so it must
+ *  not license switching the base figure off. */
+function emittingSets(sets: FigureLineSet[] | undefined): number {
+  return (sets ?? []).reduce((n, s) => n + (s.enabled === false ? 0 : 1), 0)
+}
+
+/** The base figure draws nothing — both its line families are off. */
+function baseIsDark(fig: FigureConfig): boolean {
+  return fig.edgeLinesEnabled === false && !fig.vertexLinesEnabled
+}
+
 /** Apply a Guide popup/drag patch, re-pinning `id`/`kind` so the discriminant
  *  can't be widened and the patch's cross-kind optional fields drop out. */
 function mergeGuide(g: EditorGuide, patch: EditorGuidePatch): EditorGuide {
@@ -221,17 +233,18 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     case 'SET_STRAND_STYLE':
       return { ...state, strand: { ...state.strand, ...action.payload } }
     case 'SET_EDGE_LINES_ENABLED': {
-      // Force the counterpart on so the primary figure never goes fully dark —
-      // unless extra line sets exist, which can carry the figure on their own.
+      // Force the counterpart on so the Tile never goes fully dark — unless an
+      // EMITTING extra line set exists, which can carry the figure on its own
+      // (that is the whole point of turning the base off: "tile edges only").
       const fig = getFigure(state, action.payload.tileTypeId)
       const patch: Partial<FigureConfig> = { edgeLinesEnabled: action.payload.enabled }
-      if (!action.payload.enabled && !(fig.extraSets?.length)) patch.vertexLinesEnabled = true
+      if (!action.payload.enabled && emittingSets(fig.extraSets) === 0) patch.vertexLinesEnabled = true
       return updateFigure(state, action.payload.tileTypeId, patch)
     }
     case 'SET_VERTEX_LINES_ENABLED': {
       const fig = getFigure(state, action.payload.tileTypeId)
       const patch: Partial<FigureConfig> = { vertexLinesEnabled: action.payload.enabled }
-      if (!action.payload.enabled && !(fig.extraSets?.length)) patch.edgeLinesEnabled = true
+      if (!action.payload.enabled && emittingSets(fig.extraSets) === 0) patch.edgeLinesEnabled = true
       return updateFigure(state, action.payload.tileTypeId, patch)
     }
     case 'SET_VERTEX_LINES_DECOUPLED': {
@@ -302,20 +315,22 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       if (!fig.extraSets) return state
       const next = fig.extraSets.map(s =>
         s.id === action.payload.setId ? mergeFigureSet(s, action.payload.patch) : s)
-      return updateFigure(state, action.payload.tileTypeId, { extraSets: next })
+      // Disabling the last emitting set while the base is off would leave the
+      // Tile invisible — re-light the base edge lines, mirroring REMOVE below.
+      const patch: Partial<FigureConfig> = { extraSets: next }
+      if (baseIsDark(fig) && emittingSets(next) === 0) patch.edgeLinesEnabled = true
+      return updateFigure(state, action.payload.tileTypeId, patch)
     }
     case 'REMOVE_FIGURE_SET': {
       const fig = getFigure(state, action.payload.tileTypeId)
       if (!fig.extraSets) return state
       const next = fig.extraSets.filter(s => s.id !== action.payload.setId)
       // Drop the array entirely when empty so the config returns to the
-      // byte-identical setless shape. If the primary was fully hidden behind
-      // the sets, removing the last one re-lights the edge lines so the
+      // byte-identical setless shape. If the base was fully hidden behind the
+      // sets, removing the last EMITTING one re-lights the edge lines so the
       // figure can't end up invisible with nothing left to toggle.
       const patch: Partial<FigureConfig> = { extraSets: next.length ? next : undefined }
-      if (!next.length && fig.edgeLinesEnabled === false && !fig.vertexLinesEnabled) {
-        patch.edgeLinesEnabled = true
-      }
+      if (baseIsDark(fig) && emittingSets(next) === 0) patch.edgeLinesEnabled = true
       return updateFigure(state, action.payload.tileTypeId, patch)
     }
     case 'SET_SMOOTH_TRANSITIONS':

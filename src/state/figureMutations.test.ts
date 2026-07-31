@@ -219,6 +219,75 @@ describe('multi line sets — ADD/UPDATE/REMOVE_FIGURE_SET (#42)', () => {
     expect(s.figures['4'].edgeLinesEnabled).toBe(true)
   })
 
+  // The "never fully dark" guards used to count `extraSets.length`, which
+  // includes sets that are switched OFF and therefore draw nothing. Both routes
+  // below reached a genuinely blank Tile (verified: 0 segments out of PIC).
+  it('a DISABLED extra set does not license switching the base off', () => {
+    let s = gallery()
+    s = reducer(s, { type: 'ADD_FIGURE_SET', payload: { tileTypeId: '4', kind: 'boundary' } } as Action)
+    s = reducer(s, {
+      type: 'UPDATE_FIGURE_SET',
+      payload: { tileTypeId: '4', setId: 'set-1', patch: { enabled: false } },
+    } as Action)
+    // Nothing is emitting but the base, so the counterpart is still forced on.
+    s = reducer(s, { type: 'SET_EDGE_LINES_ENABLED', payload: { tileTypeId: '4', enabled: false } } as Action)
+    expect(s.figures['4'].vertexLinesEnabled).toBe(true)
+  })
+
+  it('disabling the last emitting set re-lights the base', () => {
+    let s = gallery()
+    s = reducer(s, { type: 'ADD_FIGURE_SET', payload: { tileTypeId: '4', kind: 'boundary' } } as Action)
+    s = reducer(s, { type: 'SET_VERTEX_LINES_ENABLED', payload: { tileTypeId: '4', enabled: false } } as Action)
+    s = reducer(s, { type: 'SET_EDGE_LINES_ENABLED', payload: { tileTypeId: '4', enabled: false } } as Action)
+    expect(s.figures['4'].edgeLinesEnabled).toBe(false)
+    // Now switch the only set off — the base must come back rather than the
+    // Tile going blank with nothing left to toggle.
+    s = reducer(s, {
+      type: 'UPDATE_FIGURE_SET',
+      payload: { tileTypeId: '4', setId: 'set-1', patch: { enabled: false } },
+    } as Action)
+    expect(s.figures['4'].edgeLinesEnabled).toBe(true)
+    expect(s.figures['4'].extraSets![0].enabled).toBe(false)
+  })
+
+  it('with two sets, disabling one leaves the base off', () => {
+    let s = gallery()
+    s = reducer(s, { type: 'ADD_FIGURE_SET', payload: { tileTypeId: '4', kind: 'boundary' } } as Action)
+    s = reducer(s, { type: 'ADD_FIGURE_SET', payload: { tileTypeId: '4', kind: 'edge' } } as Action)
+    s = reducer(s, { type: 'SET_VERTEX_LINES_ENABLED', payload: { tileTypeId: '4', enabled: false } } as Action)
+    s = reducer(s, { type: 'SET_EDGE_LINES_ENABLED', payload: { tileTypeId: '4', enabled: false } } as Action)
+    s = reducer(s, {
+      type: 'UPDATE_FIGURE_SET',
+      payload: { tileTypeId: '4', setId: 'set-1', patch: { enabled: false } },
+    } as Action)
+    // set-2 is still emitting, so the base stays off as the user asked.
+    expect(s.figures['4'].edgeLinesEnabled).toBe(false)
+  })
+
+  it('removing one of two sets leaves the base off', () => {
+    let s = gallery()
+    s = reducer(s, { type: 'ADD_FIGURE_SET', payload: { tileTypeId: '4', kind: 'boundary' } } as Action)
+    s = reducer(s, { type: 'ADD_FIGURE_SET', payload: { tileTypeId: '4', kind: 'edge' } } as Action)
+    s = reducer(s, { type: 'SET_VERTEX_LINES_ENABLED', payload: { tileTypeId: '4', enabled: false } } as Action)
+    s = reducer(s, { type: 'SET_EDGE_LINES_ENABLED', payload: { tileTypeId: '4', enabled: false } } as Action)
+    s = reducer(s, { type: 'REMOVE_FIGURE_SET', payload: { tileTypeId: '4', setId: 'set-1' } } as Action)
+    expect(s.figures['4'].edgeLinesEnabled).toBe(false)
+  })
+
+  it('removing the last set re-lights the base even when it was already disabled', () => {
+    let s = gallery()
+    s = reducer(s, { type: 'ADD_FIGURE_SET', payload: { tileTypeId: '4', kind: 'boundary' } } as Action)
+    s = reducer(s, { type: 'SET_VERTEX_LINES_ENABLED', payload: { tileTypeId: '4', enabled: false } } as Action)
+    s = reducer(s, { type: 'SET_EDGE_LINES_ENABLED', payload: { tileTypeId: '4', enabled: false } } as Action)
+    s = reducer(s, {
+      type: 'UPDATE_FIGURE_SET',
+      payload: { tileTypeId: '4', setId: 'set-1', patch: { enabled: false } },
+    } as Action)
+    s = reducer(s, { type: 'REMOVE_FIGURE_SET', payload: { tileTypeId: '4', setId: 'set-1' } } as Action)
+    expect(s.figures['4'].edgeLinesEnabled).toBe(true)
+    expect(s.figures['4'].extraSets).toBeUndefined()
+  })
+
   it('UPDATE patches a set by id and cannot rewrite id or kind', () => {
     let s = gallery()
     s = reducer(s, { type: 'ADD_FIGURE_SET', payload: { tileTypeId: '4', kind: 'edge' } } as Action)

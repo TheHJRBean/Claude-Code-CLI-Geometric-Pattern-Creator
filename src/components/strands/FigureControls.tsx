@@ -78,6 +78,17 @@ export function FigureControls({
   )
   const snappedTo = snapEnabled ? snapPoints.find(s => Math.abs(lineLength - s) < 0.005) : undefined
 
+  // The base figure can only be switched fully off while an extra set is
+  // actually emitting — otherwise the reducer forces the counterpart back on.
+  // Surface that rule where the toggles are, so "leave just the tile edges" is
+  // discoverable instead of being a thing you have to already know.
+  const emittingSets = extraSets.filter(s => s.enabled !== false).length
+  const baseHint = !edgeEnabled && !vertexEnabled
+    ? `Base off — the ${emittingSets === 1 ? 'line set' : `${emittingSets} line sets`} below draw this Tile.`
+    : emittingSets > 0
+      ? 'Both off leaves only the line sets below drawing.'
+      : undefined
+
   const handleLineLengthChange = (rawPercent: number) => {
     let ll = rawPercent / 100
     if (snapEnabled) {
@@ -184,17 +195,28 @@ export function FigureControls({
       )}
 
       {advanced && (
-        <div style={{ marginTop: 12, display: 'flex', gap: 16 }}>
-          <Toggle
-            checked={edgeEnabled}
-            onChange={v => dispatch({ type: 'SET_EDGE_LINES_ENABLED', payload: { tileTypeId, enabled: v } })}
-            label="Edge strands"
+        <div style={{ marginTop: 12 }}>
+          <FieldLabel
+            label="Base set"
+            tooltip="The primary Figure — the contact angle, length and curve above. It is the first line set, and with an emitting set in Line sets below you can switch BOTH its families off to leave only those sets drawing (e.g. Tile edges alone). With nothing else to carry the Tile, turning one off forces the other on so it can never go blank."
           />
-          <Toggle
-            checked={vertexEnabled}
-            onChange={v => dispatch({ type: 'SET_VERTEX_LINES_ENABLED', payload: { tileTypeId, enabled: v } })}
-            label="Vertex strands"
-          />
+          <div style={{ display: 'flex', gap: 16 }}>
+            <Toggle
+              checked={edgeEnabled}
+              onChange={v => dispatch({ type: 'SET_EDGE_LINES_ENABLED', payload: { tileTypeId, enabled: v } })}
+              label="Edge strands"
+            />
+            <Toggle
+              checked={vertexEnabled}
+              onChange={v => dispatch({ type: 'SET_VERTEX_LINES_ENABLED', payload: { tileTypeId, enabled: v } })}
+              label="Vertex strands"
+            />
+          </div>
+          {baseHint && (
+            <div style={{ fontSize: 10, lineHeight: 1.45, fontStyle: 'italic', opacity: 0.62, marginTop: 6 }}>
+              {baseHint}
+            </div>
+          )}
         </div>
       )}
 
@@ -441,7 +463,7 @@ export function FigureControls({
         <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border-subtle)' }}>
           <FieldLabel
             label="Line sets"
-            tooltip="Extra Ray families emitted from the same edges / vertices as the primary Figure, each with its own contact angle, length and curve. Layer multiple star families onto one Tiling. Tile edges traces the Tile outlines themselves as Strands."
+            tooltip="Ray families beyond the Base set, emitted from the same edges / vertices, each with its own contact angle, length and curve. Layer multiple star families onto one Tiling. Tile edges traces the Tile outlines themselves as Strands. With one of these emitting, the Base set above can be switched off entirely."
           />
           {extraSets.map(set => (
             <ExtraSetCard

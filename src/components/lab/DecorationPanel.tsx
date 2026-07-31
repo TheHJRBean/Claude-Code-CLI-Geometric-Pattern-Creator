@@ -919,8 +919,12 @@ function StampSection({ decoration, dispatch, selection, getStampVoids }: {
   const selRec = selection
     ? stamps.find(r => r.scope === 'congruent' && r.key === selection.signature)
     : undefined
+  // Identity outline poses the canvas; the RENDERED one (curved fields) gives
+  // it its guide shape and box, so the design matches what the stamp is
+  // actually clipped to — see `stampGeometry`.
   const outline = selection ? (selection.keyPolygon ?? selection.polygon) : null
-  const canvasInfo = outline ? voidStampCanvas(outline) : null
+  const rendered = selection ? selection.polygon : undefined
+  const canvasInfo = outline ? voidStampCanvas(outline, rendered) : null
 
   const upload = async (file: File) => {
     if (!selection) return
@@ -962,13 +966,13 @@ function StampSection({ decoration, dispatch, selection, getStampVoids }: {
           <FieldLabel label="Shape canvas" tooltip="Download a blank, transparent canvas at this Void's exact proportions with the outline as a guide layer. Design a stamp on it externally, then upload it below — it lands back at exactly this size and orientation on every matching Void." />
           <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
             <button
-              onClick={() => downloadVoidShapeSVG(outline!, `void-${selection.signature.slice(0, 8)}-canvas.svg`)}
+              onClick={() => downloadVoidShapeSVG(outline!, `void-${selection.signature.slice(0, 8)}-canvas.svg`, rendered)}
               style={{ ...decorationButtonStyle, flex: 1 }}
             >
               Export SVG
             </button>
             <button
-              onClick={() => downloadVoidShapePNG(outline!, `void-${selection.signature.slice(0, 8)}-canvas.png`)}
+              onClick={() => downloadVoidShapePNG(outline!, `void-${selection.signature.slice(0, 8)}-canvas.png`, 1024, rendered)}
               style={{ ...decorationButtonStyle, flex: 1 }}
             >
               Export PNG
@@ -1036,6 +1040,7 @@ function StampSection({ decoration, dispatch, selection, getStampVoids }: {
         <StampFocusEditor
           record={selRec}
           outline={outline}
+          renderedOutline={rendered}
           onApply={rec => dispatch({ type: 'SET_DECORATION_VOID_STAMP', payload: rec })}
           onClose={() => setFocusOpen(false)}
         />

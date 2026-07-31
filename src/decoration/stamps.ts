@@ -162,6 +162,66 @@ export function canonicalPose(polygon: Vec2[]): CanonicalPose | null {
   }
 }
 
+/** Instance coords → canonical coords: the inverse of `pose.toInstance`.
+ * That matrix is a rotation with an optional y-flip, so its linear part is
+ * orthogonal and the inverse reuses the very same four coefficients. */
+export function toCanonicalPoint(t: StampTransform, p: Vec2): Vec2 {
+  const dx = p.x - t.e
+  const dy = p.y - t.f
+  return { x: t.a * dx + t.b * dy, y: t.c * dx + t.d * dy }
+}
+
+/** A Void's stamp geometry: the outline to draw and the box an image is fitted
+ * to, both in canonical coordinates, plus the pose that carries them to an
+ * instance. */
+export interface StampGeometry {
+  /** Outline in canonical coordinates — the RENDERED shape where one differs
+   * from the identity outline (curved fields). */
+  points: Vec2[]
+  /** Bounding box of `points` — the stamp canvas and the image-fit box. */
+  box: StampBBox
+  pose: CanonicalPose
+}
+
+/**
+ * Resolve a Void's stamp geometry from its two outlines.
+ *
+ * **Pose** comes from `identityOutline` — the straight `keyPolygon` on a
+ * curved field. That is what makes congruent instances agree on which
+ * symmetry image they pose through: `canonicalPose` picks the traversal with
+ * the smallest quantised token ring, and a flattened Bézier outline's chord
+ * lengths and shallow joint angles sit far too close to those quantisation
+ * steps to rank reliably (the same fragility `canonicaliseSignatures` exists
+ * to paper over). Posing off the curved outline would let sibling instances
+ * pick different traversals and render the same stamp at different rotations.
+ *
+ * **Shape and box** come from `renderedOutline` — what the stamp is actually
+ * clipped to. Using the straight outline for these made the exported design
+ * canvas a straight-edged polygon while the clip was a curve enclosing as
+ * little as 66% of it (3.6.3.6 triangles at offset 0.3), and let the rendered
+ * shape bulge up to ~9% of the box outside the image under `cover` (4.8.8
+ * 6-gons), leaving uncovered bands. Export and placement read this same box,
+ * so a design made on the exported canvas still round-trips exactly.
+ *
+ * Omit `renderedOutline` (or pass the identity outline itself) for a straight
+ * field, where the two coincide.
+ */
+export function stampGeometry(
+  identityOutline: Vec2[],
+  renderedOutline?: Vec2[],
+): StampGeometry | null {
+  const pose = canonicalPose(identityOutline)
+  if (!pose) return null
+  // No distinct rendered outline ⇒ use the pose's own canonical points, which
+  // are additionally CCW-normalised and collinear-simplified.
+  const points = !renderedOutline || renderedOutline === identityOutline
+    ? pose.points
+    : renderedOutline.map(p => toCanonicalPoint(pose.toInstance, p))
+  const box = poseBBox(points)
+  if (!box || box.width <= 0 || box.height <= 0) return null
+  return { points, box, pose }
+}
+
 /** Bounding box of a point set. Null for empty input. */
 export function poseBBox(points: Vec2[]): StampBBox | null {
   if (points.length === 0) return null
@@ -286,10 +346,12 @@ export function resolveVoidStamps(
   for (const v of voids) {
     const rec = bySignature.get(v.signature)
     if (!rec) continue
-    const pose = canonicalPose(v.keyPolygon ?? v.polygon)
-    if (!pose) continue
-    const box = poseBBox(pose.points)
-    if (!box || box.width <= 0 || box.height <= 0) continue
+    // Pose off the identity outline, but fit the image to the RENDERED shape's
+    // box — the clip below is the rendered outline, so fitting to the straight
+    // one left curved Voids with uncovered bands.
+    const geo = stampGeometry(v.keyPolygon ?? v.polygon, v.polygon)
+    if (!geo) continue
+    const { pose, box } = geo
     out.push({
       clip: v.polygon,
       // Focus-mode adjustment slots between the base fit and the isometry.

@@ -4,7 +4,9 @@
 
 ## ▶ RESUME HERE
 
-**Latest (2026-07-31, bound-cut Voids poison decoration identity): FIXED (`f8c1fd6` + `428dbc8`), ⏳ browser-verify.** Void extraction closes the arrangement against a convex bound (visible viewport rect, or frame bbox + margin), so every face at that edge comes out CUT — and its outline, congruent signature, centroid and every scope key are then functions of where the bound fell. **All 26 shipping tilings affected**, 2–96 junk signature classes each. Reported as "Export all shapes downloads a ridiculous number"; the same defect reached the paint/stamp/gradient click path. Fix: `VoidRegion.clipped` at extraction + one shared rule (`decoration/paintTargets.ts`) applied at every site that **mints** identity; sites that merely *render* an existing record are untouched by design. Tests **1455 green**, tsc + build clean. Dated entry below.
+**Latest (2026-07-31, stamp canvases straight-edged on a curved field): FIXED (`<pending>`), ⏳ browser-verify.** Every stamp geometry path (export canvas, panel inspector, Focus mode, image-fit box) read the STRAIGHT `keyPolygon` while the stamp is clipped to the CURVED `polygon` — so the design guide was the wrong silhouette (a `3.6.3.6` triangle's curve encloses 66% of it) and `cover` fitted to a box the shape bulged 8.8% outside. Fix: one seam, `stampGeometry` — pose stays on the identity outline (curved outlines can't rank reliably under `canonicalPose`'s quantisation), shape + box follow the rendered one. Tests **1461 green**. Dated entry below.
+
+**Previous (2026-07-31, bound-cut Voids poison decoration identity): FIXED (`f8c1fd6` + `428dbc8`), ⏳ browser-verify.** Void extraction closes the arrangement against a convex bound (visible viewport rect, or frame bbox + margin), so every face at that edge comes out CUT — and its outline, congruent signature, centroid and every scope key are then functions of where the bound fell. **All 26 shipping tilings affected**, 2–96 junk signature classes each. Reported as "Export all shapes downloads a ridiculous number"; the same defect reached the paint/stamp/gradient click path. Fix: `VoidRegion.clipped` at extraction + one shared rule (`decoration/paintTargets.ts`) applied at every site that **mints** identity; sites that merely *render* an existing record are untouched by design. Tests **1455 green**, tsc + build clean. Dated entry below.
 
 **Previous (2026-07-31, line sets — three user reports): FIXED (`e420218`, `acedf20`, `296f9ac`).** (1) Adding a Tile-edge set to floret-pentagonal was accepted by the panel and never rendered — all of #42 was `runPIC`-only, so all 13 `rosette-patch` tilings were affected. ✅ user-confirmed working. (2) The Base set is now a named, switchable-off peer of the extra sets, and two "never fully dark" guard holes are closed. ✅ user-confirmed working. (3) Alternating curves on Tile-edge sets — two defects, incl. a curve normal whose orientation was decided by floating-point noise. ⏳ NOT browser-verified. Tests **1437 green** (baseline 1418), tsc + build clean, pushed. See the three dated entries immediately below.
 
@@ -39,6 +41,35 @@
 6. **Roadmap design findings still open (Opus).** (a) **Pass-4 right-side Inspector** is blocked by the selection-state split (Canvas-local vertex state) + duplicated per-mode shell — the old "3rd-column-ready grid" claim is FALSE. (b) **Builder Configuration registry** — 7-site ladder to add one, with a silent square-basis fallback in `compositionCellBasis`. Memory: `project_thermonuclear_review_round2.md`.
 7. **Open bugs (unscheduled).** Force-overlapped Tiles emit their own Strands (decided 2026-06-14: make it a **toggle**, default self-contained). Memories: `project_overlap_tiles_strand_bug.md`, `project_strand_editing_debug.md`.
 8. **Gallery name filter (~20 min, Haiku/Sonnet).** Offered and deliberately *not* built in the 2026-07-31 sorting session — out of that ask's scope, user hasn't said yes. A search box over `entries` beside the sort control; the sort module is already pure and the grid renders from a derived list, so it is a filter step in the same `useMemo` plus one input.
+
+---
+### ▶ 2026-07-31 (Stamp canvases come out straight-edged on a curved field — FIXED, ⏳ browser-verify, Opus)
+
+User: *"stamps come through as straight edged even if I have curved strands on."*
+
+**Cause.** A Void carries two outlines: `keyPolygon` (straight — the identity the signature and canonical pose derive from) and `polygon` (the flattened Bézier outline actually drawn, and what `resolveVoidStamps` **clips** the image to). Every stamp geometry path read the straight one — `voidStampCanvas`, the panel inspector, Focus mode, and the image-fit box in `resolveVoidStamps` — so the user designed against a straight-edged guide for a shape clipped to a curve.
+
+Measured (real PIC fields, curve offset 0.3):
+
+| substrate / shape | guide (straight) | drawn (curved) | mismatch |
+|---|---|---|---|
+| `3.6.3.6` triangle | 3 edges | 48 chords | curve encloses **66%** of the guide's area |
+| `4.8.8` 6-gon | 6 edges | 48 chords | shape bulges **8.8%** of the box outside it |
+| `4.8.8` 8-gon / 16-gon | 8 / 16 edges | 64 / 128 chords | area ~equal, silhouette wholly different |
+
+Two consequences, not one: the guide was the wrong silhouette, **and** `cover`/`contain` fitted the image to a box the rendered shape bulged outside of, leaving uncovered bands.
+
+**Fix — one seam, `stampGeometry(identityOutline, renderedOutline?)` in `decoration/stamps.ts`.** Pose still comes from the **identity** outline; shape and box now come from the **rendered** one, carried into the pose's frame by the new `toCanonicalPoint` (the inverse of `pose.toInstance`, which is a rotation + optional flip, so it reuses the same four coefficients).
+
+**Why the pose must stay on the straight outline** — the non-obvious half. `canonicalPose` picks the traversal with the lexicographically-smallest *quantised* token ring (`LENGTH_SNAP` 0.5, `ANGLE_SNAP` 0.5°). A flattened Bézier outline's chord lengths and shallow joint angles sit far too close to those steps to rank reliably — the same fragility `canonicaliseSignatures` exists to paper over. Posing off the curved outline would let sibling instances pick different traversals and render one stamp at several different rotations across the field.
+
+**Also kept on the identity outline: the shape NAME.** A flattened hexagon has 48 chords, so naming off the drawn outline would label every curved shape "48-gon".
+
+Callers threaded: `voidStampCanvas` / `downloadVoidShapeSVG` / `downloadVoidShapePNG` (+ `NamedVoidShape.renderedOutline`), `DecorationPanel` inspector + both export buttons, `StampFocusEditor`, `resolveVoidStamps`. Straight fields are byte-identical — with no distinct rendered outline `stampGeometry` returns `pose.points` exactly as before.
+
+**Files:** `decoration/stamps.ts`, `export/stampAssets.ts`, `components/lab/DecorationPanel.tsx`, `components/lab/StampFocusEditor.tsx`, + `decoration/stampCurvedGeometry.test.ts` (6). Verified red by restoring the old behaviour behind the new API — 3 fail on behaviour, incl. the enclosure check (a first version of that test was a tautology: it compared the canvas points to their own bbox, so it passed against broken code; it now maps the rendered outline into the canvas frame independently).
+
+⏳ **Browser-verify:** curved pattern → Decoration → Stamp → pick a shape. The inspector preview and the exported SVG/PNG guide should both show the curved silhouette; Focus mode too. Upload an image and confirm it reaches the full curved Void with no uncovered band at a bulge.
 
 ---
 ### ▶ 2026-07-31 (Stamp "Export all shapes" downloads ~100 canvases for a 3-shape pattern — FIXED, ⏳ browser-verify, Opus)

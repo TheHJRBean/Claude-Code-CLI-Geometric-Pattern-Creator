@@ -3,11 +3,10 @@ import { createPortal } from 'react-dom'
 import type { StampUserTransform, VoidStampRecord } from '../../types/editor'
 import type { Vec2 } from '../../utils/math'
 import {
-  canonicalPose,
   fitImageRect,
   IDENTITY_USER_TRANSFORM,
   isIdentityUserTransform,
-  poseBBox,
+  stampGeometry,
   userTransformMatrix,
 } from '../../decoration/stamps'
 import { polygonPath } from '../../rendering/svgGeometry'
@@ -20,22 +19,25 @@ import { polygonPath } from '../../rendering/svgGeometry'
  * the adjustment back to the stamp record in canonical coordinates, so every
  * congruent instance inherits it.
  */
-export function StampFocusEditor({ record, outline, onApply, onClose }: {
+export function StampFocusEditor({ record, outline, renderedOutline, onApply, onClose }: {
   record: VoidStampRecord
-  /** The selected Void's outline (straight `keyPolygon` preferred). */
+  /** The selected Void's identity outline (straight `keyPolygon` preferred) —
+   * poses the shape. */
   outline: Vec2[]
+  /** The outline as DRAWN, when it differs (curved fields). The editor must
+   * show what the stamp is clipped to, and fit the image to the same box the
+   * renderer uses — see `stampGeometry`. */
+  renderedOutline?: Vec2[]
   onApply: (rec: VoidStampRecord) => void
   onClose: () => void
 }) {
   const svgRef = useRef<SVGSVGElement>(null)
   const [t, setT] = useState<StampUserTransform>(record.transform ?? IDENTITY_USER_TRANSFORM)
   const geo = useMemo(() => {
-    const pose = canonicalPose(outline)
-    if (!pose) return null
-    const box = poseBBox(pose.points)
-    if (!box || box.width <= 0 || box.height <= 0) return null
-    return { points: pose.points, box, rect: fitImageRect(box, record.width, record.height, record.fit) }
-  }, [outline, record.width, record.height, record.fit])
+    const g = stampGeometry(outline, renderedOutline)
+    if (!g) return null
+    return { points: g.points, box: g.box, rect: fitImageRect(g.box, record.width, record.height, record.fit) }
+  }, [outline, renderedOutline, record.width, record.height, record.fit])
 
   // Drag = pan. Pointer capture on the SVG; deltas convert client px →
   // canonical units via the current uniform viewBox scale.

@@ -1,5 +1,5 @@
 import type { Vec2 } from '../utils/math'
-import { canonicalPose, poseBBox, type StampBBox } from '../decoration/stamps'
+import { stampGeometry, type StampBBox } from '../decoration/stamps'
 import { unclippedSignatures } from '../decoration/voids'
 import { downloadBlob } from './download'
 
@@ -16,13 +16,21 @@ import { downloadBlob } from './download'
  *   small enough to live inside the saved config (localStorage library).
  */
 
-/** Canonical pose + bbox for a Void outline, or null if degenerate. */
-export function voidStampCanvas(outline: Vec2[]): { points: Vec2[]; box: StampBBox } | null {
-  const pose = canonicalPose(outline)
-  if (!pose) return null
-  const box = poseBBox(pose.points)
-  if (!box || box.width <= 0 || box.height <= 0) return null
-  return { points: pose.points, box }
+/**
+ * Canonical outline + bbox for a Void, or null if degenerate.
+ *
+ * `renderedOutline` is the shape as DRAWN — on a curved field that is the
+ * flattened Bézier outline, while `outline` is the straight `keyPolygon` the
+ * pose derives from. Pass it, or the exported canvas is a straight-edged
+ * polygon that the stamp is then clipped to a curve inside (see
+ * `stampGeometry`).
+ */
+export function voidStampCanvas(
+  outline: Vec2[],
+  renderedOutline?: Vec2[],
+): { points: Vec2[]; box: StampBBox } | null {
+  const geo = stampGeometry(outline, renderedOutline)
+  return geo && { points: geo.points, box: geo.box }
 }
 
 /** Standalone SVG document: transparent canvas = the canonical bbox, with
@@ -40,8 +48,8 @@ export function voidShapeSVGDocument(points: Vec2[], box: StampBBox): string {
 
 const round3 = (n: number): number => Math.round(n * 1000) / 1000
 
-export function downloadVoidShapeSVG(outline: Vec2[], filename: string): boolean {
-  const c = voidStampCanvas(outline)
+export function downloadVoidShapeSVG(outline: Vec2[], filename: string, renderedOutline?: Vec2[]): boolean {
+  const c = voidStampCanvas(outline, renderedOutline)
   if (!c) return false
   const svg = voidShapeSVGDocument(c.points, c.box)
   downloadBlob(new Blob([svg], { type: 'image/svg+xml' }), filename)
@@ -49,8 +57,8 @@ export function downloadVoidShapeSVG(outline: Vec2[], filename: string): boolean
 }
 
 /** Transparent PNG canvas (long side `maxDim` px) with the guide outline. */
-export function downloadVoidShapePNG(outline: Vec2[], filename: string, maxDim = 1024): boolean {
-  const c = voidStampCanvas(outline)
+export function downloadVoidShapePNG(outline: Vec2[], filename: string, maxDim = 1024, renderedOutline?: Vec2[]): boolean {
+  const c = voidStampCanvas(outline, renderedOutline)
   if (!c) return false
   const { box, points } = c
   const scale = maxDim / Math.max(box.width, box.height)
@@ -109,7 +117,12 @@ function isApproxRegular(points: Vec2[]): boolean {
 
 export interface NamedVoidShape {
   signature: string
+  /** Identity outline — the straight `keyPolygon` on a curved field. Poses
+   * the canvas. */
   outline: Vec2[]
+  /** Outline as DRAWN, when it differs from `outline` (curved fields). This
+   * is what the canvas guide and bbox come from. */
+  renderedOutline?: Vec2[]
   /** Composition-style shape name, numbered when several distinct shapes
    * share it: "triangle-1", "triangle-2", "6-gon", "hexagon". */
   name: string
@@ -127,31 +140,37 @@ export interface NamedVoidShape {
  * class can survive on its interior copies while a bound-cut copy happens to
  * come first, and exporting that copy would hand back a canvas the shape
  * never actually has.
+ *
+ * Names are read off the IDENTITY outline even on a curved field: a flattened
+ * Bézier hexagon has 48 chords, so naming from the drawn outline would label
+ * every shape "48-gon".
  */
 export function nameVoidShapes(
   voids: ReadonlyArray<{ signature: string; polygon: Vec2[]; keyPolygon?: Vec2[]; clipped?: boolean }>,
 ): NamedVoidShape[] {
   const stable = unclippedSignatures(voids)
-  const bySig = new Map<string, Vec2[]>()
+  const bySig = new Map<string, { outline: Vec2[]; rendered: Vec2[] }>()
+  const take = (v: { polygon: Vec2[]; keyPolygon?: Vec2[]; signature: string }) => {
+    if (!bySig.has(v.signature)) {
+      bySig.set(v.signature, { outline: v.keyPolygon ?? v.polygon, rendered: v.polygon })
+    }
+  }
   for (const v of voids) {
     if (v.clipped || !stable.has(v.signature)) continue
-    if (!bySig.has(v.signature)) bySig.set(v.signature, v.keyPolygon ?? v.polygon)
+    take(v)
   }
   // All-clipped field (viewport under one repeat): `unclippedSignatures`
   // admitted everything, so take the outlines from the clipped members too
   // rather than returning nothing.
-  if (bySig.size === 0) {
-    for (const v of voids) {
-      if (!bySig.has(v.signature)) bySig.set(v.signature, v.keyPolygon ?? v.polygon)
-    }
-  }
-  const entries: { signature: string; outline: Vec2[]; base: string }[] = []
-  for (const [signature, outline] of bySig) {
+  if (bySig.size === 0) for (const v of voids) take(v)
+
+  const entries: { signature: string; outline: Vec2[]; rendered: Vec2[]; base: string }[] = []
+  for (const [signature, { outline, rendered }] of bySig) {
     const c = voidStampCanvas(outline)
     if (!c) continue
     const n = c.points.length
     const base = isApproxRegular(c.points) ? (REGULAR_NAME[n] ?? `${n}-gon`) : `${n}-gon`
-    entries.push({ signature, outline, base })
+    entries.push({ signature, outline, rendered, base })
   }
   const totals = new Map<string, number>()
   for (const e of entries) totals.set(e.base, (totals.get(e.base) ?? 0) + 1)
@@ -160,7 +179,12 @@ export function nameVoidShapes(
     const idx = (seen.get(e.base) ?? 0) + 1
     seen.set(e.base, idx)
     const name = (totals.get(e.base) ?? 1) > 1 ? `${e.base}-${idx}` : e.base
-    return { signature: e.signature, outline: e.outline, name }
+    return {
+      signature: e.signature,
+      outline: e.outline,
+      ...(e.rendered !== e.outline ? { renderedOutline: e.rendered } : null),
+      name,
+    }
   })
 }
 
@@ -177,8 +201,8 @@ export async function downloadAllVoidShapeCanvases(
   let count = 0
   for (const s of named) {
     const ok = format === 'svg'
-      ? downloadVoidShapeSVG(s.outline, `${s.name}-canvas.svg`)
-      : downloadVoidShapePNG(s.outline, `${s.name}-canvas.png`)
+      ? downloadVoidShapeSVG(s.outline, `${s.name}-canvas.svg`, s.renderedOutline)
+      : downloadVoidShapePNG(s.outline, `${s.name}-canvas.png`, 1024, s.renderedOutline)
     if (ok) {
       count++
       await new Promise(r => setTimeout(r, 300))

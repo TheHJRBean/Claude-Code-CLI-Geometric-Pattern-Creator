@@ -1,7 +1,8 @@
 import type { Vec2 } from '../utils/math'
-import { pointsEqual, rotate } from '../utils/math'
+import { pointInPolygon, pointsEqual, rotate } from '../utils/math'
 import type { EditorPatch, EditorCell, EditorTile } from '../types/editor'
 import { computeAllCycles, computeBoundaryCycle } from './boundary'
+import { editorBoundaryVertices } from './buildEditorPolygons'
 import { EDITOR_EPS, tileVertices } from './exposedEdges'
 import { applyStamp, editorNeighbourStamps, type LatticeStamp } from './lattice'
 import { compositionNeighbourStamps, patchRotation } from './compositionLattice'
@@ -65,6 +66,59 @@ export function inverseCellTransform(
 ): Vec2 {
   const pre = rotateAboutOrigin(p, -patchRot)
   return inverseRotateTranslate(pre, { translation: cell.center, rotation: cell.rotation })
+}
+
+/**
+ * The Cell whose Cell-Boundary geometrically contains `worldP` (Patch-world
+ * coords), or `null` when the point falls outside every Boundary. First match
+ * wins — Cell-Boundaries in a Configuration are edge-to-edge, so overlap is
+ * only possible on a shared edge.
+ */
+export function cellContainingPoint(
+  patch: EditorPatch,
+  worldP: Vec2,
+  patchRot = 0,
+): EditorCell | null {
+  for (const cell of patch.cells) {
+    const local = inverseCellTransform(worldP, cell, patchRot)
+    if (pointInPolygon(local, editorBoundaryVertices(cell))) return cell
+  }
+  return null
+}
+
+/**
+ * Host-Cell resolution for a Patch-world point — which Cell should own a Tile
+ * created there.
+ *
+ * The answer used to be "the active Cell", from a time when `activeCellId` was
+ * a user-facing selection. Since the active-Cell selector was deleted
+ * (2026-06-18) it is only an internal "last Cell mutated" pointer, so hosting
+ * there puts the Tile in a Cell the user never aimed at. That is invisible
+ * while symmetry is off (lattice stamps are uniform translations, so the world
+ * position is the same whoever holds the Tile) but becomes very visible with
+ * symmetry on: the orbit runs in the host Cell's local frame about the host
+ * Cell's centre, so a Tile hosted in the wrong Cell fans its copies across
+ * sibling Cells and neighbour stamps.
+ *
+ * Containment first; for points outside every Boundary (Decision 5 lets Tiles
+ * poke out, and cross-stamp picks land beyond the Patch entirely) fall back to
+ * the nearest Cell centre, which keeps the symmetry orbit anchored on the Cell
+ * the Tile actually sits against.
+ */
+export function resolveHostCell(patch: EditorPatch, worldP: Vec2, patchRot = 0): EditorCell {
+  const contained = cellContainingPoint(patch, worldP, patchRot)
+  if (contained) return contained
+  let best = activeCell(patch)
+  let bestD = Infinity
+  for (const cell of patch.cells) {
+    const c = applyCellTransform({ x: 0, y: 0 }, cell, patchRot)
+    const d = Math.hypot(c.x - worldP.x, c.y - worldP.y)
+    if (d < bestD) {
+      bestD = d
+      best = cell
+    }
+  }
+  return best
 }
 
 /** Axis-aligned bounding box (world coords) enclosing `points`. */

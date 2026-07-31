@@ -48,6 +48,7 @@ import {
   isPatchSelectableVertex,
   isSelectable,
   neighbourStampsNear,
+  resolveHostCell,
   retargetTile,
   worldProbeCell,
   worldTileVertexArrays,
@@ -1117,18 +1118,18 @@ function chordCompleteAcrossPatch(state: PatternConfig, pA: Vec2, pB: Vec2): Pat
 /**
  * Multi-vertex Complete router. Validates every pick against the
  * Patch-frame selectable set (matches the canvas's pick-target build), then
- * routes all picks into the active Cell's local frame. Symmetry orbit
- * propagation uses the active Cell's subgroup — orbit images whose
- * Patch-local position isn't in the selectable set are silently dropped
- * (per existing asymmetric-Cell convention).
+ * routes all picks into the **host** Cell's local frame. Symmetry orbit
+ * propagation uses the host Cell's subgroup — orbit images whose Patch-local
+ * position isn't in the selectable set are silently dropped (per existing
+ * asymmetric-Cell convention).
  *
- * Tile always lives in the active Cell (locked design decision — vertices
- * may poke outside its Boundary per Decision 5).
+ * Host = the Cell that geometrically contains the gap (`resolveHostCell` on
+ * the pick centroid), not `activeCellId`. Vertices may still poke outside the
+ * host's Boundary per Decision 5.
  */
 function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[], force = false): PatternConfig {
   if (!state.editor) return state
   const patch = state.editor
-  const active = activeCell(patch)
   const patchRot = patchRotation(patch)
 
   // Guide Anchors (slice 3) join the pickable set. A pick is legitimate if it
@@ -1175,23 +1176,32 @@ function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[], force
     return seedFigures({ ...state, editor: { ...patch, frame: { ...patch.frame, completedTiles } } })
   }
 
-  const localPicks = picks.map(p => inverseCellTransform(p, active, patchRot))
-  const syms = boundarySymmetries(active.shape, active.symmetryMode ?? 'none')
+  // Host the Tile in the Cell the gap actually sits in. Hosting in
+  // `activeCellId` (the old rule, from when it was a user-facing selection)
+  // silently misfiled the Tile whenever the user's last per-Cell edit — e.g.
+  // flipping this very symmetry toggle — pointed it at some other Cell. With
+  // symmetry on, that misfiling is not cosmetic: the orbit runs about the host
+  // Cell's centre under the host Cell's dihedral group, so a gap completed in
+  // a square Cell while a dodecagon Cell was "active" fanned six copies across
+  // the sibling Cells and the neighbouring lattice stamps.
+  const host = resolveHostCell(patch, centroid(picks), patchRot)
+  const localPicks = picks.map(p => inverseCellTransform(p, host, patchRot))
+  const syms = boundarySymmetries(host.shape, host.symmetryMode ?? 'none')
   const seenCentroids: Vec2[] = []
   const placements: EditorTile[] = []
-  let working: EditorCell = active
-  const idPrefix = `completed-n-${active.tiles.length}-${Date.now()}`
+  let working: EditorCell = host
+  const idPrefix = `completed-n-${host.tiles.length}-${Date.now()}`
   // Adjacency reference: only the user's pre-existing Tiles count. Orbit
   // images placed inside this loop don't satisfy adjacency for their siblings
   // — otherwise a chain of mutually-adjacent orbit images could drift away
   // from any real Tile.
-  const userTiles = existingTilesInHostFrame(patch, active)
+  const userTiles = existingTilesInHostFrame(patch, host)
   for (let i = 0; i < syms.length; i++) {
     const transformed = localPicks.map(p => applySym(syms[i], p))
     // Orbit image must also land on selectable vertices (or Guide Anchors) —
     // drop silently for asymmetric setups where the orbit branch has no real
     // pick targets.
-    const patchLocal = transformed.map(p => applyCellTransform(p, active, patchRot))
+    const patchLocal = transformed.map(p => applyCellTransform(p, host, patchRot))
     if (!patchLocal.every(p => isPatchSelectableVertex(patch, p, true) || guideAnchorAt(p))) continue
     const c = centroid(transformed)
     if (seenCentroids.some(q => pointsEqual(c, q, EDITOR_EPS))) continue
@@ -1209,7 +1219,7 @@ function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[], force
     working = { ...working, tiles: [...working.tiles, tile] }
   }
   if (placements.length === 0) return state
-  return applyWrap(seedFigures(updateCell(state, undefined, _ => working)))
+  return applyWrap(seedFigures(updateCell(state, host.id, _ => working)))
 }
 
 /**

@@ -37,6 +37,7 @@
 - **Check which emitters and line families a per-segment change reaches** — see the recurring-shape note above.
 
 **NEXT — pick one:**
+0. **Browser-verify `fa4e89d` (~5 min, any model) + answer the #34 question.** In the Lab, Builder → Configuration **4.6.12**, Design Phase. Delete or No-Seed one **square** Cell to open a gap. Set the **dodecagon** Cell's symmetry to **Full** (this is the step that makes it the internal active Cell). Complete-mode → click the square Cell's four Boundary corners. Expect **one** Tile, in the square, nothing scattered into the sibling Cells or the neighbour stamps. Control: empty the **dodecagon** instead, set its symmetry Full, complete a wedge from its centre to two adjacent corners ⇒ **12** wedges, all inside the dodecagon. Then: **do we close #34 now** (`resolveHostCell` is the helper it specced) **or leave it folded into #30?**
 1. **Browser-verify the Decoration/Stamp session (Sonnet/Opus) — 4 unverified fixes, all reachable in one pass.** Load a saved pattern with curves on, go Decoration → Stamp:
    - `f8c1fd6` **Export all SVG** ⇒ a handful of files, not ~100. Pan, re-export, count must be unchanged.
    - `428dbc8` **screen-edge band** ⇒ partial shapes there no longer take a paint/stamp click (drag-pan still works over them); whole shapes of the same class still do.
@@ -44,11 +45,44 @@
    - `296f9ac` **alternating curves** on a Tile-edges set: alternating off ⇒ every edge bulges outward consistently; on ⇒ scallops flip edge to edge. Odd-length closed strands (floret pentagons) stay symmetric **by design** — correct, but reads as "alternating did nothing" there. Also confirm control-point handles sit ON an extra set's curve.
 2. **Ask for the rest of the Strand-editing issues (Sonnet).** Owed above; the user has surfaced three more since the list was written, so there are likely others.
 3. **Issue hygiene (~10 min, Haiku).** Shipped+verified epics still OPEN on GitHub: **#44 / #45 / #46** (gradients), **#42** (line sets — now genuinely complete after `e420218`/`296f9ac`), **#28** (Guides slice 3, verified 2026-07-22). Close each with a pointer to its verifying commit. **#40** is the *only* remaining reason a tile emits fewer than 2n vertex lines; `figureSymmetry.test.ts`'s sweep makes its cases easy to enumerate — good moment to scope it.
-4. **Guides slices 4–6 (Fable/Opus).** **#29** symmetry-orbit drawing (linked Guide groups) → **#30** stamping under the Lattice + neighbour Anchors → **#31** Anchor vocabulary in CONTEXT.md → **#32** Girih preset reveal. **#34** (stamped Anchor Tiles land in `activeCell` regardless of geometric host Cell) is the known correctness gap and folds naturally into #30. Spec: `CONSTRUCTION_GUIDES_SPEC.md` + ADR-0008.
+4. **Guides slices 4–6 (Fable/Opus).** **#29** symmetry-orbit drawing (linked Guide groups) → **#30** stamping under the Lattice + neighbour Anchors → **#31** Anchor vocabulary in CONTEXT.md → **#32** Girih preset reveal. **#34** (stamped Anchor Tiles land in `activeCell` regardless of geometric host Cell) is the known correctness gap and folds naturally into #30 — **its `cellContainingPoint` fix idea now exists** as `resolveHostCell` in `patchSelectable.ts` (built for the Complete path, `fa4e89d`), so #34 is a small re-target of `placeTileOnGuideAnchor`'s host + orbit frame. Note #34's "rendering is unaffected" holds only while no symmetry orbit runs — see the 2026-07-31 entry. Spec: `CONSTRUCTION_GUIDES_SPEC.md` + ADR-0008.
 5. **Decoration stamps v2 (Sonnet/Opus).** v1 ships for Voids only; remaining = **Tile**-stamping, explicit mirror toggle, asset library. Memory: `project_decoration_stamps_idea.md`.
 6. **Roadmap design findings still open (Opus).** (a) **Pass-4 right-side Inspector** is blocked by the selection-state split (Canvas-local vertex state) + duplicated per-mode shell — the old "3rd-column-ready grid" claim is FALSE. (b) **Builder Configuration registry** — 7-site ladder to add one, with a silent square-basis fallback in `compositionCellBasis`. Memory: `project_thermonuclear_review_round2.md`.
 7. **Open bugs (unscheduled).** Force-overlapped Tiles emit their own Strands (decided 2026-06-14: make it a **toggle**, default self-contained). Memories: `project_overlap_tiles_strand_bug.md`, `project_strand_editing_debug.md`.
 8. **Gallery name filter (~20 min, Haiku/Sonnet).** Offered and deliberately *not* built in the 2026-07-31 sorting session — out of that ask's scope, user hasn't said yes. A search box over `entries` beside the sort control; the sort module is already pure and the grid renders from a derived list, so it is a filter step in the same `useMemo` plus one input.
+
+---
+### ▶ 2026-07-31 (Symmetry Complete places copies into neighbouring Cells — FIXED `fa4e89d`, ⏳ browser-verify, Opus)
+
+User: *"strange error where placing or completing tiles with symmetry on places them in neighbouring tiles"* + screenshot (4.6.12, tiles scattered across the whole visible lattice). Clarified on ask: **4.6.12**, **multi-vertex Complete**, no Guides.
+
+**Cause.** `multiPickCompleteAcrossPatch` hosted the completed Tile in `activeCellId`, then ran the symmetry orbit in **that** Cell's local frame, about **that** Cell's centre, under **that** Cell's dihedral group.
+
+`activeCellId` stopped being a user-facing selection on 2026-06-18 (the active-Cell selector was deleted; the Design panel shows every Cell at once). It is now only "the last Cell mutated" — and `SET_EDITOR_SYMMETRY_MODE` routes through `updateCell`, so **turning symmetry on for a Cell is itself the mutation that makes it active**. The reported workflow is therefore the *natural* one: enable symmetry on the dodecagon → Complete a gap in a square Cell → the Tile is filed under the dodecagon and D12 fans six copies out of it.
+
+Repro output before the fix (one gap clicked, at square-1's Boundary):
+
+```
+[symmetry = full on dodecagon]  6 Tiles created, ALL hosted in `dodecagon`
+  completed-…-0   (236.6,  -0.0)   ← the gap the user clicked          ✓
+  completed-…-2   (118.3, 204.9)   ← square-2's seed Tile sits here
+  completed-…-4  (-118.3, 204.9)   ← square-3's seed Tile sits here
+  completed-…-6  (-236.6,   0.0)   ← outside the Patch ⇒ reprinted at every lattice stamp
+  completed-…-8  (-118.3,-204.9)   ← ditto
+  completed-…-10  (118.3,-204.9)   ← ditto
+```
+
+Only the 60°-multiple rotations survived the selectable-vertex gate (the 4.6.12 lattice is 6-fold about the dodecagon); the two landing on square-2 / square-3 slipped the overlap guard because `overlapsExisting` is edge-cross based and an **exactly coincident** polygon crosses nothing.
+
+**Fix.** `resolveHostCell(patch, worldPoint, patchRot)` — new in `src/editor/patchSelectable.ts`, alongside `cellContainingPoint`. Cell-Boundary containment on the pick centroid; falls back to the **nearest Cell centre** for gaps outside every Boundary (Decision 5 lets Tiles poke out, and cross-stamp picks land beyond the Patch entirely) so the orbit still anchors on the Cell the Tile sits against. `multiPickCompleteAcrossPatch` uses the resolved host for the local frame, the symmetry subgroup, the overlap reference and the final `updateCell` target.
+
+**Why it hid for so long.** With symmetry off the misfiling is invisible: lattice stamps are uniform translations, so a Tile's world position is identical whichever Cell holds it. Symmetry is the only thing that makes host identity observable. (The same reasoning is written down in #34, which called rendering unaffected — true for the Anchor path it describes, but not once an orbit is involved.)
+
+**Tests.** `src/editor/completeHostCell.test.ts`, 5 cases, **verified red-first** (2 of 5 fail against the old reducer). Includes the positive control: D12 on the dodecagon while completing a dodecagon wedge still yields 12 copies, every one inside its own Boundary — so orbit propagation itself is untouched. Suite **1466 green** (baseline 1461), tsc clean.
+
+**Left alone, deliberately.**
+- `placeTileOnGuideAnchor` — same `activeCell` assumption, is GitHub **#34**, now has the helper it asked for. Offered to the user; answer pending.
+- `chordCompleteAcrossPatch`'s `stamp != null` branch also hosts in `active`. No symmetry orbit there, so no fan-out — latent only.
 
 ---
 ### ▶ 2026-07-31 (Stamp canvases come out straight-edged on a curved field — FIXED, ⏳ browser-verify, Opus)

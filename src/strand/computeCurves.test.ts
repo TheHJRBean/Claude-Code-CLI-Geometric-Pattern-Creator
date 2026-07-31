@@ -116,6 +116,88 @@ describe('computeCurves — alternating parity', () => {
   })
 })
 
+// A `boundary` (Tile edges) line set traces the Tile outline — there are no ±
+// rays, so segments carry no `side` and parity can only be a 2-colouring of the
+// chain. Before 2026-07-31 the emitter faked `side` from the emitting polygon's
+// local edge index, which the field-wide shared-edge dedupe made arbitrary:
+// alternating curves landed on some edges and not others.
+describe('computeCurves — alternating on ray-less (boundary) families', () => {
+  /**
+   * The edges of a regular `n`-gon walked in order — a real ring, because the
+   * baseNormal selector is orientation-relative (CW tangent about the polygon
+   * centre) and degenerates on a straight polyline. `closed` keeps the final
+   * edge back to the first vertex; otherwise the chain is left open.
+   */
+  const ring = (n: number, closed: boolean) => {
+    const R = 50
+    const v = Array.from({ length: n }, (_, i) => ({
+      x: R * Math.cos((2 * Math.PI * i) / n),
+      y: R * Math.sin((2 * Math.PI * i) / n),
+    }))
+    const count = closed ? n : n - 1
+    const points = [...v.slice(0, count + 1)]
+    if (closed) points[count] = { ...v[0] }
+    const segs = Array.from({ length: count }, (_, i) =>
+      seg(v[i], v[(i + 1) % n], {
+        side: undefined,
+        setId: 'b',
+        polygonSides: n,
+        polygonCenter: { x: 0, y: 0 },
+      }))
+    return { sd: [{ points, segmentIndices: segs.map((_, i) => i) }] as StrandData[], segs }
+  }
+
+  const boundaryConfig = (curve: CurveConfig): PatternConfig => ({
+    figures: {
+      '4': {
+        type: 'star', contactAngle: 60, lineLength: 1, autoLineLength: true,
+        extraSets: [{ id: 'b', kind: 'boundary', contactAngle: 60, lineLength: 1, autoLineLength: true, curve }],
+      },
+    },
+  } as unknown as PatternConfig)
+
+  /**
+   * Which side of the ring each control point bulges to: +1 outward, −1 inward.
+   * World-axis signs are useless here — the offset direction rotates with the
+   * edge — so compare the control point's radius to its base point's.
+   */
+  const bulge = (n: number, closed: boolean, curve: CurveConfig): number[] => {
+    const { sd, segs } = ring(n, closed)
+    const out = computeCurves(sd, segs, boundaryConfig(curve))
+    const R = (p: { x: number; y: number }) => Math.hypot(p.x, p.y)
+    return out[0].curves.map((c, i) => {
+      const from = sd[0].points[i], to = sd[0].points[i + 1]
+      const base = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 }
+      return Math.sign(R(c![0]) - R(base))
+    })
+  }
+
+  it('alternates along the chain when no segment carries a side', () => {
+    const signs = bulge(7, false, enabledCurve({ alternating: true }))
+    expect(signs).toHaveLength(6)
+    // Consecutive Rays bulge to opposite sides — the whole point of "alternating".
+    for (let i = 1; i < signs.length; i++) expect(signs[i]).toBe(-signs[i - 1])
+  })
+
+  it('leaves an odd closed loop symmetric — it is not 2-colourable', () => {
+    const signs = bulge(5, true, enabledCurve({ alternating: true }))
+    expect(signs).toHaveLength(5)
+    expect(new Set(signs).size).toBe(1)
+  })
+
+  it('still alternates around an even closed loop, including the wrap-around join', () => {
+    const signs = bulge(6, true, enabledCurve({ alternating: true }))
+    expect(signs).toHaveLength(6)
+    for (let i = 1; i < signs.length; i++) expect(signs[i]).toBe(-signs[i - 1])
+    expect(signs[signs.length - 1]).toBe(-signs[0])
+  })
+
+  it('alternating off leaves every offset on the same side', () => {
+    const signs = bulge(7, false, enabledCurve({ alternating: false }))
+    expect(new Set(signs).size).toBe(1)
+  })
+})
+
 describe('smoothCurves', () => {
   it('returns the input unchanged for fewer than 3 points', () => {
     const strand: CurvedStrand = { points: [{ x: 0, y: 0 }, { x: 1, y: 0 }], curves: [null] }

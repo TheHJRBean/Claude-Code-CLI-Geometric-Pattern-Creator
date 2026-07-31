@@ -1,7 +1,14 @@
 import { memo, useMemo } from 'react'
 import type { Segment } from '../types/geometry'
 import type { PatternConfig, CurveConfig } from '../types/pattern'
-import { sub, normalize, perp, scale, add, dist, lerp, dot, type Vec2 } from '../utils/math'
+import { scale, add, dist, lerp, type Vec2 } from '../utils/math'
+import { buildStrands } from '../strand/buildStrands'
+import {
+  buildAlternatingParity,
+  resolveSegmentCurve,
+  segmentBaseNormal,
+  segmentCurveSign,
+} from '../strand/computeCurves'
 
 interface Props {
   segments: Segment[]
@@ -18,36 +25,24 @@ interface Marker {
   isActive: boolean
 }
 
-function computeSegmentCPs(seg: Segment, curve: CurveConfig): Vec2[] {
+/**
+ * Where the draggable handles sit for one segment. Geometry is deliberately
+ * borrowed from `computeCurves` rather than restated: these handles claim to
+ * show the curve the renderer draws, so any local copy of the normal/sign rule
+ * is a handle that lies the moment the two drift. They did — this layer kept
+ * the pre-#42 `seg.side === 'plus'` parity and the pre-#42 curve lookup.
+ *
+ * The one thing not borrowed is `computeCurves`' traversal-reversal handling:
+ * that mirrors control points into the STRAND's direction of travel, and these
+ * handles are drawn per segment in its own from→to direction.
+ */
+function computeSegmentCPs(seg: Segment, curve: CurveConfig, altFlipped: boolean): Vec2[] {
   const { from, to } = seg
   const edgeLen = dist(from, to)
   if (edgeLen < 1e-10) return []
 
-  const traversalDir = normalize(sub(to, from))
-  const rawNormal = perp(traversalDir)
-  const segMid: Vec2 = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 }
-  const radial = sub(segMid, seg.polygonCenter)
-
-  let baseNormal: Vec2
-  if (seg.polygonSides === 3) {
-    const inwardRadial = { x: -radial.x, y: -radial.y }
-    baseNormal = dot(rawNormal, inwardRadial) >= 0
-      ? rawNormal
-      : { x: -rawNormal.x, y: -rawNormal.y }
-  } else {
-    const cwTangent: Vec2 = { x: radial.y, y: -radial.x }
-    baseNormal = dot(rawNormal, cwTangent) >= 0
-      ? rawNormal
-      : { x: -rawNormal.x, y: -rawNormal.y }
-  }
-
-  const dirSign = curve.direction === 'right' ? -1 : 1
-  const altActive =
-    !!curve.alternating &&
-    seg.polygonSides !== 3 &&
-    seg.side === 'plus'
-  const altSign = altActive ? -1 : 1
-  const sign = dirSign * altSign
+  const baseNormal = segmentBaseNormal(seg, from, to)
+  const sign = segmentCurveSign(curve, altFlipped)
 
   return curve.points.map(cp => {
     const basePoint = lerp(from, to, cp.position)
@@ -58,13 +53,15 @@ function computeSegmentCPs(seg: Segment, curve: CurveConfig): Vec2[] {
 export const ControlPointLayer = memo(function ControlPointLayer({ segments, config, visible, active, zoom }: Props) {
   const markers = useMemo<Marker[]>(() => {
     const out: Marker[] = []
-    for (const seg of segments) {
+    // Alternating parity is strand-scoped for ray-less families, so the chains
+    // have to be built here too. Same input as StrandLayer's, so same answer.
+    const altParity = buildAlternatingParity(segments, buildStrands(segments))
+    for (let s = 0; s < segments.length; s++) {
+      const seg = segments[s]
       if (!visible[seg.tileTypeId]) continue
-      const fig = config.figures[seg.tileTypeId]
-      const decoupledVertex = (fig?.vertexLinesDecoupled ?? false) && seg.kind === 'vertex-line'
-      const curve = decoupledVertex ? fig?.vertexCurve : fig?.curve
+      const curve = resolveSegmentCurve(config.figures[seg.tileTypeId], seg)
       if (!curve?.enabled || !curve.points.length) continue
-      const cps = computeSegmentCPs(seg, curve)
+      const cps = computeSegmentCPs(seg, curve, altParity.get(s) ?? false)
       const activeIdx = active[seg.tileTypeId] ?? 0
       for (let i = 0; i < cps.length; i++) {
         const base = lerp(seg.from, seg.to, curve.points[i].position)

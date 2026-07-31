@@ -204,13 +204,20 @@ interface PolyCtx {
 }
 
 /** Push one `Segment`, filling the per-polygon fields from `ctx`. */
+/**
+ * `side` is the ± ray the segment came from, and is genuinely absent for line
+ * families that aren't built from ray pairs (a `boundary` set traces the Tile
+ * outline — there are no rays). Pass `undefined` there rather than inventing
+ * one: consumers key real behaviour off this tag (alternating-curve parity),
+ * and a fabricated value is worse than a missing one, which they can handle.
+ */
 function pushSegment(
   segments: Segment[],
   ctx: PolyCtx,
   from: Vec2,
   to: Vec2,
   edgeMidpoint: Vec2,
-  side: RaySide,
+  side: RaySide | undefined,
 ): void {
   const seg: Segment = {
     from,
@@ -221,8 +228,8 @@ function pushSegment(
     polygonId: ctx.polygonId,
     tileTypeId: ctx.tileTypeId,
     kind: ctx.kind,
-    side,
   }
+  if (side !== undefined) seg.side = side
   // Omit the property entirely for the primary figure so setless output stays
   // byte-identical to the pre-#42 pipeline.
   if (ctx.setId !== undefined) seg.setId = ctx.setId
@@ -664,7 +671,16 @@ export function emitExtraSets(
     } else if (set.kind === 'boundary') {
       // Tile-to-strand: the polygon outline itself, one Ray per edge — no PIC
       // rays, so θ/length are ignored; curve/chaining apply as for any set.
-      // Alternating side parity by edge index.
+      //
+      // No `side`: there is no ± ray here to take one from. This used to stamp
+      // `k % 2` — the emitting polygon's local edge index — which read as a
+      // plausible alternation but was arbitrary in the field, because the
+      // dedupe above means each shared edge is emitted by whichever polygon
+      // reached it first. On a square tiling exactly ONE tile of 121 emitted
+      // all four of its own edges; the rest inherited parity from up to three
+      // different neighbours' index runs, so alternating curves landed on some
+      // edges and not others. Alternation for this family is a 2-colouring of
+      // the STRAND, resolved in `buildAlternatingParity`.
       const ctx: PolyCtx = { polygonId: poly.id, tileTypeId: poly.tileTypeId, polygonCenter: poly.center, polygonSides: n, kind: 'star-arm', setId: set.id }
       for (let k = 0; k < n; k++) {
         const a = poly.vertices[k]
@@ -672,7 +688,7 @@ export function emitExtraSets(
         const key = boundaryEdgeKey(set.id, a, b)
         if (boundarySeen.has(key)) continue
         boundarySeen.add(key)
-        pushSegment(segments, ctx, a, b, midpoint(a, b), k % 2 === 0 ? 'plus' : 'minus')
+        pushSegment(segments, ctx, a, b, midpoint(a, b), undefined)
       }
     } else {
       const vertexRays = computeVertexRays(poly, set.contactAngle)

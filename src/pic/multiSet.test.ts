@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { runPIC } from './index'
 import { runRosettePIC } from './rosettePatch'
 import { buildStrands } from '../strand/buildStrands'
+import { computeCurves } from '../strand/computeCurves'
 import { generateTiling, type Viewport } from '../tilings/archimedean'
 import { generateTapratsTiling } from '../tilings/tapratsTiling'
 import { TILINGS } from '../tilings/index'
@@ -293,5 +294,85 @@ describe('multi line sets (#42) — save/load round-trip', () => {
     const legacy = withFig(SQUARE, { 4: fig(67.5) })
     const round = loadPatternConfig(JSON.parse(JSON.stringify(legacy)))
     expect(round.figures['4'].extraSets).toBeUndefined()
+  })
+})
+
+// Alternating curves on a `boundary` set were broken two ways at once, both
+// fixed 2026-07-31 and both invisible to a unit test that only fed synthetic
+// segments through computeCurves — they need the real emitter.
+describe('multi line sets (#42) — boundary sets and alternating curves', () => {
+  it('boundary segments carry no `side` — there is no ± ray to take one from', () => {
+    const polys = squarePolys()
+    const segs = runPIC(polys, withFig(SQUARE, { 4: fig(67.5, { extraSets: [boundarySet('b')] }) }))
+    const boundary = segs.filter(s => s.setId === 'b')
+    expect(boundary.length).toBeGreaterThan(0)
+    expect(boundary.every(s => !('side' in s))).toBe(true)
+    // The primary is ray-derived and still tags every segment.
+    expect(segs.filter(s => s.setId === undefined).every(s => !!s.side)).toBe(true)
+  })
+
+  it('a boundary curve bulges consistently, not by floating-point noise', () => {
+    // The orientation reference used to be the CW tangent, which is exactly
+    // perpendicular to an outline segment's normal (dot ~1e-15): every tile
+    // edge picked its bulge direction from rounding error. With alternating
+    // OFF every edge of one tile must now bulge the same way.
+    const polys = squarePolys()
+    const curve = { enabled: true, alternating: false, points: [{ position: 0.5, offset: 0.2 }] }
+    const cfg = withFig(SQUARE, { 4: fig(67.5, { extraSets: [boundarySet('b', { curve })] }) })
+    const segs = runPIC(polys, cfg)
+    const strands = buildStrands(segs)
+    const curves = computeCurves(strands, segs, cfg)
+
+    let checked = 0
+    for (let si = 0; si < strands.length; si++) {
+      const sd = strands[si]
+      for (let i = 0; i < sd.segmentIndices.length; i++) {
+        const seg = segs[sd.segmentIndices[i]]
+        if (seg.setId !== 'b') continue
+        const cp = curves[si].curves[i]
+        if (!cp) continue
+        // Outward from the owning tile's centre, for every edge.
+        const from = sd.points[i], to = sd.points[i + 1]
+        const base = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 }
+        const rBase = Math.hypot(base.x - seg.polygonCenter.x, base.y - seg.polygonCenter.y)
+        const rCp = Math.hypot(cp[0].x - seg.polygonCenter.x, cp[0].y - seg.polygonCenter.y)
+        expect(rCp).toBeGreaterThan(rBase)
+        checked++
+      }
+    }
+    expect(checked).toBeGreaterThan(50)
+  })
+
+  it('with alternating ON, consecutive Rays along a boundary strand flip', () => {
+    const polys = squarePolys()
+    const curve = { enabled: true, alternating: true, points: [{ position: 0.5, offset: 0.2 }] }
+    const cfg = withFig(SQUARE, { 4: fig(67.5, { extraSets: [boundarySet('b', { curve })] }) })
+    const segs = runPIC(polys, cfg)
+    const strands = buildStrands(segs)
+    const curved = computeCurves(strands, segs, cfg)
+
+    let chainsChecked = 0
+    for (let si = 0; si < strands.length; si++) {
+      const sd = strands[si]
+      if (segs[sd.segmentIndices[0]]?.setId !== 'b') continue
+      const first = sd.points[0], last = sd.points[sd.points.length - 1]
+      const closed = Math.abs(first.x - last.x) < 1e-6 && Math.abs(first.y - last.y) < 1e-6
+      if (closed && sd.segmentIndices.length % 2 === 1) continue  // not 2-colourable
+      const signs: number[] = []
+      for (let i = 0; i < sd.segmentIndices.length; i++) {
+        const seg = segs[sd.segmentIndices[i]]
+        const cp = curved[si].curves[i]
+        if (!cp) { signs.push(0); continue }
+        const from = sd.points[i], to = sd.points[i + 1]
+        const base = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 }
+        const rBase = Math.hypot(base.x - seg.polygonCenter.x, base.y - seg.polygonCenter.y)
+        const rCp = Math.hypot(cp[0].x - seg.polygonCenter.x, cp[0].y - seg.polygonCenter.y)
+        signs.push(Math.sign(rCp - rBase))
+      }
+      if (signs.length < 2) continue
+      for (let i = 1; i < signs.length; i++) expect(signs[i]).toBe(-signs[i - 1])
+      chainsChecked++
+    }
+    expect(chainsChecked).toBeGreaterThan(0)
   })
 })

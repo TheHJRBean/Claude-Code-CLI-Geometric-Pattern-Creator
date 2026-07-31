@@ -25,15 +25,35 @@ export function resolveSegmentCurve(fig: FigureConfig | undefined, seg: Segment)
 }
 
 /**
- * Parity = ray side (plus vs minus) of the ±α rotation from the inward
- * normal/bisector. Read directly from the `side` tag the PIC emitter
- * stamps on each segment. A prior cross(inwardRadial, rayDir) heuristic
- * degenerated to ~0 when seg.to sat on the polygon center (e.g. equilateral
- * triangles at θ=60°), producing unstable parity that flipped on every
- * pipeline rerun — the intrinsic side tag avoids that.
+ * Which segments take the flipped side of an alternating curve.
+ *
+ * Two rules, because "alternating" has two different meanings depending on how
+ * the line family was constructed:
+ *
+ * 1. **Ray-derived families** (star arms, vertex lines — anything with a `side`
+ *    tag): parity is the ± side of the α rotation from the inward normal /
+ *    bisector, read straight off the tag the PIC emitter stamps. This is
+ *    intrinsic geometry, consistent between neighbouring tiles by construction,
+ *    and it is what every existing curved pattern was authored against — do not
+ *    change it. (A prior cross(inwardRadial, rayDir) heuristic degenerated to
+ *    ~0 when seg.to sat on the polygon centre — e.g. equilateral triangles at
+ *    θ=60° — giving parity that flipped on every rerun. The tag avoids that.)
+ *
+ * 2. **Families with no rays** (a `boundary` set traces the Tile outline):
+ *    there is no ± to read, so alternation can only mean a 2-colouring of the
+ *    chain — flip every other Ray ALONG the Strand. A closed loop with an odd
+ *    number of Rays is not 2-colourable, so it is left symmetric; that is the
+ *    same odd-cycle argument the 3-gon rule below already makes, just applied
+ *    to the chain rather than to a tile's arms.
+ *
+ * Strand-scoped, so it must run after `buildStrands`.
  */
-function buildAlternatingParity(segments: Segment[]): Map<number, boolean> {
+export function buildAlternatingParity(
+  segments: Segment[],
+  strands: StrandData[],
+): Map<number, boolean> {
   const parity = new Map<number, boolean>()
+
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i]
     if (!seg.side) continue
@@ -44,7 +64,70 @@ function buildAlternatingParity(segments: Segment[]): Map<number, boolean> {
     if (seg.polygonSides === 3) continue
     parity.set(i, seg.side === 'plus')
   }
+
+  for (const sd of strands) {
+    const idx = sd.segmentIndices
+    // Strands are set-scoped (`buildStrands` keys junctions by setId), so a
+    // strand is homogeneous: either the whole chain is ray-derived or none is.
+    if (!idx.length || segments[idx[0]]?.side) continue
+    const first = sd.points[0]
+    const last = sd.points[sd.points.length - 1]
+    const closed = Math.abs(first.x - last.x) < 1e-6 && Math.abs(first.y - last.y) < 1e-6
+    if (closed && idx.length % 2 === 1) continue
+    for (let i = 0; i < idx.length; i++) parity.set(idx[i], i % 2 === 1)
+  }
+
   return parity
+}
+
+/**
+ * The normal a curve's control points are offset along, oriented so a positive
+ * offset means the same thing everywhere in the pattern.
+ *
+ * Shared by the render (`computeCurves`) and the on-canvas control-point
+ * handles (`ControlPointLayer`) — they used to hold separate copies of this,
+ * which is how the handles silently drifted from the curve they claim to edit.
+ */
+export function segmentBaseNormal(seg: Segment, from: Vec2, to: Vec2): Vec2 {
+  const rawNormal = perp(normalize(sub(to, from)))
+  const segMid: Vec2 = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 }
+  const radial = sub(segMid, seg.polygonCenter)
+
+  // `rawNormal` points to whichever side falls out of the from→to ordering, so
+  // it has to be flipped onto a reference direction to mean the same thing
+  // across the pattern. The reference must NOT be near-perpendicular to the
+  // normal, or the dot below lands on ~0 and the orientation is decided by
+  // floating-point noise instead of by geometry — which is the failure mode
+  // behind all three cases here.
+  let flipTo: Vec2
+  if (!seg.side) {
+    // A family with no ± rays is a Tile outline (a `boundary` set): the Ray IS
+    // an edge, so its normal is RADIAL and the CW tangent below is exactly
+    // perpendicular to it — dot ≈ 1e-15 on every edge, sign pure noise, so
+    // neighbouring edges bulged opposite ways at random. Orient outward from
+    // the Tile centre, so a positive offset uniformly bulges away from it.
+    flipTo = radial
+  } else if (seg.polygonSides === 3) {
+    // 3-gons at θ=60°: the 3 surviving arms form the medial triangle, each
+    // perpendicular to its own radial — the same degeneracy from the other
+    // direction. Align with the INWARD radial so a positive offset uniformly
+    // bulges toward the centroid (concave).
+    flipTo = { x: -radial.x, y: -radial.y }
+  } else {
+    // Star arms run radially, so their normal is tangential: the CW tangent is
+    // the well-conditioned reference. It is also plus/minus-independent, so
+    // flipping the sign via the alternating parity is a true rotational-sense
+    // flip rather than a mirror.
+    flipTo = { x: radial.y, y: -radial.x }
+  }
+  return dot(rawNormal, flipTo) >= 0 ? rawNormal : { x: -rawNormal.x, y: -rawNormal.y }
+}
+
+/** Offset sign for one segment: direction preference × alternating flip. */
+export function segmentCurveSign(curve: CurveConfig, altFlipped: boolean): number {
+  const dirSign = curve.direction === 'right' ? -1 : 1
+  const altSign = (curve.alternating && altFlipped) ? -1 : 1
+  return dirSign * altSign
 }
 
 /**
@@ -56,7 +139,7 @@ export function computeCurves(
   segments: Segment[],
   config: PatternConfig,
 ): CurvedStrand[] {
-  const altParity = buildAlternatingParity(segments)
+  const altParity = buildAlternatingParity(segments, strandData)
 
   return strandData.map(sd => {
     const { points, segmentIndices } = sd
@@ -80,39 +163,8 @@ export function computeCurves(
         continue
       }
 
-      // baseNormal is the segment's perpendicular oriented to the CW tangent
-      // at its radial position.  CW tangent is plus/minus-independent, so
-      // flipping sign (via altSign) produces a true rotational-sense flip.
-      //
-      // 3-gons at θ=60° are a special case: the 3 surviving arms form the
-      // medial triangle, each perpendicular to its own radial. dot(rawNormal,
-      // cwTangent) is exactly 0 there, so the CW-tangent selector would
-      // keep rawNormal as-is — and rawNormal's orientation depends on which
-      // endpoint won dedup, giving inconsistent convex/concave across arms.
-      // For triangles we instead align baseNormal with the inward radial so
-      // a positive offset uniformly bulges toward the centroid (concave).
-      const traversalDir = normalize(sub(to, from))
-      const rawNormal = perp(traversalDir)
-
-      const segMid: Vec2 = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 }
-      const radial = sub(segMid, seg.polygonCenter)
-
-      let baseNormal: Vec2
-      if (seg.polygonSides === 3) {
-        const inwardRadial = { x: -radial.x, y: -radial.y }
-        baseNormal = dot(rawNormal, inwardRadial) >= 0
-          ? rawNormal
-          : { x: -rawNormal.x, y: -rawNormal.y }
-      } else {
-        const cwTangent: Vec2 = { x: radial.y, y: -radial.x }
-        baseNormal = dot(rawNormal, cwTangent) >= 0
-          ? rawNormal
-          : { x: -rawNormal.x, y: -rawNormal.y }
-      }
-
-      const dirSign = curve.direction === 'right' ? -1 : 1
-      const altSign = (curve.alternating && (altParity.get(segmentIndices[i]) ?? false)) ? -1 : 1
-      const sign = dirSign * altSign
+      const baseNormal = segmentBaseNormal(seg, from, to)
+      const sign = segmentCurveSign(curve, altParity.get(segmentIndices[i]) ?? false)
 
       // If the strand traverses this segment backwards, mirror position so
       // that position=0 always maps to seg.from in the user's config.

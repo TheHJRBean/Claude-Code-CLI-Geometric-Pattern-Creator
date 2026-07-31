@@ -4,7 +4,9 @@
 
 ## ▶ RESUME HERE
 
-**Latest (2026-07-31, line sets — two user reports): FIXED (`e420218`, `acedf20`), ⏳ NOT browser-verified.** (1) Adding a Tile-edge set to floret-pentagonal was accepted by the panel and never rendered — all of #42 was `runPIC`-only, so all 13 `rosette-patch` tilings were affected. (2) The Base set is now a named, switchable-off peer of the extra sets, and two "never fully dark" guard holes are closed. Tests **1430 green** (baseline 1418), tsc + build clean, pushed. See the two dated entries immediately below.
+**Latest (2026-07-31, line sets — three user reports): FIXED (`e420218`, `acedf20`, `296f9ac`).** (1) Adding a Tile-edge set to floret-pentagonal was accepted by the panel and never rendered — all of #42 was `runPIC`-only, so all 13 `rosette-patch` tilings were affected. ✅ user-confirmed working. (2) The Base set is now a named, switchable-off peer of the extra sets, and two "never fully dark" guard holes are closed. ✅ user-confirmed working. (3) Alternating curves on Tile-edge sets — two defects, incl. a curve normal whose orientation was decided by floating-point noise. ⏳ NOT browser-verified. Tests **1437 green** (baseline 1418), tsc + build clean, pushed. See the three dated entries immediately below.
+
+**⚠️ The recurring shape of all three:** a capability built against the **primary, ray-derived figure** silently misbehaves on other line families. `runPIC` vs `runRosettePIC`; the Base set's on/off vs the sets list; `side`/normal machinery that only means something for ± contact rays. When touching anything per-segment, ask which emitters and which families it reaches. Memory: `feedback_line_family_assumptions.md`.
 
 **Previous (2026-07-31, Gallery sorting): DONE and ✅ BROWSER-VERIFIED.** Eight orderings on the Gallery grid + the storage-layer timestamps they needed. Tests were 1418 green (the "1424" recorded here earlier was wrong), tsc clean.
 
@@ -50,7 +52,28 @@
 7. **Cheap cleanup (Haiku).** Vitest has **no `testTimeout` set**, so the default 5 s makes 1–2 heavy render/geometry tests flake whenever the machine is busy (`appSmoke`'s App render: 1.7 s idle, 5.7–7.3 s under load). Verified pre-existing, not caused by any recent change. Raise it in `vite.config.ts`.
 
 ---
-### ▶ 2026-07-31 (Base set switchable off + two dark-canvas guard holes — FIXED `acedf20`, ⏳ browser-verify, Opus)
+### ▶ 2026-07-31 (Alternating curves broken on Tile-edge sets — FIXED `296f9ac`, ⏳ browser-verify, Opus)
+
+User: *"alternating curves don't work, it applies to some but not others, this is an issue that extends to various other scenarios so investigate this and see if there is anything generalisable in your fix."*
+
+Reproduced on a `boundary` (Tile edges) set. **Two independent defects, one root cause**: a boundary set traces the Tile outline, so it has no ± contact rays — and both the curve normal and the alternating parity were derived from machinery that only means anything for ray-derived families.
+
+**1. Fabricated parity.** The emitter stamped `side` as `k % 2` on the *emitting polygon's* local edge index. But the field-wide shared-edge dedupe means each edge is emitted by whichever polygon reached it first: measured on a square tiling, exactly **1 tile of 121** emitted all four of its own edges; the rest inherited parity from up to three different neighbours' index runs. Alternation was arbitrary across the field.
+
+**2. Normal orientation decided by rounding error — the bigger half.** `baseNormal` is flipped onto a reference direction so a positive offset means the same thing everywhere, and that reference was the CW tangent. Well-conditioned for star arms, which run radially and so have *tangential* normals. An outline segment is the exact opposite — it *is* tangential, its normal is radial, and the CW tangent is perpendicular to it. Measured `dot ≈ 1e-15` on **every** edge of a 7-gon outline: sign is pure float noise, so neighbouring tile edges bulged opposite ways at random, with alternating on **or** off.
+
+**The generalisable rule, now stated at the seam:** *the reference direction must not be near-perpendicular to the normal it is orienting, or the choice falls out of floating-point noise instead of geometry.* The pre-existing 3-gon special case was already a patch of exactly this class (medial-triangle arms hit the same degeneracy from the other side) — it is now one of three explicit branches in `segmentBaseNormal` rather than an unexplained exception.
+
+**Fixes:** `pushSegment` takes `side?` and boundary emission passes nothing (a missing tag consumers can handle beats a fabricated one they can't). `buildAlternatingParity` is strand-scoped — ray-derived families keep `side === 'plus'` verbatim so **every existing curved pattern is byte-identical**, ray-less families get a 2-colouring along the chain with odd closed loops left symmetric. `segmentBaseNormal` orients ray-less families outward from the Tile centre.
+
+**Third divergence found on the way:** `ControlPointLayer` held its own copy of the normal/sign logic **and** the pre-#42 curve lookup — so the draggable handles used the PRIMARY figure's curve for every extra set's segments, and the pre-#42 parity. Now calls the same `resolveSegmentCurve` / `segmentBaseNormal` / `segmentCurveSign` as the renderer. Handles that claim to show a curve must not compute it separately from the thing that draws it.
+
+**Files:** `pic/index.ts`, `strand/computeCurves.ts`, `rendering/ControlPointLayer.tsx`, + tests in `strand/computeCurves.test.ts` (4) and `pic/multiSet.test.ts` (3). Six verified red.
+
+⏳ **Browser-verify:** Tile-edges set + curve on, alternating off → every edge bulges outward consistently; alternating on → scallops flip edge to edge. Check an odd-sided tiling (floret pentagons) — odd closed loops stay symmetric by design, which is correct but looks like "alternating did nothing" on those specific strands. Also worth confirming the control-point handles now sit ON the curve for an extra set.
+
+---
+### ▶ 2026-07-31 (Base set switchable off + two dark-canvas guard holes — FIXED `acedf20`, ✅ user-confirmed, Opus)
 
 User: *"I want to be able to turn off the base line set if others are active, e.g. if I've got tile set on then I should be able to turn off the original set of strands leaving just the tiles."*
 

@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { runPIC } from './index'
+import { runRosettePIC } from './rosettePatch'
 import { buildStrands } from '../strand/buildStrands'
 import { generateTiling, type Viewport } from '../tilings/archimedean'
+import { generateTapratsTiling } from '../tilings/tapratsTiling'
 import { TILINGS } from '../tilings/index'
 import { DEFAULT_CONFIG } from '../state/defaults'
 import { resetIds } from '../tilings/shared'
@@ -187,6 +189,84 @@ describe('multi line sets (#42) — setless output unchanged', () => {
     const empty = runPIC(polys, withFig(SQUARE, { 4: fig(67.5, { extraSets: [] }) }))
     expect(empty).toEqual(none)
     for (const s of none) expect('setId' in s).toBe(false)
+  })
+})
+
+// The 13 `rosette-patch` tilings dispatch to `runRosettePIC` (see
+// `runPICForCategory`), a separate emitter with its own bisector-anchored edge
+// construction. It had no extra-set handling at all until 2026-07-31, so a user
+// could add a line set to e.g. floret-pentagonal, watch the panel accept it, and
+// see nothing render. Every assertion above ran through `runPIC` only, so none
+// of them caught it — these pin the second emitter to the same contract.
+describe('multi line sets (#42) — rosette-patch emitter', () => {
+  const FLORET: PatternConfig['tiling'] = { type: 'floret-pentagonal', scale: 60 }
+  const floretPolys = () => generateTapratsTiling('floret-pentagonal', VP, 60)
+
+  it('floret-pentagonal really is on the rosette-patch dispatch', () => {
+    // If this ever flips to `archimedean`, the tests below stop covering the
+    // bug they were written for.
+    expect(TILINGS['floret-pentagonal'].category).toBe('rosette-patch')
+  })
+
+  it('an identical-θ edge twin set exactly doubles the segment count', () => {
+    const polys = floretPolys()
+    const base = runRosettePIC(polys, withFig(FLORET, { 5: fig(72) }))
+    const twin = runRosettePIC(polys, withFig(FLORET, { 5: fig(72, { extraSets: [edgeSet('a', 72)] }) }))
+    expect(base.length).toBeGreaterThan(0)
+    expect(twin.length).toBe(base.length * 2)
+  })
+
+  it('an edge set at a different θ emits its own distinct geometry, tagged', () => {
+    const polys = floretPolys()
+    const segs = runRosettePIC(polys, withFig(FLORET, { 5: fig(72, { extraSets: [edgeSet('a', 40)] }) }))
+    const extra = segs.filter(s => s.setId === 'a')
+    const primary = segs.filter(s => s.setId === undefined)
+    expect(extra.length).toBeGreaterThan(0)
+    expect(primary.length).toBeGreaterThan(0)
+    // Different θ ⇒ the set is not a copy of the primary.
+    const primaryKeys = new Set(primary.map(geomKey))
+    expect(extra.some(s => !primaryKeys.has(geomKey(s)))).toBe(true)
+  })
+
+  it('vertex and boundary sets emit on this emitter too', () => {
+    const polys = floretPolys()
+    const segs = runRosettePIC(polys, withFig(FLORET, {
+      5: fig(72, { extraSets: [vertexSet('v', 55), boundarySet('b')] }),
+    }))
+    expect(segs.some(s => s.setId === 'v' && s.kind === 'vertex-line')).toBe(true)
+    const boundary = segs.filter(s => s.setId === 'b')
+    expect(boundary.length).toBeGreaterThan(0)
+    // Field-wide dedupe: a shared tile edge emits once, not once per polygon.
+    expect(new Set(boundary.map(geomKey)).size).toBe(boundary.length)
+  })
+
+  it('a disabled set emits nothing', () => {
+    const polys = floretPolys()
+    const base = runRosettePIC(polys, withFig(FLORET, { 5: fig(72) }))
+    const disabled = runRosettePIC(polys, withFig(FLORET, {
+      5: fig(72, { extraSets: [edgeSet('a', 40, { enabled: false })] }),
+    }))
+    expect(disabled.length).toBe(base.length)
+  })
+
+  it('setless output is byte-identical to pre-extraction', () => {
+    const polys = floretPolys()
+    const none = runRosettePIC(polys, withFig(FLORET, { 5: fig(72) }))
+    const empty = runRosettePIC(polys, withFig(FLORET, { 5: fig(72, { extraSets: [] }) }))
+    expect(empty).toEqual(none)
+    for (const s of none) expect('setId' in s).toBe(false)
+  })
+
+  it('no strand mixes segments from different sets', () => {
+    const polys = floretPolys()
+    const segs = runRosettePIC(polys, withFig(FLORET, {
+      5: fig(72, { extraSets: [edgeSet('a', 40), vertexSet('v', 55)] }),
+    }))
+    const strands = buildStrands(segs)
+    expect(strands.length).toBeGreaterThan(0)
+    for (const sd of strands) {
+      expect(new Set(sd.segmentIndices.map(i => segs[i].setId)).size).toBe(1)
+    }
   })
 })
 

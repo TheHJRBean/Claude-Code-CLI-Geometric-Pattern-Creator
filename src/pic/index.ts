@@ -1,5 +1,5 @@
 import type { Polygon, RaySide, Segment, SegmentKind } from '../types/geometry'
-import type { PatternConfig } from '../types/pattern'
+import type { FigureConfig, FigureLineSet, PatternConfig } from '../types/pattern'
 import { computeContactRays, computeContactRaysPerEdge, computeVertexRays, computeVertexRaysPerVertex, type ContactRay, type VertexRay } from './stellation'
 import { activeMorph, morphValueAt } from './morph'
 import { rayRayIntersect, collinearApproach, type IntersectResult } from './intersect'
@@ -614,11 +614,71 @@ function emitVertexPass(
 
 /** Order-independent key for a boundary-set edge (1e-4 grid, matching the
  *  vertex dedupe convention) so a shared Tile edge emits exactly once per set
- *  across the whole field instead of twice (once per abutting polygon). */
+ *  across the whole field instead of twice (once per abutting polygon).
+ *
+ *  Quantised with `Math.round`, NOT `toFixed`: the two polygons abutting an edge
+ *  reach its vertices by different construction paths, so a coordinate that
+ *  should be 0 arrives as 0 from one and -4.97e-14 from the other. `toFixed(4)`
+ *  renders those "0.0000" and "-0.0000" — distinct keys, so the shared edge
+ *  double-emitted. `Math.round` maps both to ±0, and `${-0}` stringifies to
+ *  "0". Surfaced on floret-pentagonal (2026-07-31); latent on every tiling with
+ *  a shared edge touching an axis. */
 function boundaryEdgeKey(setId: string, a: Vec2, b: Vec2): string {
-  const ka = `${a.x.toFixed(4)},${a.y.toFixed(4)}`
-  const kb = `${b.x.toFixed(4)},${b.y.toFixed(4)}`
+  const f = 1e4
+  const ka = `${Math.round(a.x * f)},${Math.round(a.y * f)}`
+  const kb = `${Math.round(b.x * f)},${Math.round(b.y * f)}`
   return ka < kb ? `${setId}|${ka}|${kb}` : `${setId}|${kb}|${ka}`
+}
+
+/**
+ * Emit a polygon's extra line sets (ticket #42) — shared by BOTH PIC emitters.
+ *
+ * `vertex` and `boundary` sets are construction-independent: `runRosettePIC`
+ * already inherits the vertex-line construction verbatim, and a boundary set is
+ * just the tile outline. Only the `edge` construction differs between the two
+ * emitters (runPIC's star-arm pass vs runRosettePIC's bisector-anchored pass),
+ * so it arrives as `emitEdgeSet`.
+ *
+ * Extracted 2026-07-31: the extra-set loop used to live inside `runPIC`, so the
+ * 13 `rosette-patch` tilings — which dispatch to `runRosettePIC` — edited their
+ * sets in the panel and never rendered them.
+ *
+ * `boundarySeen` is field-wide, not per-polygon: a shared Tile edge belongs to
+ * two polygons and must emit exactly once per set.
+ */
+export function emitExtraSets(
+  poly: Polygon,
+  fig: FigureConfig,
+  boundarySeen: Set<string>,
+  segments: Segment[],
+  emitEdgeSet: (set: FigureLineSet) => void,
+): void {
+  if (!fig.extraSets) return
+  const n = poly.sides
+
+  for (const set of fig.extraSets) {
+    if (set.enabled === false) continue
+
+    if (set.kind === 'edge') {
+      emitEdgeSet(set)
+    } else if (set.kind === 'boundary') {
+      // Tile-to-strand: the polygon outline itself, one Ray per edge — no PIC
+      // rays, so θ/length are ignored; curve/chaining apply as for any set.
+      // Alternating side parity by edge index.
+      const ctx: PolyCtx = { polygonId: poly.id, tileTypeId: poly.tileTypeId, polygonCenter: poly.center, polygonSides: n, kind: 'star-arm', setId: set.id }
+      for (let k = 0; k < n; k++) {
+        const a = poly.vertices[k]
+        const b = poly.vertices[(k + 1) % n]
+        const key = boundaryEdgeKey(set.id, a, b)
+        if (boundarySeen.has(key)) continue
+        boundarySeen.add(key)
+        pushSegment(segments, ctx, a, b, midpoint(a, b), k % 2 === 0 ? 'plus' : 'minus')
+      }
+    } else {
+      const vertexRays = computeVertexRays(poly, set.contactAngle)
+      emitVertexPass(vertexRays, poly, set.autoLineLength, set.lineLength, set.id, segments)
+    }
+  }
 }
 
 export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
@@ -680,32 +740,11 @@ export function runPIC(polygons: Polygon[], config: PatternConfig): Segment[] {
     // Each set runs the same pass machinery with its own rays; the pass helpers
     // keep per-call emitted/orphan bookkeeping, so sets never trim one another,
     // and their coincident lines survive the setId-scoped dedup.
-    if (fig.extraSets) {
-      for (const set of fig.extraSets) {
-        if (set.enabled === false) continue
-        if (set.kind === 'edge') {
-          const rays = computeContactRays(poly, set.contactAngle)
-          const ctx: PolyCtx = { polygonId: poly.id, tileTypeId: poly.tileTypeId, polygonCenter: poly.center, polygonSides: n, kind: 'star-arm', setId: set.id }
-          emitEdgePass(rays, poly, set.autoLineLength, set.lineLength, ctx, segments)
-        } else if (set.kind === 'boundary') {
-          // Tile-to-strand: the polygon outline itself, one Ray per edge —
-          // no PIC rays, so θ/length are ignored; curve/chaining apply as
-          // for any set. Alternating side parity by edge index.
-          const ctx: PolyCtx = { polygonId: poly.id, tileTypeId: poly.tileTypeId, polygonCenter: poly.center, polygonSides: n, kind: 'star-arm', setId: set.id }
-          for (let k = 0; k < n; k++) {
-            const a = poly.vertices[k]
-            const b = poly.vertices[(k + 1) % n]
-            const key = boundaryEdgeKey(set.id, a, b)
-            if (boundarySeen.has(key)) continue
-            boundarySeen.add(key)
-            pushSegment(segments, ctx, a, b, midpoint(a, b), k % 2 === 0 ? 'plus' : 'minus')
-          }
-        } else {
-          const vertexRays = computeVertexRays(poly, set.contactAngle)
-          emitVertexPass(vertexRays, poly, set.autoLineLength, set.lineLength, set.id, segments)
-        }
-      }
-    }
+    emitExtraSets(poly, fig, boundarySeen, segments, set => {
+      const rays = computeContactRays(poly, set.contactAngle)
+      const ctx: PolyCtx = { polygonId: poly.id, tileTypeId: poly.tileTypeId, polygonCenter: poly.center, polygonSides: n, kind: 'star-arm', setId: set.id }
+      emitEdgePass(rays, poly, set.autoLineLength, set.lineLength, ctx, segments)
+    })
 
     dedupPolygonSegments(segments, polyStartIdx)
   }

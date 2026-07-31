@@ -1,4 +1,4 @@
-import type { Polygon, Segment } from '../types/geometry'
+import type { Polygon, RaySide, Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
 import { computeContactRays, computeVertexRays, type ContactRay } from './stellation'
 import { rayRayIntersect } from './intersect'
@@ -6,6 +6,7 @@ import {
   clipSegmentToPolygon,
   pairVertexAtEdge,
   emitVertexArms,
+  emitExtraSets,
   dedupPolygonSegments,
 } from './index'
 import { EPSILON, dist, dot, midpoint, normalize, perp, signedArea, sub, add, scale, cross, type Vec2 } from '../utils/math'
@@ -175,8 +176,110 @@ function probePair(
   return { ray1, ray2, offset, converging }
 }
 
+/**
+ * Emit one edge-line family for a polygon with the bisector-anchored
+ * construction above. Extracted 2026-07-31 (ticket #42 reaching the
+ * rosette-patch emitter) so the primary Figure and every extra `edge` set share
+ * identical geometry — they differ only in the θ / length fed in and the
+ * `setId` stamped on the output. Each call builds its own rays, so sets never
+ * trim one another.
+ */
+function emitRosetteEdgePass(
+  poly: Polygon,
+  contactAngle: number,
+  autoLineLength: boolean,
+  lineLength: number,
+  setId: string | undefined,
+  segments: Segment[],
+): void {
+  const n = poly.sides
+  const verts = poly.vertices
+  const rays = computeContactRays(poly, contactAngle)
+  const inradius = n > 0 ? dist(poly.center, rays[0].origin) : 0
+  const windingSign = signedArea(verts) > 0 ? 1 : -1
+
+  const emit = (from: Vec2, to: Vec2, side: RaySide): void => {
+    const seg: Segment = {
+      from,
+      to,
+      edgeMidpoint: from,
+      polygonCenter: poly.center,
+      polygonSides: n,
+      polygonId: poly.id,
+      tileTypeId: poly.tileTypeId,
+      kind: 'star-arm',
+      side,
+    }
+    if (setId !== undefined) seg.setId = setId
+    segments.push(seg)
+  }
+
+  for (let k = 0; k < n; k++) {
+    const prevEdge = (k - 1 + n) % n
+    const V = verts[k]
+    const { bisector, reflex } = vertexFrame(verts, k, windingSign)
+
+    // Pair-A: minus-ray of the previous edge + plus-ray of the current
+    // edge (same indexing as runPIC's pairAtVertex). Pair-B (the mirror)
+    // is the classical concave-star switch — e.g. rhombille 120° vertices
+    // at θ=72°. If neither converges, fall back to pair-A clamped ≥ 0.
+    const pairA = probePair(V, bisector, rays[prevEdge * 2 + 1], rays[k * 2])
+    const pair = pairA.converging
+      ? pairA
+      : (() => {
+          const pairB = probePair(V, bisector, rays[prevEdge * 2], rays[k * 2 + 1])
+          return pairB.converging ? pairB : pairA
+        })()
+
+    if (autoLineLength) {
+      // Caps on the bisector offset: boundary exit (arms never leave the
+      // tile), the Kaplan trim against other edges' rays (see
+      // `bisectorTrimDist` — this replaced a centre-projection cap that
+      // saturated on irregular tiles and froze arms onto the tile centre),
+      // and reflex pin at 0 (any positive offset sends bowtie/gap-star tips
+      // across the waist → rule-invariant crossings).
+      let s = pair.offset
+      s = Math.min(s, boundaryExitDist(verts, k, V, bisector))
+      // Only where the old centre cap would actually have bitten. Applying
+      // the trim unconditionally also shortens tips on REGULAR tiles, whose
+      // natural tip is already correct — that breaks the Kepler baseline
+      // (runRosettePIC must stay segment-identical to runPIC on regular
+      // tilings). Gating it here keeps every currently-good figure byte
+      // identical and changes only the pinned-to-centre case.
+      const centreProj = dot(sub(poly.center, V), bisector)
+      if (centreProj > 0 && s > centreProj) {
+        const trim = bisectorTrimDist(V, bisector, rays, prevEdge, k)
+        // No crossing at all (a lone tile, or rays that all diverge) — fall
+        // back to the old centre pin rather than letting the tip run on.
+        s = Math.min(s, Number.isFinite(trim) ? trim : centreProj)
+      }
+      if (reflex) s = 0
+      if (!Number.isFinite(s)) s = 0
+
+      const tip = { x: V.x + bisector.x * s, y: V.y + bisector.y * s }
+      for (const ray of [pair.ray1, pair.ray2]) emit(ray.origin, tip, ray.side)
+    } else {
+      // Fixed-length mode (not spiked; decision 2026-07-13): inherit
+      // runPIC's semantics — each chosen pair ray is emitted at the
+      // user-specified length, clipped to the polygon boundary. The
+      // pair choice (A vs B) still follows the bisector probe so the
+      // concave-star switch carries over.
+      for (const ray of [pair.ray1, pair.ray2]) {
+        const natural = {
+          x: ray.origin.x + ray.dir.x * lineLength * inradius,
+          y: ray.origin.y + ray.dir.y * lineLength * inradius,
+        }
+        emit(ray.origin, clipSegmentToPolygon(ray.origin, natural, verts, ray.edgeIndex).point, ray.side)
+      }
+    }
+  }
+}
+
 export function runRosettePIC(polygons: Polygon[], config: PatternConfig): Segment[] {
   const segments: Segment[] = []
+  // Field-wide dedupe for `boundary` line sets (shared edges span polygons, so
+  // the per-polygon dedup pass can't catch their duplicates). Mirrors runPIC.
+  const boundarySeen = new Set<string>()
 
   for (const poly of polygons) {
     const fig = config.figures[poly.tileTypeId]
@@ -185,94 +288,10 @@ export function runRosettePIC(polygons: Polygon[], config: PatternConfig): Segme
 
     const n = poly.sides
     const verts = poly.vertices
-    const edgeEnabled = fig.edgeLinesEnabled !== false
-    const rays = computeContactRays(poly, fig.contactAngle)
-    const inradius = n > 0 ? dist(poly.center, rays[0].origin) : 0
-    const area = signedArea(verts)
-    const windingSign = area > 0 ? 1 : -1
 
-    if (edgeEnabled) {
-      for (let k = 0; k < n; k++) {
-        const prevEdge = (k - 1 + n) % n
-        const V = verts[k]
-        const { bisector, reflex } = vertexFrame(verts, k, windingSign)
-
-        // Pair-A: minus-ray of the previous edge + plus-ray of the current
-        // edge (same indexing as runPIC's pairAtVertex). Pair-B (the mirror)
-        // is the classical concave-star switch — e.g. rhombille 120° vertices
-        // at θ=72°. If neither converges, fall back to pair-A clamped ≥ 0.
-        const pairA = probePair(V, bisector, rays[prevEdge * 2 + 1], rays[k * 2])
-        const pair = pairA.converging
-          ? pairA
-          : (() => {
-              const pairB = probePair(V, bisector, rays[prevEdge * 2], rays[k * 2 + 1])
-              return pairB.converging ? pairB : pairA
-            })()
-
-        if (fig.autoLineLength) {
-          // Caps on the bisector offset: boundary exit (arms never leave the
-          // tile), the Kaplan trim against other edges' rays (see
-          // `bisectorTrimDist` — this replaced a centre-projection cap that
-          // saturated on irregular tiles and froze arms onto the tile centre),
-          // and reflex pin at 0 (any positive offset sends bowtie/gap-star tips
-          // across the waist → rule-invariant crossings).
-          let s = pair.offset
-          s = Math.min(s, boundaryExitDist(verts, k, V, bisector))
-          // Only where the old centre cap would actually have bitten. Applying
-          // the trim unconditionally also shortens tips on REGULAR tiles, whose
-          // natural tip is already correct — that breaks the Kepler baseline
-          // (runRosettePIC must stay segment-identical to runPIC on regular
-          // tilings). Gating it here keeps every currently-good figure byte
-          // identical and changes only the pinned-to-centre case.
-          const centreProj = dot(sub(poly.center, V), bisector)
-          if (centreProj > 0 && s > centreProj) {
-            const trim = bisectorTrimDist(V, bisector, rays, prevEdge, k)
-            // No crossing at all (a lone tile, or rays that all diverge) — fall
-            // back to the old centre pin rather than letting the tip run on.
-            s = Math.min(s, Number.isFinite(trim) ? trim : centreProj)
-          }
-          if (reflex) s = 0
-          if (!Number.isFinite(s)) s = 0
-
-          const tip = { x: V.x + bisector.x * s, y: V.y + bisector.y * s }
-          for (const ray of [pair.ray1, pair.ray2]) {
-            segments.push({
-              from: ray.origin,
-              to: tip,
-              edgeMidpoint: ray.origin,
-              polygonCenter: poly.center,
-              polygonSides: n,
-              polygonId: poly.id,
-              tileTypeId: poly.tileTypeId,
-              kind: 'star-arm',
-              side: ray.side,
-            })
-          }
-        } else {
-          // Fixed-length mode (not spiked; decision 2026-07-13): inherit
-          // runPIC's semantics — each chosen pair ray is emitted at the
-          // user-specified length, clipped to the polygon boundary. The
-          // pair choice (A vs B) still follows the bisector probe so the
-          // concave-star switch carries over.
-          for (const ray of [pair.ray1, pair.ray2]) {
-            const natural = {
-              x: ray.origin.x + ray.dir.x * fig.lineLength * inradius,
-              y: ray.origin.y + ray.dir.y * fig.lineLength * inradius,
-            }
-            segments.push({
-              from: ray.origin,
-              to: clipSegmentToPolygon(ray.origin, natural, verts, ray.edgeIndex).point,
-              edgeMidpoint: ray.origin,
-              polygonCenter: poly.center,
-              polygonSides: n,
-              polygonId: poly.id,
-              tileTypeId: poly.tileTypeId,
-              kind: 'star-arm',
-              side: ray.side,
-            })
-          }
-        }
-      }
+    // ── Primary figure (set 0) ──
+    if (fig.edgeLinesEnabled !== false) {
+      emitRosetteEdgePass(poly, fig.contactAngle, fig.autoLineLength, fig.lineLength, undefined, segments)
     }
 
     // Vertex lines: inherited verbatim from runPIC (decision 2026-07-13) —
@@ -298,6 +317,13 @@ export function runRosettePIC(polygons: Polygon[], config: PatternConfig): Segme
         emitVertexArms(pair, vtxAutoLen, vtxLineLen, circumradius, poly.id, poly.tileTypeId, poly.center, n, eMid, verts, segments)
       }
     }
+
+    // ── Extra line sets (ticket #42) — uniform θ, independent emission ──
+    // Edge sets run the BISECTOR construction, not runPIC's star-arm pass, so a
+    // layered set stays consistent with the primary Figure on the irregular /
+    // concave tiles this emitter exists for. Vertex + boundary sets are shared.
+    emitExtraSets(poly, fig, boundarySeen, segments, set =>
+      emitRosetteEdgePass(poly, set.contactAngle, set.autoLineLength, set.lineLength, set.id, segments))
 
     // Collinear-ray singularity (square@45°, triangles@60°): adjacent edges'
     // rays become collinear and both vertices emit the same physical line —

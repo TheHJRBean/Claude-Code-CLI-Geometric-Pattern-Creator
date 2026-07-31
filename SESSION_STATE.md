@@ -4,7 +4,7 @@
 
 ## ▶ RESUME HERE
 
-**Latest (2026-07-31, line sets on rosette-patch tilings): FIXED (`e420218`), ⏳ NOT browser-verified.** User-reported: adding a Tile-edge set to floret-pentagonal was accepted by the panel and never rendered. Whole of #42 was `runPIC`-only; all 13 `rosette-patch` tilings were affected. Tests **1425 green** (baseline 1418), tsc + build clean, pushed. See the dated entry immediately below.
+**Latest (2026-07-31, line sets — two user reports): FIXED (`e420218`, `acedf20`), ⏳ NOT browser-verified.** (1) Adding a Tile-edge set to floret-pentagonal was accepted by the panel and never rendered — all of #42 was `runPIC`-only, so all 13 `rosette-patch` tilings were affected. (2) The Base set is now a named, switchable-off peer of the extra sets, and two "never fully dark" guard holes are closed. Tests **1430 green** (baseline 1418), tsc + build clean, pushed. See the two dated entries immediately below.
 
 **Previous (2026-07-31, Gallery sorting): DONE and ✅ BROWSER-VERIFIED.** Eight orderings on the Gallery grid + the storage-layer timestamps they needed. Tests were 1418 green (the "1424" recorded here earlier was wrong), tsc clean.
 
@@ -48,6 +48,28 @@
 5. **Open bugs (unscheduled).** Force-overlapped Tiles emit their own Strands (decided 2026-06-14: make it a **toggle**, default self-contained); Strand-editing UX issues need enumerating. Memories: `project_overlap_tiles_strand_bug.md`, `project_strand_editing_debug.md`.
 6. **Gallery name filter (~20 min, Haiku/Sonnet).** Offered and deliberately *not* built in the 2026-07-31 sorting session — out of the ask's scope, user hasn't said yes. A search box over `entries` beside the sort control; the sort module is already pure and the grid already renders from a derived list, so it is a filter step in the same `useMemo` plus one input. Pairs naturally with the sorts that just landed.
 7. **Cheap cleanup (Haiku).** Vitest has **no `testTimeout` set**, so the default 5 s makes 1–2 heavy render/geometry tests flake whenever the machine is busy (`appSmoke`'s App render: 1.7 s idle, 5.7–7.3 s under load). Verified pre-existing, not caused by any recent change. Raise it in `vite.config.ts`.
+
+---
+### ▶ 2026-07-31 (Base set switchable off + two dark-canvas guard holes — FIXED `acedf20`, ⏳ browser-verify, Opus)
+
+User: *"I want to be able to turn off the base line set if others are active, e.g. if I've got tile set on then I should be able to turn off the original set of strands leaving just the tiles."*
+
+**The capability already worked** — probed before touching anything: add a boundary set, untick Edge strands, primary → 0 segments, 176 boundary segments remain. So this was **not** a missing feature. The two toggles just sat unlabelled above the panel while the sets they interact with live in a separate "Line sets" list at the bottom; nothing told the user the primary IS a set that can be switched off.
+
+**Named it rather than moved it.** The pair becomes a labelled **"Base set"** group whose tooltip states the rule, plus a hint line that switches between "Both off leaves only the line sets below drawing" and "Base off — the line sets below draw this Tile". Considered moving the toggles into the Line sets list as a Base card (closer to the user's mental model of peers) and **rejected**: the base's vertex toggle gates the "Decouple vertex parameters" block directly beneath it, so moving the switch to the bottom of the panel orphans its own controls. Naming buys the discoverability without the layout churn.
+
+**Two genuine holes found while probing**, both reaching a blank Tile (0 segments out of PIC):
+
+| Route | Cause |
+|---|---|
+| Disable a set → switch the base off | Guards counted `extraSets.length`, which includes sets that are switched OFF and draw nothing |
+| Base off → disable the last emitting set | No guard on that path at all — only REMOVE had one |
+
+Both now key on `emittingSets()` (`enabled !== false`). `UPDATE_FIGURE_SET` re-lights the base edge lines when its patch would leave nothing emitting, mirroring `REMOVE_FIGURE_SET`; REMOVE likewise moves from "array empty" to "nothing left emitting", so deleting one of two sets correctly leaves the base off.
+
+**Files:** `state/reducer.ts` (+`emittingSets`, +`baseIsDark`), `state/figureMutations.test.ts` (+5), `components/strands/FigureControls.tsx`.
+
+⏳ **Browser-verify:** with a Tile-edges set on floret-pentagonal, untick both Base toggles → only tile outlines draw; re-tick; then disable the set and confirm the base comes back rather than the canvas going blank.
 
 ---
 ### ▶ 2026-07-31 (Line sets never rendered on rosette-patch tilings — FIXED `e420218`, ⏳ browser-verify, Opus)

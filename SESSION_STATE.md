@@ -4,7 +4,9 @@
 
 ## ▶ RESUME HERE
 
-**Latest (2026-07-31, Gallery sorting): DONE and ✅ BROWSER-VERIFIED.** Eight orderings on the Gallery grid + the storage-layer timestamps they needed. Tests **1424 green**, tsc clean. See the dated entry immediately below.
+**Latest (2026-07-31, line sets on rosette-patch tilings): FIXED (`e420218`), ⏳ NOT browser-verified.** User-reported: adding a Tile-edge set to floret-pentagonal was accepted by the panel and never rendered. Whole of #42 was `runPIC`-only; all 13 `rosette-patch` tilings were affected. Tests **1425 green** (baseline 1418), tsc + build clean, pushed. See the dated entry immediately below.
+
+**Previous (2026-07-31, Gallery sorting): DONE and ✅ BROWSER-VERIFIED.** Eight orderings on the Gallery grid + the storage-layer timestamps they needed. Tests were 1418 green (the "1424" recorded here earlier was wrong), tsc clean.
 
 **Previous (2026-07-30, Decoration-for-presets session): DONE and ✅ BROWSER-VERIFIED.** All four blockers cleared (`69045cf`, `2fee5fe`, `dd5db77`, `8f6ec61`, `60adb04`). A Gallery preset / Generator sample / any BFS or Taprats tiling now reaches the Decoration Phase in the Lab and paints. Tests **1384 green**, tsc + build clean, pushed. See the dated entry immediately below.
 
@@ -46,6 +48,25 @@
 5. **Open bugs (unscheduled).** Force-overlapped Tiles emit their own Strands (decided 2026-06-14: make it a **toggle**, default self-contained); Strand-editing UX issues need enumerating. Memories: `project_overlap_tiles_strand_bug.md`, `project_strand_editing_debug.md`.
 6. **Gallery name filter (~20 min, Haiku/Sonnet).** Offered and deliberately *not* built in the 2026-07-31 sorting session — out of the ask's scope, user hasn't said yes. A search box over `entries` beside the sort control; the sort module is already pure and the grid already renders from a derived list, so it is a filter step in the same `useMemo` plus one input. Pairs naturally with the sorts that just landed.
 7. **Cheap cleanup (Haiku).** Vitest has **no `testTimeout` set**, so the default 5 s makes 1–2 heavy render/geometry tests flake whenever the machine is busy (`appSmoke`'s App render: 1.7 s idle, 5.7–7.3 s under load). Verified pre-existing, not caused by any recent change. Raise it in `vite.config.ts`.
+
+---
+### ▶ 2026-07-31 (Line sets never rendered on rosette-patch tilings — FIXED `e420218`, ⏳ browser-verify, Opus)
+
+User: *"I just tried to add a tile edge set to a floret pentagonal pattern and it didn't work. The UI works but it doesn't render in the pattern."*
+
+**There are two PIC emitters and #42 only ever reached one.** `runPICForCategory` (`hooks/usePattern.ts`) sends `category: 'rosette-patch'` to `runRosettePIC`, everything else to `runPIC`. The multi-line-sets loop lived **inside `runPIC`**; `rosettePatch.ts` never read `fig.extraSets`. State was correct the whole time — the sets sat in `config.figures['5'].extraSets` and the renderer walked past them.
+
+**All 13 rosette-patch tilings were affected**, not just floret: cairo-pentagonal · tetrakis-square · pentagonal-rosette · archimedes-star · rhombille · floret-pentagonal · deltoidal-trihexagonal · kisrhombille · heptagonal / nonagonal / decagonal / hendecagonal / hexadecagonal-rosette.
+
+**The seam.** Extracted `emitExtraSets` (exported from `pic/index.ts`) shared by both emitters. `vertex` and `boundary` sets are construction-independent — the rosette path already inherits vertex lines verbatim, and a boundary set is just the tile outline — so they are shared outright. Only the `edge` construction differs, so it arrives as a callback: `runPIC` passes its star-arm pass, `runRosettePIC` passes the new `emitRosetteEdgePass` (its edge loop extracted and parameterised on θ / length / setId). **Deliberate:** an extra edge set on a rosette tiling runs the *bisector-anchored* construction, not runPIC's, so a layered set stays consistent with the primary Figure on the irregular/concave tiles that emitter exists for.
+
+**Second bug, found by the new tests.** `boundaryEdgeKey` quantised with `toFixed(4)`. The two polygons abutting an edge reach its vertices by different construction paths, so a coordinate that should be 0 arrives as `0` from one and `-4.97e-14` from the other — `"0.0000"` vs `"-0.0000"`, distinct keys, field-wide dedupe missed, shared edge emitted twice (178 segments, 176 distinct). Now `Math.round`-quantised (`${-0}` stringifies to `"0"`). **Latent in `runPIC` too** — any tiling with a shared edge touching an axis. Never fired before because the archimedean BFS doesn't produce that float noise; the Taprats generators do.
+
+**Files:** `pic/index.ts` (+`emitExtraSets`, `boundaryEdgeKey` fix), `pic/rosettePatch.ts` (+`emitRosetteEdgePass`), `pic/multiSet.test.ts` (+7).
+
+**Method note worth keeping:** every pre-existing #42 assertion ran through `runPIC`, which is exactly why 1418 green tests said nothing about the second emitter. The new block asserts `TILINGS['floret-pentagonal'].category === 'rosette-patch'` so the coverage can't silently lapse if that ever flips. Three of the seven verified red first; the other four (disabled set, setless byte-identity, strand chaining) pass trivially against the broken code and are guard rails, not witnesses.
+
+⏳ **Browser-verify:** floret-pentagonal in the Lab → Composition → advanced → + Edge set / + Tile edges. Worth a second look at a boundary set on an axis-crossing tiling (the ±0 fix) and at `archimedes-star`, whose 180° vertices stress the bisector pass hardest.
 
 ---
 ### ▶ 2026-07-31 (Gallery sorting ✅ SHIPPED + BROWSER-VERIFIED, Opus)

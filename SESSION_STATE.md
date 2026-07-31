@@ -4,7 +4,7 @@
 
 ## ▶ RESUME HERE
 
-**Latest (2026-07-31, "Export all shapes" downloads ~100 files instead of 3): FIXED (`f8c1fd6`), ⏳ browser-verify.** Void extraction clips the field to the viewport rect (or frame bbox + margin), so every face at that edge is a one-off truncation with its own congruent signature — and `nameVoidShapes` exported one canvas per signature with no filter. Measured on `decagonal-rosette`: 108 files for 12 real shapes; `pentagonal-rosette` 103 for 6; `4.8.8` 10 for 3. Curve-independent, which is why turning curves off changed nothing. Fix: `VoidRegion.clipped` set at extraction; the export drops classes whose *every* member is clipped, and always takes an un-clipped outline for the classes it keeps. Tests **1442 green**, tsc clean. Dated entry below.
+**Latest (2026-07-31, bound-cut Voids poison decoration identity): FIXED (`f8c1fd6` + `<pending>`), ⏳ browser-verify.** Void extraction closes the arrangement against a convex bound (visible viewport rect, or frame bbox + margin), so every face at that edge comes out CUT — and its outline, congruent signature, centroid and every scope key are then functions of where the bound fell. **All 26 shipping tilings affected**, 2–96 junk signature classes each. Reported as "Export all shapes downloads a ridiculous number"; the same defect reached the paint/stamp/gradient click path. Fix: `VoidRegion.clipped` at extraction + one shared rule (`decoration/paintTargets.ts`) applied at every site that **mints** identity; sites that merely *render* an existing record are untouched by design. Tests **1455 green**, tsc + build clean. Dated entry below.
 
 **Previous (2026-07-31, line sets — three user reports): FIXED (`e420218`, `acedf20`, `296f9ac`).** (1) Adding a Tile-edge set to floret-pentagonal was accepted by the panel and never rendered — all of #42 was `runPIC`-only, so all 13 `rosette-patch` tilings were affected. ✅ user-confirmed working. (2) The Base set is now a named, switchable-off peer of the extra sets, and two "never fully dark" guard holes are closed. ✅ user-confirmed working. (3) Alternating curves on Tile-edge sets — two defects, incl. a curve normal whose orientation was decided by floating-point noise. ⏳ NOT browser-verified. Tests **1437 green** (baseline 1418), tsc + build clean, pushed. See the three dated entries immediately below.
 
@@ -64,7 +64,22 @@ Deliberately **not** changed: painting still works on bound-cut Voids, and the f
 
 **Files:** `decoration/voids.ts`, `export/stampAssets.ts`, + tests in `decoration/voids.test.ts` (2) and `export/stampAssets.test.ts` (3).
 
-⏳ **Browser-verify:** load 'dragon claws', Decoration → Stamp → "Export all SVG". Expect 3 files. Pan and re-export — the count must not change (it did before: the border classes are pan-dependent).
+**Follow-up — same defect across the board (user: *"I imagine this would apply to other patterns as well… of course check it is necessary first"*).** Two checks:
+
+1. **Other patterns.** Swept all 26 shipping tilings. **Every one** was affected: junk signature classes ranged from 2 (`square`) to 96 (`decagonal-rosette`), with 53 on `3.3.4.3.4` and 97 on `pentagonal-rosette`. The fix is in shared code, so it already covers all of them — export counts now land on the interior classes (e.g. `3.3.4.3.4` 56→3, `nonagonal-rosette` 29→7).
+2. **Other consumers.** 56–152 bound-cut Voids per field were live, clickable Paint/Stamp/Gradient hit-targets. Probed pan stability directly: across four substrates, **0 of 134 cut-only signatures survived a 37×23 pan; 23 of 23 interior signatures did.** So a paint or stamp authored through a cut face was already guaranteed dead — it just failed later, silently.
+
+**The rule, now in one place** (`decoration/paintTargets.ts` → `buildVoidTargeting`), applied by `DecorationPaintLayer`:
+- A class existing **only** as cut faces gets **no hit target** at any scope — the click falls through to pan rather than writing a doomed record.
+- A cut face of a **real** class stays clickable at `congruent`/Stamp (key = bare signature ⇒ durable, and it lands on the class the user meant), but not at `cell`/`patch`/`instance`, which also key on the centroid + orbit that the cut displaces.
+- Stamp **and** gradient clicks resolve to an **un-cut representative** of the class — both read the clicked Void's outline (canvas export, canonical pose), so a truncated face would misplace the image/wash on every instance.
+- Fully permissive fallbacks: no Void un-cut anywhere (viewport under one repeat) and no `clipped` flag at all (the periodic fast path, whose Voronoi reps are interior by construction).
+
+**Deliberately NOT changed:** `colourVoids` / `resolveVoidStamps` still render cut faces — a cut face of a painted class must keep its fill. That is the same reasoning that keeps the framed extraction bound wider than the Frame outline (`2e7f8b1`, "voids lose colour at the frame"). *Rendering* a cut face is correct; only *authoring through* one is not.
+
+**Files:** `decoration/paintTargets.ts` (new), `decoration/voids.ts` (`unclippedSignatures`), `export/stampAssets.ts`, `rendering/DecorationPaintLayer.tsx`, + `decoration/paintTargets.test.ts` (9) and `decoration/voidsBoundStability.test.ts` (4, the real-field pan measurement). All 6 extraction-level tests verified red with the flag disabled.
+
+⏳ **Browser-verify:** load 'dragon claws', Decoration → Stamp → "Export all SVG". Expect 3 files. Pan and re-export — the count must not change (it did before). Then check the screen-edge band: partial shapes there should no longer take a paint/stamp click (drag-pan still works over them), while whole shapes of the same class at the edge still do.
 
 ---
 ### ▶ 2026-07-31 (Alternating curves broken on Tile-edge sets — FIXED `296f9ac`, ⏳ browser-verify, Opus)

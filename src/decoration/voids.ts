@@ -419,6 +419,35 @@ function ringsCongruent(a: number[], b: number[], lenTol: number, angTol: number
 }
 
 /**
+ * The signatures that name a shape the *pattern* makes, rather than a shape
+ * the extraction bound cut — i.e. those with at least one un-clipped member.
+ *
+ * This is the single rule every consumer that **mints decoration identity**
+ * must apply (shape-canvas export, stamp selection, Void paint). A bound-cut
+ * face's outline depends on where the viewport fell, so its signature does
+ * too: measured across four substrates, **none** of the bound-cut-only
+ * signatures survived a 37×23-unit pan while **every** interior signature did.
+ * A record keyed on one is dead the moment the view moves.
+ *
+ * Consumers that merely *render* an existing record (`colourVoids`,
+ * `resolveVoidStamps`) must NOT apply this — a cut face belonging to a painted
+ * class should keep showing that class's fill, which is the same reasoning
+ * that keeps the framed extraction bound wider than the Frame outline.
+ *
+ * Empty input, or a field where nothing is un-clipped (a viewport smaller than
+ * one repeat), yields a set containing every signature: with no interior
+ * evidence to go on, filtering nothing beats filtering everything.
+ */
+export function unclippedSignatures(
+  voids: ReadonlyArray<{ signature: string; clipped?: boolean }>,
+): Set<string> {
+  const out = new Set<string>()
+  for (const v of voids) if (!v.clipped) out.add(v.signature)
+  if (out.size === 0) for (const v of voids) out.add(v.signature)
+  return out
+}
+
+/**
  * Pair each STRAIGHT-field Void with its curved-field counterpart so that a
  * Void's identity (signature + key outline) is **curve-insensitive** while
  * its rendered outline follows the curves. Decoration records then survive

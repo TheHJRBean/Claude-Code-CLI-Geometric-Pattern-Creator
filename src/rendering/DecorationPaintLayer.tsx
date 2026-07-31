@@ -3,6 +3,7 @@ import type { Vec2 } from '../utils/math'
 import type { GroupingScope } from '../types/editor'
 import type { ClickedTargetKeys } from '../decoration/scopes'
 import type { PaintVoid, StrandHit } from '../decoration/resolve'
+import { buildVoidTargeting } from '../decoration/paintTargets'
 import { nearestSegmentIndex, polygonPath } from './svgGeometry'
 
 export type PaintTarget = 'off' | 'voids' | 'strands' | 'stamp' | 'gradient'
@@ -98,32 +99,46 @@ export function DecorationPaintLayer({
         : voidScope === 'patch' ? v.patchKey
           : v.instanceKey
 
+  // Voids the extraction bound CUT can't carry a durable record — see
+  // `buildVoidTargeting`. They get no hit target, so the click falls through
+  // to the pan handler instead of writing a paint that silently disappears on
+  // the next pan.
+  const targeting = useMemo(() => buildVoidTargeting(voids), [voids])
+  const keyedBySignatureAlone = stampMode || voidScope === 'congruent'
+
   const voidHits = useMemo(() => voids.map((v, i) => (
-    <path
-      key={i}
-      d={polygonPath(v.polygon)}
-      fill="transparent"
-      stroke="none"
-      style={{ cursor: BUCKET_CURSOR }}
-      onPointerEnter={() => setHoveredVoid(i)}
-      onPointerLeave={() => setHoveredVoid(h => (h === i ? null : h))}
-      onPointerDown={e => {
-        e.stopPropagation()
-        if (stampMode) {
-          onSelectStampVoid?.(v)
-          return
-        }
-        const payload: PaintPayload = {
-          scope: voidScope,
-          key: voidKey(v),
-          clicked: { signature: v.signature, cellKey: v.cellKey, patchKey: v.patchKey, instanceKey: v.instanceKey },
-        }
-        if (target === 'gradient') onPaintGradientVoid?.(v, payload)
-        else onPaintVoid(payload)
-      }}
-    />
+    targeting.canMint(v, keyedBySignatureAlone) ? (
+      <path
+        key={i}
+        d={polygonPath(v.polygon)}
+        fill="transparent"
+        stroke="none"
+        style={{ cursor: BUCKET_CURSOR }}
+        onPointerEnter={() => setHoveredVoid(i)}
+        onPointerLeave={() => setHoveredVoid(h => (h === i ? null : h))}
+        onPointerDown={e => {
+          e.stopPropagation()
+          // Both the stamp inspector and the gradient seeder read the clicked
+          // Void's OUTLINE (canvas export, canonical pose). Hand them an
+          // un-cut member of the class — posing a whole class off a truncated
+          // face would misplace the image / wash on every instance.
+          const shape = targeting.representative.get(v.signature) ?? v
+          if (stampMode) {
+            onSelectStampVoid?.(shape)
+            return
+          }
+          const payload: PaintPayload = {
+            scope: voidScope,
+            key: voidKey(v),
+            clicked: { signature: v.signature, cellKey: v.cellKey, patchKey: v.patchKey, instanceKey: v.instanceKey },
+          }
+          if (target === 'gradient') onPaintGradientVoid?.(shape, payload)
+          else onPaintVoid(payload)
+        }}
+      />
+    ) : null
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  )), [voids, onPaintVoid, voidScope, stampMode, target, onSelectStampVoid, onPaintGradientVoid])
+  )), [voids, onPaintVoid, voidScope, stampMode, target, onSelectStampVoid, onPaintGradientVoid, targeting, keyedBySignatureAlone])
 
   const voidHighlight = useMemo(() => {
     if (hoveredVoid === null || hoveredVoid >= voids.length) return null

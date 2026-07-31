@@ -794,6 +794,38 @@
   margin: 4px 0 0;
 }
 
+/* Header right-hand cluster: sort control + the New in Lab action. */
+.gallery-browser__tools {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3, 12px);
+  flex-wrap: wrap;
+}
+
+.gallery-browser__sort {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gallery-browser__sort-label {
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Inherits the app's custom select (arrow, theming); only the sizing differs —
+   the header needs an inline control, not the sidebar's full-width one. */
+.gallery-browser__sort-select {
+  width: auto;
+  min-width: 190px;
+  font-size: 13px;
+  padding: 7px 30px 7px 10px;
+}
+
 .gallery-browser__new {
   font-family: 'Cinzel', Georgia, serif;
   font-size: 10px;
@@ -908,6 +940,17 @@
   font-family: 'EB Garamond', Georgia, serif;
   font-size: 14px;
   color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+/* Whichever field the grid is sorted by, spelled out per card. */
+.gallery-card__meta {
+  font-family: 'EB Garamond', Georgia, serif;
+  font-style: italic;
+  font-size: 11.5px;
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

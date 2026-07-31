@@ -144,6 +144,18 @@ describe('createConfigLibrary — rename / delete / duplicate / get', () => {
     expect(createConfigLibrary(KEY).get('nope')).toBeNull()
   })
 
+  it('gives a duplicate its own timestamps and no open history', () => {
+    // The copy is a new entry nobody has opened; inheriting the source's open
+    // time would float it up the Gallery's "recently opened" sort.
+    const lib = createConfigLibrary(KEY)
+    const id = lib.save('src', minimalConfig()).entry!.id
+    lib.touchOpened(id)
+    const dup = lib.duplicate(id).entry!
+    expect(dup.lastOpenedAt).toBeUndefined()
+    expect(dup.createdAt).toBeGreaterThanOrEqual(lib.get(id)!.createdAt)
+    expect(dup.updatedAt).toBe(dup.createdAt)
+  })
+
   it('updates an entry in place, keeping its id and name', () => {
     const lib = createConfigLibrary(KEY)
     const id = lib.save('keeper', minimalConfig()).entry!.id
@@ -155,16 +167,20 @@ describe('createConfigLibrary — rename / delete / duplicate / get', () => {
     expect(lib.get(id)?.config.tiling.type).toBe('3.12.12')
   })
 
-  it('update refreshes sourceCategory and createdAt', () => {
+  it('update refreshes sourceCategory and updatedAt but preserves createdAt', () => {
+    // An edit is the same pattern, later — not a new creation. The Gallery's
+    // "oldest / newest" sorts read `createdAt`, so bumping it there would make
+    // every edited save look brand new.
     const lib = createConfigLibrary(KEY)
     const original = lib.save('cat-check', minimalConfig())
     const id = original.entry!.id
-    const before = original.entry!.createdAt
+    const createdAt = original.entry!.createdAt
     const editorCfg = minimalConfig('editor')
     editorCfg.editor = { version: 3, cells: [], activeCellId: 'main', edgeLength: 40 } as PatternConfig['editor']
     const res = lib.update(id, editorCfg)
     expect(res.entry?.sourceCategory).toBe('editor')
-    expect(res.entry!.createdAt).toBeGreaterThanOrEqual(before)
+    expect(res.entry!.createdAt).toBe(createdAt)
+    expect(res.entry!.updatedAt).toBeGreaterThanOrEqual(createdAt)
   })
 
   it('returns a corrupt error when updating a missing id', () => {
@@ -172,6 +188,46 @@ describe('createConfigLibrary — rename / delete / duplicate / get', () => {
     const res = lib.update('nope', minimalConfig())
     expect(res.entry).toBeUndefined()
     expect(res.error?.kind).toBe('corrupt')
+  })
+})
+
+describe('createConfigLibrary — timestamps', () => {
+  it('stamps a new save as created and updated at the same moment, never opened', () => {
+    const lib = createConfigLibrary(KEY)
+    const entry = lib.save('fresh', minimalConfig()).entry!
+    expect(entry.updatedAt).toBe(entry.createdAt)
+    expect(entry.lastOpenedAt).toBeUndefined()
+  })
+
+  it('records the open time, and only that', () => {
+    const lib = createConfigLibrary(KEY)
+    const entry = lib.save('opener', minimalConfig()).entry!
+    lib.touchOpened(entry.id)
+    const after = lib.get(entry.id)!
+    expect(after.lastOpenedAt).toBeGreaterThanOrEqual(entry.createdAt)
+    expect(after.createdAt).toBe(entry.createdAt)
+    expect(after.updatedAt).toBe(entry.updatedAt)
+  })
+
+  it('ignores an open on a missing id', () => {
+    const lib = createConfigLibrary(KEY)
+    lib.save('kept', minimalConfig())
+    expect(() => lib.touchOpened('nope')).not.toThrow()
+    expect(lib.list()).toHaveLength(1)
+  })
+
+  it('backfills updatedAt from createdAt for entries saved before the field existed', () => {
+    // Pre-timestamps rows carried only `createdAt`, which `update()` bumped —
+    // it already meant "last written", so an existing library sorts correctly
+    // without a migration write.
+    ctx.store.set(KEY, JSON.stringify({
+      version: 1,
+      entries: [{ id: 'old', name: 'Legacy', createdAt: 4242, config: minimalConfig(), sourceCategory: 'archimedean' }],
+    }))
+    const entry = createConfigLibrary(KEY).list()[0]
+    expect(entry.updatedAt).toBe(4242)
+    expect(entry.createdAt).toBe(4242)
+    expect(entry.lastOpenedAt).toBeUndefined()
   })
 })
 

@@ -8,6 +8,9 @@ import type { CardModel } from './galleryBrowser.logic'
  */
 interface Props {
   model: CardModel
+  /** One line of context under the name, describing whatever the grid is
+   *  currently sorted by (see `cardMetaFor`). */
+  meta: string
   thumbUrl?: string
   onOpen: () => void
   onRename: () => void
@@ -16,7 +19,7 @@ interface Props {
   onExport: () => void
 }
 
-export function PatternCard({ model, thumbUrl, onOpen, onRename, onDuplicate, onDelete, onExport }: Props) {
+export function PatternCard({ model, meta, thumbUrl, onOpen, onRename, onDuplicate, onDelete, onExport }: Props) {
   return (
     <div className="gallery-card">
       <button className="gallery-card__thumb" onClick={onOpen} title={`Open "${model.name}"`}>
@@ -27,6 +30,7 @@ export function PatternCard({ model, thumbUrl, onOpen, onRename, onDuplicate, on
       </button>
       <div className="gallery-card__body">
         <div className="gallery-card__name" title={model.name}>{model.name}</div>
+        <div className="gallery-card__meta" title={meta}>{meta}</div>
         <div className="gallery-card__actions">
           <button className="gallery-card__action" onClick={onRename}>Rename</button>
           <button className="gallery-card__action" onClick={onDuplicate}>Duplicate</button>

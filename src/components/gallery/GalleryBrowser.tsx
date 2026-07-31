@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { PatternConfig } from '../../types/pattern'
 import type { ConfigLibrary, SavedConfig } from '../../state/configLibrary'
 import { saveJSON } from '../../export/exportJSON'
@@ -7,6 +7,15 @@ import { PatternCard } from './PatternCard'
 import { PatternDetailView } from './PatternDetailView'
 import { useThumbnails } from './useThumbnails'
 import { editAvailabilityFor, toCardModel } from './galleryBrowser.logic'
+import {
+  cardMetaFor,
+  DEFAULT_GALLERY_SORT,
+  GALLERY_SORT_STORAGE_KEY,
+  groupedSortOptions,
+  parseSortKey,
+  sortSaves,
+  type GallerySortKey,
+} from './gallerySort'
 
 /**
  * The Gallery saved-patterns browser (ADR-0006, slice 5) — a thumbnail grid
@@ -34,10 +43,33 @@ export function GalleryBrowser({ library, onEditInLab, onGoToLab }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [textModal, setTextModal] = useState<{ title: string; initialValue: string; onConfirm: (v: string) => void } | null>(null)
+  // The chosen order is a durable workspace preference — a user who sorts
+  // alphabetically wants that grid again next visit, not the default.
+  const [sortKey, setSortKey] = useState<GallerySortKey>(() => {
+    try { return parseSortKey(localStorage.getItem(GALLERY_SORT_STORAGE_KEY)) } catch { return DEFAULT_GALLERY_SORT }
+  })
 
-  const { thumbs, markDeleted } = useThumbnails(entries)
+  const sorted = useMemo(() => sortSaves(entries, sortKey), [entries, sortKey])
+  // Thumbnail backfill follows the visible order, so the cards on screen render
+  // before the ones further down the grid.
+  const { thumbs, markDeleted } = useThumbnails(sorted)
 
   const refresh = () => setEntries(library.list())
+
+  const selectSort = (next: GallerySortKey) => {
+    setSortKey(next)
+    try { localStorage.setItem(GALLERY_SORT_STORAGE_KEY, next) } catch { /* preference only */ }
+  }
+
+  // Opening a save (detail view or hand-off to the Lab) stamps it, which is
+  // what the "recently opened" sort reads. Refreshing afterwards keeps the
+  // grid's meta line honest; under that sort the card also moves, which is the
+  // point of it.
+  const handleOpen = (id: string) => {
+    library.touchOpened(id)
+    setSelectedId(id)
+    refresh()
+  }
   const flashError = (msg: string) => {
     setError(msg)
     window.setTimeout(() => setError(null), 4000)
@@ -97,7 +129,25 @@ export function GalleryBrowser({ library, onEditInLab, onGoToLab }: Props) {
               : `${entries.length} saved ${entries.length === 1 ? 'pattern' : 'patterns'}`}
           </p>
         </div>
-        <button className="gallery-browser__new" onClick={onGoToLab}>New in Lab</button>
+        <div className="gallery-browser__tools">
+          {entries.length > 1 && (
+            <label className="gallery-browser__sort">
+              <span className="gallery-browser__sort-label">Sort</span>
+              <select
+                className="pattern-select gallery-browser__sort-select"
+                value={sortKey}
+                onChange={e => selectSort(parseSortKey(e.target.value))}
+              >
+                {groupedSortOptions().map(({ group, options }) => (
+                  <optgroup key={group} label={group}>
+                    {options.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+                  </optgroup>
+                ))}
+              </select>
+            </label>
+          )}
+          <button className="gallery-browser__new" onClick={onGoToLab}>New in Lab</button>
+        </div>
       </div>
 
       {error && <p className="gallery-browser__error">{error}</p>}
@@ -110,12 +160,13 @@ export function GalleryBrowser({ library, onEditInLab, onGoToLab }: Props) {
         </div>
       ) : (
         <div className="gallery-grid">
-          {entries.map(entry => (
+          {sorted.map(entry => (
             <PatternCard
               key={entry.id}
               model={toCardModel(entry)}
+              meta={cardMetaFor(entry, sortKey)}
               thumbUrl={thumbs[entry.id]}
-              onOpen={() => setSelectedId(entry.id)}
+              onOpen={() => handleOpen(entry.id)}
               onRename={() => handleRename(entry)}
               onDuplicate={() => handleDuplicate(entry)}
               onDelete={() => handleDelete(entry)}

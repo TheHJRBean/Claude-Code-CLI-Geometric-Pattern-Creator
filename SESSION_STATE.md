@@ -4,7 +4,9 @@
 
 ## ▶ RESUME HERE
 
-**Latest (2026-07-30, Decoration-for-presets session): DONE and ✅ BROWSER-VERIFIED.** All four blockers cleared (`69045cf`, `2fee5fe`, `dd5db77`, `8f6ec61`, `60adb04`). A Gallery preset / Generator sample / any BFS or Taprats tiling now reaches the Decoration Phase in the Lab and paints. Tests **1384 green**, tsc + build clean, pushed. See the dated entry immediately below.
+**Latest (2026-07-31, Gallery sorting): DONE and ✅ BROWSER-VERIFIED.** Eight orderings on the Gallery grid + the storage-layer timestamps they needed. Tests **1424 green**, tsc clean. See the dated entry immediately below.
+
+**Previous (2026-07-30, Decoration-for-presets session): DONE and ✅ BROWSER-VERIFIED.** All four blockers cleared (`69045cf`, `2fee5fe`, `dd5db77`, `8f6ec61`, `60adb04`). A Gallery preset / Generator sample / any BFS or Taprats tiling now reaches the Decoration Phase in the Lab and paints. Tests **1384 green**, tsc + build clean, pushed. See the dated entry immediately below.
 
 **Previous (2026-07-30, Generator→Lab session): the Lab doors are open (`b1c86f4`).** Tests were 1360 green.
 
@@ -43,6 +45,34 @@
 4. **Roadmap design findings still open (Opus).** (a) **Pass-4 right-side Inspector** is blocked by the selection-state split (Canvas-local vertex state) + duplicated per-mode shell — the old "3rd-column-ready grid" claim is FALSE. (b) **Builder Configuration registry** — 7-site ladder to add one, with a silent square-basis fallback in `compositionCellBasis`. Memory: `project_thermonuclear_review_round2.md`.
 5. **Open bugs (unscheduled).** Force-overlapped Tiles emit their own Strands (decided 2026-06-14: make it a **toggle**, default self-contained); Strand-editing UX issues need enumerating. Memories: `project_overlap_tiles_strand_bug.md`, `project_strand_editing_debug.md`.
 6. **Cheap cleanup (Haiku).** Vitest has **no `testTimeout` set**, so the default 5 s makes 1–2 heavy render/geometry tests flake whenever the machine is busy (`appSmoke`'s App render: 1.7 s idle, 5.7–7.3 s under load). Verified pre-existing, not caused by any recent change. Raise it in `vite.config.ts`.
+
+---
+### ▶ 2026-07-31 (Gallery sorting ✅ SHIPPED + BROWSER-VERIFIED, Opus)
+
+User: *"Add sorting to the gallery, oldest, newest, last opened, alphabetical, anything else you can think of that would be helpful."*
+
+**The interesting half was storage, not the control.** `SavedConfig` carried a single `createdAt` that `update()` **overwrote** — so it was really "last written" wearing the wrong name, and "oldest / newest" would have re-dated every edited pattern. Split into three fields:
+
+| Field | Meaning | Set by |
+|---|---|---|
+| `createdAt` | first created — **stable across `update()`** | `save`, `duplicate` |
+| `updatedAt` | last written | `save`, `update`, `duplicate` |
+| `lastOpenedAt?` | last opened; **undefined = never** | new `library.touchOpened(id)` |
+
+No migration write: `list()` backfills `updatedAt` from `createdAt`, which is exactly what that timestamp already meant on pre-existing rows. `duplicate()` clears `lastOpenedAt` (a copy nobody has opened must not inherit the source's position in the recency sort).
+
+**Eight orderings** in `components/gallery/gallerySort.ts` (pure, 28 tests), grouped Time / Name / Kind in the `<optgroup>`: recently edited (default) · least recently edited · newest · oldest · recently opened · A–Z · Z–A · pattern kind. Notes:
+- Never-opened saves **sink below** every opened one — "not yet" is not "long ago".
+- Names compare `numeric: true`, so *Alhambra 2* precedes *Alhambra 10*.
+- Every ordering tiebreaks name → id, so a same-millisecond batch is stable rather than storage-ordered.
+- "Pattern kind" ranks Builder saves first, then archimedean, then rosette; within a rank by `kindLabelFor` (Builder Configuration, else the `TILINGS` label).
+- Each card grew a meta line naming **the field being sorted on** ("Edited 2 hrs ago" / "Created …" / "Never opened" / the kind), so the order explains itself.
+
+Choice persists under `gallery-sort-v1`; the control hides at ≤1 save; thumbnail backfill follows the **visible** order. Opening a card (detail view) stamps `touchOpened`.
+
+**Files:** `state/configLibrary.ts` (+`touchOpened`), `state/patternLibrary.ts`, `components/gallery/gallerySort.ts` (new) + its test (new), `GalleryBrowser.tsx`, `PatternCard.tsx`, `styles.css`, `ConfigLibraryPanel.tsx` (its "Saved …" line now reads `updatedAt`).
+
+**Browser-verified** on a seeded 6-save library incl. one pre-timestamps row: all eight orders, persistence across reload, `touchOpened` on open ("Opened just now"), duplicate-under-sort, legacy row backfilled.
 
 ---
 ### ▶ 2026-07-30 (Decoration for presets — legacy substrate ✅ SHIPPED + BROWSER-VERIFIED, Opus)

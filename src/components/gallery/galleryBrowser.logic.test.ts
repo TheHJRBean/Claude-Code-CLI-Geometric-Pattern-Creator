@@ -29,6 +29,7 @@ function save(overrides: Partial<SavedConfig> & { sourceCategory: SavedSourceCat
     id: overrides.id ?? 'id-1',
     name: overrides.name ?? 'Saved',
     createdAt: overrides.createdAt ?? 0,
+    updatedAt: overrides.updatedAt ?? overrides.createdAt ?? 0,
     config: overrides.config ?? cfg('square'),
     sourceCategory: overrides.sourceCategory,
   }

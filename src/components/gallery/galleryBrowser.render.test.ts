@@ -46,6 +46,7 @@ describe('GalleryBrowser render', () => {
         sourceCategory: 'archimedean',
       }],
     }))
+    store.delete('gallery-sort-v1')
 
     const { GalleryBrowser } = await import('./GalleryBrowser')
     const { patternLibrary } = await import('../../state/patternLibrary')
@@ -65,5 +66,39 @@ describe('GalleryBrowser render', () => {
     expect(html).toContain('My Patterns')
     // Placeholder shown until the (effect-driven) thumbnail backfills.
     expect(html).toContain('Rendering preview')
+    // A single save has nothing to order, so the sort control stays out of the way.
+    expect(html).not.toContain('gallery-browser__sort-select')
+  })
+
+  it('renders the sort control and per-card meta once there is more than one save', async () => {
+    const { DEFAULT_CONFIG } = await import('../../state/reducer')
+    const entry = (id: string, name: string, createdAt: number) => ({
+      id, name, createdAt, updatedAt: createdAt, config: DEFAULT_CONFIG, sourceCategory: 'archimedean',
+    })
+    // Stored oldest-first (insertion order); the default sort is most recently
+    // edited, so the newer save must render first.
+    store.set('pattern-library-v1', JSON.stringify({
+      version: 1,
+      entries: [entry('old-1', 'Older Pattern', 1_000), entry('new-1', 'Newer Pattern', 2_000)],
+    }))
+    store.set('gallery-sort-v1', 'created-asc')
+
+    const { GalleryBrowser } = await import('./GalleryBrowser')
+    const { patternLibrary } = await import('../../state/patternLibrary')
+
+    const html = renderToString(
+      createElement(GalleryBrowser, {
+        library: patternLibrary,
+        onEditInLab: () => {},
+        onGoToLab: () => {},
+      }),
+    )
+
+    expect(html).toContain('gallery-browser__sort-select')
+    expect(html).toContain('Recently edited')
+    // The persisted preference is honoured on mount: oldest created first, and
+    // the meta line names the field being sorted on.
+    expect(html.indexOf('Older Pattern')).toBeLessThan(html.indexOf('Newer Pattern'))
+    expect(html).toContain('Created ')
   })
 })

@@ -38,4 +38,5 @@ export const patternLibrary: ConfigLibrary = {
   delete: (id: string) => { ensureMigrated(); return lib.delete(id) },
   duplicate: (id: string) => { ensureMigrated(); return lib.duplicate(id) },
   get: (id: string) => { ensureMigrated(); return lib.get(id) },
+  touchOpened: (id: string) => { ensureMigrated(); lib.touchOpened(id) },
 }

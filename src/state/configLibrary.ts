@@ -20,7 +20,16 @@ export type SavedSourceCategory = 'archimedean' | 'rosette-patch' | 'editor'
 export interface SavedConfig {
   id: string
   name: string
+  /** When the entry was first created. Stable across `update()` — an edit is
+   *  not a new creation, which is what makes "oldest / newest" meaningful. */
   createdAt: number
+  /** When the entry's config was last written. Absent on entries saved before
+   *  the field existed; `list()` backfills it from `createdAt`, which is what
+   *  that timestamp used to mean. */
+  updatedAt: number
+  /** When the entry was last opened (detail view or "Edit in Lab"). Undefined
+   *  means never opened — a real state the "recently opened" sort shows. */
+  lastOpenedAt?: number
   config: PatternConfig
   sourceCategory: SavedSourceCategory
 }
@@ -84,6 +93,9 @@ export interface ConfigLibrary {
   delete(id: string): LibraryError | null
   duplicate(id: string): SaveResult
   get(id: string): SavedConfig | null
+  /** Stamp an entry as just opened (feeds the "recently opened" sort). A
+   *  missing id is a no-op — opening is incidental, never worth an error. */
+  touchOpened(id: string): void
 }
 
 /** A legacy library key to fold into a merged library, with an optional
@@ -148,7 +160,13 @@ export function createConfigLibrary(storageKey: string): ConfigLibrary {
         if (typeof e.id !== 'string' || typeof e.name !== 'string') continue
         try {
           const config = loadPatternConfig(e.config)
-          out.push({ ...e, config })
+          // Pre-timestamps entries carried only `createdAt`, which `update()`
+          // bumped — i.e. it already meant "last written". Reading it as
+          // `updatedAt` keeps every existing library sortable on day one.
+          const createdAt = typeof e.createdAt === 'number' ? e.createdAt : 0
+          const updatedAt = typeof e.updatedAt === 'number' ? e.updatedAt : createdAt
+          const lastOpenedAt = typeof e.lastOpenedAt === 'number' ? e.lastOpenedAt : undefined
+          out.push({ ...e, createdAt, updatedAt, lastOpenedAt, config })
         } catch (err) {
           const reason = err instanceof ConfigValidationError ? err.message : 'unknown error'
           console.warn(`Skipping saved config "${e.name}": ${reason}`)
@@ -177,10 +195,12 @@ export function createConfigLibrary(storageKey: string): ConfigLibrary {
   function save(name: string, config: PatternConfig): SaveResult {
     const trimmed = name.trim() || 'Untitled'
     const entries = list()
+    const now = Date.now()
     const entry: SavedConfig = {
       id: uuid(),
       name: trimmed,
-      createdAt: Date.now(),
+      createdAt: now,
+      updatedAt: now,
       config: snapshotForWrite(config),
       sourceCategory: categoryFor(config),
     }
@@ -195,9 +215,11 @@ export function createConfigLibrary(storageKey: string): ConfigLibrary {
     if (index === -1) {
       return { error: { kind: 'corrupt', message: 'Entry not found.' } }
     }
+    // `createdAt` deliberately survives an overwrite: the entry is the same
+    // pattern, edited. Only `updatedAt` moves.
     const updated: SavedConfig = {
       ...entries[index],
-      createdAt: Date.now(),
+      updatedAt: Date.now(),
       config: snapshotForWrite(config),
       sourceCategory: categoryFor(config),
     }
@@ -228,11 +250,16 @@ export function createConfigLibrary(storageKey: string): ConfigLibrary {
     if (!source) {
       return { error: { kind: 'corrupt', message: 'Entry not found.' } }
     }
+    const now = Date.now()
     const copy: SavedConfig = {
       ...source,
       id: uuid(),
       name: `${source.name} (copy)`,
-      createdAt: Date.now(),
+      createdAt: now,
+      updatedAt: now,
+      // The copy is a new entry that nobody has opened yet — inheriting the
+      // source's open time would float it up the "recently opened" sort.
+      lastOpenedAt: undefined,
       config: structuredCloneSafe(source.config),
     }
     const error = writeAll([...entries, copy])
@@ -244,5 +271,14 @@ export function createConfigLibrary(storageKey: string): ConfigLibrary {
     return list().find(e => e.id === id) ?? null
   }
 
-  return { storageKey, list, save, update, rename, delete: deleteEntry, duplicate, get }
+  function touchOpened(id: string): void {
+    const entries = list()
+    const index = entries.findIndex(e => e.id === id)
+    if (index === -1) return
+    const next = [...entries]
+    next[index] = { ...entries[index], lastOpenedAt: Date.now() }
+    writeAll(next)
+  }
+
+  return { storageKey, list, save, update, rename, delete: deleteEntry, duplicate, get, touchOpened }
 }

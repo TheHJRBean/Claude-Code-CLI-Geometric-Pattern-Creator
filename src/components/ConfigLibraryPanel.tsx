@@ -229,7 +229,7 @@ export function ConfigLibraryPanel({
           color: 'var(--text-muted)',
           lineHeight: 1.4,
         }}>
-          Saved {new Date(activeEntry.createdAt).toLocaleString()}
+          Saved {new Date(activeEntry.updatedAt).toLocaleString()}
         </p>
       )}
 

@@ -125,6 +125,39 @@ describe('Step 19.1 — Void extraction', () => {
     const total = voids.reduce((s, v) => s + v.area, 0)
     expect(total).toBeCloseTo(10000, 1)
   })
+
+  // `clipped` marks the faces the bound CUT — their outline (and therefore
+  // their signature) is an artefact of where the viewport fell, so shape
+  // enumeration (`nameVoidShapes`) must skip classes made only of these.
+  it('flags bound-touching faces as clipped, leaves interior faces clean', () => {
+    // A closed diamond floating in the middle: its face never reaches the
+    // bound, while the surrounding "sea" face runs along all four bound edges.
+    const voids = extractVoids(
+      [
+        seg(40, 50, 50, 40), seg(50, 40, 60, 50),
+        seg(60, 50, 50, 60), seg(50, 60, 40, 50),
+      ],
+      boundBox(100),
+    )
+    const interior = voids.filter(v => !v.clipped)
+    expect(interior.length).toBeGreaterThan(0)
+    for (const v of interior) expect(v.area).toBeLessThan(1000)
+    // Every face that reaches an edge of the bound is flagged.
+    for (const v of voids) {
+      const touches = v.polygon.some(p =>
+        Math.abs(p.x) < 1e-6 || Math.abs(p.x - 100) < 1e-6 ||
+        Math.abs(p.y) < 1e-6 || Math.abs(p.y - 100) < 1e-6)
+      expect(v.clipped ?? false).toBe(touches)
+    }
+  })
+
+  it('every face of a field wider than the bound is clipped', () => {
+    // Two verticals outside the bound plus one inside: the inside line splits
+    // the bound into two faces, both of which run along the bound edges.
+    const voids = extractVoids([seg(50, -20, 50, 120)], boundBox(100))
+    expect(voids.length).toBe(2)
+    for (const v of voids) expect(v.clipped).toBe(true)
+  })
 })
 
 describe('Step 19.1 — congruent signature', () => {

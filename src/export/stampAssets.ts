@@ -119,12 +119,32 @@ export interface NamedVoidShape {
  * assign each a human shape name: regular shapes get the Composition-Phase
  * label ("triangle", "hexagon"…), anything else "<n>-gon"; distinct shapes
  * sharing a base name are numbered.
+ *
+ * **Bound-cut classes are dropped.** Void extraction clips the field to the
+ * viewport rect (or the frame bbox + margin), so every face straddling that
+ * edge comes out as a one-off sliver of the shape it was cut from — its own
+ * signature, its own file, and a different one after the next pan. Enumerating
+ * the pattern's shapes must ignore them: on a rosette substrate they turned
+ * "3 shapes on screen" into 100+ downloads. A class survives if ANY member is
+ * un-clipped (interior classes always have plenty), so a shape that merely
+ * *also* appears at the border keeps its canvas. If that leaves nothing, the
+ * whole set is border (a viewport smaller than one repeat) and nothing is
+ * filtered — better an over-long list than an empty download.
  */
 export function nameVoidShapes(
-  voids: ReadonlyArray<{ signature: string; polygon: Vec2[]; keyPolygon?: Vec2[] }>,
+  voids: ReadonlyArray<{ signature: string; polygon: Vec2[]; keyPolygon?: Vec2[]; clipped?: boolean }>,
 ): NamedVoidShape[] {
+  const interiorSigs = new Set<string>()
+  for (const v of voids) if (!v.clipped) interiorSigs.add(v.signature)
+  const anyInterior = interiorSigs.size > 0
+
+  // First-seen outline per surviving signature, but always from an UN-clipped
+  // member where the class has one: a class can survive on its interior copies
+  // while a bound-cut copy happens to come first, and exporting that copy's
+  // truncated outline would hand back a canvas the shape never has.
   const bySig = new Map<string, Vec2[]>()
   for (const v of voids) {
+    if (anyInterior && (v.clipped || !interiorSigs.has(v.signature))) continue
     if (!bySig.has(v.signature)) bySig.set(v.signature, v.keyPolygon ?? v.polygon)
   }
   const entries: { signature: string; outline: Vec2[]; base: string }[] = []

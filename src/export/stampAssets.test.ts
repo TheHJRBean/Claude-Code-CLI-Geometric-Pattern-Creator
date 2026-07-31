@@ -69,6 +69,41 @@ describe('nameVoidShapes', () => {
     ])
     expect(named[0].name).toBe('triangle')
   })
+
+  // Bound-cut Voids: extraction clips the field to the viewport / frame bbox,
+  // so every face at that edge is a one-off truncation with its own signature.
+  // Enumerating shapes must ignore them — they turned "3 shapes on screen"
+  // into 100+ downloads on a rosette substrate.
+  it('drops classes whose every member is bound-clipped', () => {
+    const named = nameVoidShapes([
+      { signature: 'tri', polygon: regularNGon(3) },
+      { signature: 'tri', polygon: regularNGon(3) },
+      { signature: 'cut1', polygon: QUAD, clipped: true },
+      { signature: 'cut2', polygon: regularNGon(6), clipped: true },
+    ])
+    expect(named.map(s => s.name)).toEqual(['triangle'])
+  })
+
+  it('keeps a class that also appears clipped, using an un-clipped outline', () => {
+    const hex = regularNGon(6)
+    const named = nameVoidShapes([
+      // Bound-cut copy comes FIRST — the exported canvas must still be the
+      // whole hexagon, not the truncated quad.
+      { signature: 'h', polygon: QUAD, clipped: true },
+      { signature: 'h', polygon: hex },
+    ])
+    expect(named).toHaveLength(1)
+    expect(named[0].name).toBe('hexagon')
+    expect(named[0].outline).toHaveLength(6)
+  })
+
+  it('filters nothing when every Void is clipped (viewport under one repeat)', () => {
+    const named = nameVoidShapes([
+      { signature: 'a', polygon: regularNGon(3), clipped: true },
+      { signature: 'b', polygon: regularNGon(6), clipped: true },
+    ])
+    expect(named.map(s => s.name)).toEqual(['triangle', 'hexagon'])
+  })
 })
 
 describe('voidShapeSVGDocument', () => {

@@ -4,7 +4,9 @@
 
 ## ▶ RESUME HERE
 
-**Latest (2026-07-31, line sets — three user reports): FIXED (`e420218`, `acedf20`, `296f9ac`).** (1) Adding a Tile-edge set to floret-pentagonal was accepted by the panel and never rendered — all of #42 was `runPIC`-only, so all 13 `rosette-patch` tilings were affected. ✅ user-confirmed working. (2) The Base set is now a named, switchable-off peer of the extra sets, and two "never fully dark" guard holes are closed. ✅ user-confirmed working. (3) Alternating curves on Tile-edge sets — two defects, incl. a curve normal whose orientation was decided by floating-point noise. ⏳ NOT browser-verified. Tests **1437 green** (baseline 1418), tsc + build clean, pushed. See the three dated entries immediately below.
+**Latest (2026-07-31, "Export all shapes" downloads ~100 files instead of 3): FIXED (`<pending>`), ⏳ browser-verify.** Void extraction clips the field to the viewport rect (or frame bbox + margin), so every face at that edge is a one-off truncation with its own congruent signature — and `nameVoidShapes` exported one canvas per signature with no filter. Measured on `decagonal-rosette`: 108 files for 12 real shapes; `pentagonal-rosette` 103 for 6; `4.8.8` 10 for 3. Curve-independent, which is why turning curves off changed nothing. Fix: `VoidRegion.clipped` set at extraction; the export drops classes whose *every* member is clipped, and always takes an un-clipped outline for the classes it keeps. Tests **1442 green**, tsc clean. Dated entry below.
+
+**Previous (2026-07-31, line sets — three user reports): FIXED (`e420218`, `acedf20`, `296f9ac`).** (1) Adding a Tile-edge set to floret-pentagonal was accepted by the panel and never rendered — all of #42 was `runPIC`-only, so all 13 `rosette-patch` tilings were affected. ✅ user-confirmed working. (2) The Base set is now a named, switchable-off peer of the extra sets, and two "never fully dark" guard holes are closed. ✅ user-confirmed working. (3) Alternating curves on Tile-edge sets — two defects, incl. a curve normal whose orientation was decided by floating-point noise. ⏳ NOT browser-verified. Tests **1437 green** (baseline 1418), tsc + build clean, pushed. See the three dated entries immediately below.
 
 **⚠️ The recurring shape of all three:** a capability built against the **primary, ray-derived figure** silently misbehaves on other line families. `runPIC` vs `runRosettePIC`; the Base set's on/off vs the sets list; `side`/normal machinery that only means something for ± contact rays. When touching anything per-segment, ask which emitters and which families it reaches. Memory: `feedback_line_family_assumptions.md`.
 
@@ -37,6 +39,32 @@
 6. **Roadmap design findings still open (Opus).** (a) **Pass-4 right-side Inspector** is blocked by the selection-state split (Canvas-local vertex state) + duplicated per-mode shell — the old "3rd-column-ready grid" claim is FALSE. (b) **Builder Configuration registry** — 7-site ladder to add one, with a silent square-basis fallback in `compositionCellBasis`. Memory: `project_thermonuclear_review_round2.md`.
 7. **Open bugs (unscheduled).** Force-overlapped Tiles emit their own Strands (decided 2026-06-14: make it a **toggle**, default self-contained). Memories: `project_overlap_tiles_strand_bug.md`, `project_strand_editing_debug.md`.
 8. **Gallery name filter (~20 min, Haiku/Sonnet).** Offered and deliberately *not* built in the 2026-07-31 sorting session — out of that ask's scope, user hasn't said yes. A search box over `entries` beside the sort control; the sort module is already pure and the grid renders from a derived list, so it is a filter step in the same `useMemo` plus one input.
+
+---
+### ▶ 2026-07-31 (Stamp "Export all shapes" downloads ~100 canvases for a 3-shape pattern — FIXED, ⏳ browser-verify, Opus)
+
+User: *"just tried to download all stamps for my saved preset pattern 'dragon claws'. It downloaded a ridiculous number of shapes, this wasn't different if I turned curve off. There should be only 3 shapes."*
+
+**Cause.** `extractVoids` clips the strand field to a convex `bound` — the visible viewport rect on the legacy/non-fast paths, or the frame bbox + margin with a Frame. Faces straddling that bound come out **cut**, so each is a one-off polygon with its own congruent signature. `nameVoidShapes` (behind "Export all SVG/PNG") emitted one canvas per distinct signature with no filter, so the border band dominated the download.
+
+Measured (probe over the real generate→PIC→extract chain, 2000×1400 bound):
+
+| substrate | distinct signatures | interior classes | files before → after |
+|---|---|---|---|
+| `decagonal-rosette` | 108 | 12 | 108 → **12** |
+| `pentagonal-rosette` | 103 | 6 | 103 → **6** |
+| `kisrhombille` | 14 | 4 | 14 → **4** |
+| `4.8.8` | 10 | 3 | 10 → **3** |
+
+Every junk class had **every** instance touching the bound; the real classes had none or a minority. Curve-independent (the cut happens either way), matching the user's observation. Tiny slivers (`minArea` is 1e-3 world units², so areas of 0.02 survive) were all in the border band too and go with it.
+
+**Fix.** `VoidRegion.clipped` — set in `extractVoids` when any face vertex lies on the bound outline (`onBoundOutline`, tol = 2×snap), OR-ed through `pairCurvedOutlines`, and carried free through `keyVoids` (it spreads). `nameVoidShapes` keeps a signature if **any** member is un-clipped (so a shape that merely *also* appears at the border keeps its canvas) and always picks an **un-clipped** member's outline as the exported one. If nothing is un-clipped (viewport smaller than one repeat) it filters nothing rather than downloading zero files.
+
+Deliberately **not** changed: painting still works on bound-cut Voids, and the fast path (`decorationReps`) was already immune — it keeps only origin-Voronoi representatives, which are interior by construction.
+
+**Files:** `decoration/voids.ts`, `export/stampAssets.ts`, + tests in `decoration/voids.test.ts` (2) and `export/stampAssets.test.ts` (3).
+
+⏳ **Browser-verify:** load 'dragon claws', Decoration → Stamp → "Export all SVG". Expect 3 files. Pan and re-export — the count must not change (it did before: the border classes are pan-dependent).
 
 ---
 ### ▶ 2026-07-31 (Alternating curves broken on Tile-edge sets — FIXED `296f9ac`, ⏳ browser-verify, Opus)

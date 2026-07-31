@@ -35,6 +35,13 @@ export interface VoidRegion {
    * outline that identity keys must derive from; `polygon` is then only the
    * rendered (curved) outline. Absent ⇒ key from `polygon`. */
   keyPolygon?: Vec2[]
+  /** True when the face touches the extraction `bound` — i.e. it is a
+   * viewport/frame-bbox CUT through the field, not a shape the pattern
+   * actually makes. Its outline (and therefore its congruent signature) is an
+   * artefact of where the bound fell, so it changes on pan/zoom. Consumers
+   * that enumerate the pattern's *shapes* (stamp-canvas export) must ignore
+   * classes made up entirely of these; painting still works on them. */
+  clipped?: boolean
 }
 
 export interface ExtractVoidsOptions {
@@ -136,6 +143,24 @@ function intersectParam(a: Vec2, b: Vec2, c: Vec2, dd: Vec2): number | null {
   const u = cross(sub(c, a), r) / denom
   if (t < -1e-9 || t > 1 + 1e-9 || u < -1e-9 || u > 1 + 1e-9) return null
   return Math.max(0, Math.min(1, t))
+}
+
+/** True when `p` lies (within `tol`) on the outline of the `bound` polygon —
+ * the test behind `VoidRegion.clipped`. Vertices produced by
+ * `clipSegmentToConvex` land exactly on a bound edge up to float error, then
+ * fuse to a grid key within `snap`, so the tolerance is a small multiple of
+ * the arrangement's own snap distance. */
+function onBoundOutline(p: Vec2, bound: Vec2[], tol: number): boolean {
+  for (let i = 0; i < bound.length; i++) {
+    const a = bound[i]
+    const b = bound[(i + 1) % bound.length]
+    const d = sub(b, a)
+    const L2 = dot(d, d)
+    if (L2 < 1e-18) continue
+    const t = Math.max(0, Math.min(1, dot(sub(p, a), d) / L2))
+    if (Math.hypot(a.x + d.x * t - p.x, a.y + d.y * t - p.y) <= tol) return true
+  }
+  return false
 }
 
 interface Vertex {
@@ -337,7 +362,9 @@ export function extractVoids(
     // only by a T-junction vertex on a straight edge hash to the same
     // signature (otherwise group-fill leaves "random" siblings unpainted).
     const poly = simplifyCollinear(ccw)
-    voids.push({ polygon: poly, area, signature: voidSignature(poly, lengthSnap, angleSnap) })
+    const v: VoidRegion = { polygon: poly, area, signature: voidSignature(poly, lengthSnap, angleSnap) }
+    if (poly.some(p => onBoundOutline(p, bound, snap * 2))) v.clipped = true
+    voids.push(v)
   }
   // 5. Canonicalise signatures across the field. Independent token rounding
   //    coin-flips when a true edge length / angle sits ON a quantisation
@@ -430,9 +457,20 @@ export function pairCurvedOutlines(straight: VoidRegion[], curved: VoidRegion[])
     sMatch[si] = ci
     cTaken[ci] = true
   }
-  const out: VoidRegion[] = straight.map((v, si) => sMatch[si] >= 0
-    ? { polygon: curved[sMatch[si]].polygon, area: v.area, signature: v.signature, keyPolygon: v.polygon }
-    : v)
+  const out: VoidRegion[] = straight.map((v, si) => {
+    if (sMatch[si] < 0) return v
+    const c = curved[sMatch[si]]
+    return {
+      polygon: c.polygon,
+      area: v.area,
+      signature: v.signature,
+      keyPolygon: v.polygon,
+      // Either field's face being cut by the bound means this Void is a bound
+      // artefact — curves can bow a face across the bound that the straight
+      // field kept clear, and vice versa.
+      ...(v.clipped || c.clipped ? { clipped: true } : null),
+    }
+  })
   for (let ci = 0; ci < curved.length; ci++) {
     if (!cTaken[ci]) out.push(curved[ci])
   }

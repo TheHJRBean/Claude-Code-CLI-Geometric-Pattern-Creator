@@ -2,7 +2,7 @@ import { TILINGS } from '../tilings/index'
 import { generateTiling } from '../tilings/archimedean'
 import { runPIC } from '../pic/index'
 import { DEFAULT_CONFIG } from '../state/defaults'
-import { extractVoids, pairCurvedOutlines, type VoidRegion } from './voids'
+import { extractVoids, pairCurvedOutlines, RENDER_SIMPLIFY_ANGLE_TOL, type VoidRegion } from './voids'
 import { flattenStrandsToSegments } from './flatten'
 import type { PatternConfig } from '../types/pattern'
 import type { Vec2 } from '../utils/math'
@@ -31,7 +31,12 @@ export const CURVED_FIELD_BOUND: Vec2[] = [
 
 /** PIC → extract straight + flattened-curve Voids → pair them. `offset` is the
  *  curve control offset applied to every Figure recipe (0.3 bows well clear of
- *  the straight chord). */
+ *  the straight chord).
+ *
+ *  Mirrors `extractDecorationVoids` in `usePattern.ts` exactly, including the
+ *  render-only collinear tolerance on the curved pass — a fixture that
+ *  simplified harder than production would hide the very difference these
+ *  tests exist to measure. */
 export function curvedVoids(type: string, offset: number): VoidRegion[] {
   const def = TILINGS[type]
   const figures: PatternConfig['figures'] = structuredClone(def.defaultConfig.figures ?? {})
@@ -46,6 +51,8 @@ export function curvedVoids(type: string, offset: number): VoidRegion[] {
   const segments = runPIC(generateTiling(def, GEN, SCALE), config)
   return pairCurvedOutlines(
     extractVoids(segments, CURVED_FIELD_BOUND),
-    extractVoids(flattenStrandsToSegments(segments, config), CURVED_FIELD_BOUND),
+    extractVoids(flattenStrandsToSegments(segments, config), CURVED_FIELD_BOUND, {
+      simplifyAngleTol: RENDER_SIMPLIFY_ANGLE_TOL,
+    }),
   )
 }

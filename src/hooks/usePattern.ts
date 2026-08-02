@@ -24,7 +24,7 @@ import { runRosettePIC } from '../pic/rosettePatch'
 import { recordPerf, periodicityEnabled } from '../utils/perf'
 import { colourVoids, keyVoids, makeVoidFill, type KeyedVoid, type PaintVoid, type StrandHit, type VoidFill } from '../decoration/resolve'
 import { resolveVoidStamps, type StampPlacement } from '../decoration/stamps'
-import { extractVoids, pairCurvedOutlines, type VoidRegion } from '../decoration/voids'
+import { extractVoids, pairCurvedOutlines, RENDER_SIMPLIFY_ANGLE_TOL, type VoidRegion } from '../decoration/voids'
 import { buildColourIndex, orbitOffset, resolveFill, scopedKey } from '../decoration/scopes'
 import { cellFramesFromOutlines, cellOrbitKey, reduceToOrbit, type CellFrame } from '../decoration/cellScope'
 import { strandIdentities, strandIdentitiesFromBase } from '../decoration/strandGroups'
@@ -230,11 +230,20 @@ export function runPICForCategory(category: TilingCategory, polygons: Polygon[],
  * flattened curved field is extracted too and `pairCurvedOutlines` swaps in
  * the curved outline for rendering while `keyPolygon` keeps the straight one
  * for identity keys. Paints then survive curve-recipe changes, matching how
- * strand colours already behave (strand identity is never flattened). */
+ * strand colours already behave (strand identity is never flattened).
+ *
+ * The curved pass simplifies at `RENDER_SIMPLIFY_ANGLE_TOL`, not the identity
+ * default: its outlines are only ever drawn (`pairCurvedOutlines` takes BOTH
+ * `keyPolygon` and `signature` from the straight pass), and at the default 1.5°
+ * a gentle curve turns less than that per flattening chord and was discarded —
+ * fills, stamp canvases and both Focus editors went straight-edged while the
+ * strands beside them stayed bowed. */
 function extractDecorationVoids(field: Segment[], bound: Vec2[], config: PatternConfig): VoidRegion[] {
   const straight = extractVoids(field, bound)
   if (!curvesEnabled(config)) return straight
-  const curved = extractVoids(flattenStrandsToSegments(field, config), bound)
+  const curved = extractVoids(flattenStrandsToSegments(field, config), bound, {
+    simplifyAngleTol: RENDER_SIMPLIFY_ANGLE_TOL,
+  })
   return pairCurvedOutlines(straight, curved)
 }
 

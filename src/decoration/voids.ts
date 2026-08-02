@@ -57,7 +57,29 @@ export interface ExtractVoidsOptions {
   /** Drop Voids whose area is below this (suppresses sliver faces from
    * near-degenerate crossings). Default 1e-3. */
   minArea?: number
+  /** Turn-angle tolerance (radians) for the collinear-vertex simplification
+   * applied to every extracted outline. Default 1.5° — right for an outline
+   * that has to yield a stable congruent signature, WRONG for one that only
+   * has to be drawn: a gentle curve turns less than that per flattening chord
+   * and is discarded wholesale. Pass {@link RENDER_SIMPLIFY_ANGLE_TOL} on a
+   * curved extraction whose outlines are for rendering only. */
+  simplifyAngleTol?: number
 }
+
+/**
+ * Collinear tolerance for an extraction whose outlines are **rendered**, not
+ * hashed — the curved pass in `extractDecorationVoids`, paired against a
+ * straight pass that supplies identity (`pairCurvedOutlines` takes `keyPolygon`
+ * *and* `signature` from the straight side, so nothing here can move a
+ * signature).
+ *
+ * 30× tighter than the identity default: still removes exactly-collinear
+ * junctions and zero-length steps, but keeps any curvature a viewer could see.
+ * A curve of control offset `d` turns ~`1.5° × d/0.0525` per flattening chord,
+ * so this holds curves down to offset ~0.002 — two orders below the smallest
+ * offset the UI offers.
+ */
+export const RENDER_SIMPLIFY_ANGLE_TOL = (0.05 * Math.PI) / 180
 
 interface Seg { a: Vec2; b: Vec2 }
 
@@ -182,6 +204,7 @@ export function extractVoids(
   const lengthSnap = options.lengthSnap ?? DEFAULTS.lengthSnap
   const angleSnap = options.angleSnap ?? DEFAULTS.angleSnap
   const minArea = options.minArea ?? DEFAULTS.minArea
+  const simplifyAngleTol = options.simplifyAngleTol
 
   // 1. Clip input segments to the bound; add the bound's own edges so faces
   //    close at the boundary.
@@ -361,7 +384,9 @@ export function extractVoids(
     // Drop collinear / duplicate vertices so two congruent Voids that differ
     // only by a T-junction vertex on a straight edge hash to the same
     // signature (otherwise group-fill leaves "random" siblings unpainted).
-    const poly = simplifyCollinear(ccw)
+    // `simplifyAngleTol` relaxes this for a render-only extraction — see
+    // RENDER_SIMPLIFY_ANGLE_TOL.
+    const poly = simplifyCollinear(ccw, simplifyAngleTol)
     const v: VoidRegion = { polygon: poly, area, signature: voidSignature(poly, lengthSnap, angleSnap) }
     if (poly.some(p => onBoundOutline(p, bound, snap * 2))) v.clipped = true
     voids.push(v)

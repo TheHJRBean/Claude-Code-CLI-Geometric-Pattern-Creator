@@ -516,12 +516,17 @@ export function TessellationLabMode({
         ? [
           { label: 'Paint target', value: paintTarget },
           { label: 'Reach', value: `Voids ${effectiveVoidScope} · Strands ${effectiveStrandScope}` },
+          // Which Reach rungs the substrate offers at all — `patch` and `cell`
+          // are withheld on a legacy substrate. Reported here rather than as a
+          // general fact because this flag is a decoration-scope binary: it
+          // says `legacy` for an empty Lab too, which would contradict the
+          // Pattern section's three-state classification.
+          { label: 'Decoration substrate', value: substrate },
           ...(paintTarget === 'gradient' ? [{ label: 'Gradient surface', value: gradientMode }] : []),
           ...(paintTarget === 'stamp' ? [{ label: 'Stamp selection', value: stampSelection ? 'a Void is selected' : 'none' }] : []),
           { label: 'Paint colour', value: decorationColor },
         ]
         : []),
-      { label: 'Substrate', value: substrate },
       { label: 'Linked save', value: activeSavedId || 'unlinked (unsaved working config)' },
       {
         label: 'Overlays',

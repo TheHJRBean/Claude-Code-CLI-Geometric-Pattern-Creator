@@ -133,7 +133,11 @@ export function BugReportPanel() {
         inset: 0,
         background: 'rgba(0, 0, 0, 0.55)',
         backdropFilter: 'blur(2px)',
-        zIndex: 120,
+        // Above every piece of app chrome: `.top-bar` is 150 and the export
+        // menu's submenu reaches 201, and this panel is tall enough to run
+        // under both. A modal the top bar paints over is worse than no modal —
+        // it silently truncates the header and the tabs.
+        zIndex: 300,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -171,7 +175,12 @@ export function BugReportPanel() {
           <button type="button" onClick={reporter.close} aria-label="Close" style={closeButtonStyle}>×</button>
         </header>
 
-        <div style={{ overflowY: 'auto', padding: '18px 20px', flex: 1 }}>
+        {/* `minHeight: 0` is load-bearing: a flex child defaults to
+            `min-height: auto`, so without it this refuses to shrink below its
+            content, pushes the dialog past its own `maxHeight`, and — because
+            the backdrop centres it — the overflow is split top and bottom,
+            clipping the header off-screen. */}
+        <div style={{ overflowY: 'auto', padding: '18px 20px', flex: 1, minHeight: 0 }}>
           {tab === 'new'
             ? (
               <ComposeTab

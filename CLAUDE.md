@@ -125,6 +125,21 @@ Key bits:
 
 Authoritative design context lives in `TESSELLATION_REVAMP_PLAN.md` (Step 17 section) and `SESSION_STATE.md` (resume anchor). Eight multi-cell Configurations ship (4.8.8, 3.12.12, 4.6.12, 3.6.3.6, 3.4.6.4, 3.3.3.4.4 via ticket #11, 3.3.4.3.4 snub square via ticket #14, and 3.3.3.3.6 snub hexagonal via ticket #16 — tier 2 is now empty, every Archimedean preset converts). Step 17.12 boundary-inward (single-shape v1) and Step 17.13 vertex placement are delivered.
 
+### Bug capture (`src/bugreport/`)
+
+In-app bug reporting. The top bar's bug button (or **Ctrl/Cmd+Shift+B**) opens
+a panel: the user writes a note, everything else is captured automatically at
+the moment the panel opens.
+
+- `bugreport/types.ts` — `BugReport` (note + `BugEnvironment` + `BugScreenContext` + verbatim `PatternConfig` + `ConfigSummary` + PNG data URL + `ConsoleEntry[]`). Reports **embed** a config copy rather than living on one, so `PATTERN_CONFIG_KEYS` is not in play.
+- `bugreport/context.tsx` — the provider. Screens **contribute** their own facts via `useBugScreenContext({ screen, facts, config })` instead of prop-drilling out of 1000-line workspaces; contributors live in a ref keyed by `useId`, so registering costs no re-renders. The snapshot is taken **on open, not on save**. Screenshots come from the existing `rasterizeSvgToDataUrl` against `PATTERN_CANVAS_SELECTOR` (`svg[data-pattern-canvas]`, set in `PatternSVG`) — the *pattern canvas*, not the whole page, which would need a DOM-rasteriser dependency.
+- `bugreport/summary.ts` — pure `summarisePatternConfig`: substrate (`patch` / `legacy` / `empty`), Cells, Tiles, Guides, Frame, Morph, decoration counts, Figure recipes. Fully defensive — a report is filed *because* something is wrong, so it must not throw and lose the note. Reads decoration through `patternDecoration` (never the raw fields).
+- `bugreport/consoleLog.ts` — 50-entry ring buffer of console errors/warnings + `window` errors + unhandled rejections; `installConsoleCapture()` runs in `main.tsx` and always forwards to the original methods.
+- `bugreport/store.ts` — its **own** IndexedDB database (`geometric-atlas-bugs`), deliberately not the thumbnail store's: adding an object store there means a version bump, which would break `thumbnailStore`'s `open(name, 1)`. Two object stores so the list view doesn't read megabytes of screenshots.
+- `bugreport/report.ts` / `actions.ts` — `bugReportMarkdown` (the triage paste format) + JSON bundle / `.md` / `.png` / clipboard.
+- `components/BugReportPanel.tsx` — the panel. **z-index 300** (above `.top-bar`'s 150 and the export submenu's 201) and `minHeight: 0` on its scroll area; both were real clipping bugs.
+- Screen contributors: `TessellationLabMode` (Phase / Tool / Guide tool / picks / selection / paint target + Reach / overlays), `GeneratorMode` (seed + generator version + source + era + model state), `GalleryBrowser` (count / sort / open entry). Lab helpers are pure in `components/lab/labBugFacts.ts` — including the `'strand'` → **Composition** vocabulary mapping.
+
 ### Planned stages (see plan file)
 
 `TESSELLATION_REVAMP_PLAN.md` is the live plan. Phase 0 (decisions / terminology / Option-B restructure), Steps 1–11 (Lab scaffold + tilings + Composition-Phase controls), Step 14 (Lab library), and Step 17 v1 (17.0–17.10 + 17.4 re-enabled) are done + signed off. Steps 4–8 / 12–13 were archived under `archive/tessellation-lab/`. Steps 15, 16, 18 (k-uniform / quasi-periodic / Girih substitution) are parked. Captured ideas for future Builder work: cross-Cell Complete + enclosed-pocket Complete (related multi-vertex-gap mechanic).

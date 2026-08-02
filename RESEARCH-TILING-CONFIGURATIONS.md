@@ -1596,3 +1596,35 @@ or constructed-figure engine).
   Gallery/Builder bug independent of the morph; the probe sweeps vertex
   gradients in the leak-free regime (θ ≥ 50°). Fix idea: clip vertex arms
   with a t≥−ε entry test against edges not incident to the origin vertex.
+
+- **2026-08-02** — **Void extraction vs curve fidelity: the 1.5° collinear
+  cliff** (fixed `a97e079`). `extractVoids` simplifies every extracted face at a
+  fixed collinear turn tolerance of **1.5°** so a T-junction vertex on a
+  straight edge can't split a congruent class. Applied to the outline that gets
+  **drawn**, it deletes gentle curves outright, because the flattener
+  (`decoration/flatten.ts`, `SAMPLES = 8`) turns a Bézier into 8 chords and the
+  per-chord turn scales with the control offset. Measured behaviour worth
+  keeping:
+  - **The cliff is at a curve offset of ~0.0525** (slider 5–6%), i.e.
+    `turnPerChord ≈ 1.5° × d/0.0525` for control offset `d`. On `4.8.8`,
+    un-cut Voids only: offset **≤ 0.05 ⇒ 0/59** keep a curved outline,
+    **≥ 0.055 ⇒ 59/59** do. The UI's offset slider is in whole percent, so the
+    entire **1–5%** band rendered flat.
+  - **It is not field-uniform.** Per-chord turn also scales with *edge length*,
+    so on `3.6.3.6` at offset 0.01 the hexagon-bounded faces kept the curve
+    while the triangle-bounded ones flattened: **90 of 103 curved, 13 flat in
+    one field**. Any fixed *angle* tolerance applied to a flattened curve is
+    therefore a *length*-dependent filter in disguise.
+  - **Vertex counts are set by the flattener, not the offset.** Above and below
+    the cliff the surviving outlines are identical in size (`4.8.8`: avg 7.6 →
+    60.7 points, max 16 → 128) because `SAMPLES` fixes them. So relaxing the
+    tolerance moves fields *into* a cost regime the app already paid at offset
+    ≥ 6%, rather than creating a new one — extraction time was flat across the
+    whole sweep.
+  - **The identity/render split is what makes the relaxation safe.**
+    `pairCurvedOutlines` takes `polygon` from the curved pass but **both**
+    `keyPolygon` and `signature` from the straight pass, so the curved pass is
+    render-only by construction and its tolerance cannot move a congruent
+    class. `RENDER_SIMPLIFY_ANGLE_TOL` (0.05°) now applies there;
+    `voidSignature` and `canonicaliseSignatures` keep the 1.5°/3° identity
+    tolerances untouched.

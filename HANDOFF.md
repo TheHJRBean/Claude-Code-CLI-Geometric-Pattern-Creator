@@ -2,74 +2,38 @@
 
 Written at a clean milestone. `SESSION_STATE.md` is still the resume anchor and
 its **NEXT** list is the menu; this file carries the working context for the
-three items that need a *decision* or have a trap waiting, so a cold session
-doesn't have to re-derive any of it.
+items that need a *decision* or have a trap waiting, so a cold session doesn't
+have to re-derive any of it.
 
-Nothing here is mid-flight. Tree clean, `main` pushed at `a2dab56`, suite
-1525 green, tsc + build clean.
+Nothing here is mid-flight. Tree clean, `main` pushed at `a97e079`, suite
+1530 green, tsc + build clean.
 
 ---
 
-## Item 2 (SESSION_STATE NEXT) — the 1.5° curve cliff · **NEEDS A YES/NO**
+## Item 2 (SESSION_STATE NEXT) — the 1.5° curve cliff · ✅ **DONE (`a97e079`)**
 
-**Model:** Opus. Small change, wide blast radius — the decision is the hard part.
+Shipped as specced below: `ExtractVoidsOptions.simplifyAngleTol` +
+`RENDER_SIMPLIFY_ANGLE_TOL` (0.05°), passed by `extractDecorationVoids` on the
+**curved pass only**. Identity invariance is now asserted, not argued —
+signatures, key outlines and areas are byte-identical to the strict extraction
+while the drawn outlines differ (`src/decoration/voidCurveFidelity.test.ts`,
+verified red-first, all 5 red before).
 
-### What happens
+Two things the measurement pass turned up that the plan below didn't predict:
 
-`extractVoids` runs `simplifyCollinear` at a fixed **1.5°** tolerance on every
-extracted face (`src/decoration/voids.ts:364`). On a curved field that
-simplification is applied to the *rendered* outline too, so a gentle curve is
-discarded wholesale. Measured on 4.8.8, un-cut Voids only:
+- **It was not a clean cliff on every tiling.** `3.6.3.6` at offset 0.01 kept
+  **90 of 103** Voids curved and flattened 13 — the per-chord turn scales with
+  edge length, so short-edged tile types crossed the threshold while long-edged
+  ones in the *same field* didn't. Inconsistency within one field, not just a
+  global on/off.
+- **The perf worry was unfounded, and measurably so.** Point counts below the
+  cliff land on exactly the values above it (4.8.8 avg 7.6 → 60.7, max 128) —
+  literally the same numbers, because the flattening resolution (`SAMPLES = 8`)
+  is what sets them, not the offset. Extraction time was unchanged across the
+  sweep. Still worth a browser spot-check on a heavy field: that measured
+  extraction, not 60-point SVG fills under a fast pan.
 
-| curve offset | Voids keeping a curved outline |
-|---|---|
-| 0.02, 0.05 | **0 / 59** |
-| 0.055 → 0.3 | **59 / 59** |
-
-A sharp cliff between 0.05 and 0.055 (consistent with a fixed angle tolerance).
-Below it the strands still render bowed while the Void fill, its exported stamp
-canvas and both Focus editors all go straight-edged.
-
-### Why it is wrong, precisely
-
-The 1.5° simplification is **correct for the identity outline** — its stated job
-(`voids.ts:361-363`) is to stop a T-junction vertex on a straight edge splitting
-a congruent class, which is what made "Matching leaves a few odd voids
-unpainted". It is **wrong for the rendered outline**, which exists only to be
-drawn.
-
-The two are already cleanly separated downstream: `pairCurvedOutlines`
-(`voids.ts:489-497`) takes `polygon` from the CURVED extraction and both
-`keyPolygon` **and** `signature` from the STRAIGHT one. So identity is derived
-entirely from the straight pass — relaxing simplification on the curved pass
-alone cannot move a signature.
-
-### Proposed change
-
-1. Add an option to `ExtractVoidsOptions` (`voids.ts:47`), e.g.
-   `simplifyAngleTol?: number`, defaulting to the current 1.5°, and pass it to
-   the `simplifyCollinear` call at `voids.ts:364`.
-2. In `extractDecorationVoids` (`src/hooks/usePattern.ts:234-239`) pass a tight
-   tolerance (or 0) for the **curved** extraction only — line 237. Leave the
-   straight extraction on the default.
-
-### Check before committing to it
-
-- **Perf.** Rendered Void outlines below the cliff go 6 → ~48 points. That is the
-  same cost fields just above the cliff already pay, so it is not a new regime —
-  but `project_decoration_stage_idea` has a whole perf chain around Void
-  painting; re-read it and spot-check a heavy field.
-- **`pairCurvedOutlines` matching is unaffected** — it matches on centroid
-  distance and area ratio (`voids.ts:471-480`), neither of which moves when the
-  vertex count changes. Confirmed by reading, not by test.
-- **Do not touch** `simplifyCollinear` at `voids.ts:531` or `:605`, or the
-  default at `:560`. Those are identity paths.
-
-### Test it red-first
-
-`src/decoration/curvedFieldFixture.ts` gives you a real curved field in one
-call. A test at offset 0.03 asserting `polygon.length > keyPolygon.length`
-fails today and passes after. Sweep offsets — the cliff is the interesting part.
+Only ⏳ **browser-verify** remains — folded into item 1's pass.
 
 ---
 
@@ -113,6 +77,12 @@ Plus a 10-second tick-off: **Stamp → Focus mode on a curved Void**. Expected
 good — its Focus half read the same dropped `keyPolygon` that `4ba619d` fixed,
 and the gradient Focus editor beside it is user-confirmed.
 
+Plus `a97e079` (**gentle curves**, new): set a curve offset around **0.02–0.03**
+— previously the flat-outline regime — and confirm the Void fill, the exported
+stamp canvas and the Focus outline all bow with the strands instead of snapping
+to the chord. `3.6.3.6` is the sharpest tell: it used to render some Voids
+curved and their neighbours flat in the same field.
+
 ---
 
 ## Traps this session earned — read before touching Decoration
@@ -139,6 +109,15 @@ and the gradient Focus editor beside it is user-confirmed.
    whichever instance was clicked, rendered on all) revealed the residual that
    turned out to be a second, deeper bug (#54). An unmeasured fix would have
    been reported as a clean win.
+
+5. **A shared test fixture must mirror production including its *tolerances*.**
+   `curvedFieldFixture` reproduced `extractDecorationVoids` step for step but
+   called `extractVoids` with default options — so every test built on it saw
+   outlines simplified harder than the app's, and could never have caught the
+   cliff. It only worked because both suites happened to use offset 0.3, above
+   it. A fixture that is "the same shape as production" is not the same as one
+   that is *the same call*; when you add an option to a function a fixture
+   wraps, the fixture is a call site too.
 
 Full versions live in `memory/feedback_identity_vs_geometry_outlines.md`.
 

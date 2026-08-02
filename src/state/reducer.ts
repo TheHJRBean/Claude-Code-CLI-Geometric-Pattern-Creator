@@ -861,12 +861,17 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     case 'SET_DECORATION_VOID_STAMP': {
       // Void Stamp upsert by (scope, key) — one image per Void group. No
       // masking ladder yet (v1 is congruent-only); re-stamping a key just
-      // replaces its image.
+      // replaces its image. The replacement keeps the record's INDEX: array
+      // order is the stacking order, and swapping the image of a stamp you
+      // deliberately sent to the back must not bring it to the front.
       if (!canDecorate(state)) return state
       const deco = patternDecoration(state) ?? emptyDecoration()
       const { scope, key } = action.payload
-      const voidStamps = (deco.voidStamps ?? []).filter(r => !(r.scope === scope && r.key === key))
-      voidStamps.push(action.payload)
+      const prev = deco.voidStamps ?? []
+      const at = prev.findIndex(r => r.scope === scope && r.key === key)
+      const voidStamps = at >= 0
+        ? prev.map((r, i) => (i === at ? action.payload : r))
+        : [...prev, action.payload]
       return withPatternDecoration(state, { ...deco, voidStamps })
     }
     case 'REMOVE_DECORATION_VOID_STAMP': {
@@ -879,6 +884,27 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       if (voidStamps.length > 0) next.voidStamps = voidStamps
       else delete next.voidStamps
       return withPatternDecoration(state, next)
+    }
+    case 'REORDER_DECORATION_VOID_STAMP': {
+      // Stacking order = array order (last paints last, so it is in front).
+      // Moves are clamped, and a no-op move returns the identical state so the
+      // memoised render doesn't churn.
+      if (!canDecorate(state)) return state
+      const deco = patternDecoration(state)
+      if (!deco?.voidStamps) return state
+      const { scope, key, move } = action.payload
+      const from = deco.voidStamps.findIndex(r => r.scope === scope && r.key === key)
+      if (from < 0) return state
+      const last = deco.voidStamps.length - 1
+      const to = move === 'forward' ? Math.min(last, from + 1)
+        : move === 'backward' ? Math.max(0, from - 1)
+          : move === 'front' ? last
+            : 0
+      if (to === from) return state
+      const voidStamps = deco.voidStamps.slice()
+      const [rec] = voidStamps.splice(from, 1)
+      voidStamps.splice(to, 0, rec)
+      return withPatternDecoration(state, { ...deco, voidStamps })
     }
     case 'SET_DECORATION_FRAME_GRADIENT': {
       // Across-frame gradient underlay (#45) — dumb setter. `null` clears the

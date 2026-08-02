@@ -5,7 +5,7 @@ import type { PaintTarget, StrandPaintScope, VoidPaintScope } from '../../render
 import type { PaintVoid } from '../../decoration/resolve'
 import { axisAngleDeg, bboxAxisAtAngle, gradientCanonicalBox, rotateAxisTo, seedFrameGradientSpec, seedGradientSpec, DEFAULT_GRADIENT_ANGLE_DEG, type GradientDraft, type GradientSelection, type WorldBBox } from '../../decoration/gradients'
 import type { Vec2 } from '../../utils/math'
-import type { DecorationConfig, FrameConfig, GradientSpec } from '../../types/editor'
+import type { DecorationConfig, FrameConfig, GradientSpec, VoidStampRecord } from '../../types/editor'
 import { downloadAllVoidShapeCanvases, downloadVoidShapePNG, downloadVoidShapeSVG, importStampImage, voidStampCanvas } from '../../export/stampAssets'
 import { ColourPicker, pushRecentColour } from '../ColourPicker'
 import { FieldLabel, segmentedButtonStyle } from './labShared'
@@ -889,6 +889,14 @@ function StrandGradientControls({ decoration, seedBBox, dispatch, decorationColo
   )
 }
 
+/** Turning Overlap back off drops the flag rather than storing `false`, so a
+ * record that never used it stays byte-identical to a pre-Overlap save. */
+function omitOverlap(rec: VoidStampRecord): VoidStampRecord {
+  const next = { ...rec }
+  delete next.overlap
+  return next
+}
+
 /**
  * The **Stamp** target's panel section: inspect the selected Void shape,
  * export a blank canvas at its exact canonical proportions (design a stamp
@@ -1031,6 +1039,28 @@ function StampSection({ decoration, dispatch, selection, getStampVoids }: {
             </div>
           )}
           {selRec && (
+            <div style={{ marginTop: 6 }}>
+              <FieldLabel
+                label="Overlap"
+                tooltip="Off (default): the image is cropped to the Void outline. On: it draws whole and may spill over neighbouring shapes — zoom it up in Focus mode to make it bleed. Where two spilling stamps meet, the one nearer the front of the stack below wins."
+              />
+              <div style={{ display: 'flex', gap: 0 }}>
+                {([false, true] as const).map(v => (
+                  <button
+                    key={String(v)}
+                    onClick={() => dispatch({
+                      type: 'SET_DECORATION_VOID_STAMP',
+                      payload: v ? { ...selRec, overlap: true } : omitOverlap(selRec),
+                    })}
+                    style={segmentedButtonStyle((selRec.overlap === true) === v, { transition: false })}
+                  >
+                    {v ? 'Overlap' : 'Clip to shape'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {selRec && (
             <button
               onClick={() => setFocusOpen(true)}
               style={{ ...decorationButtonStyle, width: '100%', marginTop: 6 }}
@@ -1066,8 +1096,13 @@ function StampSection({ decoration, dispatch, selection, getStampVoids }: {
       {exportAllNote && <div style={{ fontSize: 11, marginBottom: 8 }}>{exportAllNote}</div>}
       {stamps.length > 0 && (
         <div style={{ fontSize: 11 }}>
-          <FieldLabel label="Stamped shapes" tooltip="Every Void shape carrying a stamp. Click ✕ to remove one." />
-          {stamps.map(r => (
+          <FieldLabel
+            label="Stamp stack — front to back"
+            tooltip="Every Void shape carrying a stamp, front-most first. ▲ brings a stamp forward, ▼ sends it back; the order decides who wins where two Overlap stamps meet. ✕ removes one."
+          />
+          {/* Painted last = in front, so the array is walked backwards here:
+              the list reads top-of-stack down, like every other layer stack. */}
+          {stamps.map((r, i) => ({ r, i })).reverse().map(({ r, i }) => (
             <div
               key={`${r.scope}:${r.key}`}
               style={{
@@ -1078,7 +1113,23 @@ function StampSection({ decoration, dispatch, selection, getStampVoids }: {
             >
               <img src={r.image} alt="" style={{ height: 22, width: 22, objectFit: 'cover' }} />
               <span style={{ flex: 1, fontFamily: 'monospace' }}>{r.key.slice(0, 8)}</span>
-              <span style={{ opacity: 0.7 }}>{r.fit}</span>
+              <span style={{ opacity: 0.7 }}>{r.overlap ? 'overlap' : r.fit}</span>
+              <button
+                onClick={() => dispatch({ type: 'REORDER_DECORATION_VOID_STAMP', payload: { scope: r.scope, key: r.key, move: 'forward' } })}
+                disabled={i === stamps.length - 1}
+                style={{ ...decorationButtonStyle, padding: '2px 5px', opacity: i === stamps.length - 1 ? 0.3 : 1 }}
+                title="Bring forward"
+              >
+                ▲
+              </button>
+              <button
+                onClick={() => dispatch({ type: 'REORDER_DECORATION_VOID_STAMP', payload: { scope: r.scope, key: r.key, move: 'backward' } })}
+                disabled={i === 0}
+                style={{ ...decorationButtonStyle, padding: '2px 5px', opacity: i === 0 ? 0.3 : 1 }}
+                title="Send back"
+              >
+                ▼
+              </button>
               <button
                 onClick={() => dispatch({ type: 'REMOVE_DECORATION_VOID_STAMP', payload: { scope: r.scope, key: r.key } })}
                 style={{ ...decorationButtonStyle, padding: '2px 6px' }}

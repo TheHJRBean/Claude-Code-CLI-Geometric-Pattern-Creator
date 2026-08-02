@@ -220,6 +220,33 @@ describe('resolveVoidStamps', () => {
     expect(placements[0].clip).toBe(curved)
   })
 
+  it('emits record-major so the record array is the stacking order', () => {
+    const other = QUAD.map(p => ({ x: p.x * 2, y: p.y * 2 }))
+    const otherSig = voidSignature(other, 0.5, (0.5 * Math.PI) / 180)
+    const voids = [
+      // Interleaved on purpose: void order must not leak into paint order.
+      { polygon: QUAD, signature: sig },
+      { polygon: other, signature: otherSig },
+      { polygon: QUAD.map(p => rot(p, 1.1, { x: 30, y: 0 })), signature: sig },
+    ]
+    const back = { ...record, image: 'data:image/png;base64,back' }
+    const front = { ...record, key: otherSig, image: 'data:image/png;base64,front' }
+    const placements = resolveVoidStamps(voids, [back, front])
+    expect(placements.map(p => p.image)).toEqual([back.image, back.image, front.image])
+    // Reordering the records reorders the paint — that's the whole mechanism.
+    expect(resolveVoidStamps(voids, [front, back]).map(p => p.image))
+      .toEqual([front.image, back.image, back.image])
+  })
+
+  it('carries the Overlap flag through to the placement, omitted when off', () => {
+    const voids = [{ polygon: QUAD, signature: sig }]
+    expect(resolveVoidStamps(voids, [record])[0].overlap).toBeUndefined()
+    expect(resolveVoidStamps(voids, [{ ...record, overlap: true }])[0].overlap).toBe(true)
+    // Still posed + clipped to the same shape — Overlap only drops the clip at
+    // render time, it never changes the fit.
+    expect(resolveVoidStamps(voids, [{ ...record, overlap: true }])[0].clip).toBe(QUAD)
+  })
+
   it('returns nothing for no records / non-congruent scopes', () => {
     expect(resolveVoidStamps([{ polygon: QUAD, signature: sig }], undefined)).toEqual([])
     expect(resolveVoidStamps(

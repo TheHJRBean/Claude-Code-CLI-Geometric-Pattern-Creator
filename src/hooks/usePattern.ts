@@ -206,6 +206,13 @@ export function periodicFastPathEligible(
     // repeat per <use> clone (each clone shifts its user space) instead of
     // washing continuously — fall through to the exact world-space field.
     && !(config.editor?.decoration?.strandGradient?.enabled)
+    // Overlap stamps (#54 follow-up) draw UNCLIPPED, so a stamp near a domain
+    // edge spills across the seam. Inside the <use>-tiled fragment that spill
+    // lands under the NEXT clone's tiles/fills (each clone paints whole, in
+    // order) instead of over its true neighbours, and the global stacking
+    // order across records stops holding. Fall through to the exact
+    // world-space field, where one flat paint order covers the whole plane.
+    && !(config.editor?.decoration?.voidStamps?.some(r => r.overlap))
     // Weave (Lacing) interlaces over the FULL planar arrangement: crossings at
     // the seams BETWEEN stamped copies must alternate over/under with the ones
     // inside a domain. computeWeave over one base domain never sees those seam

@@ -319,4 +319,20 @@ describe('Void Stamps — migration', () => {
       expect(stripped!.decoration!.voidStamps).toEqual([stamp])
     }
   })
+
+  it('round-trips the Overlap flag (only `true`) and preserves stacking order', () => {
+    const back = { ...stamp, key: 'back0000' }
+    const front = { ...stamp, key: 'front000', overlap: true }
+    const out = migrateEditorConfig(v3Patch({
+      decoration: { version: 1, strandColours: [], voidFills: [], voidStamps: [back, front] },
+    }))
+    // Array order is the paint order — the migration must not reshuffle it.
+    expect(out!.decoration!.voidStamps).toEqual([back, front])
+    for (const bad of [false, 'yes', 1, undefined]) {
+      const dropped = migrateEditorConfig(v3Patch({
+        decoration: { version: 1, strandColours: [], voidFills: [], voidStamps: [{ ...stamp, overlap: bad }] },
+      }))
+      expect(dropped!.decoration!.voidStamps).toEqual([stamp])
+    }
+  })
 })

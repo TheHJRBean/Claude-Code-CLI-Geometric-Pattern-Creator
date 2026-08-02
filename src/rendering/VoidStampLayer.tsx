@@ -13,6 +13,11 @@ import { polygonPath } from './svgGeometry'
  * `decoration/stamps.ts`) and carried to the instance by a rigid(-or-
  * reflected) `matrix(...)` — one uploaded asset lands consistently on every
  * congruent Void.
+ *
+ * A placement marked `overlap` skips the clip entirely and draws whole, so it
+ * may spill over its neighbours. Placement order is the stacking order (the
+ * resolver emits record-major, last record in front), so later stamps paint
+ * over earlier ones.
  */
 export const VoidStampLayer = memo(function VoidStampLayer({
   placements,
@@ -26,14 +31,14 @@ export const VoidStampLayer = memo(function VoidStampLayer({
   return (
     <g pointerEvents="none">
       <defs>
-        {placements.map((p, i) => (
+        {placements.map((p, i) => (p.overlap ? null : (
           <clipPath key={i} id={`${idPrefix}-${i}`} clipPathUnits="userSpaceOnUse">
             <path d={polygonPath(p.clip)} />
           </clipPath>
-        ))}
+        )))}
       </defs>
       {placements.map((p, i) => (
-        <g key={`img-${i}`} clipPath={`url(#${idPrefix}-${i})`}>
+        <g key={`img-${i}`} clipPath={p.overlap ? undefined : `url(#${idPrefix}-${i})`}>
           <image
             href={p.image}
             x={p.rect.x}

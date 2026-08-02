@@ -66,8 +66,11 @@ export function StampFocusEditor({ record, outline, renderedOutline, onApply, on
   if (!geo) return null
   const { points, box, rect } = geo
 
-  // The shape alone, fit to the window with breathing room.
-  const pad = Math.max(box.width, box.height) * 0.18
+  // The shape alone, fit to the window with breathing room. An Overlap stamp
+  // is meant to spill, so the margin grows with the zoom (capped) — otherwise
+  // the part that will land on the neighbours sits off-screen.
+  const padFactor = record.overlap ? Math.min(2.5, Math.max(0.18, 0.55 * t.scale)) : 0.18
+  const pad = Math.max(box.width, box.height) * padFactor
   const vb = { x: box.x - pad, y: box.y - pad, w: box.width + 2 * pad, h: box.height + 2 * pad }
   const m = userTransformMatrix(box, t)
   const matrix = `matrix(${m.a} ${m.b} ${m.c} ${m.d} ${m.e} ${m.f})`
@@ -151,22 +154,28 @@ export function StampFocusEditor({ record, outline, renderedOutline, onApply, on
             <path d={shapeD} />
           </clipPath>
         </defs>
-        {/* Ghost: the full image at low opacity so the crop is visible. */}
+        {/* Ghost: the full image at low opacity so the crop is visible. An
+            Overlap stamp isn't cropped — nothing outside the shape is lost,
+            it lands on the neighbours — so it previews at full opacity and
+            the clipped copy is dropped. The dashed outline still marks the
+            Void the image is posed and fitted to. */}
         <image
           href={record.image}
           x={rect.x} y={rect.y} width={rect.width} height={rect.height}
           preserveAspectRatio="none"
           transform={matrix}
-          opacity={0.22}
+          opacity={record.overlap ? 1 : 0.22}
         />
-        <g clipPath="url(#stamp-focus-clip)">
-          <image
-            href={record.image}
-            x={rect.x} y={rect.y} width={rect.width} height={rect.height}
-            preserveAspectRatio="none"
-            transform={matrix}
-          />
-        </g>
+        {!record.overlap && (
+          <g clipPath="url(#stamp-focus-clip)">
+            <image
+              href={record.image}
+              x={rect.x} y={rect.y} width={rect.width} height={rect.height}
+              preserveAspectRatio="none"
+              transform={matrix}
+            />
+          </g>
+        )}
         <path
           d={shapeD}
           fill="none"

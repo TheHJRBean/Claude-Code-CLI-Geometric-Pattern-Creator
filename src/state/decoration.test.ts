@@ -412,6 +412,43 @@ describe('Void Stamps — reducer actions', () => {
     expect(s.editor!.decoration!.voidStamps).toHaveLength(2)
   })
 
+  it('re-stamping keeps the record IN PLACE so the stacking order survives', () => {
+    let s = base()
+    s = reducer(s, { type: 'SET_DECORATION_VOID_STAMP', payload: stamp } as Action)
+    s = reducer(s, { type: 'SET_DECORATION_VOID_STAMP', payload: { ...stamp, key: 'deadbeef' } } as Action)
+    // Replace the image of the BACK record — it must not jump to the front.
+    s = reducer(s, { type: 'SET_DECORATION_VOID_STAMP', payload: { ...stamp, image: 'data:image/webp;base64,z' } } as Action)
+    expect(s.editor!.decoration!.voidStamps!.map(r => r.key)).toEqual([stamp.key, 'deadbeef'])
+    expect(s.editor!.decoration!.voidStamps![0].image).toBe('data:image/webp;base64,z')
+  })
+
+  it('REORDER_DECORATION_VOID_STAMP moves a record through the paint order', () => {
+    const keys = () => s.editor!.decoration!.voidStamps!.map(r => r.key)
+    let s = base()
+    for (const key of ['a', 'b', 'c']) {
+      s = reducer(s, { type: 'SET_DECORATION_VOID_STAMP', payload: { ...stamp, key } } as Action)
+    }
+    expect(keys()).toEqual(['a', 'b', 'c'])
+    s = reducer(s, { type: 'REORDER_DECORATION_VOID_STAMP', payload: { scope: 'congruent', key: 'a', move: 'forward' } } as Action)
+    expect(keys()).toEqual(['b', 'a', 'c'])
+    s = reducer(s, { type: 'REORDER_DECORATION_VOID_STAMP', payload: { scope: 'congruent', key: 'a', move: 'front' } } as Action)
+    expect(keys()).toEqual(['b', 'c', 'a'])
+    s = reducer(s, { type: 'REORDER_DECORATION_VOID_STAMP', payload: { scope: 'congruent', key: 'a', move: 'back' } } as Action)
+    expect(keys()).toEqual(['a', 'b', 'c'])
+    s = reducer(s, { type: 'REORDER_DECORATION_VOID_STAMP', payload: { scope: 'congruent', key: 'c', move: 'backward' } } as Action)
+    expect(keys()).toEqual(['a', 'c', 'b'])
+  })
+
+  it('REORDER_DECORATION_VOID_STAMP is identity at the ends and for unknown keys', () => {
+    let s = base()
+    s = reducer(s, { type: 'SET_DECORATION_VOID_STAMP', payload: stamp } as Action)
+    const s0 = s
+    for (const move of ['forward', 'backward', 'front', 'back'] as const) {
+      expect(reducer(s0, { type: 'REORDER_DECORATION_VOID_STAMP', payload: { scope: 'congruent', key: stamp.key, move } } as Action)).toBe(s0)
+    }
+    expect(reducer(s0, { type: 'REORDER_DECORATION_VOID_STAMP', payload: { scope: 'congruent', key: 'nope', move: 'forward' } } as Action)).toBe(s0)
+  })
+
   it('REMOVE_DECORATION_VOID_STAMP deletes the record; the field drops when empty', () => {
     let s = base()
     s = reducer(s, { type: 'SET_DECORATION_VOID_STAMP', payload: stamp } as Action)

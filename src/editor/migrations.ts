@@ -307,6 +307,10 @@ function migrateVoidStamp(raw: unknown): VoidStampRecord | null {
       out.transform = { offsetX: t.offsetX, offsetY: t.offsetY, scale: t.scale, rotation: t.rotation }
     }
   }
+  // Overlap (unclipped) flag — only `true` persists; anything else is the
+  // default clipped behaviour. Record order is preserved by the caller, and
+  // that order IS the stacking order.
+  if (r.overlap === true) out.overlap = true
   return out
 }
 

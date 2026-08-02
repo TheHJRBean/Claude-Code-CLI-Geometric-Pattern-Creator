@@ -367,7 +367,12 @@ export interface DecorationConfig {
   voidFills: ColourRecord[]
   /** Void **Stamp** assignments — an uploaded image clipped into every Void
    * the record's scope reaches (v1: `congruent` only, keyed by signature).
-   * Optional + additive so decoration blocks without stamps stay version 1. */
+   * Optional + additive so decoration blocks without stamps stay version 1.
+   *
+   * **Array order is the stacking order**: index 0 paints first (back), the
+   * last record paints last (front). It only shows where images overlap —
+   * i.e. where a record sets `overlap` — but it is stable regardless, so the
+   * panel's bring-forward / send-back controls are just array moves. */
   voidStamps?: VoidStampRecord[]
   /** Slice 2 (#45) — the single across-frame gradient underlay (world-space).
    * Optional + additive; absent ⇒ pre-slice-2 behaviour byte-identical. */
@@ -403,6 +408,16 @@ export interface VoidStampRecord {
   /** Optional user adjustment on top of the base fit (Focus mode). Absent =
    * identity. Additive so pre-existing stamp records stay valid. */
   transform?: StampUserTransform
+  /**
+   * **Overlap** — drop the Void-outline clip so the image draws whole and may
+   * spill over its neighbours (pair with Focus-mode zoom, which is what pushes
+   * the image past the shape's box). Absent/false = the default clipped
+   * behaviour, so pre-existing records render byte-identically.
+   *
+   * Who wins where two spilling stamps meet is the record order in
+   * `DecorationConfig.voidStamps` (last = front).
+   */
+  overlap?: boolean
 }
 
 /**

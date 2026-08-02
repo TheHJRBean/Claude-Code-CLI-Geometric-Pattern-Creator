@@ -135,9 +135,12 @@ export type Action =
   | { type: 'SET_DECORATION_STRAND_COLOR'; payload: { scope: GroupingScope; key: string; colour: string | null; clicked?: ClickedTargetKeys } }
   // Void Stamps — an uploaded image clipped into every Void the record
   // reaches (v1 scope: congruent, key = shape signature). Upserts by
-  // (scope, key); REMOVE deletes the record.
+  // (scope, key) IN PLACE (a re-upload must not jump the stacking order);
+  // REMOVE deletes the record. REORDER moves one record through the array,
+  // which is the paint order (last = front) — see `resolveVoidStamps`.
   | { type: 'SET_DECORATION_VOID_STAMP'; payload: VoidStampRecord }
   | { type: 'REMOVE_DECORATION_VOID_STAMP'; payload: { scope: GroupingScope; key: string } }
+  | { type: 'REORDER_DECORATION_VOID_STAMP'; payload: { scope: GroupingScope; key: string; move: 'forward' | 'backward' | 'front' | 'back' } }
   // Across-frame gradient underlay (DECORATION_GRADIENTS_SPEC slice 2, #45).
   // One per composition; `null` clears the slot. The seeded geometry (world
   // coords) rides the payload — the reducer is a dumb setter, seeding + drag

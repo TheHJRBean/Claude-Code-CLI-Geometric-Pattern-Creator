@@ -316,6 +316,10 @@ export interface StampPlacement {
   image: string
   /** Image rect in canonical coordinates (cover/contain fit already applied). */
   rect: StampBBox
+  /** Overlap mode — render the image UNCLIPPED (it may spill past `clip` and
+   * over its neighbours). `clip` is still carried: it is the shape the stamp
+   * was posed and fitted to, and Focus mode draws it as the guide. */
+  overlap?: boolean
 }
 
 /** The subset of a Void the resolver needs (both `VoidRegion` and the
@@ -331,36 +335,41 @@ export interface StampableVoid {
  * records by signature; other scopes are ignored (reserved). The canonical
  * pose derives from the STRAIGHT outline (`keyPolygon` when present) so a
  * stamp survives curve-recipe changes; the clip stays the rendered outline.
+ *
+ * Emission is **record-major**: every Void of `records[0]` first, then
+ * `records[1]`'s, and so on. The output is painted in order, so the record
+ * array IS the stacking order (last = front) — which is what the panel's
+ * bring-forward / send-back controls move. It only shows where a record sets
+ * `overlap` (unclipped ⇒ images can spill onto each other), but the order is
+ * deterministic either way.
  */
 export function resolveVoidStamps(
   voids: StampableVoid[],
   records: VoidStampRecord[] | undefined,
 ): StampPlacement[] {
   if (!records || records.length === 0) return []
-  const bySignature = new Map<string, VoidStampRecord>()
-  for (const r of records) {
-    if (r.scope === 'congruent') bySignature.set(r.key, r)
-  }
-  if (bySignature.size === 0) return []
   const out: StampPlacement[] = []
-  for (const v of voids) {
-    const rec = bySignature.get(v.signature)
-    if (!rec) continue
-    // Pose off the identity outline, but fit the image to the RENDERED shape's
-    // box — the clip below is the rendered outline, so fitting to the straight
-    // one left curved Voids with uncovered bands.
-    const geo = stampGeometry(v.keyPolygon ?? v.polygon, v.polygon)
-    if (!geo) continue
-    const { pose, box } = geo
-    out.push({
-      clip: v.polygon,
-      // Focus-mode adjustment slots between the base fit and the isometry.
-      transform: rec.transform
-        ? composeTransforms(pose.toInstance, userTransformMatrix(box, rec.transform))
-        : pose.toInstance,
-      image: rec.image,
-      rect: fitImageRect(box, rec.width, rec.height, rec.fit),
-    })
+  for (const rec of records) {
+    if (rec.scope !== 'congruent') continue
+    for (const v of voids) {
+      if (v.signature !== rec.key) continue
+      // Pose off the identity outline, but fit the image to the RENDERED
+      // shape's box — the clip below is the rendered outline, so fitting to
+      // the straight one left curved Voids with uncovered bands.
+      const geo = stampGeometry(v.keyPolygon ?? v.polygon, v.polygon)
+      if (!geo) continue
+      const { pose, box } = geo
+      out.push({
+        clip: v.polygon,
+        // Focus-mode adjustment slots between the base fit and the isometry.
+        transform: rec.transform
+          ? composeTransforms(pose.toInstance, userTransformMatrix(box, rec.transform))
+          : pose.toInstance,
+        image: rec.image,
+        rect: fitImageRect(box, rec.width, rec.height, rec.fit),
+        ...(rec.overlap ? { overlap: true } : null),
+      })
+    }
   }
   return out
 }

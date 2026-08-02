@@ -307,6 +307,9 @@ function migrateVoidStamp(raw: unknown): VoidStampRecord | null {
       out.transform = { offsetX: t.offsetX, offsetY: t.offsetY, scale: t.scale, rotation: t.rotation }
     }
   }
+  // Upright-mirror flag — only `'never'` persists; anything else is the
+  // default `'reflect'` (the pose's own handedness).
+  if (r.mirror === 'never') out.mirror = 'never'
   // Overlap (unclipped) flag — only `true` persists; anything else is the
   // default clipped behaviour. Record order is preserved by the caller, and
   // that order IS the stacking order.

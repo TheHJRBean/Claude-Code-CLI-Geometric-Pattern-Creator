@@ -335,4 +335,18 @@ describe('Void Stamps — migration', () => {
       expect(dropped!.decoration!.voidStamps).toEqual([stamp])
     }
   })
+
+  it("round-trips the upright-mirror flag (only 'never')", () => {
+    const upright = { ...stamp, mirror: 'never' }
+    const out = migrateEditorConfig(v3Patch({
+      decoration: { version: 1, strandColours: [], voidFills: [], voidStamps: [upright] },
+    }))
+    expect(out!.decoration!.voidStamps).toEqual([upright])
+    for (const bad of ['reflect', true, 1, undefined]) {
+      const dropped = migrateEditorConfig(v3Patch({
+        decoration: { version: 1, strandColours: [], voidFills: [], voidStamps: [{ ...stamp, mirror: bad }] },
+      }))
+      expect(dropped!.decoration!.voidStamps).toEqual([stamp])
+    }
+  })
 })

@@ -897,6 +897,13 @@ function omitOverlap(rec: VoidStampRecord): VoidStampRecord {
   return next
 }
 
+/** Same for Mirror: back to the default handedness drops the field. */
+function omitMirror(rec: VoidStampRecord): VoidStampRecord {
+  const next = { ...rec }
+  delete next.mirror
+  return next
+}
+
 /**
  * The **Stamp** target's panel section: inspect the selected Void shape,
  * export a blank canvas at its exact canonical proportions (design a stamp
@@ -1061,6 +1068,28 @@ function StampSection({ decoration, dispatch, selection, getStampVoids }: {
             </div>
           )}
           {selRec && (
+            <div style={{ marginTop: 6 }}>
+              <FieldLabel
+                label="Mirror"
+                tooltip="A Void shape and its mirror image are ONE congruent class — and on most fields it splits about half and half. Reflect (default) mirrors the image on that opposite-handed half, so the pattern keeps the tiling's own reflection symmetry. Upright cancels it, so a directional motif reads the same way everywhere."
+              />
+              <div style={{ display: 'flex', gap: 0 }}>
+                {([false, true] as const).map(upright => (
+                  <button
+                    key={String(upright)}
+                    onClick={() => dispatch({
+                      type: 'SET_DECORATION_VOID_STAMP',
+                      payload: upright ? { ...selRec, mirror: 'never' } : omitMirror(selRec),
+                    })}
+                    style={segmentedButtonStyle((selRec.mirror === 'never') === upright, { transition: false })}
+                  >
+                    {upright ? 'Upright' : 'Reflect'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {selRec && (
             <button
               onClick={() => setFocusOpen(true)}
               style={{ ...decorationButtonStyle, width: '100%', marginTop: 6 }}
@@ -1125,6 +1154,16 @@ function StampSection({ decoration, dispatch, selection, getStampVoids }: {
                 title={r.overlap ? 'Overlap ON — the image draws whole and may spill onto its neighbours. Click to clip it back to the shape.' : 'Clipped to the shape. Click to let the image spill onto its neighbours.'}
               >
                 {r.overlap ? 'Overlap' : 'Clipped'}
+              </button>
+              <button
+                onClick={() => dispatch({
+                  type: 'SET_DECORATION_VOID_STAMP',
+                  payload: r.mirror === 'never' ? omitMirror(r) : { ...r, mirror: 'never' },
+                })}
+                style={{ ...decorationButtonStyle, padding: '2px 5px', ...(r.mirror === 'never' ? { border: '1px solid var(--accent)', color: 'var(--accent)', background: 'var(--accent-bg)' } : null) }}
+                title={r.mirror === 'never' ? 'Upright — the motif reads the same way on both handednesses. Click to let it reflect.' : 'Reflecting on the opposite-handed half of this shape class. Click to keep the motif upright everywhere.'}
+              >
+                ⇄
               </button>
               <button
                 onClick={() => dispatch({ type: 'REORDER_DECORATION_VOID_STAMP', payload: { scope: r.scope, key: r.key, move: 'forward' } })}

@@ -409,6 +409,22 @@ export interface VoidStampRecord {
    * identity. Additive so pre-existing stamp records stay valid. */
   transform?: StampUserTransform
   /**
+   * **Mirror** — what to do on the reflected half of a congruent class.
+   *
+   * A Void's signature is direction-agnostic (`minRotation` minimises over the
+   * token ring AND its reversal), so a shape and its mirror image share one
+   * class — and on real fields that class is split near-evenly: 20/20 on
+   * `4.8.8`, an exact 5/5 on every big `decagonal-rosette` class. The canonical
+   * pose honours the split by *reflecting* on the opposite-handed instances,
+   * which is right for abstract artwork (the field keeps the tiling's own
+   * reflection symmetry) and wrong for a directional motif, which then reads
+   * backwards on half the pattern.
+   *
+   * Absent = `'reflect'`, the original behaviour. `'never'` pre-mirrors the
+   * image in canonical space so the composite comes out upright everywhere.
+   */
+  mirror?: 'never'
+  /**
    * **Overlap** — drop the Void-outline clip so the image draws whole and may
    * spill over its neighbours (pair with Focus-mode zoom, which is what pushes
    * the image past the shape's box). Absent/false = the default clipped

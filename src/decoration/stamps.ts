@@ -292,6 +292,21 @@ export function userTransformMatrix(box: StampBBox, t: StampUserTransform): Stam
   }
 }
 
+/** True when a canonical→instance pose carries a reflection — i.e. this Void
+ * is the opposite-handed half of its congruent class, and anything laid out in
+ * canonical coordinates renders mirrored on it. */
+export function isReflectedPose(t: StampTransform): boolean {
+  return t.a * t.d - t.b * t.c < 0
+}
+
+/** Reflection about the vertical centreline of `box`, in canonical
+ * coordinates. Composed INNERMOST (before the user adjustment and the pose) to
+ * cancel a reflected pose: the image content is pre-mirrored, the pose mirrors
+ * it back, and the motif lands upright — see `VoidStampRecord.mirror`. */
+export function mirrorXMatrix(box: StampBBox): StampTransform {
+  return { a: -1, b: 0, c: 0, d: 1, e: 2 * (box.x + box.width / 2), f: 0 }
+}
+
 /** Affine composition `A ∘ B` (apply B first, then A). */
 export function composeTransforms(A: StampTransform, B: StampTransform): StampTransform {
   return {
@@ -342,6 +357,10 @@ export interface StampableVoid {
  * bring-forward / send-back controls move. It only shows where a record sets
  * `overlap` (unclipped ⇒ images can spill onto each other), but the order is
  * deterministic either way.
+ *
+ * `mirror: 'never'` cancels the reflection the pose applies on the
+ * opposite-handed half of a congruent class (see `VoidStampRecord.mirror`), so
+ * a directional motif reads the same way everywhere.
  */
 export function resolveVoidStamps(
   voids: StampableVoid[],
@@ -359,12 +378,17 @@ export function resolveVoidStamps(
       const geo = stampGeometry(v.keyPolygon ?? v.polygon, v.polygon)
       if (!geo) continue
       const { pose, box } = geo
+      // Focus-mode adjustment slots between the base fit and the isometry;
+      // an upright-mirror correction goes innermost, on the image itself.
+      let transform = rec.transform
+        ? composeTransforms(pose.toInstance, userTransformMatrix(box, rec.transform))
+        : pose.toInstance
+      if (rec.mirror === 'never' && isReflectedPose(pose.toInstance)) {
+        transform = composeTransforms(transform, mirrorXMatrix(box))
+      }
       out.push({
         clip: v.polygon,
-        // Focus-mode adjustment slots between the base fit and the isometry.
-        transform: rec.transform
-          ? composeTransforms(pose.toInstance, userTransformMatrix(box, rec.transform))
-          : pose.toInstance,
+        transform,
         image: rec.image,
         rect: fitImageRect(box, rec.width, rec.height, rec.fit),
         ...(rec.overlap ? { overlap: true } : null),

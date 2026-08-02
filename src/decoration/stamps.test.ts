@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import type { Vec2 } from '../utils/math'
-import { canonicalPose, poseBBox, fitImageRect, resolveVoidStamps, userTransformMatrix, composeTransforms, isIdentityUserTransform, IDENTITY_USER_TRANSFORM, type StampTransform } from './stamps'
+import { canonicalPose, poseBBox, fitImageRect, resolveVoidStamps, userTransformMatrix, composeTransforms, isIdentityUserTransform, isReflectedPose, IDENTITY_USER_TRANSFORM, type StampTransform } from './stamps'
 import { voidSignature } from './voids'
+import { curvedVoids } from './curvedFieldFixture'
 
 const apply = (m: StampTransform, p: Vec2): Vec2 => ({
   x: m.a * p.x + m.c * p.y + m.e,
@@ -247,6 +248,44 @@ describe('resolveVoidStamps', () => {
     expect(resolveVoidStamps(voids, [{ ...record, overlap: true }])[0].clip).toBe(QUAD)
   })
 
+  it('mirror: "never" cancels the reflection on the opposite-handed half', () => {
+    // A mirrored instance of the same shape — same signature (voidSignature
+    // minimises over the ring AND its reversal), opposite handedness.
+    const mirrored = QUAD.map(mirrorX)
+    const voids = [{ polygon: QUAD, signature: sig }, { polygon: mirrored, signature: sig }]
+    const det = (p: { transform: StampTransform }) =>
+      p.transform.a * p.transform.d - p.transform.b * p.transform.c
+
+    // Default: one instance poses reflected — that is the reported "stamps are
+    // flipped", and it is by construction, not a glitch.
+    const plain = resolveVoidStamps(voids, [record])
+    expect(plain.filter(p => det(p) < 0)).toHaveLength(1)
+
+    // Upright: every composite comes out unreflected, so the motif reads the
+    // same way on both halves.
+    const upright = resolveVoidStamps(voids, [{ ...record, mirror: 'never' }])
+    expect(upright.every(p => det(p) > 0)).toBe(true)
+    // The unreflected instance is untouched — the correction only fires where
+    // the pose actually carries a reflection. (Which of the two poses reflects
+    // is the tie-break's business, so the test asks rather than assumes.)
+    const flipped = plain.findIndex(p => det(p) < 0)
+    expect(upright[1 - flipped].transform).toEqual(plain[1 - flipped].transform)
+    expect(upright[flipped].transform).not.toEqual(plain[flipped].transform)
+  })
+
+  it('mirror: "never" composes with a Focus-mode transform without moving the fit', () => {
+    const mirrored = QUAD.map(mirrorX)
+    const transform = { offsetX: 0.1, offsetY: -0.2, scale: 1.4, rotation: 20 }
+    const [p] = resolveVoidStamps(
+      [{ polygon: mirrored, signature: sig }],
+      [{ ...record, mirror: 'never', transform }],
+    )
+    expect(p.transform.a * p.transform.d - p.transform.b * p.transform.c).toBeGreaterThan(0)
+    // Scale survives the correction: |det| = the user zoom squared.
+    expect(Math.sqrt(p.transform.a * p.transform.d - p.transform.b * p.transform.c))
+      .toBeCloseTo(transform.scale, 9)
+  })
+
   it('returns nothing for no records / non-congruent scopes', () => {
     expect(resolveVoidStamps([{ polygon: QUAD, signature: sig }], undefined)).toEqual([])
     expect(resolveVoidStamps(
@@ -325,5 +364,37 @@ describe('poseBBox', () => {
   it('bounds the points', () => {
     expect(poseBBox([{ x: 1, y: 2 }, { x: -3, y: 5 }])).toEqual({ x: -3, y: 2, width: 4, height: 3 })
     expect(poseBBox([])).toBeNull()
+  })
+})
+
+/**
+ * Why `VoidStampRecord.mirror` exists at all. A Void's signature is
+ * direction-agnostic (`minRotation` minimises over the token ring AND its
+ * reversal), so a shape and its mirror image are ONE congruent class — and on
+ * a real field that class splits close to evenly, with the canonical pose
+ * reflecting on the opposite-handed half. A directional motif therefore reads
+ * backwards on about half the pattern unless the record opts out.
+ *
+ * Pinned as measured behaviour, not asserted away: it is correct for abstract
+ * artwork (the stamps inherit the tiling's own reflection symmetry), so the
+ * fix is a per-record toggle, not a change here.
+ */
+describe('congruent classes mix handedness on real fields', () => {
+  it('splits a decagonal-rosette class near-evenly between the two poses', () => {
+    const per = new Map<string, { pos: number; neg: number }>()
+    for (const v of curvedVoids('decagonal-rosette', 0)) {
+      const pose = canonicalPose(v.keyPolygon ?? v.polygon)
+      if (!pose) continue
+      const e = per.get(v.signature) ?? { pos: 0, neg: 0 }
+      if (isReflectedPose(pose.toInstance)) e.neg++
+      else e.pos++
+      per.set(v.signature, e)
+    }
+    const big = [...per.values()].filter(e => e.pos + e.neg >= 8)
+    expect(big.length).toBeGreaterThan(0)
+    // Every populous class carries BOTH handednesses — the mirroring is not a
+    // stray instance, it is half the field.
+    expect(big.every(e => e.pos > 0 && e.neg > 0)).toBe(true)
+    expect(big.every(e => e.pos === e.neg)).toBe(true)
   })
 })

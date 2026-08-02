@@ -1,13 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { TILINGS } from '../tilings/index'
-import { generateTiling } from '../tilings/archimedean'
-import { runPIC } from '../pic/index'
-import { DEFAULT_CONFIG } from '../state/defaults'
-import { extractVoids, pairCurvedOutlines } from './voids'
-import { flattenStrandsToSegments } from './flatten'
+import { curvedVoids } from './curvedFieldFixture'
 import { stampGeometry, canonicalPose, poseBBox, resolveVoidStamps, toCanonicalPoint } from './stamps'
 import { nameVoidShapes, voidStampCanvas } from '../export/stampAssets'
-import type { PatternConfig } from '../types/pattern'
 import type { Vec2 } from '../utils/math'
 
 /**
@@ -21,32 +15,6 @@ import type { Vec2 } from '../utils/math'
  * little as 66% of it on 3.6.3.6 triangles — and `cover` fitted the image to a
  * box the rendered shape bulged outside of.
  */
-
-const SCALE = DEFAULT_CONFIG.tiling.scale
-const GEN = { x: -900, y: -700, width: 1800, height: 1400 }
-const BOUND: Vec2[] = [
-  { x: -500, y: -400 }, { x: 500, y: -400 },
-  { x: 500, y: 400 }, { x: -500, y: 400 },
-]
-
-/** A real curved field: PIC → extract straight + flattened-curve → pair. */
-function curvedVoids(type: string, offset: number) {
-  const def = TILINGS[type]
-  const figures: PatternConfig['figures'] = structuredClone(def.defaultConfig.figures ?? {})
-  for (const k of Object.keys(figures)) {
-    figures[k] = { ...figures[k], curve: { enabled: true, points: [{ position: 0.5, offset }] } }
-  }
-  const config: PatternConfig = {
-    ...structuredClone(DEFAULT_CONFIG),
-    tiling: { type, scale: SCALE },
-    figures,
-  }
-  const segments = runPIC(generateTiling(def, GEN, SCALE), config)
-  return pairCurvedOutlines(
-    extractVoids(segments, BOUND),
-    extractVoids(flattenStrandsToSegments(segments, config), BOUND),
-  )
-}
 
 describe('stampGeometry', () => {
   it('poses from the identity outline but shapes and boxes from the rendered one', () => {

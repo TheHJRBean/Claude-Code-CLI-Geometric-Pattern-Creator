@@ -1,7 +1,7 @@
 import type { Vec2 } from '../utils/math'
 import type { GradientSpec, GradientStop, GroupingScope } from '../types/editor'
 import type { PaintVoid } from './resolve'
-import { canonicalPose, poseBBox, type StampBBox } from './stamps'
+import { stampGeometry, type StampBBox } from './stamps'
 
 /**
  * Per-shape Void gradients (DECORATION_GRADIENTS_SPEC, #44) — pure helpers
@@ -45,13 +45,29 @@ export function defaultGradientStops(colour: string): GradientStop[] {
   ]
 }
 
-/** Canonical-pose bounding box of a Void outline (straight outline preferred
- * by callers). Null for degenerate input. */
-export function gradientCanonicalBox(outline: Vec2[]): StampBBox | null {
-  const pose = canonicalPose(outline)
-  if (!pose) return null
-  const box = poseBBox(pose.points)
-  return box && box.width > 0 && box.height > 0 ? box : null
+/**
+ * Canonical-pose bounding box a Void's gradient is seeded across.
+ *
+ * Same two-outline contract as `stampGeometry`, which this delegates to so the
+ * two features cannot drift apart again: **pose** from `identityOutline` (the
+ * straight `keyPolygon` on a curved field) so congruent instances agree on
+ * which symmetry image they pose through, **extent** from `renderedOutline` —
+ * the shape the wash is actually painted into (`makeVoidFill` fills `polygon`
+ * and poses by `keyPolygon`).
+ *
+ * Sizing off the straight outline made the gradient blind to the curve: on
+ * 4.8.8 at curve offset 0.3 the drawn shape reached 2.7% of the axis past its
+ * end (a band of flat end-stop colour on every instance) and the radial centre
+ * sat ~10% of the radius away from the shape's own.
+ *
+ * Omit `renderedOutline` on a straight field, where the two coincide.
+ */
+export function gradientCanonicalBox(
+  identityOutline: Vec2[],
+  renderedOutline?: Vec2[],
+): StampBBox | null {
+  const geo = stampGeometry(identityOutline, renderedOutline)
+  return geo ? geo.box : null
 }
 
 /**
@@ -66,14 +82,19 @@ export function gradientCanonicalBox(outline: Vec2[]): StampBBox | null {
  * included) — the same replication model as stamp placement. So 45° here means
  * 45° relative to the shape's own canonical frame, which is what keeps the
  * group looking coherent; it is not 45° on screen for a rotated instance.
+ *
+ * Pass `renderedOutline` (the Void's `polygon`) alongside the identity outline
+ * on a curved field — see `gradientCanonicalBox` for why the extent has to
+ * come from the drawn shape while the pose stays on the straight one.
  */
 export function seedGradientSpec(
   type: GradientSpec['type'],
   stops: GradientStop[],
-  outline: Vec2[],
+  identityOutline: Vec2[],
   angleDeg: number = DEFAULT_GRADIENT_ANGLE_DEG,
+  renderedOutline?: Vec2[],
 ): GradientSpec | null {
-  const box = gradientCanonicalBox(outline)
+  const box = gradientCanonicalBox(identityOutline, renderedOutline)
   if (!box) return null
   const cx = box.x + box.width / 2
   const cy = box.y + box.height / 2

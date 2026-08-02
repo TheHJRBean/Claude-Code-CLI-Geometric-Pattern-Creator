@@ -420,7 +420,11 @@ function GradientSection({ substrate, decoration, seedBBox, dispatch, draft, onS
   const selRec = selection
     ? decoration?.voidFills.find(r => r.scope === selection.scope && r.key === selection.key && r.gradient)
     : undefined
+  // Identity outline poses the gradient; the RENDERED one (curved fields) gives
+  // it its extent — the same pair the Stamp section below threads, and the same
+  // reason: the wash is painted into `polygon`, not `keyPolygon`.
   const outline = selection ? (selection.void.keyPolygon ?? selection.void.polygon) : null
+  const rendered = selection ? selection.void.polygon : undefined
   const gradientCount = decoration?.voidFills.filter(r => r.gradient).length ?? 0
 
   // Draft edits mirror onto the selected record so painted gradients restyle
@@ -431,7 +435,7 @@ function GradientSection({ substrate, decoration, seedBBox, dispatch, draft, onS
     if (selection && selRec?.gradient && outline) {
       const spec = next.type === selRec.gradient.type
         ? { ...selRec.gradient, stops: next.stops }
-        : seedGradientSpec(next.type, next.stops, outline, next.angleDeg)
+        : seedGradientSpec(next.type, next.stops, outline, next.angleDeg, rendered)
       if (spec) {
         dispatch({
           type: 'SET_DECORATION_VOID_GRADIENT',
@@ -468,7 +472,7 @@ function GradientSection({ substrate, decoration, seedBBox, dispatch, draft, onS
   // Fit needs a real shape to span, so it only appears with a group selected.
   const fitAngle = outline && selLinear
     ? () => {
-      const box = gradientCanonicalBox(outline)
+      const box = gradientCanonicalBox(outline, rendered)
       if (!box) return
       paintSelected({
         ...selLinear,
@@ -596,6 +600,7 @@ function GradientSection({ substrate, decoration, seedBBox, dispatch, draft, onS
         <GradientFocusEditor
           spec={selRec.gradient}
           outline={outline}
+          renderedOutline={rendered}
           title={selection.void.signature}
           onApply={spec => {
             onSetDraft({ type: spec.type, stops: spec.stops })

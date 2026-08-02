@@ -1058,7 +1058,10 @@ export function TessellationLabMode({
           // Seed the gradient's geometry off the clicked shape's canonical
           // pose so the record replicates like a stamp (mirrors included), at
           // the draft's angle (also canonical-pose — see `seedGradientSpec`).
-          const spec = seedGradientSpec(gradientDraft.type, gradientDraft.stops, v.keyPolygon ?? v.polygon, gradientDraft.angleDeg)
+          // Pose from the identity outline, extent from the RENDERED one — the
+          // wash is painted into the curve, so sizing it to the straight
+          // outline left the bulges on flat end-stop colour.
+          const spec = seedGradientSpec(gradientDraft.type, gradientDraft.stops, v.keyPolygon ?? v.polygon, gradientDraft.angleDeg, v.polygon)
           if (!spec) return
           pushRecentColour(gradientDraft.stops[0].colour)
           dispatch({ type: 'SET_DECORATION_VOID_GRADIENT', payload: { ...p, colour: gradientDraft.stops[0].colour, gradient: spec, toggle: true } })

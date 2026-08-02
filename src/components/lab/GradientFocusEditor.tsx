@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { GradientSpec } from '../../types/editor'
 import type { Vec2 } from '../../utils/math'
-import { canonicalPose, poseBBox } from '../../decoration/stamps'
+import { stampGeometry } from '../../decoration/stamps'
 import {
+  DEFAULT_GRADIENT_ANGLE_DEG,
   GRADIENT_ANGLE_SNAP_DEG,
   axisAngleDeg,
   bboxAxisAtAngle,
@@ -26,10 +27,16 @@ import { GradientStopBar } from './GradientStopBar'
  * Apply replicates them to every congruent instance exactly like stamp
  * placement (the canonical pose handles mirrored instances).
  */
-export function GradientFocusEditor({ spec, outline, title, onApply, onClose }: {
+export function GradientFocusEditor({ spec, outline, renderedOutline, title, onApply, onClose }: {
   spec: GradientSpec
-  /** The selected Void's outline (straight `keyPolygon` preferred). */
+  /** The selected Void's IDENTITY outline (straight `keyPolygon` where the
+   *  field is curved) — what the canonical pose is taken from. */
   outline: Vec2[]
+  /** The RENDERED outline (`polygon`) where it differs — the silhouette the
+   *  gradient is actually clipped to, so it is what the editor draws and
+   *  measures. Showing the straight one here meant placing handles against a
+   *  shape the wash never fills (the stamp Focus editor's `2d4e504` bug). */
+  renderedOutline?: Vec2[]
   /** Header label (shape signature). */
   title: string
   onApply: (spec: GradientSpec) => void
@@ -38,13 +45,7 @@ export function GradientFocusEditor({ spec, outline, title, onApply, onClose }: 
   const svgRef = useRef<SVGSVGElement>(null)
   const [draft, setDraft] = useState<GradientSpec>(spec)
   const [selectedStop, setSelectedStop] = useState(0)
-  const geo = useMemo(() => {
-    const pose = canonicalPose(outline)
-    if (!pose) return null
-    const box = poseBBox(pose.points)
-    if (!box || box.width <= 0 || box.height <= 0) return null
-    return { points: pose.points, box }
-  }, [outline])
+  const geo = useMemo(() => stampGeometry(outline, renderedOutline), [outline, renderedOutline])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -110,7 +111,7 @@ export function GradientFocusEditor({ spec, outline, title, onApply, onClose }: 
 
   const setType = (type: GradientSpec['type']) => {
     if (type === draft.type) return
-    const seeded = seedGradientSpec(type, draft.stops, outline)
+    const seeded = seedGradientSpec(type, draft.stops, outline, DEFAULT_GRADIENT_ANGLE_DEG, renderedOutline)
     if (seeded) setDraft(seeded)
   }
 
@@ -307,7 +308,7 @@ export function GradientFocusEditor({ spec, outline, title, onApply, onClose }: 
           <button
             style={buttonStyle}
             onClick={() => {
-              const seeded = seedGradientSpec(draft.type, draft.stops, outline)
+              const seeded = seedGradientSpec(draft.type, draft.stops, outline, DEFAULT_GRADIENT_ANGLE_DEG, renderedOutline)
               if (seeded) setDraft(seeded)
             }}
           >

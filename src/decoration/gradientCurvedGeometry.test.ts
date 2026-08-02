@@ -237,6 +237,22 @@ describe('per-shape gradient seeding on a curved field', () => {
     }
   })
 
+  it('losing keyPolygon downstream silently re-poses the shape', () => {
+    // What the periodic fast path did: it rebuilt each `PaintVoid` for the
+    // Paint overlay from a rep and omitted `keyPolygon`, so every consumer saw
+    // identity === rendered, posed off the flattened curve, and laid the shape
+    // out in a frame rotated away from the renderer's. Not a straightening —
+    // the silhouette stays curved — which is why it read as "Focus mode looks
+    // wrong" rather than as an obvious break. `usePattern` now carries the pair
+    // through; this pins what its absence costs.
+    const v = curvedSample('4.8.8', 0.3)
+    const withPair = stampGeometry(v.keyPolygon!, v.polygon)!
+    const dropped = stampGeometry(v.polygon, v.polygon)!
+    expect(dropped.points.length).toBe(withPair.points.length)
+    const aspect = (b: { width: number; height: number }) => b.width / b.height
+    expect(Math.abs(aspect(dropped.box) - aspect(withPair.box))).toBeGreaterThan(0.1)
+  })
+
   it('a straight field is unchanged — one outline still seeds as before', () => {
     const square = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }]
     expect(seedGradientSpec('linear', STOPS, square, 90, square))

@@ -1045,6 +1045,16 @@ export function usePattern(
                     area: r.area,
                     signature: r.signature,
                     polygon: r.polygon.map(p => ({ x: p.x + tx, y: p.y + ty })),
+                    // The STRAIGHT outline has to ride along (same translation
+                    // as `instanceVoidFills` above). Everything downstream that
+                    // takes a Void's shape reads the pair — stamp canvas, stamp
+                    // + gradient Focus editors, gradient extent — and with this
+                    // absent they see identity === rendered, pose off the
+                    // flattened curve, and lay the shape out in a frame rotated
+                    // away from the one the renderer uses (4.8.8 @0.3: a
+                    // 121×98 box became 102×120). Dropped only here; the fills
+                    // and stamp placements next to it always had it.
+                    keyPolygon: r.keyPolygon?.map(p => ({ x: p.x + tx, y: p.y + ty })),
                     patchKey: r.patchKey,
                     cellKey: r.cellKey,
                     instanceKey: scopedKey(r.signature, { x: r.centroid.x + tx, y: r.centroid.y + ty }),

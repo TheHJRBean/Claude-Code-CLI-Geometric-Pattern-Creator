@@ -4,6 +4,11 @@
 
 ## ▶ RESUME HERE
 
+> **`HANDOFF.md`** (repo root) carries the working context for the three live NEXT
+> items — the two that need a **decision** before any code (the 1.5° curve cliff,
+> and #54's scope), with verified file:line anchors, the proposed change, what to
+> check first, and the traps this month earned. Read it before picking items 1–3.
+
 **Latest (2026-08-02, gradient hardening on curved fields): SHIPPED (`88bd29d`, `4ba619d`) and ✅ BROWSER-VERIFIED** ("looks good to me now"). Roadmap item — gradients shared the seams that broke stamps three ways and were only smoke-tested. Driving them found the real one: a Void gradient is stored in the canonical pose of the STRAIGHT outline (so it replicates across a congruent class) but painted into the CURVED one, and its **extent** came from the straight box. The wash was sized to a shape it never fills — 4.8.8 @ curve 0.3 ran **2.7% of the axis past the shape's end** (a band of flat end-stop colour on every instance), radial centre ~10% of the radius off, and the extent was *literally* blind to the curve: two different curve offsets seeded byte-identical specs. `gradientCanonicalBox` now delegates to **`stampGeometry`**, the seam `2d4e504` established, so the two features can't drift apart again. The Focus editor was drawing the straight silhouette too — handles placed against a shape the wash never fills.
 
 **Measured, not assumed.** Class-wide worst-case span error over every choice of which instance you click: 4.8.8 @0.3 hexagons **16.82% → 9.99%**, @0.15 **8.41% → 5.14%**, every other class a tie at 0%. Never worse anywhere.

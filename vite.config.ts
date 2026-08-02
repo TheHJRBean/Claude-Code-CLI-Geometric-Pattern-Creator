@@ -10,6 +10,19 @@ const commitMsg = (() => {
 
 export default defineConfig({
   plugins: [react()],
+  server: {
+    // Pinned, and `strictPort` so a busy 5173 is a LOUD failure rather than a
+    // silent hop to 5174.
+    //
+    // Browser storage is keyed to the origin, port included — so landing on a
+    // different port silently presents an empty app: no saved patterns, no
+    // thumbnails, no Generator dataset, no bug reports. Nothing is lost, but
+    // it looks exactly as though everything was, and the data is unreachable
+    // until you are back on the original port. Refusing to start says which
+    // problem you actually have.
+    port: 5173,
+    strictPort: true,
+  },
   define: {
     'import.meta.env.VITE_COMMIT_MSG': JSON.stringify(commitMsg),
   },

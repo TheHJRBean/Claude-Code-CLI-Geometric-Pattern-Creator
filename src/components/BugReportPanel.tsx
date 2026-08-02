@@ -10,6 +10,7 @@ import {
   downloadReportJson,
   downloadReportMarkdown,
   downloadReportScreenshot,
+  saveOutcomeMessage,
 } from '../bugreport/actions'
 import { BUG_SEVERITIES, BUG_SEVERITY_LABELS } from '../bugreport/types'
 import type { BugReport, BugReportMeta, BugSeverity, ConfigSummary } from '../bugreport/types'
@@ -39,6 +40,9 @@ export function BugReportPanel() {
   const [saved, setSaved] = useState<BugReportMeta[]>([])
   const [selected, setSelected] = useState<BugReport | null>(null)
   const [flash, setFlash] = useState<string | null>(null)
+  /** A composed report the store refused to keep — held so it can still be
+   *  exported before the panel closes. */
+  const [unstored, setUnstored] = useState<BugReport | null>(null)
   const noteRef = useRef<HTMLTextAreaElement>(null)
 
   const isOpen = reporter?.isOpen ?? false
@@ -62,6 +66,7 @@ export function BugReportPanel() {
     setNote('')
     setSeverity(SEVERITY_DEFAULT)
     setSelected(null)
+    setUnstored(null)
     refreshSaved()
     const handle = requestAnimationFrame(() => noteRef.current?.focus())
     return () => cancelAnimationFrame(handle)
@@ -93,21 +98,27 @@ export function BugReportPanel() {
     })
   }
 
-  const handleSave = async (then?: (report: BugReport) => void | Promise<void>) => {
+  const handleSave = async (then?: (report: BugReport, stored: boolean) => void | Promise<void>) => {
     const report = compose()
     if (!report) return
-    const ok = await saveReport(report)
+    const stored = await saveReport(report)
     refreshSaved()
-    if (then) await then(report)
-    else showFlash(ok ? 'Report saved' : 'Saved to this session only — storage unavailable')
+    // A report the store refused is held here so it stays exportable. Without
+    // this it exists only in this closure and dies with the panel — which is
+    // exactly when the user still could have rescued it.
+    setUnstored(stored ? null : report)
+    if (then) await then(report, stored)
+    else showFlash(saveOutcomeMessage(stored))
   }
 
-  const handleSaveAndCopy = () => handleSave(async report => {
+  const handleSaveAndCopy = () => handleSave(async (report, stored) => {
     const copied = await copyReportMarkdown(report)
-    if (copied) showFlash('Saved — Markdown copied to clipboard')
+    // The clipboard copy is what makes an unstored report survivable, so the
+    // two outcomes are reported independently rather than blurred into "saved".
+    if (copied) showFlash(stored ? 'Saved — Markdown copied to clipboard' : 'NOT stored, but the Markdown is on your clipboard — paste it somewhere now')
     else {
       downloadReportMarkdown(report)
-      showFlash('Saved — clipboard blocked, downloaded the Markdown instead')
+      showFlash(stored ? 'Saved — clipboard blocked, downloaded the Markdown instead' : 'NOT stored and clipboard blocked — the Markdown was downloaded instead')
     }
   })
 
@@ -194,6 +205,8 @@ export function BugReportPanel() {
                 capturing={reporter.capturing}
                 snapshot={snapshot}
                 onRecapture={reporter.recapture}
+                unstored={unstored}
+                onFlash={showFlash}
               />
             )
             : (
@@ -261,14 +274,19 @@ interface ComposeProps {
   capturing: boolean
   snapshot: BugCaptureSnapshot | null
   onRecapture: () => void
+  /** Set when the store refused the last save — see `UnstoredBanner`. */
+  unstored: BugReport | null
+  onFlash: (msg: string) => void
 }
 
 function ComposeTab({
   title, onTitle, note, onNote, noteRef, severity, onSeverity, capturing, snapshot, onRecapture,
+  unstored, onFlash,
 }: ComposeProps) {
   const summary = summarisePatternConfig(snapshot?.config)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {unstored && <UnstoredBanner report={unstored} onFlash={onFlash} />}
       <div style={{ display: 'flex', gap: 12 }}>
         <label style={{ flex: 1, ...fieldWrapStyle }}>
           <span style={fieldLabelStyle}>Title</span>
@@ -331,6 +349,41 @@ function ComposeTab({
             </div>
           )}
       </section>
+    </div>
+  )
+}
+
+/**
+ * Shown when the store refused a save. The report is gone the moment this
+ * panel closes, so the only useful thing to offer is an immediate way out —
+ * a download, which needs no permission and cannot be silently blocked the
+ * way the clipboard can.
+ */
+function UnstoredBanner({ report, onFlash }: { report: BugReport; onFlash: (msg: string) => void }) {
+  return (
+    <div style={{ border: '1px solid var(--accent)', background: 'var(--accent-bg)', padding: '10px 12px' }}>
+      <p style={{ margin: '0 0 8px', fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--text)' }}>
+        <strong>This report was not stored.</strong> Browser storage refused the write — it may be full,
+        blocked in a private window, or unavailable. Export it now; closing this panel loses it.
+      </p>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button type="button" style={buttonStyle(true)} onClick={() => downloadReportJson(report)}>
+          Download JSON
+        </button>
+        <button type="button" style={buttonStyle(false)} onClick={() => downloadReportMarkdown(report)}>
+          Download .md
+        </button>
+        <button
+          type="button"
+          style={buttonStyle(false)}
+          onClick={() => void copyReportMarkdown(report).then(ok => {
+            if (ok) onFlash('Markdown copied — paste it somewhere now')
+            else { downloadReportMarkdown(report); onFlash('Clipboard blocked — downloaded instead') }
+          })}
+        >
+          Copy Markdown
+        </button>
+      </div>
     </div>
   )
 }

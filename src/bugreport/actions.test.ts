@@ -1,5 +1,22 @@
 import { describe, it, expect } from 'vitest'
-import { dataUrlToBlob } from './actions'
+import { dataUrlToBlob, saveOutcomeMessage } from './actions'
+
+describe('saveOutcomeMessage', () => {
+  it('confirms a stored report plainly', () => {
+    expect(saveOutcomeMessage(true)).toBe('Report saved')
+  })
+
+  it('states total loss on failure, and tells the user to act', () => {
+    // Regression guard on a real defect: the first cut said "Saved to this
+    // session only", which reads as partly safe. Nothing retains an unstored
+    // report — it dies with the panel — so the message must not contain any
+    // form of "saved", and must prompt an export while one is still possible.
+    const msg = saveOutcomeMessage(false)
+    expect(msg).not.toMatch(/saved/i)
+    expect(msg).toMatch(/not stored/i)
+    expect(msg).toMatch(/export/i)
+  })
+})
 
 describe('dataUrlToBlob', () => {
   it('decodes a base64 PNG data URL to a blob of the right type and length', async () => {

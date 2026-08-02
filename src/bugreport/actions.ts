@@ -12,6 +12,22 @@ import type { BugReport } from './types'
  * the verbatim `PatternConfig` the Lab's Load JSON already understands).
  */
 
+/**
+ * What to tell the user after a save attempt.
+ *
+ * The failure string is load-bearing and was wrong in the first cut: it said
+ * "saved to this session only", which reads as *partly* safe. Nothing retains
+ * a report whose store write failed — it lives in one closure and dies with
+ * the panel. A message that understates the loss is worse than none, because
+ * it is precisely the moment the user could still rescue the report by
+ * exporting it.
+ */
+export function saveOutcomeMessage(stored: boolean): string {
+  return stored
+    ? 'Report saved'
+    : 'NOT stored — browser storage refused the write. Export it now or it is lost.'
+}
+
 /** Decode a `data:` URL to a Blob. Returns null on anything malformed —
  *  callers treat that as "no screenshot" rather than failing the download. */
 export function dataUrlToBlob(dataUrl: string): Blob | null {

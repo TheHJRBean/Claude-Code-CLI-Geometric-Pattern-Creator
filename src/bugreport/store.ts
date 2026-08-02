@@ -31,6 +31,37 @@ const DB_VERSION = 1
 export const MAX_STORED_REPORTS = 50
 
 let dbPromise: Promise<IDBDatabase | null> | null = null
+let persistenceRequested = false
+
+/**
+ * Ask the browser to mark this origin's storage **persistent**, so it is not
+ * evicted under disk pressure.
+ *
+ * By default an origin gets *best-effort* storage, which browsers may clear
+ * when space runs low — and these records are the fattest thing the app
+ * stores (a screenshot each, up to `MAX_STORED_REPORTS`), so they raise the
+ * odds of eviction rather than lowering them.
+ *
+ * Origin-wide, not bug-report-specific: granting it also protects the saved
+ * pattern library and the Generator dataset. Called on the first save rather
+ * than at startup because Firefox prompts, and a permission doorhanger before
+ * the user has asked for anything to be kept is noise. (Chrome decides
+ * silently from engagement heuristics and will often refuse on localhost —
+ * hence `Promise<boolean>`, and hence this is a mitigation, not a guarantee.)
+ *
+ * Idempotent and fail-soft: never throws, never asks twice per session.
+ */
+export async function requestPersistentStorage(): Promise<boolean> {
+  if (persistenceRequested) return false
+  persistenceRequested = true
+  try {
+    if (typeof navigator === 'undefined' || !navigator.storage?.persist) return false
+    if (await navigator.storage.persisted()) return true
+    return await navigator.storage.persist()
+  } catch {
+    return false
+  }
+}
 
 function openDb(): Promise<IDBDatabase | null> {
   if (dbPromise) return dbPromise
@@ -113,8 +144,14 @@ export async function getReport(id: string): Promise<BugReport | null> {
   return { ...rest, screenshot }
 }
 
-/** Persist a report. Resolves true when it was actually stored. */
+/**
+ * Persist a report. Resolves **true only when it was actually stored** — the
+ * caller must treat false as total loss and get the user exporting.
+ */
 export function saveReport(report: BugReport): Promise<boolean> {
+  // Fire-and-forget: the outcome doesn't gate this write, and awaiting a
+  // Firefox permission prompt would stall the save behind a doorhanger.
+  void requestPersistentStorage()
   return withStores<boolean>([REPORTS, SHOTS], 'readwrite', async tx => {
     const meta = toMeta(report)
     await request(tx.objectStore(REPORTS).put(meta, report.id) as IDBRequest<IDBValidKey>, '' as IDBValidKey)

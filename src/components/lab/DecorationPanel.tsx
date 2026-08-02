@@ -1113,7 +1113,19 @@ function StampSection({ decoration, dispatch, selection, getStampVoids }: {
             >
               <img src={r.image} alt="" style={{ height: 22, width: 22, objectFit: 'cover' }} />
               <span style={{ flex: 1, fontFamily: 'monospace' }}>{r.key.slice(0, 8)}</span>
-              <span style={{ opacity: 0.7 }}>{r.overlap ? 'overlap' : r.fit}</span>
+              {/* Overlap is per record, so it belongs on the row as well as in
+                  the selected-shape block — reachable without re-clicking the
+                  exact Void on the canvas. */}
+              <button
+                onClick={() => dispatch({
+                  type: 'SET_DECORATION_VOID_STAMP',
+                  payload: r.overlap ? omitOverlap(r) : { ...r, overlap: true },
+                })}
+                style={{ ...decorationButtonStyle, padding: '2px 6px', ...(r.overlap ? { border: '1px solid var(--accent)', color: 'var(--accent)', background: 'var(--accent-bg)' } : null) }}
+                title={r.overlap ? 'Overlap ON — the image draws whole and may spill onto its neighbours. Click to clip it back to the shape.' : 'Clipped to the shape. Click to let the image spill onto its neighbours.'}
+              >
+                {r.overlap ? 'Overlap' : 'Clipped'}
+              </button>
               <button
                 onClick={() => dispatch({ type: 'REORDER_DECORATION_VOID_STAMP', payload: { scope: r.scope, key: r.key, move: 'forward' } })}
                 disabled={i === stamps.length - 1}

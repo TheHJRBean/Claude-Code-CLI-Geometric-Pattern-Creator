@@ -10,7 +10,7 @@ Nothing here is mid-flight. Tree clean, `main` pushed at `a97e079`, suite
 
 ---
 
-## Item 2 (SESSION_STATE NEXT) — the 1.5° curve cliff · ✅ **DONE (`a97e079`)**
+## Item 2 (SESSION_STATE NEXT) — the 1.5° curve cliff · ✅ **DONE + VERIFIED (`a97e079`)**
 
 Shipped as specced below: `ExtractVoidsOptions.simplifyAngleTol` +
 `RENDER_SIMPLIFY_ANGLE_TOL` (0.05°), passed by `extractDecorationVoids` on the
@@ -33,7 +33,25 @@ Two things the measurement pass turned up that the plan below didn't predict:
   sweep. Still worth a browser spot-check on a heavy field: that measured
   extraction, not 60-point SVG fills under a fast pan.
 
-Only ⏳ **browser-verify** remains — folded into item 1's pass.
+✅ **Browser-verified 2026-08-02** ("looks all good to me"). Nothing left here.
+
+---
+
+## New — #55, no Frame authoring on a Gallery preset · **NOT STARTED**
+
+User report at closeout: *"I can't edit or add a frame to any of the presets
+loaded from the Gallery."* Traced to a **missing UI**, not a broken one — full
+write-up on the issue. Short version: `FramePanel` is the only thing that
+creates a Frame or edits its geometry, it needs a Builder Patch + the Design
+Phase, and a legacy substrate has neither. `SET_GALLERY_FRAME` has one author in
+the app (`DecorationPanel.tsx:306`), gated on a Frame already existing and
+setting `stroke` only.
+
+⚠️ **Ask before coding:** which load path? The Lab **Presets shelf** converts
+tier-1 presets to a Patch, so `FramePanel` should already be there — if that's
+the path they used, this whole trace is the wrong tree and it's a different bug.
+The Gallery browser's **"Edit in Lab"** path is the one with genuinely no Frame
+UI.
 
 ---
 

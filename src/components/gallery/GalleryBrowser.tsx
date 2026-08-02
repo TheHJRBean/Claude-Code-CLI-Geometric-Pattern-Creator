@@ -16,6 +16,7 @@ import {
   sortSaves,
   type GallerySortKey,
 } from './gallerySort'
+import { useBugScreenContext } from '../../bugreport/context'
 
 /**
  * The Gallery saved-patterns browser (ADR-0006, slice 5) — a thumbnail grid
@@ -117,6 +118,20 @@ export function GalleryBrowser({ library, onEditInLab, onGoToLab }: Props) {
     if (selectedId === entry.id) setSelectedId(null)
     refresh()
   }
+
+  // Bug capture. The Gallery has no canvas, so no screenshot — the config of
+  // whichever save is open in the detail view is the useful payload, and the
+  // grid's own state (count, order) is what the rest of its reports are about.
+  useBugScreenContext({
+    screen: 'Gallery',
+    config: selected?.config ?? null,
+    facts: [
+      { label: 'Saved patterns', value: String(entries.length) },
+      { label: 'Sort order', value: sortKey },
+      { label: 'Open in detail view', value: selected ? selected.name : 'none' },
+      ...(error ? [{ label: 'Visible error', value: error }] : []),
+    ],
+  })
 
   return (
     <div className="gallery-browser">

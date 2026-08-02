@@ -37,6 +37,8 @@ import type { AppMode, EditorMode } from '../types/appMode'
 import type { EditorGuide, EditorGuidePatch } from '../types/editor'
 import { DEFAULT_ANGLE_STEP, type GuideTool, type WorldBounds } from '../editor/guides'
 import { canDecorate, patternDecoration } from '../decoration/store'
+import { useBugScreenContext } from '../bugreport/context'
+import { PHASE_LABELS, describeLabOverlays, describeLabSelection } from './lab/labBugFacts'
 import { LegacySubstrateControls } from './lab/LegacySubstrateControls'
 import { clampStrandScope, clampVoidScope, type DecorationSubstrate } from './lab/DecorationPanel'
 
@@ -486,6 +488,51 @@ export function TessellationLabMode({
   const labTitle = config.tiling.type === 'editor'
     ? (config.editor?.configuration ?? 'Builder patch')
     : (def?.label ?? 'Tessellation')
+
+  // ── Bug capture ────────────────────────────────────────
+  // What the Lab contributes to a report filed while it is open. These are the
+  // things a screenshot can't show and the config doesn't carry: which Phase
+  // and Tool are live, what is selected, and which overlays are on — the exact
+  // facts a triage session otherwise has to ask for. Rebuilt every render and
+  // read through a ref at capture time (see `useBugScreenContext`).
+  useBugScreenContext({
+    screen: 'Lab',
+    config,
+    facts: [
+      { label: 'Phase', value: PHASE_LABELS[editorPhase] },
+      ...(editorPhase === 'design'
+        ? [
+          { label: 'Tool', value: editorMode },
+          ...(editorMode === 'construct'
+            ? [{ label: 'Guide tool', value: `${constructTool} (snap ${constructSnap ? `${constructAngleStep}°` : 'off'})` }]
+            : []),
+          ...(editorMode === 'complete'
+            ? [{ label: 'Picks', value: `${picks.length}${multiMode ? ' (multi-pick)' : ''}` }]
+            : []),
+          { label: 'Selection', value: describeLabSelection(selectedEdge, selectedSection) },
+        ]
+        : []),
+      ...(editorPhase === 'decoration'
+        ? [
+          { label: 'Paint target', value: paintTarget },
+          { label: 'Reach', value: `Voids ${effectiveVoidScope} · Strands ${effectiveStrandScope}` },
+          ...(paintTarget === 'gradient' ? [{ label: 'Gradient surface', value: gradientMode }] : []),
+          ...(paintTarget === 'stamp' ? [{ label: 'Stamp selection', value: stampSelection ? 'a Void is selected' : 'none' }] : []),
+          { label: 'Paint colour', value: decorationColor },
+        ]
+        : []),
+      { label: 'Substrate', value: substrate },
+      { label: 'Linked save', value: activeSavedId || 'unlinked (unsaved working config)' },
+      {
+        label: 'Overlays',
+        value: describeLabOverlays({
+          showStrands, showTiles, showGuides, showBoundaryLattice,
+          showNeighbours, showNeighbourBoundaries, showNeighbourStrands,
+        }),
+      },
+      { label: 'Tile outline weight', value: `${outlineWidth} px` },
+    ],
+  })
 
   return (
     <div className="app-shell">

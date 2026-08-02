@@ -175,6 +175,10 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
   return (
     <svg
       ref={ref}
+      // Marks this as *the* live pattern canvas, so the bug reporter can find
+      // it from anywhere without a ref threaded through every workspace
+      // (`bugreport/context.tsx`, PATTERN_CANVAS_SELECTOR).
+      data-pattern-canvas=""
       viewBox={viewBox}
       width={containerWidth}
       height={containerHeight}

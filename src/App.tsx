@@ -7,6 +7,8 @@ import { LAB_DEFAULT_CONFIG, loadLabState, saveLabState } from './state/labDefau
 import { GalleryBrowser } from './components/gallery/GalleryBrowser'
 import { linkedSavedIdFor, resolveEditInLab } from './components/gallery/galleryBrowser.logic'
 import { patternLibrary } from './state/patternLibrary'
+import { BugReportProvider } from './bugreport/context'
+import { BugReportPanel } from './components/BugReportPanel'
 import type { PatternConfig } from './types/pattern'
 import type { AppMode } from './types/appMode'
 
@@ -74,8 +76,8 @@ export default function App() {
     goToLab()
   }, [labDispatch, goToLab])
 
-  if (mode === 'lab') {
-    return (
+  const workspace = mode === 'lab'
+    ? (
       <TessellationLabMode
         mode={mode}
         onSelectMode={selectMode}
@@ -89,31 +91,37 @@ export default function App() {
         onSetSavedId={setLabSavedId}
       />
     )
-  }
-
-  if (mode === 'generator') {
-    return (
-      <div className="app-shell">
-        <TopBar mode={mode} onSelectMode={selectMode} title="Generator" exportItems={[]} />
-        <div className="app-layout">
-          <GeneratorMode onOpenInLab={handleEditInLab} />
+    : mode === 'generator'
+      ? (
+        <div className="app-shell">
+          <TopBar mode={mode} onSelectMode={selectMode} title="Generator" exportItems={[]} />
+          <div className="app-layout">
+            <GeneratorMode onOpenInLab={handleEditInLab} />
+          </div>
         </div>
-      </div>
-    )
-  }
+      )
+      // Gallery = the saved-patterns browser (ADR-0006). The tuning sidebar is
+      // gone — authoring lives in the Lab; the empty state points there.
+      : (
+        <div className="app-shell">
+          <TopBar mode={mode} onSelectMode={selectMode} title="Gallery" exportItems={[]} />
+          <div className="app-layout">
+            <GalleryBrowser
+              library={patternLibrary}
+              onEditInLab={handleEditInLab}
+              onGoToLab={goToLab}
+            />
+          </div>
+        </div>
+      )
 
-  // Gallery = the saved-patterns browser (ADR-0006). The tuning sidebar is gone
-  // — authoring lives in the Lab; the empty state points there.
+  // Bug capture wraps all three workspaces: the top bar's button, the
+  // Ctrl+Shift+B shortcut and the screens' context contributors all need the
+  // same provider, and the panel has to outrank every workspace's own chrome.
   return (
-    <div className="app-shell">
-      <TopBar mode={mode} onSelectMode={selectMode} title="Gallery" exportItems={[]} />
-      <div className="app-layout">
-        <GalleryBrowser
-          library={patternLibrary}
-          onEditInLab={handleEditInLab}
-          onGoToLab={goToLab}
-        />
-      </div>
-    </div>
+    <BugReportProvider appMode={mode}>
+      {workspace}
+      <BugReportPanel />
+    </BugReportProvider>
   )
 }

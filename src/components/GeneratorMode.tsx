@@ -12,6 +12,7 @@ import { patternLibrary } from '../state/patternLibrary'
 import { editAvailabilityFor } from './gallery/galleryBrowser.logic'
 import { TILINGS } from '../tilings/index'
 import { TextPromptModal } from './TextPromptModal'
+import { useBugScreenContext } from '../bugreport/context'
 
 /** A fresh 32-bit seed for the next sample. Not itself part of the
  * determinism contract — `sampleRandomPattern` is what must be reproducible
@@ -199,6 +200,25 @@ export function GeneratorMode({ onOpenInLab }: Props) {
     : 'Open in the Lab'
 
   const flags = faithfulRenderFlags(sample.config)
+
+  // Bug capture: the seed and generator version are the whole reproduction
+  // story here — a Generator defect is only diagnosable if the exact sample
+  // can be drawn again, and the seed is provenance the config alone loses.
+  useBugScreenContext({
+    screen: 'Generator',
+    config: sample.config,
+    facts: [
+      { label: 'Seed', value: String(sample.seed) },
+      { label: 'Generator version', value: String(sample.generatorVersion) },
+      { label: 'Sample source', value: source },
+      { label: 'Era', value: String(era) },
+      { label: 'Rated so far', value: `${counts.random} random / ${counts.guided} guided` },
+      { label: 'Taste model', value: model === undefined ? 'training' : model === null ? 'too few ratings' : 'trained' },
+      { label: 'Predicted score', value: predicted === null ? '—' : predicted.toFixed(2) },
+      { label: 'Explore weight', value: String(explore) },
+      { label: 'Slider position', value: String(sliderValue) },
+    ],
+  })
 
   return (
     <div className="generator-view">

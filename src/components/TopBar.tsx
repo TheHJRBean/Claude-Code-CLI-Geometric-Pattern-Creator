@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTheme } from '../theme/ThemeContext'
+import { useBugReporter } from '../bugreport/context'
 import { SunIcon, MoonIcon } from './lab/labShared'
 import type { ExportMenuItem } from '../export/exportActions'
 import type { AppMode } from '../types/appMode'
@@ -14,6 +15,18 @@ function BrandMark() {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" style={{ display: 'block', flexShrink: 0 }}>
       <polygon points={pts} fill="var(--accent)" />
+    </svg>
+  )
+}
+
+/** Bug-capture affordance — a beetle rather than an exclamation mark, so it
+ *  doesn't read as an error state in the bar's resting appearance. */
+function BugIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M8 6a4 4 0 0 1 8 0" />
+      <rect x="7" y="6" width="10" height="13" rx="5" />
+      <path d="M7 11H3M7 16H4M7 7 4.5 5M17 11h4M17 16h3M17 7l2.5-2M12 10v7" />
     </svg>
   )
 }
@@ -45,6 +58,9 @@ interface TopBarProps {
  */
 export function TopBar({ mode, onSelectMode, title, exportItems }: TopBarProps) {
   const { theme, toggleTheme } = useTheme()
+  // Null outside a `BugReportProvider` (tests render the bar standalone), in
+  // which case the affordance simply isn't there.
+  const reporter = useBugReporter()
   const [menuOpen, setMenuOpen] = useState(false)
   // Which submenu (by label) is expanded inline; only one at a time.
   const [openSub, setOpenSub] = useState<string | null>(null)
@@ -105,6 +121,17 @@ export function TopBar({ mode, onSelectMode, title, exportItems }: TopBarProps) 
       <div className="top-bar__spacer" />
 
       <div className="top-bar__actions">
+        {reporter && (
+          <button
+            className="top-bar__icon-btn"
+            onClick={reporter.open}
+            aria-label="Report a bug"
+            title="Report a bug (Ctrl+Shift+B)"
+          >
+            <BugIcon />
+          </button>
+        )}
+
         <button
           className="top-bar__icon-btn"
           onClick={toggleTheme}

@@ -300,11 +300,75 @@ export function isReflectedPose(t: StampTransform): boolean {
 }
 
 /** Reflection about the vertical centreline of `box`, in canonical
- * coordinates. Composed INNERMOST (before the user adjustment and the pose) to
- * cancel a reflected pose: the image content is pre-mirrored, the pose mirrors
- * it back, and the motif lands upright — see `VoidStampRecord.mirror`. */
+ * coordinates. The LAST-RESORT half of `mirror: 'never'`, used only when the
+ * shape has no mirror symmetry of its own: it cancels the pose's reflection so
+ * the motif is upright, but the box centreline is not an axis of the shape, so
+ * the image lands at a position that is mirrored *relative to the outline* —
+ * which is what the Focus-mode layout was chosen against. Unavoidable for a
+ * genuinely asymmetric Void: no map takes an asymmetric figure onto a mirrored
+ * copy of its shape without either mirroring the figure or breaking the
+ * correspondence. Prefer `canonicalSelfMirror`, which has neither cost. */
 export function mirrorXMatrix(box: StampBBox): StampTransform {
   return { a: -1, b: 0, c: 0, d: 1, e: 2 * (box.x + box.width / 2), f: 0 }
+}
+
+/**
+ * A **reflective self-symmetry** of the canonical outline — an
+ * orientation-reversing isometry mapping the shape onto itself — or null when
+ * the shape has none.
+ *
+ * This is what makes `mirror: 'never'` honest. A reflected pose composed with
+ * such an `M` is a pure rotation+translation (det > 0 twice over), so the
+ * instance shows the Focus-mode layout **rigidly moved**: the motif is upright
+ * AND still sits where it was placed relative to the outline, because `M`
+ * preserves that outline. Mirroring about the bounding box (`mirrorXMatrix`)
+ * gets the handedness right and the placement wrong — the box centreline is
+ * almost never an axis of the shape.
+ *
+ * An orientation-reversing symmetry must reverse the vertex order, so the
+ * candidates are the `n` maps sending `points[i] → points[(s − i) mod n]`; each
+ * is built from the first edge's image and then verified pointwise. The scan is
+ * in `s` order, so congruent instances (same canonical points) pick the same
+ * `M`. O(n²) worst case with an edge-length early-out — call it once per
+ * congruent class, not once per instance.
+ */
+export function canonicalSelfMirror(points: Vec2[]): StampTransform | null {
+  const n = points.length
+  if (n < 3) return null
+  const box = poseBBox(points)
+  if (!box) return null
+  // Flattened curves carry sampling noise, so the match is metric, not exact.
+  const tol = Math.max(box.width, box.height, 1) * 1e-4
+  const p0 = points[0]
+  const p1 = points[1]
+  const d0 = dist(p0, p1)
+  if (d0 <= 0) return null
+  const thetaU = Math.atan2(p1.y - p0.y, p1.x - p0.x)
+  for (let s = 0; s < n; s++) {
+    const ps = points[s]
+    const pm = points[(s - 1 + n) % n]
+    if (Math.abs(dist(ps, pm) - d0) > tol) continue
+    // Orientation-reversing isometry = flip in y, then rotate, then translate.
+    // Pick the rotation that carries the flipped first edge onto its image.
+    const phi = Math.atan2(pm.y - ps.y, pm.x - ps.x) + thetaU
+    const cos = Math.cos(phi)
+    const sin = Math.sin(phi)
+    const M: StampTransform = {
+      a: cos, b: sin, c: sin, d: -cos,
+      e: ps.x - (cos * p0.x + sin * p0.y),
+      f: ps.y - (sin * p0.x - cos * p0.y),
+    }
+    let ok = true
+    for (let i = 0; i < n && ok; i++) {
+      const q = points[i]
+      const img = points[((s - i) % n + n) % n]
+      const x = M.a * q.x + M.c * q.y + M.e
+      const y = M.b * q.x + M.d * q.y + M.f
+      if (Math.abs(x - img.x) > tol || Math.abs(y - img.y) > tol) ok = false
+    }
+    if (ok) return M
+  }
+  return null
 }
 
 /** Affine composition `A ∘ B` (apply B first, then A). */
@@ -360,7 +424,11 @@ export interface StampableVoid {
  *
  * `mirror: 'never'` cancels the reflection the pose applies on the
  * opposite-handed half of a congruent class (see `VoidStampRecord.mirror`), so
- * a directional motif reads the same way everywhere.
+ * a directional motif reads the same way everywhere. Where the shape has a
+ * mirror axis of its own it cancels through `canonicalSelfMirror`, which keeps
+ * the Focus-mode layout intact (the instance shows it rigidly moved); only a
+ * genuinely asymmetric Void falls back to the bounding-box mirror, which gets
+ * the handedness right at the cost of the placement.
  */
 export function resolveVoidStamps(
   voids: StampableVoid[],
@@ -368,6 +436,9 @@ export function resolveVoidStamps(
 ): StampPlacement[] {
   if (!records || records.length === 0) return []
   const out: StampPlacement[] = []
+  // Self-symmetry is a property of the congruent class, and the search is
+  // O(n²) in the vertex count — memoise per signature, not per instance.
+  const selfMirrors = new Map<string, StampTransform | null>()
   for (const rec of records) {
     if (rec.scope !== 'congruent') continue
     for (const v of voids) {
@@ -378,14 +449,23 @@ export function resolveVoidStamps(
       const geo = stampGeometry(v.keyPolygon ?? v.polygon, v.polygon)
       if (!geo) continue
       const { pose, box } = geo
-      // Focus-mode adjustment slots between the base fit and the isometry;
-      // an upright-mirror correction goes innermost, on the image itself.
-      let transform = rec.transform
-        ? composeTransforms(pose.toInstance, userTransformMatrix(box, rec.transform))
-        : pose.toInstance
+      // Focus-mode adjustment acts in canonical space, between the base fit
+      // and the pose.
+      let base = pose.toInstance
+      let inner = rec.transform ? userTransformMatrix(box, rec.transform) : null
       if (rec.mirror === 'never' && isReflectedPose(pose.toInstance)) {
-        transform = composeTransforms(transform, mirrorXMatrix(box))
+        let M = selfMirrors.get(v.signature)
+        if (M === undefined) {
+          M = canonicalSelfMirror(pose.points)
+          selfMirrors.set(v.signature, M)
+        }
+        // With a self-mirror, `toInstance ∘ M` is a pure rotation+translation
+        // OUTSIDE the user layout — the Focus placement arrives intact. Without
+        // one, all that's left is pre-mirroring the image itself.
+        if (M) base = composeTransforms(base, M)
+        else inner = inner ? composeTransforms(inner, mirrorXMatrix(box)) : mirrorXMatrix(box)
       }
+      const transform = inner ? composeTransforms(base, inner) : base
       out.push({
         clip: v.polygon,
         transform,

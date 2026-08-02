@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { Vec2 } from '../utils/math'
-import { canonicalPose, poseBBox, fitImageRect, resolveVoidStamps, userTransformMatrix, composeTransforms, isIdentityUserTransform, isReflectedPose, IDENTITY_USER_TRANSFORM, type StampTransform } from './stamps'
-import { voidSignature } from './voids'
+import { canonicalPose, canonicalSelfMirror, stampGeometry, poseBBox, fitImageRect, resolveVoidStamps, userTransformMatrix, composeTransforms, isIdentityUserTransform, isReflectedPose, IDENTITY_USER_TRANSFORM, type StampTransform } from './stamps'
+import { voidSignature, simplifyCollinear } from './voids'
 import { curvedVoids } from './curvedFieldFixture'
 
 const apply = (m: StampTransform, p: Vec2): Vec2 => ({
@@ -40,6 +40,15 @@ const QUAD: Vec2[] = [
   { x: 10, y: 0 },
   { x: 13, y: 6 },
   { x: 2, y: 9 },
+]
+
+// Isoceles trapezoid — one mirror axis, so a reflected instance can be posed
+// without reflecting anything (see `canonicalSelfMirror`).
+const TRAPEZOID: Vec2[] = [
+  { x: 0, y: 0 },
+  { x: 12, y: 0 },
+  { x: 9, y: 7 },
+  { x: 3, y: 7 },
 ]
 
 describe('canonicalPose', () => {
@@ -284,6 +293,44 @@ describe('resolveVoidStamps', () => {
     // Scale survives the correction: |det| = the user zoom squared.
     expect(Math.sqrt(p.transform.a * p.transform.d - p.transform.b * p.transform.c))
       .toBeCloseTo(transform.scale, 9)
+  })
+
+  // The complaint that produced `canonicalSelfMirror`: cancelling the
+  // reflection by mirroring the IMAGE leaves the motif upright but sitting
+  // where the Focus-mode layout was not put — "the mirror opposite to the one
+  // shown in focus mode". A shape with a mirror axis of its own can do better.
+  it("mirror: 'never' on a symmetric shape keeps the Focus layout intact", () => {
+    const sig2 = voidSignature(TRAPEZOID, 0.5, (0.5 * Math.PI) / 180)
+    const mirrored = TRAPEZOID.map(mirrorX)
+    const rec2 = { ...record, key: sig2, transform: { offsetX: 0.25, offsetY: 0, scale: 1, rotation: 0 } }
+    const voids = [{ polygon: TRAPEZOID, signature: sig2 }, { polygon: mirrored, signature: sig2 }]
+
+    const upright = resolveVoidStamps(voids, [{ ...rec2, mirror: 'never' }])
+    expect(upright).toHaveLength(2)
+    for (const p of upright) {
+      // Upright everywhere...
+      expect(p.transform.a * p.transform.d - p.transform.b * p.transform.c).toBeGreaterThan(0)
+    }
+    // ...and still POSED on the outline: the canonical points carried through
+    // `transform` (minus the user layout) land back on the instance outline, so
+    // the layout chosen in Focus arrives rigidly moved rather than reflected
+    // about a box centreline that is no axis of the shape.
+    const geo = stampGeometry(mirrored)!
+    const M = canonicalSelfMirror(geo.points)
+    expect(M).not.toBeNull()
+    const carried = geo.points.map(q => apply(composeTransforms(geo.pose.toInstance, M!), q))
+    expect(samePointSet(carried, simplifyCollinear(mirrored.slice().reverse()), 1e-6)).toBe(true)
+  })
+
+  it("mirror: 'never' still fixes handedness on a shape with no axis", () => {
+    // QUAD is asymmetric — no self-mirror exists, so the fallback runs and the
+    // motif is upright at the cost of its placement. Documented, not hidden.
+    expect(canonicalSelfMirror(canonicalPose(QUAD)!.points)).toBeNull()
+    const [p] = resolveVoidStamps(
+      [{ polygon: QUAD.map(mirrorX), signature: sig }],
+      [{ ...record, mirror: 'never' }],
+    )
+    expect(p.transform.a * p.transform.d - p.transform.b * p.transform.c).toBeGreaterThan(0)
   })
 
   it('returns nothing for no records / non-congruent scopes', () => {

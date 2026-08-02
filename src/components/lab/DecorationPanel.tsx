@@ -7,6 +7,7 @@ import { axisAngleDeg, bboxAxisAtAngle, gradientCanonicalBox, rotateAxisTo, seed
 import type { Vec2 } from '../../utils/math'
 import type { DecorationConfig, FrameConfig, GradientSpec, VoidStampRecord } from '../../types/editor'
 import { downloadAllVoidShapeCanvases, downloadVoidShapePNG, downloadVoidShapeSVG, importStampImage, voidStampCanvas } from '../../export/stampAssets'
+import { canonicalPose, canonicalSelfMirror } from '../../decoration/stamps'
 import { ColourPicker, pushRecentColour } from '../ColourPicker'
 import { FieldLabel, segmentedButtonStyle } from './labShared'
 import { StampFocusEditor } from './StampFocusEditor'
@@ -945,6 +946,14 @@ function StampSection({ decoration, dispatch, selection, getStampVoids }: {
   const outline = selection ? (selection.keyPolygon ?? selection.polygon) : null
   const rendered = selection ? selection.polygon : undefined
   const canvasInfo = outline ? voidStampCanvas(outline, rendered) : null
+  // Does this shape have a mirror axis of its own? If it does, Upright is
+  // exact — the Focus layout arrives rigidly moved. If it doesn't, no map can
+  // keep BOTH the motif's handedness and its placement against the outline, so
+  // the panel says which one Upright gives up rather than leaving the user to
+  // hunt for a setting that can't exist.
+  const uprightIsExact = outline
+    ? canonicalSelfMirror(canonicalPose(outline)?.points ?? []) !== null
+    : true
 
   const upload = async (file: File) => {
     if (!selection) return
@@ -1087,6 +1096,14 @@ function StampSection({ decoration, dispatch, selection, getStampVoids }: {
                   </button>
                 ))}
               </div>
+              {!uprightIsExact && (
+                <div style={{ fontSize: 10, fontStyle: 'italic', opacity: 0.75, marginTop: 3 }}>
+                  This shape has no mirror axis, so half its Voids are true
+                  mirror images. Upright keeps the motif the right way round
+                  there, but places it mirrored against the outline — no
+                  setting can give you both.
+                </div>
+              )}
             </div>
           )}
           {selRec && (

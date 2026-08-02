@@ -333,12 +333,57 @@ describe('resolveVoidStamps', () => {
     expect(p.transform.a * p.transform.d - p.transform.b * p.transform.c).toBeGreaterThan(0)
   })
 
+  it("mirror: 'all' makes the class agree the OTHER way", () => {
+    const voids = [{ polygon: QUAD, signature: sig }, { polygon: QUAD.map(mirrorX), signature: sig }]
+    const det = (p: { transform: StampTransform }) =>
+      p.transform.a * p.transform.d - p.transform.b * p.transform.c
+
+    // Default is half and half; the two uniform modes agree, oppositely.
+    expect(resolveVoidStamps(voids, [record]).filter(p => det(p) < 0)).toHaveLength(1)
+    expect(resolveVoidStamps(voids, [{ ...record, mirror: 'never' }]).every(p => det(p) > 0)).toBe(true)
+    expect(resolveVoidStamps(voids, [{ ...record, mirror: 'all' }]).every(p => det(p) < 0)).toBe(true)
+
+    // 'all' corrects the OTHER half, so each mode leaves one instance alone.
+    const plain = resolveVoidStamps(voids, [record])
+    const never = resolveVoidStamps(voids, [{ ...record, mirror: 'never' }])
+    const all = resolveVoidStamps(voids, [{ ...record, mirror: 'all' }])
+    const untouchedBy = (m: typeof plain) => m.filter((p, i) => JSON.stringify(p.transform) === JSON.stringify(plain[i].transform)).length
+    expect(untouchedBy(never)).toBe(1)
+    expect(untouchedBy(all)).toBe(1)
+  })
+
   it('returns nothing for no records / non-congruent scopes', () => {
     expect(resolveVoidStamps([{ polygon: QUAD, signature: sig }], undefined)).toEqual([])
     expect(resolveVoidStamps(
       [{ polygon: QUAD, signature: sig }],
       [{ ...record, scope: 'instance' }],
     )).toEqual([])
+  })
+})
+
+describe('userTransformMatrix — flip', () => {
+  const box = { x: 0, y: 0, width: 20, height: 10 }
+  const base = { offsetX: 0, offsetY: 0, scale: 1, rotation: 0 }
+  const at = (t: StampTransform, p: Vec2) => ({ x: t.a * p.x + t.c * p.y + t.e, y: t.b * p.x + t.d * p.y + t.f })
+
+  it('mirrors about the box centreline and is orientation-reversing', () => {
+    const m = userTransformMatrix(box, { ...base, flip: true })
+    expect(m.a * m.d - m.b * m.c).toBeCloseTo(-1, 9)
+    // Left edge ↔ right edge, height untouched.
+    expect(at(m, { x: 0, y: 3 })).toMatchObject({ x: expect.closeTo(20, 9), y: expect.closeTo(3, 9) })
+    expect(at(m, { x: 20, y: 3 })).toMatchObject({ x: expect.closeTo(0, 9), y: expect.closeTo(3, 9) })
+  })
+
+  it('is innermost, so rotation still turns what the user sees', () => {
+    // Flip then rotate 90°: the box centre is fixed by both, so it stays put.
+    const m = userTransformMatrix(box, { ...base, rotation: 90, flip: true })
+    expect(at(m, { x: 10, y: 5 })).toMatchObject({ x: expect.closeTo(10, 9), y: expect.closeTo(5, 9) })
+    expect(m.a * m.d - m.b * m.c).toBeCloseTo(-1, 9)
+  })
+
+  it('counts as a non-identity adjustment', () => {
+    expect(isIdentityUserTransform({ ...base, flip: true })).toBe(false)
+    expect(isIdentityUserTransform({ ...base, flip: false })).toBe(true)
   })
 })
 

@@ -905,6 +905,19 @@ function omitMirror(rec: VoidStampRecord): VoidStampRecord {
   return next
 }
 
+/** The class-handedness rungs, in panel order. `null` = the default (each
+ * instance keeps its pose's own handedness). */
+const MIRROR_MODES: readonly (readonly [VoidStampRecord['mirror'] | null, string])[] = [
+  [null, 'Reflect'], ['never', 'Upright'], ['all', 'Flipped'],
+]
+
+/** Row control cycles the same three, since a row has no space for a bar. */
+function nextMirrorMode(rec: VoidStampRecord): VoidStampRecord {
+  const i = MIRROR_MODES.findIndex(([m]) => m === (rec.mirror ?? null))
+  const next = MIRROR_MODES[(i + 1) % MIRROR_MODES.length][0]
+  return next ? { ...rec, mirror: next } : omitMirror(rec)
+}
+
 /**
  * The **Stamp** target's panel section: inspect the selected Void shape,
  * export a blank canvas at its exact canonical proportions (design a stamp
@@ -1080,28 +1093,28 @@ function StampSection({ decoration, dispatch, selection, getStampVoids }: {
             <div style={{ marginTop: 6 }}>
               <FieldLabel
                 label="Mirror"
-                tooltip="A Void shape and its mirror image are ONE congruent class — and on most fields it splits about half and half. Reflect (default) mirrors the image on that opposite-handed half, so the pattern keeps the tiling's own reflection symmetry. Upright cancels it, so a directional motif reads the same way everywhere."
+                tooltip="A Void shape and its mirror image are ONE congruent class, and on most fields it splits about half and half. Reflect (default) lets each instance keep its own handedness, so the stamps inherit the tiling's reflection symmetry. Upright and Flipped both make the whole class agree — Upright as the Focus editor shows it, Flipped mirrored from it. If neither reads right, flip the image itself in Focus mode."
               />
               <div style={{ display: 'flex', gap: 0 }}>
-                {([false, true] as const).map(upright => (
+                {MIRROR_MODES.map(([mode, label]) => (
                   <button
-                    key={String(upright)}
+                    key={label}
                     onClick={() => dispatch({
                       type: 'SET_DECORATION_VOID_STAMP',
-                      payload: upright ? { ...selRec, mirror: 'never' } : omitMirror(selRec),
+                      payload: mode ? { ...selRec, mirror: mode } : omitMirror(selRec),
                     })}
-                    style={segmentedButtonStyle((selRec.mirror === 'never') === upright, { transition: false })}
+                    style={segmentedButtonStyle((selRec.mirror ?? null) === mode, { transition: false })}
                   >
-                    {upright ? 'Upright' : 'Reflect'}
+                    {label}
                   </button>
                 ))}
               </div>
-              {!uprightIsExact && (
+              {!uprightIsExact && selRec.mirror && (
                 <div style={{ fontSize: 10, fontStyle: 'italic', opacity: 0.75, marginTop: 3 }}>
                   This shape has no mirror axis, so half its Voids are true
-                  mirror images. Upright keeps the motif the right way round
-                  there, but places it mirrored against the outline — no
-                  setting can give you both.
+                  mirror images. The whole class now agrees on handedness, but
+                  on that half the image sits mirrored against the outline —
+                  no setting can give you both.
                 </div>
               )}
             </div>
@@ -1173,14 +1186,11 @@ function StampSection({ decoration, dispatch, selection, getStampVoids }: {
                 {r.overlap ? 'Overlap' : 'Clipped'}
               </button>
               <button
-                onClick={() => dispatch({
-                  type: 'SET_DECORATION_VOID_STAMP',
-                  payload: r.mirror === 'never' ? omitMirror(r) : { ...r, mirror: 'never' },
-                })}
-                style={{ ...decorationButtonStyle, padding: '2px 5px', ...(r.mirror === 'never' ? { border: '1px solid var(--accent)', color: 'var(--accent)', background: 'var(--accent-bg)' } : null) }}
-                title={r.mirror === 'never' ? 'Upright — the motif reads the same way on both handednesses. Click to let it reflect.' : 'Reflecting on the opposite-handed half of this shape class. Click to keep the motif upright everywhere.'}
+                onClick={() => dispatch({ type: 'SET_DECORATION_VOID_STAMP', payload: nextMirrorMode(r) })}
+                style={{ ...decorationButtonStyle, padding: '2px 5px', minWidth: 46, ...(r.mirror ? { border: '1px solid var(--accent)', color: 'var(--accent)', background: 'var(--accent-bg)' } : null) }}
+                title="Handedness across this shape class: Reflect (each instance keeps its own) → Upright (all as Focus mode shows it) → Flipped (all mirrored from it). Click to cycle."
               >
-                ⇄
+                {r.mirror === 'never' ? 'Up' : r.mirror === 'all' ? 'Flip' : 'Refl'}
               </button>
               <button
                 onClick={() => dispatch({ type: 'REORDER_DECORATION_VOID_STAMP', payload: { scope: r.scope, key: r.key, move: 'forward' } })}

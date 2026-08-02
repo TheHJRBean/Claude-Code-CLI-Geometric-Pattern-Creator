@@ -305,11 +305,12 @@ function migrateVoidStamp(raw: unknown): VoidStampRecord | null {
       && typeof t.rotation === 'number' && Number.isFinite(t.rotation)
     ) {
       out.transform = { offsetX: t.offsetX, offsetY: t.offsetY, scale: t.scale, rotation: t.rotation }
+      if (t.flip === true) out.transform.flip = true
     }
   }
-  // Upright-mirror flag — only `'never'` persists; anything else is the
-  // default `'reflect'` (the pose's own handedness).
-  if (r.mirror === 'never') out.mirror = 'never'
+  // Class-handedness mode — only the two uniform modes persist; anything else
+  // is the default `'reflect'` (each instance keeps its pose's handedness).
+  if (r.mirror === 'never' || r.mirror === 'all') out.mirror = r.mirror
   // Overlap (unclipped) flag — only `true` persists; anything else is the
   // default clipped behaviour. Record order is preserved by the caller, and
   // that order IS the stacking order.

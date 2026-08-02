@@ -137,7 +137,7 @@ export function StampFocusEditor({ record, outline, renderedOutline, onApply, on
         </span>
         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{record.key.slice(0, 8)}</span>
         <span style={{ fontSize: 11, marginLeft: 'auto' }}>
-          Drag to move · Scroll to zoom · Esc to cancel
+          Drag to move · Scroll to zoom · Flip to mirror · Esc to cancel
         </span>
       </div>
       <svg
@@ -213,6 +213,15 @@ export function StampFocusEditor({ record, outline, renderedOutline, onApply, on
           <span style={{ fontFamily: 'var(--font-mono)', minWidth: 40 }}>{t.rotation.toFixed(0)}°</span>
         </label>
         <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+          <button
+            style={t.flip
+              ? { ...buttonStyle, border: '1px solid var(--accent)', color: 'var(--accent)', background: 'var(--accent-bg)' }
+              : buttonStyle}
+            onClick={() => setT(prev => (prev.flip ? { ...prev, flip: false } : { ...prev, flip: true }))}
+            title="Mirror the image inside the shape. Applied before the rotation, so the slider keeps reading the way you see it."
+          >
+            ⇄ Flip
+          </button>
           <button style={buttonStyle} onClick={() => setT(IDENTITY_USER_TRANSFORM)}>Reset</button>
           <button style={buttonStyle} onClick={onClose}>Cancel</button>
           <button

@@ -336,12 +336,24 @@ describe('Void Stamps — migration', () => {
     }
   })
 
-  it("round-trips the upright-mirror flag (only 'never')", () => {
-    const upright = { ...stamp, mirror: 'never' }
-    const out = migrateEditorConfig(v3Patch({
-      decoration: { version: 1, strandColours: [], voidFills: [], voidStamps: [upright] },
+  it("round-trips both uniform mirror modes, and a Focus-mode flip", () => {
+    for (const mode of ['never', 'all'] as const) {
+      const rec = { ...stamp, mirror: mode }
+      const out = migrateEditorConfig(v3Patch({
+        decoration: { version: 1, strandColours: [], voidFills: [], voidStamps: [rec] },
+      }))
+      expect(out!.decoration!.voidStamps).toEqual([rec])
+    }
+    const flipped = { ...stamp, transform: { offsetX: 0, offsetY: 0, scale: 1, rotation: 0, flip: true } }
+    const withFlip = migrateEditorConfig(v3Patch({
+      decoration: { version: 1, strandColours: [], voidFills: [], voidStamps: [flipped] },
     }))
-    expect(out!.decoration!.voidStamps).toEqual([upright])
+    expect(withFlip!.decoration!.voidStamps).toEqual([flipped])
+    // A non-boolean flip drops to the default rather than failing the record.
+    const bogus = migrateEditorConfig(v3Patch({
+      decoration: { version: 1, strandColours: [], voidFills: [], voidStamps: [{ ...flipped, transform: { ...flipped.transform, flip: 'yes' } }] },
+    }))
+    expect(bogus!.decoration!.voidStamps![0].transform).toEqual({ offsetX: 0, offsetY: 0, scale: 1, rotation: 0 })
     for (const bad of ['reflect', true, 1, undefined]) {
       const dropped = migrateEditorConfig(v3Patch({
         decoration: { version: 1, strandColours: [], voidFills: [], voidStamps: [{ ...stamp, mirror: bad }] },

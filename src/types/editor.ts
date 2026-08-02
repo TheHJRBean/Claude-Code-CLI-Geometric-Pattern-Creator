@@ -420,10 +420,13 @@ export interface VoidStampRecord {
    * reflection symmetry) and wrong for a directional motif, which then reads
    * backwards on half the pattern.
    *
-   * Absent = `'reflect'`, the original behaviour. `'never'` pre-mirrors the
-   * image in canonical space so the composite comes out upright everywhere.
+   * Absent = `'reflect'`, the original behaviour: each instance keeps its
+   * pose's own handedness, so the class comes out half and half. The other two
+   * make the whole class agree, and which one reads "right" depends on the
+   * motif — `'never'` lands every instance the way the Focus editor shows it,
+   * `'all'` lands every instance mirrored from it.
    */
-  mirror?: 'never'
+  mirror?: 'never' | 'all'
   /**
    * **Overlap** — drop the Void-outline clip so the image draws whole and may
    * spill over its neighbours (pair with Focus-mode zoom, which is what pushes
@@ -451,6 +454,12 @@ export interface StampUserTransform {
   scale: number
   /** Rotation in degrees about the canonical box centre. */
   rotation: number
+  /** Mirror the image about the canonical box's vertical centreline, before
+   * the rotation and zoom — the Focus editor's Flip control. Absent = false,
+   * so records written before it stay byte-identical. With `rotation` this
+   * reaches every orientation of the artwork; `VoidStampRecord.mirror` is the
+   * separate question of what the two halves of a congruent class do. */
+  flip?: boolean
 }
 
 /**

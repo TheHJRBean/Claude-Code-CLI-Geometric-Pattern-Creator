@@ -263,18 +263,27 @@ export const IDENTITY_USER_TRANSFORM: StampUserTransform = {
 /** True when `t` is (numerically) the identity — used to omit the field from
  * saved records instead of storing a no-op. */
 export function isIdentityUserTransform(t: StampUserTransform): boolean {
-  return Math.abs(t.offsetX) < 1e-9 && Math.abs(t.offsetY) < 1e-9
+  return !t.flip && Math.abs(t.offsetX) < 1e-9 && Math.abs(t.offsetY) < 1e-9
     && Math.abs(t.scale - 1) < 1e-9 && Math.abs(t.rotation) < 1e-9
 }
 
 /**
- * Canonical→canonical affine for a Focus-mode adjustment: rotate by
- * `rotation`° and zoom by `scale` about the canonical box centre, then pan by
- * the box-fraction offsets. Applied between the base cover/contain fit and
- * the canonical→instance isometry, so one adjustment lands on every
- * congruent instance (mirrored on reflected ones, like the image itself).
+ * Canonical→canonical affine for a Focus-mode adjustment: `flip` the image
+ * about the box's vertical centreline, then rotate by `rotation`° and zoom by
+ * `scale` about the canonical box centre, then pan by the box-fraction
+ * offsets. Applied between the base cover/contain fit and the
+ * canonical→instance isometry, so one adjustment lands on every congruent
+ * instance (mirrored on reflected ones, like the image itself).
+ *
+ * Flip goes innermost so the rotation reads the same before and after it —
+ * the user rotates what they see, not a pre-mirrored frame.
  */
 export function userTransformMatrix(box: StampBBox, t: StampUserTransform): StampTransform {
+  const m = rotateZoomPan(box, t)
+  return t.flip ? composeTransforms(m, mirrorXMatrix(box)) : m
+}
+
+function rotateZoomPan(box: StampBBox, t: StampUserTransform): StampTransform {
   const rad = (t.rotation * Math.PI) / 180
   const cos = Math.cos(rad) * t.scale
   const sin = Math.sin(rad) * t.scale
@@ -422,13 +431,13 @@ export interface StampableVoid {
  * `overlap` (unclipped ⇒ images can spill onto each other), but the order is
  * deterministic either way.
  *
- * `mirror: 'never'` cancels the reflection the pose applies on the
- * opposite-handed half of a congruent class (see `VoidStampRecord.mirror`), so
- * a directional motif reads the same way everywhere. Where the shape has a
- * mirror axis of its own it cancels through `canonicalSelfMirror`, which keeps
- * the Focus-mode layout intact (the instance shows it rigidly moved); only a
- * genuinely asymmetric Void falls back to the bounding-box mirror, which gets
- * the handedness right at the cost of the placement.
+ * `mirror` makes a congruent class agree on handedness instead of coming out
+ * half and half: `'never'` corrects the reflected instances (the class matches
+ * the Focus editor), `'all'` corrects the others (it uniformly mirrors it).
+ * Both correct through `canonicalSelfMirror` where the shape has a mirror axis
+ * of its own, which keeps the Focus-mode layout intact — the instance shows it
+ * rigidly moved. A genuinely chiral Void has no such axis and falls back to the
+ * bounding-box mirror, right handedness at the cost of the placement.
  */
 export function resolveVoidStamps(
   voids: StampableVoid[],
@@ -453,7 +462,12 @@ export function resolveVoidStamps(
       // and the pose.
       let base = pose.toInstance
       let inner = rec.transform ? userTransformMatrix(box, rec.transform) : null
-      if (rec.mirror === 'never' && isReflectedPose(pose.toInstance)) {
+      // Which half needs correcting is the only difference between the two
+      // uniform modes: 'never' fixes the reflected instances so the class
+      // matches the Focus editor, 'all' fixes the others so it uniformly
+      // mirrors it. Either way the class stops being half and half.
+      const reflected = isReflectedPose(pose.toInstance)
+      if (rec.mirror === 'never' ? reflected : rec.mirror === 'all' && !reflected) {
         let M = selfMirrors.get(v.signature)
         if (M === undefined) {
           M = canonicalSelfMirror(pose.points)

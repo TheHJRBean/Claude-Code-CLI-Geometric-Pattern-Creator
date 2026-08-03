@@ -37,21 +37,19 @@ Two things the measurement pass turned up that the plan below didn't predict:
 
 ---
 
-## New — #55, no Frame authoring on a Gallery preset · **NOT STARTED**
+## ~~New — #55, no Frame authoring on a Gallery preset~~ · ✅ **DONE 2026-08-03 (`6ea2ba7`), issue closed**
 
-User report at closeout: *"I can't edit or add a frame to any of the presets
-loaded from the Gallery."* Traced to a **missing UI**, not a broken one — full
-write-up on the issue. Short version: `FramePanel` is the only thing that
-creates a Frame or edits its geometry, it needs a Builder Patch + the Design
-Phase, and a legacy substrate has neither. `SET_GALLERY_FRAME` has one author in
-the app (`DecorationPanel.tsx:306`), gated on a Frame already existing and
-setting `stroke` only.
+Shipped as option 1. `FramePanel` is now substrate-agnostic (`substrate` /
+`frame` / `onSetFrame` / `nRingSupported`); `LegacySubstrateControls` mounts it
+against `config.frame` + `SET_GALLERY_FRAME`, clip-only (no Frame-type row, no
+"Clear frame tiles", new Shape frames get `boundaryTreatment: 'clip'`). No
+render change was needed — `Canvas` already clipped a non-editor tiling to
+`config.frame`. Headless-verified on both substrates; the "which load path?"
+question turned out not to matter.
 
-⚠️ **Ask before coding:** which load path? The Lab **Presets shelf** converts
-tier-1 presets to a Patch, so `FramePanel` should already be there — if that's
-the path they used, this whole trace is the wrong tree and it's a different bug.
-The Gallery browser's **"Edit in Lab"** path is the one with genuinely no Frame
-UI.
+The trace that got written at closeout held up in every particular, which is
+the reusable lesson: see `feedback_missing_control_not_missing_feature` in
+memory — grep an action's **call sites**, not its definition.
 
 ---
 

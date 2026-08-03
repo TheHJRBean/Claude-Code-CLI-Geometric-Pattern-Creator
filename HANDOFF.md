@@ -5,21 +5,37 @@ its **NEXT** list is the menu; this file carries the working context for the
 items that need a *decision* or have a trap waiting, so a cold session doesn't
 have to re-derive any of it.
 
-Nothing here is mid-flight. Tree clean, `main` pushed at `4040470`, suite
-**1551 green**, tsc + build clean. (Refreshed at the end of the 2026-08-03
-zero-input backlog pass. **#54 below is still the one live decision** — that
-pass deliberately took only work that needed nothing from the user, so it
-did not touch it.)
+Nothing here is mid-flight. Tree clean, `main` pushed at `98c60a0`, suite
+**1554 green**, tsc + build clean. (Refreshed after #40 shipped 2026-08-03.
+**#54 below is still the one live decision** needing the user's word before
+any code.)
+
+**2026-08-03, #40 shipped + closed (`98c60a0`).** Picked as the next
+zero-input task off the backlog pass's own scoping (below). Two independent
+leak mechanisms in `emitVertexArms`, both producing "vertex-line arm ends
+outside its own polygon": (1) the originally-reported α > interior-half-angle
+case, fixed via an angular-betweenness test (`vertexRayEntersPolygon`) rather
+than a spatial `pointInPolygon` probe — the probe was tried first and
+rejected, since exactly at the boundary it flips unpredictably between
+nominally-symmetric tile copies, the identical instability #51 hit on the
+edge-line pairing; (2) a second leak **found while verifying the fix**, in an
+asymmetric ray pairing under a per-vertex Morph field (one ray's shared
+intersection point sits behind its own origin; only reachable when the two
+rays at a pairing carry different effective θ). `vertexStrandsOverlap.test.ts`
+needed its contact angle bumped 30°→60° on a square — 30° now legitimately
+emits zero arms, the "some counts will drop, correctly" the backlog pass
+anticipated. New regression suite `src/pic/vertexRayLeak.test.ts`, verified
+red pre-fix. Tests 1554 green (was 1551), tsc + build clean.
 
 **What the 2026-08-03 backlog pass changed, in one place:** 5 issues closed
 as shipped+verified (#44/#45/#46/#42/#28); **#40 scoped** with a throwaway
-probe (see the issue — the α > interior-half-angle predictor is exact at
-88/88, 20 of 26 tilings affected, and the "clamp the slider per shape"
-option is **ruled out** by per-vertex partial leaks); **#34 fixed and
-closed** (`a8af5b2`). Only one thing there is owed back: a browser pass on
-#34, written up as NEXT item 0's second half in `SESSION_STATE.md`. Open
-issues now: **#54** (decision), **#52** (decision), #41, #40, #47, #39,
-#29, #30, #32.
+probe (see the closed issue — the α > interior-half-angle predictor is exact
+at 88/88, 20 of 26 tilings affected, and the "clamp the slider per shape"
+option is **ruled out** by per-vertex partial leaks) — **now shipped, see
+above**; **#34 fixed and closed** (`a8af5b2`). Only one thing there is owed
+back: a browser pass on #34, written up as NEXT item 0's second half in
+`SESSION_STATE.md`. Open issues now: **#54** (decision), **#52** (decision),
+#41, #47, #39, #29, #30, #32.
 
 **2026-08-03, later same day: #31 shipped + closed** (`10382c3`) — Anchor
 vocabulary consolidation. CONTEXT.md's Construct/Guide/Anchor entries

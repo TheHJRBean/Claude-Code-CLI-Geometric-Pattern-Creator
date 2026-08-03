@@ -5,10 +5,38 @@ its **NEXT** list is the menu; this file carries the working context for the
 items that need a *decision* or have a trap waiting, so a cold session doesn't
 have to re-derive any of it.
 
-Nothing here is mid-flight. Tree clean, `main` pushed at `98c60a0`, suite
-**1554 green**, tsc + build clean. (Refreshed after #40 shipped 2026-08-03.
-**#54 below is still the one live decision** needing the user's word before
-any code.)
+Nothing here is mid-flight. Tree clean, `main` pushed at `a04073e`, suite
+**1598 green**, tsc + build clean. (Refreshed after #29 + #30 shipped
+2026-08-03. **Two live decisions now: #54 below, and #32 — see the stanza
+immediately after this one.**)
+
+**2026-08-03, Guides v1 COMPLETE — #29 + #30 shipped, browser-verified, closed
+(`ffd9a6b`, `e2295b6`, `7ffcb86`).** Full write-ups are in `SESSION_STATE.md`
+and on the issues; nothing about them is pending.
+
+**⚠️ #32 (Girih preset reveal) is the user's agreed next task — and it needs a
+decision before any code.** It is the last open `guides` issue. Read the issue
+first; the short version:
+
+- The ticket says of itself: *"too vague to implement yet — next step is a
+  short grill/enumeration pass once v1 has been used in anger."* That pass has
+  not happened.
+- **The architectural fork is the real blocker.** Girih presets are **tier-3
+  view-only** (`rosette-patch`, the legacy render path). There is no Patch, so
+  there is nothing to hang `EditorPatch.guides` on. Either (a) tier-3 Patch
+  conversion lands first — a large, separate job on the ADR-0006 convergence
+  track — or (b) Guides gain a second render path over the legacy preset
+  substrate. That is a product call, not an implementation detail.
+- **The content does not exist.** Each preset needs a historically-correct
+  Guide set authored by hand. The ticket's own plan was that the first content
+  falls out of the *user* building a Girih layout with v1 — which is now
+  possible for the first time, and hasn't been done.
+- **Model:** the issue asks for **Fable** for the grill/enumeration pass. If a
+  session opens on Opus/Sonnet, say so and ask before starting (standing rule,
+  `feedback_model_recommendations`).
+
+Sensible opening move: run the grill on the two questions above (which
+substrate, and where the first Guide set comes from) rather than writing code.
 
 **2026-08-03, #40 shipped + closed (`98c60a0`).** Picked as the next
 zero-input task off the backlog pass's own scoping (below). Two independent

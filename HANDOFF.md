@@ -5,8 +5,10 @@ its **NEXT** list is the menu; this file carries the working context for the
 items that need a *decision* or have a trap waiting, so a cold session doesn't
 have to re-derive any of it.
 
-Nothing here is mid-flight. Tree clean, `main` pushed at `a97e079`, suite
-1530 green, tsc + build clean.
+Nothing here is mid-flight. Tree clean, `main` pushed at `b8a733c`, suite
+**1546 green**, tsc clean. (Stamp stamp: refreshed at the end of the
+2026-08-03 Frame-origin + Void-seam session; the decision items below are
+untouched by it.)
 
 ---
 

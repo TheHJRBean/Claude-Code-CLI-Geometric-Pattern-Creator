@@ -1558,6 +1558,13 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
           guide={selectedGuide}
           position={guidePopupScreenPos}
           defaultTickSpacing={config.editor ? patchTickEdgeLength(config.editor) : 100}
+          // Slice 4 (#29): every popup control edits the whole symmetry-orbit
+          // group, so the popup states how many Guides that is.
+          groupSize={
+            selectedGuide.group
+              ? guides.filter(g => g.group?.id === selectedGuide.group!.id).length
+              : 1
+          }
           onUpdate={patch => onUpdateGuide(selectedGuide.id, patch)}
           onDelete={() => { onDeleteGuide(selectedGuide.id); setSelectedGuideId(null) }}
           onClose={() => {

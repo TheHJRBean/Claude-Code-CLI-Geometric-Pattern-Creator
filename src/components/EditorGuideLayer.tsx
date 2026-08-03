@@ -87,6 +87,14 @@ export const EditorGuideLayer = memo(function EditorGuideLayer({
 
   const intersections = guideIntersections(guides)
 
+  // Slice 4 (#29): a symmetry-orbit group is edited as one unit, so selecting
+  // any member emphasises them all — otherwise a settings change appearing on
+  // eleven other Guides reads as a bug. Drag handles stay on the clicked member
+  // only; twelve sets of handles would bury the artwork.
+  const selectedGroupId = guides.find(g => g.id === selectedGuideId)?.group?.id
+  const inSelectedGroup = (g: EditorGuide) =>
+    g.id === selectedGuideId || (selectedGroupId !== undefined && g.group?.id === selectedGroupId)
+
   /** Screen-px position of a pointer event relative to the SVG container. */
   const screenPos = (e: React.PointerEvent): Vec2 => {
     const svg = (e.target as Element).closest('svg')
@@ -125,6 +133,7 @@ export const EditorGuideLayer = memo(function EditorGuideLayer({
     if (!span) return null
     const colour = guideColour(g)
     const selected = g.id === selectedGuideId
+    const lit = inSelectedGroup(g)
     const ticks = guideTickPoints(g, patchEdgeLength)
     const manual = guideManualAnchorPoints(g)
     return (
@@ -140,7 +149,7 @@ export const EditorGuideLayer = memo(function EditorGuideLayer({
         {/* The drawn segment. */}
         <line
           x1={g.start.x} y1={g.start.y} x2={g.end.x} y2={g.end.y}
-          stroke={colour} strokeWidth={selected ? 2.4 : 1.6} strokeOpacity={selected ? 1 : 0.85}
+          stroke={colour} strokeWidth={lit ? 2.4 : 1.6} strokeOpacity={lit ? 1 : 0.85}
           vectorEffect="non-scaling-stroke" pointerEvents="none"
         />
         {/* Wide invisible hit stroke over the full span — select/popup. */}
@@ -172,6 +181,7 @@ export const EditorGuideLayer = memo(function EditorGuideLayer({
     if (!(g.radius > 0)) return null
     const colour = guideColour(g)
     const selected = g.id === selectedGuideId
+    const lit = inSelectedGroup(g)
     const ticks = guideCircleTickPoints(g, patchEdgeLength)
     const divisions = guideCircleDivisionPoints(g)
     const manual = guideCircleManualPoints(g)
@@ -182,7 +192,7 @@ export const EditorGuideLayer = memo(function EditorGuideLayer({
         <circle
           cx={g.center.x} cy={g.center.y} r={g.radius}
           fill="none" stroke={colour}
-          strokeWidth={selected ? 2.4 : 1.6} strokeOpacity={selected ? 1 : 0.85}
+          strokeWidth={lit ? 2.4 : 1.6} strokeOpacity={lit ? 1 : 0.85}
           vectorEffect="non-scaling-stroke" pointerEvents="none"
         />
         {/* Wide invisible hit ring — select/popup on the rim. */}

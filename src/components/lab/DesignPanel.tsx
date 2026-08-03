@@ -472,6 +472,16 @@ export function DesignPanel({
                 : 'Click the centre, then a radius point.'}
               {' '}Hold Shift for freehand, Esc to cancel. Click a Guide to edit
               it — {constructTool === 'line' ? 'stamp, extend, ticks, angle' : 'stamp, radius, divisions, ticks'}, delete.
+              {/* Slice 4 (#29) — symmetry uses the same lever as tile placement,
+                  so say what it will do rather than adding a second control. */}
+              {editor.cells.some(c => (c.symmetryMode ?? 'none') !== 'none')
+                && constructTool !== 'divided-circle' && (
+                <>
+                  {' '}Drawing <em>inside</em> a Cell with Symmetry on creates the
+                  whole orbit as one linked group — editing or deleting any copy
+                  does them all. Draw outside every Cell for a one-off.
+                </>
+              )}
             </div>
           </>
         )}

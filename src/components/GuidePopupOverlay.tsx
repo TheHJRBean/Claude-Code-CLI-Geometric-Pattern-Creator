@@ -21,6 +21,10 @@ interface Props {
   /** The Seed-Tile edge length (`patchTickEdgeLength`): the ×1 tick spacing and
    *  the unit the multiplier buttons + circle size presets are relative to. */
   defaultTickSpacing: number
+  /** Size of the Guide's symmetry-orbit group (slice 4 / #29); 1 for a single.
+   *  Every control here edits the whole group, so the count is stated up front
+   *  rather than letting eleven other Guides change unannounced. */
+  groupSize?: number
   onUpdate: (patch: EditorGuidePatch) => void
   onDelete: () => void
   onClose: () => void
@@ -86,7 +90,7 @@ const presetButtonStyle: React.CSSProperties = {
   color: 'var(--text-muted)',
 }
 
-export function GuidePopupOverlay({ guide, position, defaultTickSpacing, onUpdate, onDelete, onClose }: Props) {
+export function GuidePopupOverlay({ guide, position, defaultTickSpacing, groupSize = 1, onUpdate, onDelete, onClose }: Props) {
   const dialogRef = useRef<HTMLDivElement>(null)
   // Snapshot of the editable fields at open — Cancel restores this. A ref,
   // captured once per mount (parent keys the popup by Guide id).
@@ -152,8 +156,16 @@ export function GuidePopupOverlay({ guide, position, defaultTickSpacing, onUpdat
         gap: 8,
       }}
     >
-      <div style={{ ...labelStyle, fontSize: 10, color: 'var(--text)' }}>
+      <div style={{ ...labelStyle, fontSize: 10, color: 'var(--text)', display: 'flex', alignItems: 'baseline', gap: 6 }}>
         {guide.kind === 'circle' ? (guide.divisions ? 'Divided circle' : 'Guide circle') : 'Guide line'}
+        {groupSize > 1 && (
+          <span
+            title={`Symmetry-linked group of ${groupSize} — every change here, including delete, applies to all of them`}
+            style={{ ...labelStyle, fontSize: 9, color: 'var(--text-muted)' }}
+          >
+            ⇄ linked ×{groupSize}
+          </span>
+        )}
       </div>
 
       {/* Stamp toggle — colour IS the stamp state (spec Decision 2). */}
@@ -270,7 +282,7 @@ export function GuidePopupOverlay({ guide, position, defaultTickSpacing, onUpdat
           color: '#c25b5b',
         }}
       >
-        Delete guide
+        {groupSize > 1 ? `Delete all ${groupSize}` : 'Delete guide'}
       </button>
     </div>
   )

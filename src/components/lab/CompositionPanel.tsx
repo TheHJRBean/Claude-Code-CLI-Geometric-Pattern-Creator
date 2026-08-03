@@ -12,6 +12,8 @@ export function CompositionPanel({
   onToggleShowBoundaryLattice,
   showGuides,
   onToggleShowGuides,
+  showGuideAnchors,
+  onToggleShowGuideAnchors,
 }: {
   editor: NonNullable<PatternConfig['editor']>
   showBoundaryLattice: boolean
@@ -20,6 +22,10 @@ export function CompositionPanel({
    *  Decision 9). Only offered when the Patch carries Guides. */
   showGuides: boolean
   onToggleShowGuides: (next: boolean) => void
+  /** Anchor dots show/hide (#30) — nested under Show guides, since Anchors
+   *  are only drawn where a Guide is. */
+  showGuideAnchors: boolean
+  onToggleShowGuideAnchors: (next: boolean) => void
 }) {
   return (
     <div style={{
@@ -67,6 +73,25 @@ export function CompositionPanel({
             onChange={e => onToggleShowGuides(e.target.checked)}
           />
           Show guides
+        </label>
+      )}
+      {(editor.guides?.length ?? 0) > 0 && showGuides && (
+        <label style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginTop: 6,
+          marginLeft: 22,
+          cursor: 'pointer',
+          fontSize: 11.5,
+          color: showGuideAnchors ? 'var(--text)' : 'var(--text-muted)',
+        }}>
+          <input
+            type="checkbox"
+            checked={showGuideAnchors}
+            onChange={e => onToggleShowGuideAnchors(e.target.checked)}
+          />
+          Show anchors
         </label>
       )}
     </div>

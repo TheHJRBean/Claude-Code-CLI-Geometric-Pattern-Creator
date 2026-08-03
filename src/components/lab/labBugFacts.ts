@@ -50,6 +50,12 @@ export interface LabOverlayFlags {
   showNeighbours: boolean
   showNeighbourBoundaries: boolean
   showNeighbourStrands: boolean
+  /** Guides overlay toggles (#30). These default **on**, so unlike the flags
+   *  above their diagnostic value is in the OFF state — a "my guides vanished"
+   *  report is usually one of these. */
+  showDesignGuides: boolean
+  showGuideAnchors: boolean
+  showNeighbourGuides: boolean
 }
 
 /**
@@ -68,5 +74,13 @@ export function describeLabOverlays(flags: LabOverlayFlags): string {
   if (flags.showNeighbours) on.push('neighbours')
   if (flags.showNeighbourBoundaries) on.push('neighbour boundaries')
   if (flags.showNeighbourStrands) on.push('neighbour strands')
-  return on.length ? on.join(', ') : 'none on'
+  // Default-on Guide toggles report their OFF state instead — listing them
+  // when on would drown the list, and it is the off case that explains a
+  // missing overlay.
+  const off: string[] = []
+  if (!flags.showDesignGuides) off.push('design guides')
+  if (!flags.showGuideAnchors) off.push('guide anchors')
+  if (!flags.showNeighbourGuides) off.push('neighbour guides')
+  const base = on.length ? on.join(', ') : 'none on'
+  return off.length ? `${base} — OFF: ${off.join(', ')}` : base
 }

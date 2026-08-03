@@ -203,6 +203,16 @@ interface DesignPanelProps {
   onToggleShowNeighbourBoundaries: (next: boolean) => void
   showNeighbourStrands: boolean
   onToggleShowNeighbourStrands: (next: boolean) => void
+  /** Guides overlay toggles (#30). `showGuides` hides the Guide strokes in
+   *  Design without deleting anything (Construct mode overrides it);
+   *  `showGuideAnchors` hides just the Anchor dots; `showNeighbourGuides` is
+   *  the neighbours variant — the stamping Guides' Lattice copies. */
+  showGuides: boolean
+  onToggleShowGuides: (next: boolean) => void
+  showGuideAnchors: boolean
+  onToggleShowGuideAnchors: (next: boolean) => void
+  showNeighbourGuides: boolean
+  onToggleShowNeighbourGuides: (next: boolean) => void
 }
 
 /**
@@ -232,6 +242,12 @@ export function DesignPanel({
   onToggleShowNeighbourBoundaries,
   showNeighbourStrands,
   onToggleShowNeighbourStrands,
+  showGuides,
+  onToggleShowGuides,
+  showGuideAnchors,
+  onToggleShowGuideAnchors,
+  showNeighbourGuides,
+  onToggleShowNeighbourGuides,
 }: DesignPanelProps) {
   const multiCell = editor.cells.length > 1
   const primaryCell = editor.cells[0]
@@ -382,11 +398,54 @@ export function DesignPanel({
                   />
                   Show strands
                 </label>
+                {/* Neighbours variant of the Guides overlay (#30) — only the
+                    Guides with stamp ON have neighbour copies to show. */}
+                {(editor.guides ?? []).some(g => g.stamp) && (
+                  <label style={checkboxLabelStyle(showNeighbourGuides, { fontSize: 12.5 })}>
+                    <input
+                      type="checkbox"
+                      checked={showNeighbourGuides}
+                      onChange={e => onToggleShowNeighbourGuides(e.target.checked)}
+                    />
+                    Show guides
+                  </label>
+                )}
               </div>
             )}
           </div>
         )
       })()}
+
+      {/* Guides overlay (#30) — hide the scaffolding without deleting it.
+          Offered once the Patch has Guides; Construct mode shows them
+          regardless, so the toggle only governs Place / Complete. */}
+      {(editor.guides?.length ?? 0) > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <label style={checkboxLabelStyle(showGuides)}>
+            <input
+              type="checkbox"
+              checked={showGuides}
+              onChange={e => onToggleShowGuides(e.target.checked)}
+            />
+            Show guides
+          </label>
+          {showGuides && (
+            <div style={{ marginTop: 6, marginLeft: 22, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={checkboxLabelStyle(showGuideAnchors, { fontSize: 12.5 })}>
+                <input
+                  type="checkbox"
+                  checked={showGuideAnchors}
+                  onChange={e => onToggleShowGuideAnchors(e.target.checked)}
+                />
+                Show anchors
+              </label>
+            </div>
+          )}
+          {editorMode === 'construct' && !showGuides && (
+            <div style={mutedNoteStyle}>Guides stay visible while Construct is the active Tool.</div>
+          )}
+        </div>
+      )}
 
       {/* Step 17.5 / Guides — Tool toggle: Place / Complete / Construct. */}
       <div style={{ marginTop: 14 }}>

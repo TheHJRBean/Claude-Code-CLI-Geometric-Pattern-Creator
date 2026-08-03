@@ -11,6 +11,7 @@ import { validateNGapPolygon } from './completeN'
 import { overlapsExistingDetail, type OverlapDetail } from './tileOverlap'
 import { frameOutlinePolygon, computeFrameSections, frameNodePoints } from './frame'
 import { collectGuideAnchors, type GuideAnchor } from './guides'
+import { isNeighbourGuideAnchor } from './guideStamps'
 import { activeCell } from './active'
 
 /**
@@ -346,7 +347,15 @@ export function validateMultiPick(patch: EditorPatch, picks: Vec2[]): MultiPickV
   const guideAnchors = collectGuideAnchors(patch, patchRot)
   const guideAt = (p: Vec2): GuideAnchor | undefined =>
     guideAnchors.find(a => pointsEqual(p, a.p, EDITOR_EPS))
-  if (!picks.every(p => isPatchSelectableVertex(patch, p, true) || guideAt(p))) return { kind: 'pick-not-selectable' }
+  // Slice 5 (#30): a stamping Guide's Anchors also exist on every neighbour
+  // Lattice stamp and are pickable there. Like neighbour *vertices* they are
+  // NOT grounding — only the `true` (include-neighbours) test consults them —
+  // so a polygon built purely from neighbour ghosts is still rejected.
+  const neighbourGuideAt = (p: Vec2): boolean =>
+    isNeighbourGuideAnchor(patch, patchRot, neighbourStampsNear(patch, [p]), p, EDITOR_EPS)
+  if (!picks.every(p => isPatchSelectableVertex(patch, p, true) || guideAt(p) || neighbourGuideAt(p))) {
+    return { kind: 'pick-not-selectable' }
+  }
   if (!picks.some(p => isPatchSelectableVertex(patch, p, false) || guideAt(p))) return { kind: 'no-real-cell-pick' }
 
   // World-space Guide completion (mirrors the reducer): a non-stamping Guide

@@ -155,13 +155,23 @@ export function tileCentreAnchors(patch: EditorPatch, patchRot: number): Array<{
  * points (a tick that lands on a crossing, a shared tile edge hit twice)
  * collapse to one pick. This is the single Anchor source consumed by snap, the
  * Guide layer, and both placement flows.
+ *
+ * `includeTileCentres` (default true) drops the Tile-centre Anchors, which are
+ * not Guide-derived: the slice-5 neighbour-Anchor path (`guideStamps.ts`) wants
+ * only what the Guides themselves expose.
  */
-export function collectGuideAnchors(patch: EditorPatch, patchRot: number): GuideAnchor[] {
+export function collectGuideAnchors(
+  patch: EditorPatch,
+  patchRot: number,
+  options?: { includeTileCentres?: boolean },
+): GuideAnchor[] {
   const guides = patch.guides ?? []
   const out: GuideAnchor[] = []
   // Tile-centre Anchors — Patch-relative (stamp true), independent of Guides.
-  for (const { p, tileId } of tileCentreAnchors(patch, patchRot)) {
-    out.push({ p, guideId: `tile-centre/${tileId}`, stamp: true })
+  if (options?.includeTileCentres !== false) {
+    for (const { p, tileId } of tileCentreAnchors(patch, patchRot)) {
+      out.push({ p, guideId: `tile-centre/${tileId}`, stamp: true })
+    }
   }
   if (guides.length > 0) {
     // Tick / arc spacing is anchored to the Seed-Tile edge, not the (possibly

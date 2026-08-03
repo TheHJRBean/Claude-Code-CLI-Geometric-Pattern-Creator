@@ -37,6 +37,14 @@ export interface EditorDesignControlsProps {
   onSetConstructSnap: (on: boolean) => void
   showGuides: boolean
   onToggleShowGuides: (next: boolean) => void
+  /** Guides overlay toggles (#30) — Design-Phase Guide strokes, the Anchor
+   *  dots (both Phases), and the neighbours variant (stamped Lattice copies). */
+  showDesignGuides: boolean
+  onToggleShowDesignGuides: (next: boolean) => void
+  showGuideAnchors: boolean
+  onToggleShowGuideAnchors: (next: boolean) => void
+  showNeighbourGuides: boolean
+  onToggleShowNeighbourGuides: (next: boolean) => void
   picks: Vec2[]
   multiMode: boolean
   onCancelComplete: () => void
@@ -100,6 +108,12 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
     onSetConstructSnap,
     showGuides,
     onToggleShowGuides,
+    showDesignGuides,
+    onToggleShowDesignGuides,
+    showGuideAnchors,
+    onToggleShowGuideAnchors,
+    showNeighbourGuides,
+    onToggleShowNeighbourGuides,
     picks,
     multiMode,
     onCancelComplete,
@@ -210,6 +224,8 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
           onToggleShowBoundaryLattice={onToggleShowBoundaryLattice}
           showGuides={showGuides}
           onToggleShowGuides={onToggleShowGuides}
+          showGuideAnchors={showGuideAnchors}
+          onToggleShowGuideAnchors={onToggleShowGuideAnchors}
         />
       )}
 
@@ -285,6 +301,12 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
           onToggleShowNeighbourBoundaries={onToggleShowNeighbourBoundaries}
           showNeighbourStrands={showNeighbourStrands}
           onToggleShowNeighbourStrands={onToggleShowNeighbourStrands}
+          showGuides={showDesignGuides}
+          onToggleShowGuides={onToggleShowDesignGuides}
+          showGuideAnchors={showGuideAnchors}
+          onToggleShowGuideAnchors={onToggleShowGuideAnchors}
+          showNeighbourGuides={showNeighbourGuides}
+          onToggleShowNeighbourGuides={onToggleShowNeighbourGuides}
         />
       )}
     </>

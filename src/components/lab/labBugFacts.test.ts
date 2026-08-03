@@ -37,9 +37,12 @@ describe('describeLabSelection', () => {
 })
 
 describe('describeLabOverlays', () => {
+  // The Guide toggles (#30) default ON, so "all off" for them means their
+  // *default* state — they only appear in the fact when switched off.
   const allOff = {
     showStrands: false, showTiles: false, showGuides: false, showBoundaryLattice: false,
     showNeighbours: false, showNeighbourBoundaries: false, showNeighbourStrands: false,
+    showDesignGuides: true, showGuideAnchors: true, showNeighbourGuides: true,
   }
 
   it('lists only what is on', () => {
@@ -49,5 +52,12 @@ describe('describeLabOverlays', () => {
 
   it('says so when everything is off — itself the answer to most "nothing renders" reports', () => {
     expect(describeLabOverlays(allOff)).toBe('none on')
+  })
+
+  it('reports the default-ON Guide toggles only when they are switched OFF', () => {
+    expect(describeLabOverlays({ ...allOff, showDesignGuides: false, showGuideAnchors: false }))
+      .toBe('none on — OFF: design guides, guide anchors')
+    expect(describeLabOverlays({ ...allOff, showStrands: true, showNeighbourGuides: false }))
+      .toBe('strands — OFF: neighbour guides')
   })
 })

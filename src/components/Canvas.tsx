@@ -20,7 +20,7 @@ import type { EditorCell } from '../types/editor'
 import { computeExposedEdges } from '../editor/exposedEdges'
 import { computeAllCycles, computeBoundaryCycle, type BoundaryVertex } from '../editor/boundary'
 import { EDITOR_EPS } from '../editor/exposedEdges'
-import { applyStamp } from '../editor/lattice'
+import { applyStamp, type LatticeStamp } from '../editor/lattice'
 import { patchRotation } from '../editor/compositionLattice'
 import { viableSidesForEdge, viableSidesForVertexOrbit, vertexOrientationsWithOrbit } from '../editor/orbit'
 import { applyCellTransform, resolveHostCell, worldProbeCell } from '../editor/patchSelectable'
@@ -59,6 +59,7 @@ import {
   type SnapPoint,
   type WorldBounds,
 } from '../editor/guides'
+import { ghostStampsOnly, neighbourGuideAnchors, stampedGuideCopies } from '../editor/guideStamps'
 import { EditorGuideLayer, type GuideHandle } from './EditorGuideLayer'
 import { GuidePopupOverlay } from './GuidePopupOverlay'
 import { midpoint as vecMidpoint, pointsEqual } from '../utils/math'
@@ -139,9 +140,18 @@ interface Props {
   constructAngleStep?: number
   /** Construct mode — which Guide the two-click gesture draws (spec Decision 11). */
   constructTool?: GuideTool
-  /** Composition Phase — Guides overlay show/hide (hidden by default). In
-   *  Design Phase Guides always render. */
+  /** Composition Phase — Guides overlay show/hide (hidden by default, spec
+   *  Decision 9). Covers the stamped Lattice copies too (#30). */
   showGuides?: boolean
+  /** Design Phase — Guides overlay show/hide (#30). Default on; Construct mode
+   *  overrides it (you cannot draw what you cannot see). */
+  showDesignGuides?: boolean
+  /** Anchor dots (ticks / divisions / manual / intersections) show/hide (#30) —
+   *  independent of the Guide strokes, in both Phases. */
+  showGuideAnchors?: boolean
+  /** Design Phase — repeat the stamping Guides onto the neighbour stamps (#30).
+   *  Rides under "Show neighbours" like the boundary/strand ghost toggles. */
+  showNeighbourGuides?: boolean
   /** Construct mode — a completed two-click Guide (line or circle). */
   onAddGuide?: (guide: EditorGuide) => void
   /** Construct mode — per-Guide popup edits + handle drags. */
@@ -228,7 +238,7 @@ interface Props {
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, onPlaceTileOnAnchor, editorMode = 'place', constructSnap = true, constructAngleStep = DEFAULT_ANGLE_STEP, constructTool = 'line', showGuides = false, onAddGuide, onUpdateGuide, onDeleteGuide, picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature, onPaintGradientVoid, onDecorationVoids, showMorphOverlay = false, onSetMorphAxisOrigin, onSetMorphDirection, onSetMorphOriginPosition, onSetMorphOriginReach, onSetMorphOriginAutoReach, onSetMorphOriginSides, onDeleteMorphOrigin, onSetFrameGradient, onSetStrandGradient, viewBoundsRef }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, onPlaceTileOnAnchor, editorMode = 'place', constructSnap = true, constructAngleStep = DEFAULT_ANGLE_STEP, constructTool = 'line', showGuides = false, showDesignGuides = true, showGuideAnchors = true, showNeighbourGuides = true, onAddGuide, onUpdateGuide, onDeleteGuide, picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature, onPaintGradientVoid, onDecorationVoids, showMorphOverlay = false, onSetMorphAxisOrigin, onSetMorphDirection, onSetMorphOriginPosition, onSetMorphOriginReach, onSetMorphOriginAutoReach, onSetMorphOriginSides, onDeleteMorphOrigin, onSetFrameGradient, onSetStrandGradient, viewBoundsRef }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -559,15 +569,23 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // and Guide×Tile-edge/Boundary crossings) in Patch-world coords, tagged with
   // `stamp` so the dot colour signals world-space vs Patch-relative. Picking one
   // routes through the reducer's Guide-completion path.
+  // Slice 5 (#30) adds the **neighbour** Anchors: a stamping Guide's Anchors
+  // repeated onto every visible Lattice stamp, exposed under the same "Show
+  // neighbours" gate as the neighbour vertices they sit among. They are always
+  // Patch-relative, so completing on one produces an ordinary repeating Tile.
   const guideAnchorVertices = useMemo<Array<BoundaryVertex & { stamp: boolean }>>(() => {
     if (!editorActive || !config.editor || editorMode !== 'complete' || editorStrandMode) return []
-    return collectGuideAnchors(config.editor, patchRot).map((a, i) => ({
+    const anchors = collectGuideAnchors(config.editor, patchRot)
+    const neighbours = (showNeighbourGuides && editorNeighbourPreview)
+      ? neighbourGuideAnchors(config.editor, patchRot, ghostStampsOnly(neighbourStamps ?? []))
+      : []
+    return [...anchors, ...neighbours].map((a, i) => ({
       p: a.p,
       tileId: `guide-anchor/${a.guideId}`,
       vertexIndex: i,
       stamp: a.stamp,
     }))
-  }, [editorActive, config.editor, editorMode, editorStrandMode, patchRot])
+  }, [editorActive, config.editor, editorMode, editorStrandMode, patchRot, showNeighbourGuides, editorNeighbourPreview, neighbourStamps])
 
   // Lookup of Cell by id — shared by the section + vertex overlays to
   // transform each Cell's Cell-local geometry into Patch-local coords.
@@ -1034,10 +1052,28 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
 
   // Guides render across Design modes (they're scaffolding for Place /
   // Complete too); in Composition only behind the overlay toggle; never in
-  // Decoration (v1). Interactive only in Construct mode.
+  // Decoration (v1). Interactive only in Construct mode. Construct overrides
+  // the Design toggle — you cannot draw what you cannot see.
   const guideLayerVisible = editorActive && !decorationActive
     && (guides.length > 0 || constructActive)
-    && (!editorStrandMode || showGuides)
+    && (editorStrandMode ? showGuides : (showDesignGuides || constructActive))
+
+  // Slice 5 (#30) — the stamping Guides repeated onto the Lattice. In Design
+  // this rides the "Show neighbours" preview (the same stamp set the ghost
+  // Tiles use, so a Guide copy lines up with the neighbour it belongs to); in
+  // Composition it follows the full Lattice the Patch is stamped on. A Guide
+  // with stamp OFF never appears here — that difference is the whole point of
+  // the toggle.
+  const guideStampSet = useMemo<LatticeStamp[]>(() => {
+    if (!guideLayerVisible || !config.editor) return []
+    if (editorStrandMode) return ghostStampsOnly(compositionStamps ?? [])
+    if (!showNeighbourGuides || !editorNeighbourPreview) return []
+    return ghostStampsOnly(neighbourStamps ?? [])
+  }, [guideLayerVisible, config.editor, editorStrandMode, compositionStamps, showNeighbourGuides, editorNeighbourPreview, neighbourStamps])
+  const stampedGuides = useMemo(
+    () => (config.editor ? stampedGuideCopies(config.editor, guideStampSet) : []),
+    [config.editor, guideStampSet],
+  )
   // Tile-centre markers only while constructing (they're snap targets there).
   const guideTileCentres = useMemo<Vec2[]>(
     () => (constructActive && config.editor ? tileCentreAnchors(config.editor, patchRot).map(a => a.p) : []),
@@ -1046,6 +1082,8 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   const guideLayer = guideLayerVisible && config.editor ? (
     <EditorGuideLayer
       guides={guides}
+      stampedCopies={stampedGuides}
+      showAnchors={showGuideAnchors}
       patchEdgeLength={patchTickEdgeLength(config.editor)}
       tileCentres={guideTileCentres}
       bounds={guideBounds}

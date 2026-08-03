@@ -13,6 +13,8 @@ import {
   resolveHostCell,
 } from '../editor/patchSelectable'
 import { patchRotation } from '../editor/compositionLattice'
+import { ghostStampsOnly, neighbourGuideAnchors } from '../editor/guideStamps'
+import { neighbourStampsNear, validateMultiPick } from '../editor/patchSelectable'
 import { tileVertices } from '../editor/exposedEdges'
 
 const base = (): PatternConfig => ({
@@ -474,5 +476,54 @@ describe('Guides — symmetry-orbit groups (slice 4 / #29)', () => {
     expect(s.editor!.guides).toHaveLength(5)
     s = reducer(s, { type: 'EDITOR_DELETE_GUIDE', payload: { guideId: 'g1-s1' } })
     expect(s.editor!.guides!.map(g => g.id)).toEqual(['stray'])
+  })
+})
+
+describe('Guides — neighbour Anchors from stamping Guides (slice 5 / #30)', () => {
+  /**
+   * A stamping Guide's Anchors exist on every Lattice stamp too (#30). The
+   * validator and the reducer must both accept a pick there — and must still
+   * refuse it when the Guide does NOT stamp, which is the entire behavioural
+   * difference the stamp toggle promises.
+   */
+  const stampingLine = (): EditorGuideLine => ({
+    ...guide('gs'),
+    stamp: true,
+    start: { x: 0, y: 120 },
+    end: { x: 100, y: 120 },
+  })
+
+  const neighbourAnchor = (s: PatternConfig): Vec2 => {
+    const patch = s.editor!
+    const stamps = ghostStampsOnly(neighbourStampsNear(patch, [{ x: 0, y: 120 }, { x: 900, y: 120 }]))
+    const anchors = neighbourGuideAnchors(patch, patchRotation(patch), stamps)
+    expect(anchors.length).toBeGreaterThan(0)
+    return anchors[0].p
+  }
+
+  it('validateMultiPick accepts a neighbour Anchor but still refuses a non-stamping one', () => {
+    let s = base()
+    s = reducer(s, { type: 'EDITOR_ADD_GUIDE', payload: { guide: stampingLine() } })
+    const p = neighbourAnchor(s)
+    // Alone it is not grounding — with two real Cell vertices it is a valid pick.
+    const cell = s.editor!.cells[0]
+    const seedVerts = tileVertices(cell.tiles[0]).map(v => applyCellTransform(v, cell, patchRotation(s.editor!)))
+    expect(validateMultiPick(s.editor!, [seedVerts[0], seedVerts[1], p]).kind).not.toBe('pick-not-selectable')
+
+    // Same geometry with stamp OFF: the neighbour copy does not exist.
+    const off = reducer(s, { type: 'EDITOR_UPDATE_GUIDE', payload: { guideId: 'gs', patch: { stamp: false } } })
+    expect(validateMultiPick(off.editor!, [seedVerts[0], seedVerts[1], p]).kind).toBe('pick-not-selectable')
+  })
+
+  it('a neighbour Anchor alone cannot ground a Complete', () => {
+    let s = base()
+    s = reducer(s, { type: 'EDITOR_ADD_GUIDE', payload: { guide: stampingLine() } })
+    const patch = s.editor!
+    const stamps = ghostStampsOnly(neighbourStampsNear(patch, [{ x: 0, y: 120 }, { x: 900, y: 120 }]))
+    const anchors = neighbourGuideAnchors(patch, patchRotation(patch), stamps)
+    const picks = anchors.slice(0, 3).map(a => a.p)
+    expect(picks).toHaveLength(3)
+    expect(validateMultiPick(patch, picks).kind).toBe('no-real-cell-pick')
+    expect(reducer(s, { type: 'EDITOR_COMPLETE_N_GAP', payload: { picks } })).toBe(s)
   })
 })

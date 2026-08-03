@@ -60,6 +60,7 @@ import type { LatticeStamp } from '../editor/lattice'
 import { centroid, pointsEqual } from '../utils/math'
 import { EDITOR_EPS } from '../editor/exposedEdges'
 import { collectGuideAnchors, type GuideAnchor } from '../editor/guides'
+import { isNeighbourGuideAnchor } from '../editor/guideStamps'
 import { expandGuideOrbit, guideGroupIds, regenerateGuideGroup } from '../editor/guideOrbit'
 
 const FALLBACK_FIGURE: FigureConfig = { type: 'star', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
@@ -1193,7 +1194,14 @@ function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[], force
   const guideAnchors = collectGuideAnchors(patch, patchRot)
   const guideAnchorAt = (p: Vec2): GuideAnchor | undefined =>
     guideAnchors.find(a => pointsEqual(p, a.p, EDITOR_EPS))
-  if (!picks.every(p => isPatchSelectableVertex(patch, p, true) || guideAnchorAt(p))) return state
+  // Slice 5 (#30): a stamping Guide's Anchors repeat onto every Lattice stamp
+  // and are pickable there, exactly like neighbour vertices — and, like them,
+  // they do NOT ground a completion (the grounding test below stays local).
+  const neighbourGuideAnchorAt = (p: Vec2): boolean =>
+    isNeighbourGuideAnchor(patch, patchRot, neighbourStampsNear(patch, [p]), p, EDITOR_EPS)
+  const pickable = (p: Vec2): boolean =>
+    isPatchSelectableVertex(patch, p, true) || !!guideAnchorAt(p) || neighbourGuideAnchorAt(p)
+  if (!picks.every(pickable)) return state
   // Grounding rule (spec Decision 4 relaxes it): at least one pick must be a
   // real Patch vertex OR a Guide Anchor — so free-standing Anchor-only Completes
   // are allowed, while polygons built purely from neighbour ghosts / Frame
@@ -1258,7 +1266,7 @@ function multiPickCompleteAcrossPatch(state: PatternConfig, picks: Vec2[], force
     // drop silently for asymmetric setups where the orbit branch has no real
     // pick targets.
     const patchLocal = transformed.map(p => applyCellTransform(p, host, patchRot))
-    if (!patchLocal.every(p => isPatchSelectableVertex(patch, p, true) || guideAnchorAt(p))) continue
+    if (!patchLocal.every(pickable)) continue
     const c = centroid(transformed)
     if (seenCentroids.some(q => pointsEqual(c, q, EDITOR_EPS))) continue
     seenCentroids.push(c)

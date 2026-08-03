@@ -1,7 +1,9 @@
 import { memo } from 'react'
 import type { EditorGuide, EditorGuideCircle, EditorGuideLine } from '../types/editor'
 import type { Vec2 } from '../utils/math'
+import type { StampedGuide } from '../editor/guideStamps'
 import {
+  guideAnchorPoints,
   guideCircleDivisionPoints,
   guideCircleManualPoints,
   guideCircleRadiusPoint,
@@ -39,6 +41,16 @@ export type GuideHandle = 'start' | 'end' | 'center' | 'radius'
 
 interface Props {
   guides: EditorGuide[]
+  /**
+   * Slice 5 (#30): copies of the **stamping** Guides on the surrounding Lattice
+   * stamps — the visible half of the stamp toggle. Drawn first, faded and
+   * non-interactive, so the live Patch's Guides always read as the foreground.
+   * Empty when no Guide stamps or the caller's neighbour/Lattice overlay is off.
+   */
+  stampedCopies?: StampedGuide[]
+  /** Passive Anchor dots (ticks, divisions, manual, intersections, Tile
+   *  centres) — the Guide + Anchor overlay toggles are separate (#30). */
+  showAnchors?: boolean
   /** Default tick spacing (the Seed-Tile edge length). */
   patchEdgeLength: number
   /** Tile centres (Patch-world coords) — passive centre-Anchor markers shown
@@ -69,6 +81,8 @@ const HANDLE_HALF = 5
 
 export const EditorGuideLayer = memo(function EditorGuideLayer({
   guides,
+  stampedCopies = [],
+  showAnchors = true,
   patchEdgeLength,
   tileCentres,
   bounds,
@@ -128,14 +142,48 @@ export const EditorGuideLayer = memo(function EditorGuideLayer({
     />
   )
 
+  /**
+   * A Lattice copy of a stamping Guide — stroke plus its Anchor dots, at ghost
+   * opacity and `pointerEvents: none`. Deliberately NOT the full renderer: a
+   * copy is not selectable, carries no drag handles and no hit stroke, and the
+   * extended (dashed) span is dropped so a `both`-extended Guide repeated over
+   * a wide lattice doesn't wash the canvas out.
+   */
+  const renderStampedCopy = ({ guide: g, stampIndex }: StampedGuide) => {
+    const colour = guideColour(g)
+    const anchors = showAnchors ? guideAnchorPoints(g, patchEdgeLength) : []
+    const key = `s${stampIndex}/${g.id}`
+    return (
+      <g key={key} pointerEvents="none" opacity={0.34}>
+        {g.kind === 'circle'
+          ? (g.radius > 0 && (
+              <circle
+                cx={g.center.x} cy={g.center.y} r={g.radius}
+                fill="none" stroke={colour} strokeWidth={1.3}
+                vectorEffect="non-scaling-stroke"
+              />
+            ))
+          : (
+            <line
+              x1={g.start.x} y1={g.start.y} x2={g.end.x} y2={g.end.y}
+              stroke={colour} strokeWidth={1.3} vectorEffect="non-scaling-stroke"
+            />
+          )}
+        {anchors.map((p, i) => (
+          <circle key={i} cx={p.x} cy={p.y} r={r(1.8)} fill={colour} fillOpacity={0.85} />
+        ))}
+      </g>
+    )
+  }
+
   const renderLine = (g: EditorGuideLine) => {
     const span = guideLineSpan(g, bounds)
     if (!span) return null
     const colour = guideColour(g)
     const selected = g.id === selectedGuideId
     const lit = inSelectedGroup(g)
-    const ticks = guideTickPoints(g, patchEdgeLength)
-    const manual = guideManualAnchorPoints(g)
+    const ticks = showAnchors ? guideTickPoints(g, patchEdgeLength) : []
+    const manual = showAnchors ? guideManualAnchorPoints(g) : []
     return (
       <g key={g.id}>
         {/* Extended portions — dashed, lower opacity, under the solid segment. */}
@@ -182,9 +230,9 @@ export const EditorGuideLayer = memo(function EditorGuideLayer({
     const colour = guideColour(g)
     const selected = g.id === selectedGuideId
     const lit = inSelectedGroup(g)
-    const ticks = guideCircleTickPoints(g, patchEdgeLength)
-    const divisions = guideCircleDivisionPoints(g)
-    const manual = guideCircleManualPoints(g)
+    const ticks = showAnchors ? guideCircleTickPoints(g, patchEdgeLength) : []
+    const divisions = showAnchors ? guideCircleDivisionPoints(g) : []
+    const manual = showAnchors ? guideCircleManualPoints(g) : []
     const radiusPoint = guideCircleRadiusPoint(g)
     return (
       <g key={g.id}>
@@ -234,10 +282,14 @@ export const EditorGuideLayer = memo(function EditorGuideLayer({
   return (
     <g id="editor-guide-layer" pointerEvents={interactive ? undefined : 'none'}>
 
+      {/* Lattice copies of the stamping Guides (#30) — behind the live Patch's
+          own Guides so the foreground stays legible. */}
+      <g id="editor-guide-stamps">{stampedCopies.map(renderStampedCopy)}</g>
+
       {guides.map(g => (g.kind === 'circle' ? renderCircle(g) : renderLine(g)))}
 
       {/* Guide×Guide intersection Anchors — passive × glyphs. */}
-      {intersections.map((p, i) => (
+      {showAnchors && intersections.map((p, i) => (
         <g key={`x${i}`} pointerEvents="none" stroke="var(--text-muted)" strokeWidth={1.2} strokeOpacity={0.75}>
           <line x1={p.x - r(3)} y1={p.y - r(3)} x2={p.x + r(3)} y2={p.y + r(3)} vectorEffect="non-scaling-stroke" />
           <line x1={p.x - r(3)} y1={p.y + r(3)} x2={p.x + r(3)} y2={p.y - r(3)} vectorEffect="non-scaling-stroke" />

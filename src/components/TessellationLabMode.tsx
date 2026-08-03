@@ -227,6 +227,13 @@ export function TessellationLabMode({
   const [constructSnap, setConstructSnap] = useState(true)
   // Composition-Phase Guides overlay toggle — hidden by default (Decision 9).
   const [showGuides, setShowGuides] = useState(false)
+  // Guides overlay toggles (#30). Design-Phase strokes and the Anchor dots
+  // default ON (Guides exist to be seen while placing); the neighbours variant
+  // defaults ON too, so a Guide flipped to stamp shows what stamping means
+  // immediately. None is persisted — all session UI state, like `showGuides`.
+  const [showDesignGuides, setShowDesignGuides] = useState(true)
+  const [showGuideAnchors, setShowGuideAnchors] = useState(true)
+  const [showNeighbourGuides, setShowNeighbourGuides] = useState(true)
   // Morph overlay visibility toggle (2026-07-18) — shown by default; lets the
   // user view the Composition without the Boundary lines/handles while the
   // Morph stays enabled. MorphPanel flips it back on when adding a Boundary
@@ -533,6 +540,7 @@ export function TessellationLabMode({
         value: describeLabOverlays({
           showStrands, showTiles, showGuides, showBoundaryLattice,
           showNeighbours, showNeighbourBoundaries, showNeighbourStrands,
+          showDesignGuides, showGuideAnchors, showNeighbourGuides,
         }),
       },
       { label: 'Tile outline weight', value: `${outlineWidth} px` },
@@ -610,6 +618,12 @@ export function TessellationLabMode({
                 onSetConstructSnap={setConstructSnap}
                 showGuides={showGuides}
                 onToggleShowGuides={setShowGuides}
+                showDesignGuides={showDesignGuides}
+                onToggleShowDesignGuides={setShowDesignGuides}
+                showGuideAnchors={showGuideAnchors}
+                onToggleShowGuideAnchors={setShowGuideAnchors}
+                showNeighbourGuides={showNeighbourGuides}
+                onToggleShowNeighbourGuides={setShowNeighbourGuides}
                 picks={picks}
                 multiMode={multiMode}
                 onCancelComplete={resetPicks}
@@ -1000,6 +1014,9 @@ export function TessellationLabMode({
         constructAngleStep={constructAngleStep}
         constructTool={constructTool}
         showGuides={showGuides}
+        showDesignGuides={showDesignGuides}
+        showGuideAnchors={showGuideAnchors}
+        showNeighbourGuides={showNeighbourGuides}
         onAddGuide={handleAddGuide}
         onUpdateGuide={handleUpdateGuide}
         onDeleteGuide={handleDeleteGuide}

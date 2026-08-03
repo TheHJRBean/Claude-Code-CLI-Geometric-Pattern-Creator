@@ -9,6 +9,7 @@ import { frameOutlinePolygon } from '../../editor/frame'
 import { patternDecoration } from '../../decoration/store'
 import { FieldLabel, segmentedButtonStyle } from './labShared'
 import { DecorationPanel } from './DecorationPanel'
+import { FramePanel } from './FramePanel'
 
 /**
  * Lab controls for a **legacy substrate** — a pattern with no Builder Patch (a
@@ -160,6 +161,18 @@ export function LegacySubstrateControls({
           onClearGradientSelection={onClearGradientSelection}
         />
       )}
+
+      {/* Frame (2026-08-03) — the same persistent overlay the Builder offers,
+          on the top-level `config.frame` this substrate keeps it in. Clip-only
+          (no Patch ⇒ no completion, no lattice to ring), which is exactly what
+          the Gallery Frame always was. Rendering needed nothing new: Canvas
+          already clips a non-editor tiling to `config.frame` and draws its
+          border stroke — only the controls were missing. */}
+      <FramePanel
+        substrate="legacy"
+        frame={config.frame}
+        onSetFrame={f => dispatch({ type: 'SET_GALLERY_FRAME', payload: f })}
+      />
     </>
   )
 }

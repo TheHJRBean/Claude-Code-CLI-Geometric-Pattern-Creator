@@ -1,10 +1,7 @@
-import type { PatternConfig } from '../../types/pattern'
-import type { Action } from '../../state/actions'
 import type { FrameConfig, FrameType, FrameShape } from '../../types/editor'
 import { DEFAULT_FRAME_SIZE, MIN_FRAME_SIZE, MAX_FRAME_SIZE, SQRT2 } from '../../editor/frame'
 import { DEFAULT_FRAME_RINGS, MIN_FRAME_RINGS, MAX_FRAME_RINGS } from '../../editor/frameNRing'
 import { useState } from 'react'
-import { activeCell } from '../../editor/active'
 import { FieldLabel, NumberStepper, NudgePad, SectionTitle } from './labShared'
 
 /** Frame origin nudge range (matches the X/Y slider extents). */
@@ -29,37 +26,50 @@ const resetBtnStyle: React.CSSProperties = {
 }
 
 /**
- * Frame overlay controls in the Builder sidebar — a persistent bounded-region
+ * Frame overlay controls in the Lab sidebar — a persistent bounded-region
  * overlay present across phases. Offers Shape (parametric) and n-Ring frame
  * types and their geometry sliders. Extracted from `EditorDesignControls`.
+ *
+ * Substrate-agnostic (2026-08-03): the Builder passes `editor.frame` +
+ * `SET_FRAME`, a **legacy substrate** (Gallery preset / Generator sample / any
+ * view-only tiling in the Lab) passes the top-level `config.frame` +
+ * `SET_GALLERY_FRAME`. The legacy variant is clip-only — there is no Patch, so
+ * no n-Ring lattice and no completion-to-frame — so its Frames are created with
+ * `boundaryTreatment: 'clip'` and it hides the type row and the frame-tile
+ * controls. Everything else (shape / size / ratio / angle / origin) is shared,
+ * because `frameOutlinePolygon` is the same geometry on both paths.
  */
 export function FramePanel({
-  editor,
-  dispatch,
+  substrate,
+  frame,
+  onSetFrame,
+  nRingSupported = false,
 }: {
-  editor: NonNullable<PatternConfig['editor']>
-  dispatch: React.Dispatch<Action>
+  substrate: 'patch' | 'legacy'
+  /** The Frame in force, from whichever home this substrate keeps it in. */
+  frame: FrameConfig | undefined
+  /** Write it back there; `null` removes the Frame. */
+  onSetFrame: (f: FrameConfig | null) => void
+  /** Whether this substrate can offer an n-Ring Frame at all (Patch only). */
+  nRingSupported?: boolean
 }) {
-  const cell = activeCell(editor)
-  const multiCell = editor.cells.length > 1
-  // n-ring Frames support every multi-cell Configuration (the whole Patch tiles
-  // by translation), and single-cell square / hexagon / triangle. Only a
-  // single-cell octagon / dodecagon Patch has no lattice and stays unsupported.
-  const nRingSupported = multiCell || cell.shape === 'square' || cell.shape === 'hexagon' || cell.shape === 'triangle'
+  const isPatch = substrate === 'patch'
   // Frame — update a Frame geometry field. Geometry changes move the frame
   // nodes, so clear `completedTiles` (frame-scoped completions are anchored to
   // the old outline; the user re-completes against the new edge).
   const updateFrameGeom = (partial: Partial<FrameConfig>) => {
-    if (!editor.frame) return
-    dispatch({ type: 'SET_FRAME', payload: { ...editor.frame, ...partial, completedTiles: [] } })
+    if (!frame) return
+    onSetFrame({ ...frame, ...partial, completedTiles: [] })
   }
+  /** Boundary treatment a newly created Shape Frame gets on this substrate. */
+  const newShapeTreatment = isPatch ? 'complete' as const : 'clip' as const
   // Collapse the whole panel once a Frame exists, so its tall control stack can
   // be tucked away without removing the Frame. The chevron only appears once a
   // Frame is opened (`hasFrame`); with no Frame the body is just the two create
   // buttons, so a persisted `collapsed` stays dormant rather than hiding them
   // behind a chevron that isn't rendered. Persisted so the choice survives
   // leaving/re-entering the Lab (mirrors the sidebar section-collapse memory).
-  const hasFrame = !!editor.frame
+  const hasFrame = !!frame
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     try { return localStorage.getItem('lab-frame-collapsed') === '1' } catch { return false }
   })
@@ -74,7 +84,9 @@ export function FramePanel({
       <SectionTitle
         open={!isCollapsed}
         onToggle={hasFrame ? toggleCollapsed : undefined}
-        tooltip="A persistent bounded region the pattern clips to. In Complete mode, the frame's edge nodes are clickable targets so you can complete tiles out to the edge. Shape = parametric outline; n-Ring = whole-patch shells (clip-only)."
+        tooltip={isPatch
+          ? "A persistent bounded region the pattern clips to. In Complete mode, the frame's edge nodes are clickable targets so you can complete tiles out to the edge. Shape = parametric outline; n-Ring = whole-patch shells (clip-only)."
+          : 'A persistent bounded region the pattern clips to — a parametric outline (square / hexagon / octagon) you size, stretch, turn and place.'}
       >
         Frame
       </SectionTitle>
@@ -88,20 +100,26 @@ export function FramePanel({
         lineHeight: 1.45,
         border: '1px solid var(--border-subtle)',
       }}>
-        A <strong>Frame</strong> bounds the pattern — it's clipped to the
-        outline. Switch to <strong>Complete</strong> mode and the frame's
-        edge <strong>nodes</strong> become clickable: pick frame nodes plus
-        interior vertices to complete tiles out to the edge.
+        {isPatch ? (<>
+          A <strong>Frame</strong> bounds the pattern — it's clipped to the
+          outline. Switch to <strong>Complete</strong> mode and the frame's
+          edge <strong>nodes</strong> become clickable: pick frame nodes plus
+          interior vertices to complete tiles out to the edge.
+        </>) : (<>
+          A <strong>Frame</strong> bounds the pattern — the infinite field is
+          clipped to the outline. Completion out to the edge needs a Patch, so
+          here the Frame is clip-only.
+        </>)}
       </div>
-      {!editor.frame ? (
-        // No Frame imposed yet (the overlay stays opt-in). Both Frame types
-        // are offered directly so the n-ring isn't buried behind a
-        // shape-frame-then-switch detour.
+      {!frame ? (
+        // No Frame imposed yet (the overlay stays opt-in). On a Patch both
+        // Frame types are offered directly so the n-ring isn't buried behind a
+        // shape-frame-then-switch detour; a legacy substrate has no lattice to
+        // ring, so it gets the one button.
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <button
-            onClick={() => dispatch({
-              type: 'SET_FRAME',
-              payload: { type: 'shape', shape: 'square', size: DEFAULT_FRAME_SIZE, boundaryTreatment: 'complete' },
+            onClick={() => onSetFrame({
+              type: 'shape', shape: 'square', size: DEFAULT_FRAME_SIZE, boundaryTreatment: newShapeTreatment,
             })}
             style={{
               width: '100%',
@@ -119,11 +137,9 @@ export function FramePanel({
           >
             + Shape Frame
           </button>
+          {isPatch && (
           <button
-            onClick={() => dispatch({
-              type: 'SET_FRAME',
-              payload: { type: 'n-ring', rings: DEFAULT_FRAME_RINGS },
-            })}
+            onClick={() => onSetFrame({ type: 'n-ring', rings: DEFAULT_FRAME_RINGS })}
             disabled={!nRingSupported}
             title={nRingSupported ? undefined : 'n-Ring frames need a square, hexagon, or triangle Patch (single-cell octagon / dodecagon has no lattice).'}
             style={{
@@ -142,39 +158,39 @@ export function FramePanel({
           >
             + n-Ring Frame
           </button>
+          )}
         </div>
       ) : (
         <>
+          {isPatch && (<>
           <FieldLabel
             label="Frame type"
             tooltip="Shape = a parametric outline (square / √2 / hex / oct) the pattern is completed out to. n-Ring = the centre Patch plus N neighbour shells, clipped to whole patches (no completion)."
           />
           <select
             className="pattern-select"
-            value={editor.frame.type}
+            value={frame.type}
             onChange={e => {
               const type = e.target.value as FrameType
-              if (type === editor.frame!.type) return
-              dispatch({
-                type: 'SET_FRAME',
-                payload: type === 'n-ring'
-                  ? { type: 'n-ring', rings: editor.frame!.rings ?? DEFAULT_FRAME_RINGS }
-                  : { type: 'shape', shape: editor.frame!.shape ?? 'square', size: editor.frame!.size ?? DEFAULT_FRAME_SIZE, boundaryTreatment: 'complete' },
-              })
+              if (type === frame.type) return
+              onSetFrame(type === 'n-ring'
+                ? { type: 'n-ring', rings: frame.rings ?? DEFAULT_FRAME_RINGS }
+                : { type: 'shape', shape: frame.shape ?? 'square', size: frame.size ?? DEFAULT_FRAME_SIZE, boundaryTreatment: newShapeTreatment })
             }}
             style={{ marginBottom: 10 }}
           >
             <option value="shape">Shape (parametric)</option>
             <option value="n-ring" disabled={!nRingSupported}>n-Ring (whole patches)</option>
           </select>
-          {editor.frame.type === 'shape' && (<>
+          </>)}
+          {frame.type === 'shape' && (<>
           <FieldLabel
             label="Frame shape"
             tooltip="Outline shape the Composition is clipped to. A square + aspect √2 gives the A-series rectangle."
           />
           <select
             className="pattern-select"
-            value={editor.frame.shape ?? 'square'}
+            value={frame.shape ?? 'square'}
             onChange={e => updateFrameGeom({ shape: e.target.value as FrameShape })}
             style={{ marginBottom: 10 }}
           >
@@ -191,13 +207,13 @@ export function FramePanel({
             min={MIN_FRAME_SIZE}
             max={MAX_FRAME_SIZE}
             step={1}
-            value={editor.frame.size ?? DEFAULT_FRAME_SIZE}
+            value={frame.size ?? DEFAULT_FRAME_SIZE}
             onChange={e => updateFrameGeom({ size: Number(e.target.value) })}
             style={{ width: '100%', marginBottom: 6 }}
           />
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
             <NumberStepper
-              value={Math.round(editor.frame.size ?? DEFAULT_FRAME_SIZE)}
+              value={Math.round(frame.size ?? DEFAULT_FRAME_SIZE)}
               onChange={v => updateFrameGeom({ size: v })}
               min={MIN_FRAME_SIZE}
               max={MAX_FRAME_SIZE}
@@ -215,7 +231,7 @@ export function FramePanel({
               min={0.5}
               max={2}
               step={0.01}
-              value={editor.frame.aspect ?? 1}
+              value={frame.aspect ?? 1}
               onChange={e => updateFrameGeom({ aspect: Number(e.target.value) })}
               style={{ flex: 1 }}
             />
@@ -239,7 +255,7 @@ export function FramePanel({
           </div>
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
             <NumberStepper
-              value={Number((editor.frame.aspect ?? 1).toFixed(2))}
+              value={Number((frame.aspect ?? 1).toFixed(2))}
               onChange={v => updateFrameGeom({ aspect: v })}
               min={0.5}
               max={2}
@@ -257,13 +273,13 @@ export function FramePanel({
             min={0}
             max={360}
             step={1}
-            value={Math.round(((editor.frame.rotation ?? 0) * 180) / Math.PI)}
+            value={Math.round(((frame.rotation ?? 0) * 180) / Math.PI)}
             onChange={e => updateFrameGeom({ rotation: (Number(e.target.value) * Math.PI) / 180 })}
             style={{ width: '100%', marginBottom: 6 }}
           />
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
             <NumberStepper
-              value={Math.round(((editor.frame.rotation ?? 0) * 180) / Math.PI)}
+              value={Math.round(((frame.rotation ?? 0) * 180) / Math.PI)}
               onChange={deg => updateFrameGeom({ rotation: (deg * Math.PI) / 180 })}
               min={0}
               max={360}
@@ -274,7 +290,7 @@ export function FramePanel({
           </div>
           <FieldLabel
             label="Frame origin"
-            tooltip="Centre of the Frame in world coordinates. (0, 0) = the seed Patch centre. Use the arrow pad to move it precisely; ⊙ recentres."
+            tooltip={`Centre of the Frame in world coordinates. (0, 0) = ${isPatch ? 'the seed Patch centre' : 'the pattern origin'}. Use the arrow pad to move it precisely; ⊙ recentres.`}
           />
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 10 }}>
             <div style={{ flex: 1 }}>
@@ -285,8 +301,8 @@ export function FramePanel({
                   min={-FRAME_ORIGIN_RANGE}
                   max={FRAME_ORIGIN_RANGE}
                   step={1}
-                  value={editor.frame.origin?.x ?? 0}
-                  onChange={e => updateFrameGeom({ origin: { x: Number(e.target.value), y: editor.frame!.origin?.y ?? 0 } })}
+                  value={frame.origin?.x ?? 0}
+                  onChange={e => updateFrameGeom({ origin: { x: Number(e.target.value), y: frame.origin?.y ?? 0 } })}
                   style={{ flex: 1 }}
                 />
               </div>
@@ -297,8 +313,8 @@ export function FramePanel({
                   min={-FRAME_ORIGIN_RANGE}
                   max={FRAME_ORIGIN_RANGE}
                   step={1}
-                  value={editor.frame.origin?.y ?? 0}
-                  onChange={e => updateFrameGeom({ origin: { x: editor.frame!.origin?.x ?? 0, y: Number(e.target.value) } })}
+                  value={frame.origin?.y ?? 0}
+                  onChange={e => updateFrameGeom({ origin: { x: frame.origin?.x ?? 0, y: Number(e.target.value) } })}
                   style={{ flex: 1 }}
                 />
               </div>
@@ -306,8 +322,8 @@ export function FramePanel({
             <NudgePad
               step={10}
               onNudge={(dx, dy) => updateFrameGeom({ origin: {
-                x: clampOrigin((editor.frame!.origin?.x ?? 0) + dx),
-                y: clampOrigin((editor.frame!.origin?.y ?? 0) + dy),
+                x: clampOrigin((frame.origin?.x ?? 0) + dx),
+                y: clampOrigin((frame.origin?.y ?? 0) + dy),
               } })}
               onCenter={() => updateFrameGeom({ origin: { x: 0, y: 0 } })}
             />
@@ -315,12 +331,12 @@ export function FramePanel({
           <button onClick={() => updateFrameGeom(SHAPE_FRAME_DEFAULTS)} style={resetBtnStyle}>
             Reset frame
           </button>
+          {/* Frame-scoped completions only exist on a Patch — a legacy
+              substrate is clipped, never completed out to the edge. */}
+          {isPatch && (
           <button
-            onClick={() => dispatch({
-              type: 'SET_FRAME',
-              payload: { ...editor.frame!, completedTiles: [] },
-            })}
-            disabled={!editor.frame.completedTiles?.length}
+            onClick={() => onSetFrame({ ...frame, completedTiles: [] })}
+            disabled={!frame.completedTiles?.length}
             style={{
               width: '100%',
               padding: '6px 0',
@@ -330,16 +346,17 @@ export function FramePanel({
               fontWeight: 600,
               letterSpacing: '0.06em',
               textTransform: 'uppercase',
-              cursor: editor.frame.completedTiles?.length ? 'pointer' : 'default',
-              color: editor.frame.completedTiles?.length ? 'var(--text-muted)' : 'var(--border-subtle)',
+              cursor: frame.completedTiles?.length ? 'pointer' : 'default',
+              color: frame.completedTiles?.length ? 'var(--text-muted)' : 'var(--border-subtle)',
               background: 'transparent',
               border: '1px solid var(--border-subtle)',
             }}
           >
             Clear frame tiles
           </button>
+          )}
           </>)}
-          {editor.frame.type === 'n-ring' && (
+          {frame.type === 'n-ring' && (
             <>
               <div style={{
                 padding: '6px 9px',
@@ -350,7 +367,7 @@ export function FramePanel({
                 lineHeight: 1.4,
                 border: '1px solid var(--border-subtle)',
               }}>
-                Clips to the centre Patch plus <strong>{editor.frame.rings ?? DEFAULT_FRAME_RINGS}</strong> shell{(editor.frame.rings ?? DEFAULT_FRAME_RINGS) === 1 ? '' : 's'} of
+                Clips to the centre Patch plus <strong>{frame.rings ?? DEFAULT_FRAME_RINGS}</strong> shell{(frame.rings ?? DEFAULT_FRAME_RINGS) === 1 ? '' : 's'} of
                 whole neighbour Patches — no completion (the field already
                 tiles the region exactly).
               </div>
@@ -363,14 +380,14 @@ export function FramePanel({
                 min={MIN_FRAME_RINGS}
                 max={MAX_FRAME_RINGS}
                 step={1}
-                value={editor.frame.rings ?? DEFAULT_FRAME_RINGS}
-                onChange={e => dispatch({ type: 'SET_FRAME', payload: { ...editor.frame!, rings: Number(e.target.value) } })}
+                value={frame.rings ?? DEFAULT_FRAME_RINGS}
+                onChange={e => onSetFrame({ ...frame, rings: Number(e.target.value) })}
                 style={{ width: '100%', marginBottom: 6 }}
               />
               <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
                 <NumberStepper
-                  value={editor.frame.rings ?? DEFAULT_FRAME_RINGS}
-                  onChange={v => dispatch({ type: 'SET_FRAME', payload: { ...editor.frame!, rings: v } })}
+                  value={frame.rings ?? DEFAULT_FRAME_RINGS}
+                  onChange={v => onSetFrame({ ...frame, rings: v })}
                   min={MIN_FRAME_RINGS}
                   max={MAX_FRAME_RINGS}
                   step={1}
@@ -386,13 +403,13 @@ export function FramePanel({
                 min={0}
                 max={360}
                 step={1}
-                value={Math.round(((editor.frame.rotation ?? 0) * 180) / Math.PI)}
+                value={Math.round(((frame.rotation ?? 0) * 180) / Math.PI)}
                 onChange={e => updateFrameGeom({ rotation: (Number(e.target.value) * Math.PI) / 180 })}
                 style={{ width: '100%', marginBottom: 6 }}
               />
               <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
                 <NumberStepper
-                  value={Math.round(((editor.frame.rotation ?? 0) * 180) / Math.PI)}
+                  value={Math.round(((frame.rotation ?? 0) * 180) / Math.PI)}
                   onChange={deg => updateFrameGeom({ rotation: (deg * Math.PI) / 180 })}
                   min={0}
                   max={360}
@@ -402,7 +419,7 @@ export function FramePanel({
                 />
               </div>
               <button
-                onClick={() => dispatch({ type: 'SET_FRAME', payload: { ...editor.frame!, rings: DEFAULT_FRAME_RINGS, rotation: 0 } })}
+                onClick={() => onSetFrame({ ...frame, rings: DEFAULT_FRAME_RINGS, rotation: 0 })}
                 style={resetBtnStyle}
               >
                 Reset frame
@@ -410,7 +427,7 @@ export function FramePanel({
             </>
           )}
           <button
-            onClick={() => dispatch({ type: 'SET_FRAME', payload: null })}
+            onClick={() => onSetFrame(null)}
             style={{
               width: '100%',
               padding: '6px 0',

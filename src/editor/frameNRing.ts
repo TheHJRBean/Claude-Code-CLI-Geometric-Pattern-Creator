@@ -5,6 +5,7 @@ import { EDITOR_EPS } from './exposedEdges'
 import { editorBoundaryVertices } from './buildEditorPolygons'
 import { expandedLattice, applyStamp, type LatticeStamp } from './lattice'
 import { compositionBoundaryOutlines, compositionCellBasis } from './compositionLattice'
+import { activeCell } from './active'
 
 /**
  * Step 17 Framing slice 10 — **n-ring** Frame geometry.
@@ -38,6 +39,18 @@ import { compositionBoundaryOutlines, compositionCellBasis } from './composition
 export const DEFAULT_FRAME_RINGS = 1
 export const MIN_FRAME_RINGS = 0
 export const MAX_FRAME_RINGS = 6
+
+/**
+ * Whether this Patch can carry an n-ring Frame at all — i.e. whether it has a
+ * lattice to ring. Every multi-cell Configuration tiles by translation; a
+ * single Cell tiles only when it's a square, hexagon or triangle. (A legacy
+ * substrate has no Patch and never reaches here — it gets Shape Frames only.)
+ */
+export function nRingFrameSupported(patch: EditorPatch): boolean {
+  if (patch.cells.length > 1) return true
+  const cell = activeCell(patch)
+  return !!cell && (cell.shape === 'square' || cell.shape === 'hexagon' || cell.shape === 'triangle')
+}
 
 /**
  * Lattice-cell stamps (centre included) for the N-ring neighbourhood of `cell`,

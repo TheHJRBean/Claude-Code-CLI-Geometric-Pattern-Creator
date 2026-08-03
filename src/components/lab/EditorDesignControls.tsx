@@ -11,6 +11,7 @@ import { CompositionPanel } from './CompositionPanel'
 import { DecorationPanel } from './DecorationPanel'
 import { patchSeedBBox } from './decorationSeedBox'
 import { FramePanel } from './FramePanel'
+import { nRingFrameSupported } from '../../editor/frameNRing'
 import { MorphPanel } from './MorphPanel'
 import { DesignPanel } from './DesignPanel'
 
@@ -240,7 +241,15 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
         />
       )}
 
-      <FramePanel editor={editor} dispatch={dispatch} />
+      <FramePanel
+        substrate="patch"
+        frame={editor.frame}
+        onSetFrame={f => dispatch({ type: 'SET_FRAME', payload: f })}
+        // n-ring Frames support every multi-cell Configuration (the whole Patch
+        // tiles by translation), and single-cell square / hexagon / triangle.
+        // Only a single-cell octagon / dodecagon Patch has no lattice.
+        nRingSupported={nRingFrameSupported(editor)}
+      />
 
       {/* Morph (Step 20 slice 2, #38) — authored in Composition only; frozen
           in Decoration like Strand geometry (user decision 2026-07-18). The

@@ -6,7 +6,13 @@ import type { PatternConfig } from '../types/pattern'
 import type { EditorGuideLine, EditorRegularTile, EditorTile } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import { DESIGN_MODE_ACTIONS, historyCoalesceKey } from '../editor/history'
-import { frameSelectablePoints } from '../editor/patchSelectable'
+import {
+  applyCellTransform,
+  cellContainingPoint,
+  frameSelectablePoints,
+  resolveHostCell,
+} from '../editor/patchSelectable'
+import { patchRotation } from '../editor/compositionLattice'
 import { tileVertices } from '../editor/exposedEdges'
 
 const base = (): PatternConfig => ({
@@ -195,14 +201,20 @@ describe('Guides — Place on Anchors (slice 3 / #33)', () => {
     // scale, Anchor placements must still mint at the Cell-Tile edge length
     // (`cellPlacementEdgeLength`) — in BOTH the stamping and world-space
     // branches. 4.8.8 seed with edgeLength forced 2.5× the seed Tiles'.
+    //
+    // Tracks the RESOLVED HOST Cell, not `activeCellId` (#34). This assertion
+    // used to follow the active Cell and passed only because hosting was
+    // hard-wired to it; FAR sits outside every Boundary, so `resolveHostCell`
+    // falls back to the nearest Cell centre — the square, not the active
+    // octagon. The sizing property under test is unchanged either way.
     const FAR = { x: 900, y: 900 }
     const s: PatternConfig = {
       ...structuredClone(DEFAULT_CONFIG),
       tiling: { type: 'editor', scale: 1 },
       editor: createDefault488EditorConfig(),
     }
-    const activeId = s.editor!.activeCellId
-    const activeBefore = s.editor!.cells.find(c => c.id === activeId) ?? s.editor!.cells[0]
+    const hostId = resolveHostCell(s.editor!, FAR, patchRotation(s.editor!)).id
+    const activeBefore = s.editor!.cells.find(c => c.id === hostId) ?? s.editor!.cells[0]
     const seedEdge = (activeBefore.tiles[0] as EditorRegularTile).edgeLength
     s.editor!.edgeLength = seedEdge * 2.5
     const farGuide = (id: string, stamp: boolean): EditorGuideLine => ({
@@ -213,7 +225,7 @@ describe('Guides — Place on Anchors (slice 3 / #33)', () => {
     // Stamping branch → Cell Tile at seedEdge.
     let st = reducer(s, { type: 'EDITOR_ADD_GUIDE', payload: { guide: farGuide('fs', true) } })
     st = reducer(st, { type: 'EDITOR_PLACE_TILE_ON_ANCHOR', payload: { anchor: FAR, sides: 4, rotation: 0 } })
-    const activeAfter = st.editor!.cells.find(c => c.id === activeId) ?? st.editor!.cells[0]
+    const activeAfter = st.editor!.cells.find(c => c.id === hostId) ?? st.editor!.cells[0]
     const stamped = activeAfter.tiles[activeAfter.tiles.length - 1] as EditorRegularTile
     expect(activeAfter.tiles.length).toBeGreaterThan(activeBefore.tiles.length)
     expect(stamped.edgeLength).toBeCloseTo(seedEdge)
@@ -223,6 +235,110 @@ describe('Guides — Place on Anchors (slice 3 / #33)', () => {
     sw = reducer(sw, { type: 'EDITOR_PLACE_TILE_ON_ANCHOR', payload: { anchor: FAR, sides: 4, rotation: 0 } })
     expect(sw.editor!.guideTiles).toHaveLength(1)
     expect((sw.editor!.guideTiles![0] as EditorRegularTile).edgeLength).toBeCloseTo(seedEdge)
+  })
+})
+
+describe('Guides — stamped Anchor Tiles land in the Cell that contains them (#34)', () => {
+  // The 4.8.8 seed is the sharp fixture: `activeCellId` is the OCTAGON at the
+  // origin, and the SQUARE Cell sits out at (120.71, 120.71) with its own
+  // local frame rotated π/4. An Anchor inside the square resolves there by
+  // containment, so every assertion below reads differently under the old
+  // active-Cell hosting.
+  const multi = (): PatternConfig => ({
+    ...structuredClone(DEFAULT_CONFIG),
+    tiling: { type: 'editor', scale: 1 },
+    editor: createDefault488EditorConfig(),
+  })
+  // Inside the square Cell's Boundary, comfortably outside the octagon's.
+  const IN_SQUARE = { x: 140, y: 140 }
+  const squareGuide = (stamp: boolean): EditorGuideLine => ({
+    id: 'sq', kind: 'line', start: IN_SQUARE, end: { x: IN_SQUARE.x + 60, y: IN_SQUARE.y },
+    stamp, extend: 'none', ticksEnabled: false, manualAnchors: [],
+  })
+  const place = (s: PatternConfig): PatternConfig => {
+    const withG = reducer(s, { type: 'EDITOR_ADD_GUIDE', payload: { guide: squareGuide(true) } })
+    // `force` so the overlap gate against the square's own Seed Tile can't
+    // decide the outcome — this is a routing test, not a viability one.
+    return reducer(withG, {
+      type: 'EDITOR_PLACE_TILE_ON_ANCHOR',
+      payload: { anchor: IN_SQUARE, sides: 3, rotation: 0, force: true },
+    })
+  }
+  const cellsById = (s: PatternConfig) => ({
+    octagon: s.editor!.cells.find(c => c.id === 'octagon')!,
+    square: s.editor!.cells.find(c => c.id === 'square')!,
+  })
+  /** Anchor placements mint regular n-gons; narrow so `center` is reachable. */
+  const regular = (t: EditorTile): EditorRegularTile => {
+    expect(t.kind).toBe('regular')
+    return t as EditorRegularTile
+  }
+
+  it('the fixture is honest: the Anchor is inside the square, and the ACTIVE Cell is the octagon', () => {
+    const s = multi()
+    expect(s.editor!.activeCellId).toBe('octagon')
+    expect(cellContainingPoint(s.editor!, IN_SQUARE, patchRotation(s.editor!))?.id).toBe('square')
+  })
+
+  it('stores the Tile in the containing Cell, not the active one', () => {
+    const s = multi()
+    const before = cellsById(s)
+    const out = place(s)
+    const after = cellsById(out)
+    expect(after.square.tiles.length).toBe(before.square.tiles.length + 1)
+    expect(after.octagon.tiles.length).toBe(before.octagon.tiles.length)
+  })
+
+  it('re-aims activeCellId at the host, so the applyWrap boundary fit follows the Tile', () => {
+    expect(place(multi()).editor!.activeCellId).toBe('square')
+  })
+
+  it("converts into the HOST Cell's local frame — the Tile renders back at the Anchor", () => {
+    // The bug is invisible in world space with symmetry off, because a Tile
+    // stored in the wrong Cell was ALSO converted through that Cell's inverse
+    // transform. What this pins is that the round-trip is self-consistent:
+    // local centre → host transform → within an edge length of the Anchor.
+    //
+    // Reads only the Tile THIS action added (not `tiles.at(-1)`, which under
+    // the old hosting was the square's untouched Seed Tile — near enough to
+    // the Anchor to satisfy the bound and make the test pass vacuously).
+    const s = multi()
+    const beforeCount = cellsById(s).square.tiles.length
+    const out = place(s)
+    const host = cellsById(out).square
+    const added = host.tiles.slice(beforeCount)
+    expect(added).toHaveLength(1)
+    const world = applyCellTransform(regular(added[0]).center, host, patchRotation(out.editor!))
+    expect(Math.hypot(world.x - IN_SQUARE.x, world.y - IN_SQUARE.y)).toBeLessThan(out.editor!.edgeLength)
+  })
+
+  it('runs the symmetry orbit about the HOST Cell, not the active one', () => {
+    // The load-bearing assertion. D4 on the square puts all four images
+    // within the square Cell's own footprint. Hosted on the octagon, the same
+    // orbit spins the Anchor about the ORIGIN — images land near (±198, ±198),
+    // i.e. flung across the Patch into and past sibling Cells.
+    const s = multi()
+    s.editor!.cells = s.editor!.cells.map(c =>
+      c.id === 'square' ? { ...c, symmetryMode: 'full' as const } : c,
+    )
+    const before = cellsById(s)
+    const out = place(s)
+    const host = cellsById(out).square
+    const added = host.tiles.slice(before.square.tiles.length)
+    // Full D4 = 8 images. The Anchor lies on a local symmetry axis, but the
+    // placed TRIANGLE has no matching reflection symmetry, so each reflected
+    // image has its own centroid and survives the dedupe. (The sibling test
+    // above places a square there and collapses to 4 — same orbit, different
+    // tile symmetry.)
+    expect(added.length).toBe(8)
+    const rot = patchRotation(out.editor!)
+    const centre = applyCellTransform({ x: 0, y: 0 }, host, rot)
+    for (const t of added) {
+      const world = applyCellTransform(regular(t).center, host, rot)
+      // Every image hugs the square Cell; the octagon's centre is 170 away.
+      expect(Math.hypot(world.x - centre.x, world.y - centre.y)).toBeLessThan(100)
+    }
+    expect(cellsById(out).octagon.tiles.length).toBe(before.octagon.tiles.length)
   })
 })
 

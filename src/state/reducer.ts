@@ -1279,8 +1279,19 @@ function guideCompleteWorldSpace(state: PatternConfig, picks: Vec2[], force: boo
  * `collectGuideAnchors` (fails closed on a stale pick) to read its stamp flag.
  * Non-stamping Anchor → world-space `patch.guideTiles` (never repeats under the
  * Lattice — the frame-completion model); stamping Anchor → an ordinary Cell
- * Tile in the active Cell (converted from the world-frame placement). Overlap
- * against every world Tile rides the flexible-placement `force` gate.
+ * Tile in the Cell that geometrically CONTAINS the Anchor (converted from the
+ * world-frame placement). Overlap against every world Tile rides the
+ * flexible-placement `force` gate.
+ *
+ * The host Cell is resolved by containment (`resolveHostCell`, #34), not from
+ * `activeCellId` — that pointer has been an internal "last Cell mutated" marker
+ * since the active-Cell selector was deleted, so hosting there files the Tile
+ * in a Cell the user never aimed at. With symmetry off that is invisible
+ * (lattice stamps are uniform translations, so the world position is the same
+ * whoever holds the Tile) but it costs two real things: a sibling Cell's
+ * later overlap probe only sees its OWN `cell.tiles`, so a misfiled Tile is
+ * invisible to that guard; and with symmetry on the orbit runs about the host
+ * Cell's centre in its local frame, fanning copies across the wrong Cell.
  */
 function placeTileOnGuideAnchor(
   state: PatternConfig,
@@ -1294,15 +1305,18 @@ function placeTileOnGuideAnchor(
   const patchRot = patchRotation(patch)
   const guideAnchor = collectGuideAnchors(patch, patchRot).find(a => pointsEqual(anchor, a.p, EDITOR_EPS))
   if (!guideAnchor) return state
-  const active = activeCell(patch)
+  // Host Cell by containment, with a nearest-centre fallback for Anchors
+  // outside every Boundary (#34). Also the sizing reference below, so a Tile
+  // is scaled to the Cell it actually joins.
+  const host = resolveHostCell(patch, guideAnchor.p, patchRot)
   // World-space vertex arrays of every existing Tile (all Cells) + prior
   // world-space completions (frame + guide), for the overlap probe.
   const probeCell = worldProbeCell(patch, patchRot)
-  // Size to the active Cell's own Tiles, not `patch.edgeLength` — in a
+  // Size to the host Cell's own Tiles, not `patch.edgeLength` — in a
   // multi-cell Patch the latter is the lattice constant after the
   // boundary-size slider, which would make placements far too large (mirrors
   // vertex placement).
-  const placeEdge = cellPlacementEdgeLength(active, patch.edgeLength, patch.cells)
+  const placeEdge = cellPlacementEdgeLength(host, patch.edgeLength, patch.cells)
   // The Anchor is a free point (no boundary corner), so the full-2π sector +
   // body-overlap probe in `isVertexPlacementViable` is the whole gate.
   const anchorVertex = makeAnchorVertex(guideAnchor.p)
@@ -1311,24 +1325,24 @@ function placeTileOnGuideAnchor(
   if (guideAnchor.stamp) {
     // Patch-relative Anchor → ordinary Cell Tile(s). Mirrors
     // `EDITOR_PLACE_TILE_ON_VERTEX`'s symmetry-orbit propagation: the orbit
-    // runs in the active Cell's local frame (the Anchor is world-space, so
+    // runs in the HOST Cell's local frame (the Anchor is world-space, so
     // convert first), each image is overlap-probed back in world space
     // against the cumulative probe, and placement is all-or-nothing (`force`
     // overrides — symmetry must never partially break). `placeTilesOnVertexOrbit`
     // can't be reused directly: it only accepts orbit images landing on real
     // exposed Cell vertices, and an Anchor is a free point.
-    const localAnchor = inverseCellTransform(guideAnchor.p, active, patchRot)
-    const localRotation = rotation - active.rotation - patchRot
-    const syms = boundarySymmetries(active.shape, active.symmetryMode ?? 'none')
-    const idPrefix = `guide-stamp-${active.tiles.length}-${Date.now()}`
+    const localAnchor = inverseCellTransform(guideAnchor.p, host, patchRot)
+    const localRotation = rotation - host.rotation - patchRot
+    const syms = boundarySymmetries(host.shape, host.symmetryMode ?? 'none')
+    const idPrefix = `guide-stamp-${host.tiles.length}-${Date.now()}`
     const placements: EditorTile[] = []
     const seenCenters: Vec2[] = []
     let workingProbe = probeCell
     for (let i = 0; i < syms.length; i++) {
       const pLocal = applySym(syms[i], localAnchor)
       const rLocal = transformVertexRotation(syms[i], localRotation, sides)
-      const imageVertex = makeAnchorVertex(applyCellTransform(pLocal, active, patchRot))
-      const rWorld = rLocal + active.rotation + patchRot
+      const imageVertex = makeAnchorVertex(applyCellTransform(pLocal, host, patchRot))
+      const rWorld = rLocal + host.rotation + patchRot
       const candidate = placeRegularNGonOnVertex(sides, placeEdge, imageVertex, rWorld, '__probe__')
       // Axis-fixed orbit images collapse to one Tile (centroid dedupe).
       if (seenCenters.some(c => pointsEqual(c, candidate.center, EDITOR_EPS))) continue
@@ -1338,14 +1352,16 @@ function placeTileOnGuideAnchor(
       // inverse-transforms, rotation subtracts the Cell + Patch rotations.
       placements.push({
         ...worldTile,
-        center: inverseCellTransform(worldTile.center, active, patchRot),
-        rotation: worldTile.rotation - active.rotation - patchRot,
+        center: inverseCellTransform(worldTile.center, host, patchRot),
+        rotation: worldTile.rotation - host.rotation - patchRot,
       })
       seenCenters.push(candidate.center)
       workingProbe = { ...workingProbe, tiles: [...workingProbe.tiles, worldTile] }
     }
     if (placements.length === 0) return state
-    return applyWrap(seedFigures(updateCell(state, active.id, cell => ({ ...cell, tiles: [...cell.tiles, ...placements] }))))
+    // `updateCell` re-aims `activeCellId` at the host, so the `applyWrap`
+    // boundary fit below runs against the Cell that actually gained Tiles.
+    return applyWrap(seedFigures(updateCell(state, host.id, cell => ({ ...cell, tiles: [...cell.tiles, ...placements] }))))
   }
 
   // Non-stamping Anchor → world-space one-off Tile.

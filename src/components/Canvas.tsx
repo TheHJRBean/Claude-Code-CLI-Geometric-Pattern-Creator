@@ -23,7 +23,7 @@ import { EDITOR_EPS } from '../editor/exposedEdges'
 import { applyStamp } from '../editor/lattice'
 import { patchRotation } from '../editor/compositionLattice'
 import { viableSidesForEdge, viableSidesForVertexOrbit, vertexOrientationsWithOrbit } from '../editor/orbit'
-import { applyCellTransform, worldProbeCell } from '../editor/patchSelectable'
+import { applyCellTransform, resolveHostCell, worldProbeCell } from '../editor/patchSelectable'
 import { cellPlacementEdgeLength, patchTickEdgeLength } from '../editor/active'
 import { EditorEdgeLayer } from './EditorEdgeLayer'
 import { EditorPickerOverlay } from './EditorPickerOverlay'
@@ -736,15 +736,18 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   }, [selectedIsGuideAnchor, config.editor, patchRot])
   // Effective probe Cell + edge length used by every viability / preview memo —
   // the world probe Cell for a Guide Anchor, else the host Cell. Anchor
-  // placements size to the ACTIVE Cell's Tiles (`cellPlacementEdgeLength`, not
-  // the raw lattice constant) — must match the reducer's
-  // `placeTileOnGuideAnchor` so preview and commit agree.
+  // placements size to the Tiles of the Cell that CONTAINS the Anchor
+  // (`resolveHostCell` + `cellPlacementEdgeLength`, not the raw lattice
+  // constant) — must match the reducer's `placeTileOnGuideAnchor` so preview
+  // and commit agree. It resolved off `activeCellId` until #34; that pointer is
+  // "last Cell mutated", so in a multi-cell Patch the preview could be sized
+  // from a Cell nowhere near the Anchor.
   const effectiveVertexCell = selectedIsGuideAnchor ? guideProbeCell : selectedVertexCell
   const anchorEdgeLength = (() => {
-    if (!selectedIsGuideAnchor || !config.editor) return 0
+    if (!selectedIsGuideAnchor || !config.editor || !selectedVertexData) return 0
     const patch = config.editor
-    const active = patch.cells.find(c => c.id === patch.activeCellId) ?? patch.cells[0]
-    return cellPlacementEdgeLength(active, patch.edgeLength, patch.cells)
+    const host = resolveHostCell(patch, selectedVertexData.p, patchRot)
+    return cellPlacementEdgeLength(host, patch.edgeLength, patch.cells)
   })()
   const effectiveEdgeLength = selectedIsGuideAnchor ? anchorEdgeLength : placementEdgeLength
   const vertexPickerViableSides = useMemo<number[]>(() => {

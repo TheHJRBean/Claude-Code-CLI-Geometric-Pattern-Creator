@@ -1,9 +1,17 @@
 # Guides (Construction Lines & Shapes) — v1 Spec
 
-**Status: SPECCED 2026-07-15** (grill session, all decisions user-confirmed).
-Vocabulary decision recorded in ADR-0008. Tickets on GitHub Issues (see the
-`guides` label). This file is the product spec; implementation details are
-decided per-ticket.
+**Status: v1 SHIPPED 2026-08-03.** Specced 2026-07-15 (grill session, all
+decisions user-confirmed); vocabulary recorded in ADR-0008. Every v1 ticket is
+closed — #26 lines, #27 circles, #28 Anchor engine + Complete-on-Anchors, #29
+symmetry-orbit drawing (linked groups), #30 stamping under the Lattice +
+neighbour Anchors + overlay toggles, plus #31 (vocabulary), #33
+(Place-on-Anchors) and #34 (host-Cell resolution). **#32 (Girih preset reveal)
+is the only open `guides` issue** and is explicitly a follow-up, not v1 — see
+Decision 12 and "Out of scope" below.
+
+This file is the product spec; implementation details are decided per-ticket
+and summarised in `CLAUDE.md` (`editor/guides.ts`, `editor/guideOrbit.ts`,
+`editor/guideStamps.ts`).
 
 ## Summary
 

@@ -84,7 +84,10 @@ export function buildExportMenuItems({
     void exportPNG(el, {
       width,
       height,
-      background: pngTransparent ? null : DEFAULT_PNG_BACKGROUND,
+      // The pattern's own backdrop, not a fixed paper tone — a raster is
+      // flattened, so a painted background that only lived in the live canvas
+      // would silently revert to sand on export.
+      background: pngTransparent ? null : (config.strand.background || DEFAULT_PNG_BACKGROUND),
       viewBox,
     })
   }

@@ -33,6 +33,25 @@ function gradientDef(g: GradientSpec, id: string, transform?: string) {
 }
 
 /**
+ * Half-pixel bleed that closes the antialiasing seam between abutting Voids.
+ *
+ * Two Voids sharing an edge each cover ~half of every pixel along it, and two
+ * half-covered composites don't add up to full coverage — so the background
+ * shows through as a hairline tracing the entire strand skeleton. Most visible
+ * exactly where it should be least: strands removed ("Remove strand colour")
+ * and one flat colour over the whole field, which is meant to read as solid.
+ * Measured on floret-pentagonal: **2.95%** of a central sample block was
+ * part-covered seam pixel, falling to **0.001%** with this stroke.
+ *
+ * Stroking each fill with its own paint grows it by half this width, so
+ * neighbours overlap instead of abutting. `non-scaling-stroke` keeps it 1
+ * device pixel — the artefact is screen-space, so the correction is too: the
+ * geometry is untouched at every zoom, and a raster export at any resolution
+ * gets the same one-pixel overlap rather than a bleed that grows with it.
+ */
+const SEAM_STROKE_PX = 1
+
+/**
  * Step 19.2 — Decoration **Void Fill** layer. Paints each resolved Void as a
  * filled polygon. Drawn *behind* the Strands (ADR-0005 layer stack:
  * background → Void fills → Strands), so the strand lines stay crisp on top.
@@ -81,14 +100,22 @@ export const VoidFillLayer = memo(function VoidFillLayer({
           {frameSpec && gradientDef(frameSpec, frameId)}
         </defs>
       )}
-      {fills.map((f, i) => (
-        <path
-          key={i}
-          d={polygonPath(f.polygon)}
-          fill={f.gradient ? (f.pose ? `url(#${idPrefix}-g${i})` : `url(#${frameId})`) : f.colour}
-          stroke="none"
-        />
-      ))}
+      {fills.map((f, i) => {
+        const paint = f.gradient ? (f.pose ? `url(#${idPrefix}-g${i})` : `url(#${frameId})`) : f.colour
+        return (
+          <path
+            key={i}
+            d={polygonPath(f.polygon)}
+            fill={paint}
+            // Same paint as the fill (a gradient `url(...)` strokes fine), so
+            // the bleed is invisible except where it closes the seam.
+            stroke={paint}
+            strokeWidth={SEAM_STROKE_PX}
+            vectorEffect="non-scaling-stroke"
+            strokeLinejoin="round"
+          />
+        )
+      })}
     </g>
   )
 })

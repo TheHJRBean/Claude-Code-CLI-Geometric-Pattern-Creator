@@ -1,5 +1,6 @@
 import type { PatternConfig } from '../types/pattern'
 import { CURRENT_PATTERN_CONFIG_VERSION, readPatternConfig } from './configValidation'
+import { DEFAULT_CANVAS_BACKGROUND } from './defaults'
 
 /**
  * Lab starts with no tessellation selected. Strands are off by default
@@ -12,7 +13,7 @@ export const LAB_DEFAULT_CONFIG: PatternConfig = {
   strand: {
     width: 4,
     color: '#1a1a2e',
-    background: '#f5f0e8',
+    background: DEFAULT_CANVAS_BACKGROUND,
   },
 }
 

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import type { StrandLineStyle } from '../../types/pattern'
 import type { Action } from '../../state/actions'
+import { DEFAULT_CANVAS_BACKGROUND as DEFAULT_BACKGROUND } from '../../state/defaults'
 import type { PaintTarget, StrandPaintScope, VoidPaintScope } from '../../rendering/DecorationPaintLayer'
 import type { PaintVoid } from '../../decoration/resolve'
 import { axisAngleDeg, bboxAxisAtAngle, gradientCanonicalBox, rotateAxisTo, seedFrameGradientSpec, seedGradientSpec, DEFAULT_GRADIENT_ANGLE_DEG, type GradientDraft, type GradientSelection, type WorldBBox } from '../../decoration/gradients'
@@ -299,6 +300,46 @@ export function DecorationPanel({
           {stampCount > 0 && <span>{stampCount} Stamp{stampCount === 1 ? '' : 's'}</span>}
         </div>
       )}
+      {/* Canvas background. Lives on `strand.background`, which has always been
+          the backdrop the canvas paints and the far stop gradients seed from —
+          it simply had no control anywhere in the app, so it could only arrive
+          from a preset. Not a new `DecorationConfig` field on purpose: one
+          backdrop per pattern, already persisted and already exported. */}
+      <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--border-subtle)' }}>
+        <FieldLabel
+          label="Canvas background"
+          tooltip="The colour behind the whole pattern — it shows through every unpainted Void and around the Frame, and it is what raster exports are flattened onto."
+        />
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <input
+            type="color"
+            value={/^#[0-9a-fA-F]{6}$/.test(background) ? background : DEFAULT_BACKGROUND}
+            onChange={e => dispatch({ type: 'SET_STRAND_STYLE', payload: { background: e.target.value } })}
+            title="Canvas background colour"
+            style={{ width: 26, height: 20, padding: 0, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer' }}
+          />
+          <button
+            onClick={() => { pushRecentColour(decorationColor); dispatch({ type: 'SET_STRAND_STYLE', payload: { background: decorationColor } }) }}
+            style={{ ...decorationButtonStyle, flex: 1, marginTop: 0 }}
+          >
+            Use paint colour
+          </button>
+          <button
+            onClick={() => dispatch({ type: 'SET_STRAND_STYLE', payload: { background: DEFAULT_BACKGROUND } })}
+            disabled={background === DEFAULT_BACKGROUND}
+            title="Back to the default paper tone"
+            style={{
+              ...decorationButtonStyle,
+              marginTop: 0,
+              padding: '6px 8px',
+              cursor: background === DEFAULT_BACKGROUND ? 'default' : 'pointer',
+              color: background === DEFAULT_BACKGROUND ? 'var(--border-subtle)' : 'var(--text-muted)',
+            }}
+          >
+            Reset
+          </button>
+        </div>
+      </div>
       {/* Frame border stroke — the Decoration styling slot ADR-0004
           reserved. Replaces the accent guide line with a real border
           that's part of the artwork (and exports). */}

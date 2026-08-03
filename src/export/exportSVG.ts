@@ -1,6 +1,7 @@
 import type { Segment } from '../types/geometry'
 import { buildStrands } from '../strand/buildStrands'
 import { downloadBlob } from './download'
+import { DEFAULT_CANVAS_BACKGROUND } from '../state/defaults'
 
 /**
  * Resolve `var(--x)` references in serialized SVG markup against the live
@@ -285,9 +286,10 @@ export function exportUnwovenSVG(segments: Segment[], viewBox: string, width: nu
   downloadBlob(blob, 'islamic-pattern-unwoven.svg')
 }
 
-/** Default raster fill — the app's sandy paper tone. A future Decoration
- *  background-colour option will replace this default. */
-export const DEFAULT_PNG_BACKGROUND = '#f5f0e8'
+/** Fallback raster fill for callers with no config to hand (the thumbnail
+ *  renderer's default). Live exports pass `config.strand.background`, which the
+ *  Decoration panel's background control now edits. */
+export const DEFAULT_PNG_BACKGROUND = DEFAULT_CANVAS_BACKGROUND
 
 export interface PngExportOptions {
   width?: number

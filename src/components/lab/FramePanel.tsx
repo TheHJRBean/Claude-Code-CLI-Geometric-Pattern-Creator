@@ -1,14 +1,15 @@
 import type { FrameConfig, FrameType, FrameShape } from '../../types/editor'
+import type { Vec2 } from '../../utils/math'
 import { DEFAULT_FRAME_SIZE, MIN_FRAME_SIZE, MAX_FRAME_SIZE, SQRT2 } from '../../editor/frame'
 import { DEFAULT_FRAME_RINGS, MIN_FRAME_RINGS, MAX_FRAME_RINGS } from '../../editor/frameNRing'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { FieldLabel, NumberStepper, NudgePad, SectionTitle } from './labShared'
 
 /** Frame origin nudge range (matches the X/Y slider extents). */
 const FRAME_ORIGIN_RANGE = 800
-/** Reset-to-default Shape-frame geometry (shape preserved). */
-const SHAPE_FRAME_DEFAULTS = { size: DEFAULT_FRAME_SIZE, aspect: 1, rotation: 0, origin: { x: 0, y: 0 } }
-const clampOrigin = (n: number) => Math.min(FRAME_ORIGIN_RANGE, Math.max(-FRAME_ORIGIN_RANGE, n))
+/** Reset-to-default Shape-frame geometry (shape preserved; origin supplied by
+ *  the caller — see `newFrameOrigin`). */
+const SHAPE_FRAME_DEFAULTS = { size: DEFAULT_FRAME_SIZE, aspect: 1, rotation: 0 }
 
 const resetBtnStyle: React.CSSProperties = {
   width: '100%',
@@ -44,6 +45,7 @@ export function FramePanel({
   frame,
   onSetFrame,
   nRingSupported = false,
+  newFrameOrigin,
 }: {
   substrate: 'patch' | 'legacy'
   /** The Frame in force, from whichever home this substrate keeps it in. */
@@ -52,8 +54,20 @@ export function FramePanel({
   onSetFrame: (f: FrameConfig | null) => void
   /** Whether this substrate can offer an n-Ring Frame at all (Patch only). */
   nRingSupported?: boolean
+  /**
+   * Where a **newly created / reset / recentred** Shape Frame is centred, in
+   * world coordinates. A Patch omits it: (0, 0) is the seed Patch centre, which
+   * is both meaningful and always on screen. A **legacy substrate** has no Patch
+   * — the field is infinite and (0, 0) is wherever the generator happened to
+   * seed — so it passes the live view centre. Without that, creating a Frame
+   * while panned away clips the whole visible field out and the canvas goes
+   * blank (fills and stamps included). Returns null when unavailable ⇒ (0, 0).
+   */
+  newFrameOrigin?: () => Vec2 | null
 }) {
   const isPatch = substrate === 'patch'
+  /** Origin for a Frame the user is creating, resetting or recentring now. */
+  const freshOrigin = (): Vec2 => newFrameOrigin?.() ?? { x: 0, y: 0 }
   // Frame — update a Frame geometry field. Geometry changes move the frame
   // nodes, so clear `completedTiles` (frame-scoped completions are anchored to
   // the old outline; the user re-completes against the new edge).
@@ -61,6 +75,20 @@ export function FramePanel({
     if (!frame) return
     onSetFrame({ ...frame, ...partial, completedTiles: [] })
   }
+  // The X/Y sliders below are absolute world coordinates spanning ±this. A
+  // view-centred Frame can sit thousands of units out, and a slider that can't
+  // reach its own value snaps the Frame back inside the range on first touch —
+  // so widen the span to cover wherever the Frame actually is. Monotonic: were
+  // it to shrink as the user drags back toward the origin, the track would move
+  // under the thumb mid-gesture.
+  const originSpanRef = useRef(FRAME_ORIGIN_RANGE)
+  originSpanRef.current = Math.max(
+    originSpanRef.current,
+    Math.abs(frame?.origin?.x ?? 0),
+    Math.abs(frame?.origin?.y ?? 0),
+  )
+  const originSpan = originSpanRef.current
+  const clampOrigin = (n: number) => Math.min(originSpan, Math.max(-originSpan, n))
   /** Boundary treatment a newly created Shape Frame gets on this substrate. */
   const newShapeTreatment = isPatch ? 'complete' as const : 'clip' as const
   // Collapse the whole panel once a Frame exists, so its tall control stack can
@@ -119,7 +147,8 @@ export function FramePanel({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <button
             onClick={() => onSetFrame({
-              type: 'shape', shape: 'square', size: DEFAULT_FRAME_SIZE, boundaryTreatment: newShapeTreatment,
+              type: 'shape', shape: 'square', size: DEFAULT_FRAME_SIZE,
+              boundaryTreatment: newShapeTreatment, origin: freshOrigin(),
             })}
             style={{
               width: '100%',
@@ -290,7 +319,7 @@ export function FramePanel({
           </div>
           <FieldLabel
             label="Frame origin"
-            tooltip={`Centre of the Frame in world coordinates. (0, 0) = ${isPatch ? 'the seed Patch centre' : 'the pattern origin'}. Use the arrow pad to move it precisely; ⊙ recentres.`}
+            tooltip={`Centre of the Frame in world coordinates. (0, 0) = ${isPatch ? 'the seed Patch centre' : 'the pattern origin, which on this substrate is wherever the field was seeded'}. Use the arrow pad to move it precisely; ⊙ recentres ${isPatch ? 'on the Patch' : 'on the current view'}.`}
           />
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 10 }}>
             <div style={{ flex: 1 }}>
@@ -298,8 +327,8 @@ export function FramePanel({
                 <span style={{ width: 12, fontSize: 9, color: 'var(--text-muted)', fontFamily: "'Cinzel', Georgia, serif" }}>X</span>
                 <input
                   type="range"
-                  min={-FRAME_ORIGIN_RANGE}
-                  max={FRAME_ORIGIN_RANGE}
+                  min={-originSpan}
+                  max={originSpan}
                   step={1}
                   value={frame.origin?.x ?? 0}
                   onChange={e => updateFrameGeom({ origin: { x: Number(e.target.value), y: frame.origin?.y ?? 0 } })}
@@ -310,8 +339,8 @@ export function FramePanel({
                 <span style={{ width: 12, fontSize: 9, color: 'var(--text-muted)', fontFamily: "'Cinzel', Georgia, serif" }}>Y</span>
                 <input
                   type="range"
-                  min={-FRAME_ORIGIN_RANGE}
-                  max={FRAME_ORIGIN_RANGE}
+                  min={-originSpan}
+                  max={originSpan}
                   step={1}
                   value={frame.origin?.y ?? 0}
                   onChange={e => updateFrameGeom({ origin: { x: frame.origin?.x ?? 0, y: Number(e.target.value) } })}
@@ -325,10 +354,10 @@ export function FramePanel({
                 x: clampOrigin((frame.origin?.x ?? 0) + dx),
                 y: clampOrigin((frame.origin?.y ?? 0) + dy),
               } })}
-              onCenter={() => updateFrameGeom({ origin: { x: 0, y: 0 } })}
+              onCenter={() => updateFrameGeom({ origin: freshOrigin() })}
             />
           </div>
-          <button onClick={() => updateFrameGeom(SHAPE_FRAME_DEFAULTS)} style={resetBtnStyle}>
+          <button onClick={() => updateFrameGeom({ ...SHAPE_FRAME_DEFAULTS, origin: freshOrigin() })} style={resetBtnStyle}>
             Reset frame
           </button>
           {/* Frame-scoped completions only exist on a Patch — a legacy

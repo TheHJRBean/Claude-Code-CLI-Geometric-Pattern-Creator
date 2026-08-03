@@ -172,6 +172,16 @@ export function LegacySubstrateControls({
         substrate="legacy"
         frame={config.frame}
         onSetFrame={f => dispatch({ type: 'SET_GALLERY_FRAME', payload: f })}
+        // A new Frame is centred on what the user is looking at. There is no
+        // Patch here to make (0, 0) meaningful, and the camera is free — so a
+        // Frame pinned to the world origin can be created entirely off screen,
+        // clipping the visible field (Void fills and Stamps with it) away to a
+        // blank canvas. Read at click time from the ref so it reflects the live
+        // camera without re-rendering the sidebar on every pan.
+        newFrameOrigin={() => {
+          const b = viewBoundsRef.current
+          return b ? { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 } : null
+        }}
       />
     </>
   )

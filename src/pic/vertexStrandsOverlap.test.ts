@@ -8,10 +8,16 @@ import type { FigureConfig, PatternConfig } from '../types/pattern'
 // 2026-06-17). Overlapping tiles are a non-issue: PIC iterates real tiles only,
 // so an overlap region is never its own tile — each tile keeps its own distinct
 // strands and they simply cross. These tests pin both properties.
+//
+// contactAngle 60 (not the 30 this file used pre-#40): on a square that puts
+// α = 30° comfortably inside the 45° interior half-angle. 30 sat past it, so
+// every vertex's rays pointed outside the polygon's own tangent cone and (once
+// #40 was fixed) legitimately produced zero arms — a real, tiling-independent
+// property this file isn't testing.
 
 const vertexFigure: FigureConfig = {
   type: 'star',
-  contactAngle: 30,
+  contactAngle: 60,
   lineLength: 1,
   autoLineLength: true,
   edgeLinesEnabled: false,

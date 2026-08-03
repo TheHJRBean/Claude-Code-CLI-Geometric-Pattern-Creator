@@ -3,7 +3,7 @@ import type { FigureConfig, FigureLineSet, PatternConfig } from '../types/patter
 import { computeContactRays, computeContactRaysPerEdge, computeVertexRays, computeVertexRaysPerVertex, type ContactRay, type VertexRay } from './stellation'
 import { activeMorph, morphValueAt } from './morph'
 import { rayRayIntersect, collinearApproach, type IntersectResult } from './intersect'
-import { EPSILON, dist, midpoint, pointInPolygon, isConvexPolygon, type Vec2 } from '../utils/math'
+import { EPSILON, dist, dot, sub, normalize, midpoint, pointInPolygon, isConvexPolygon, polygonInteriorAngleAt, type Vec2 } from '../utils/math'
 
 /**
  * Ray-ray probe shared by `pairAtVertex` and `pairVertexAtEdge`: intersect
@@ -453,11 +453,52 @@ export function pairVertexAtEdge(
   return null
 }
 
+/** Angular tolerance (radians) for `vertexRayEntersPolygon`'s boundary case —
+ * see its doc comment for why this needs to be a tolerance, not a strict
+ * inequality. */
+const VERTEX_CONE_EPS = 1e-6
+
+/**
+ * A vertex ray whose direction falls outside the polygon's interior tangent
+ * cone at its own origin (#40: α = 90°−θ exceeds the vertex's interior
+ * half-angle) exits the polygon immediately and — because it started ON the
+ * boundary — never re-enters for the rest of its length. `clipSegmentToPolygon`
+ * then finds no boundary crossing to clip against (the only crossing is at
+ * its own origin, t≈0, rejected by the entry guard) and returns the
+ * unclipped natural endpoint, which leaks into neighbouring tiles.
+ *
+ * Tested via angular betweenness rather than a spatial point-in-polygon
+ * probe: `dir` lies within the wedge spanned by the two edges incident to
+ * the vertex iff the two sub-angles it splits that wedge into sum back to
+ * the wedge's own interior angle (a sign/winding-agnostic test that handles
+ * reflex vertices for free). A spatial probe was tried first and rejected —
+ * exactly at the boundary (α == half-angle, the ray running along the tile's
+ * own edge) it flips unpredictably between nominally-symmetric copies of the
+ * same tile, the identical instability class `pointInPolygon` caused for the
+ * edge-line pairing at #51 (see figureSymmetry.test.ts). `VERTEX_CONE_EPS`
+ * keeps that exact boundary classified as entering, consistently.
+ */
+function vertexRayEntersPolygon(ray: VertexRay, polyVertices: Vec2[]): boolean {
+  const n = polyVertices.length
+  const k = ray.vertexIndex
+  const curr = polyVertices[k]
+  const prev = polyVertices[(k - 1 + n) % n]
+  const next = polyVertices[(k + 1) % n]
+  const toPrev = normalize(sub(prev, curr))
+  const toNext = normalize(sub(next, curr))
+  const dirN = normalize(ray.dir)
+  const clampedAngle = (a: Vec2, b: Vec2) => Math.acos(Math.max(-1, Math.min(1, dot(a, b))))
+  const interior = polygonInteriorAngleAt(polyVertices, k)
+  return clampedAngle(dirN, toPrev) + clampedAngle(dirN, toNext) <= interior + VERTEX_CONE_EPS
+}
+
 /**
  * Emit vertex arm segments for a single edge pairing.
  *
  * Arms originate at polygon vertices and are clipped to the polygon boundary
  * so an out-of-polygon meeting point doesn't leak into neighbouring tiles.
+ * An arm whose ray direction points outside the polygon's tangent cone at its
+ * own vertex (#40) is suppressed instead — see `vertexRayEntersPolygon`.
  */
 export function emitVertexArms(
   pair: { ray1: VertexRay; ray2: VertexRay; result: IntersectResult },
@@ -476,14 +517,28 @@ export function emitVertexArms(
   const { ray1, ray2, result } = pair
   const ctx: PolyCtx = { polygonId, tileTypeId, polygonCenter, polygonSides, kind: 'vertex-line', setId }
 
+  // In an ASYMMETRIC pairing (the tiers added for #53) `result` sits ahead of
+  // only ONE ray — the other's own t is ≤ EPSILON, meaning the shared point is
+  // BEHIND its origin. Using it as that ray's natural target anyway (as this
+  // used to, unconditionally) draws the arm in the exact opposite direction
+  // from `ray.dir` — a second, independent #40 leak: the ray's own direction
+  // can point cleanly into the polygon while its drawn segment shoots out the
+  // back. That ray gets its own far-forward extension instead, exactly like
+  // the "both t positive, tip outside" tier already relies on
+  // `clipSegmentToPolygon` to trim — `vertexRayEntersPolygon` below still
+  // catches it if that forward direction turns out to be outside the cone too.
+  const farAlong = (ray: VertexRay) => ({
+    x: ray.origin.x + ray.dir.x * circumradius * 4,
+    y: ray.origin.y + ray.dir.y * circumradius * 4,
+  })
   const to1Natural = autoLineLength
-    ? result.point
+    ? (result.t1 > EPSILON ? result.point : farAlong(ray1))
     : {
         x: ray1.origin.x + ray1.dir.x * lineLength * circumradius,
         y: ray1.origin.y + ray1.dir.y * lineLength * circumradius,
       }
   const to2Natural = autoLineLength
-    ? result.point
+    ? (result.t2 > EPSILON ? result.point : farAlong(ray2))
     : {
         x: ray2.origin.x + ray2.dir.x * lineLength * circumradius,
         y: ray2.origin.y + ray2.dir.y * lineLength * circumradius,
@@ -499,8 +554,12 @@ export function emitVertexArms(
   // ORPHAN_MIN_LEN_FRACTION; vertex arms had no guard at all. Scale-relative so
   // it means the same thing on a tiling drawn at any size.
   const minLen = Math.max(EPSILON, circumradius * 1e-9)
-  const end1 = clipSegmentToPolygon(ray1.origin, to1Natural, polyVertices, -1).point
-  const end2 = clipSegmentToPolygon(ray2.origin, to2Natural, polyVertices, -1).point
+  const end1 = vertexRayEntersPolygon(ray1, polyVertices)
+    ? clipSegmentToPolygon(ray1.origin, to1Natural, polyVertices, -1).point
+    : ray1.origin
+  const end2 = vertexRayEntersPolygon(ray2, polyVertices)
+    ? clipSegmentToPolygon(ray2.origin, to2Natural, polyVertices, -1).point
+    : ray2.origin
   if (dist(ray1.origin, end1) > minLen) pushSegment(segments, ctx, ray1.origin, end1, edgeMid, ray1.side)
   if (dist(ray2.origin, end2) > minLen) pushSegment(segments, ctx, ray2.origin, end2, edgeMid, ray2.side)
 }

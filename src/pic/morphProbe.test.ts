@@ -340,19 +340,20 @@ describe('morph probe — nasty cases (fragile emitStarArms / pairAtVertex branc
 describe('morph probe — vertex lines through the field', () => {
   it('decoupled vertexContactAngle interpolates: invariants + uniform equivalence', () => {
     const polys = archimedean('square')
-    // Band 50°→80°: at θ < 45° on squares the vertex rays already leak past
-    // the polygon at UNIFORM θ (α = 90−θ exceeds the interior half-angle, the
-    // exit crossing sits at the ray's own vertex and is rejected by the clip's
-    // t>ε guard — verified pre-existing, 1800/3600 endpoints at uniform 40°).
-    // The morph inherits that artifact; it is not a morph regression, so the
-    // probe sweeps the regime where uniform θ is leak-free.
+    // Band 30°→80°: used to stop at 50 because θ < 45° on squares leaked
+    // vertex rays past the polygon at UNIFORM θ (α = 90−θ exceeds the interior
+    // half-angle, the exit crossing sits at the ray's own vertex and is
+    // rejected by the clip's t>ε guard). Fixed at #40 — `emitVertexArms` now
+    // suppresses a ray whose direction falls outside the vertex's own tangent
+    // cone instead of letting it leak — so the sweep now crosses that
+    // threshold on purpose, not around it.
     const extra: Partial<FigureConfig> = {
       vertexLinesEnabled: true,
       vertexLinesDecoupled: true,
-      vertexContactAngle: 50,
+      vertexContactAngle: 30,
       vertexAutoLineLength: true,
     }
-    // Base vertex angle 50 (from `extra`) ramping to 80 across the field.
+    // Base vertex angle 30 (from `extra`) ramping to 80 across the field.
     const morph: MorphConfig = {
       enabled: true,
       mode: 'linear',

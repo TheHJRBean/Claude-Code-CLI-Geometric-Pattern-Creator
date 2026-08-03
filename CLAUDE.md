@@ -17,6 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Tiling** = bare polygon coverage (no Strands). **Composition** = Tiling + Strands rendered.
 - **Lacing** = reserved; returns under Decoration.
 - **Complete** = Design-phase gap-fill with Tiles. "Fill" is reserved for the future Decoration colour-fill (see ADR-0002).
+- **Construct** = the Design-Phase tool mode (beside Place/Complete) where **Guides** are drawn (`editor/guides.ts`). **Anchor** = the umbrella term for every single pickable placement/Complete point app-wide (exposed vertices, Frame nodes, boundary-section points, neighbour vertices, Guide anchors) — never "vertex" in UI copy for a pick target (ADR-0008).
 
 ## Commands
 

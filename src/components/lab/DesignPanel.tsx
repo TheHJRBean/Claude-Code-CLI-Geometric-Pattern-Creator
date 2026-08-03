@@ -496,10 +496,10 @@ export function DesignPanel({
               lineHeight: 1.4,
             }}>
               {multiMode
-                ? `${picks.length} ${picks.length === 1 ? 'vertex' : 'vertices'} selected. Press Enter to commit, Esc to cancel.`
+                ? `${picks.length} ${picks.length === 1 ? 'Anchor' : 'Anchors'} selected. Press Enter to commit, Esc to cancel.`
                 : picks.length > 0
-                  ? 'Pick a second outer vertex to fill the gap between them. Esc to cancel.'
-                  : 'Pick two outer vertices to fill the gap, or hold Ctrl/Cmd and click N for a multi-vertex fill.'}
+                  ? 'Pick a second outer Anchor to fill the gap between them. Esc to cancel.'
+                  : 'Pick two outer Anchors to fill the gap, or hold Ctrl/Cmd and click N for a multi-Anchor fill.'}
               {picks.length > 0 && (
                 <button
                   onClick={onCancelComplete}

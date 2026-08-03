@@ -109,7 +109,7 @@ export function EditorPickerOverlay(props: Props) {
     <div
       ref={dialogRef}
       role="dialog"
-      aria-label={props.mode === 'vertex' ? 'Vertex placement' : 'Pick polygon to place'}
+      aria-label={props.mode === 'vertex' ? 'Anchor placement' : 'Pick polygon to place'}
       onPointerDown={e => e.stopPropagation()}
       style={{
         position: 'absolute',
@@ -181,7 +181,7 @@ function EdgePickerBody({ viableSides, forceableSides, onPick, onDeleteOwningTil
 
 /** Shared hover-hint text for the shape grid across edge / section / vertex
  *  pages. Highlights the overlap-warning state when a forceable size is
- *  hovered. `where` reads "here" (edge/section) or "at this vertex". */
+ *  hovered. `where` reads "here" (edge/section) or "at this anchor". */
 function pickerHint(
   hoveredN: number | null,
   viableSet: Set<number>,
@@ -211,11 +211,11 @@ function VertexPickerBody(props: VertexPickerProps) {
   if (pickedSides === null) {
     return (
       <>
-        <HeaderRow title="Anchor at Vertex" />
+        <HeaderRow title="Place at Anchor" />
         <HoverHint text={
-          empty ? 'No polygon fits at this vertex.'
+          empty ? 'No polygon fits at this anchor.'
             : hoveredN === null ? 'Choose a shape, then pick its orientation.'
-              : pickerHint(hoveredN, viableSet, forceableSet, empty, 'at this vertex')
+              : pickerHint(hoveredN, viableSet, forceableSet, empty, 'at this anchor')
         } />
         {!empty && (
           <ShapeGrid

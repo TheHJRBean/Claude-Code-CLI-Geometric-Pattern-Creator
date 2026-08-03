@@ -317,10 +317,10 @@ export type MultiPickValidity =
 export function multiPickValidityLabel(v: MultiPickValidity): string | null {
   switch (v.kind) {
     case 'valid': return null
-    case 'too-few': return 'Pick at least 3 vertices.'
+    case 'too-few': return 'Pick at least 3 Anchors.'
     case 'pick-not-selectable': return 'A pick is off the selectable set.'
     case 'no-real-cell-pick': return 'At least one pick must be on the live Patch (not only neighbour stamps).'
-    case 'duplicate-vertex': return 'Duplicate pick — each vertex must be distinct.'
+    case 'duplicate-vertex': return 'Duplicate pick — each Anchor must be distinct.'
     case 'self-intersecting': return 'Polygon self-intersects — re-order picks.'
     case 'inside-tile': return 'Polygon centroid lies inside an existing Tile.'
     case 'overlaps-existing': {

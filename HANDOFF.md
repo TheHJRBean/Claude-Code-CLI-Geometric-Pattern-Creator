@@ -19,7 +19,18 @@ option is **ruled out** by per-vertex partial leaks); **#34 fixed and
 closed** (`a8af5b2`). Only one thing there is owed back: a browser pass on
 #34, written up as NEXT item 0's second half in `SESSION_STATE.md`. Open
 issues now: **#54** (decision), **#52** (decision), #41, #40, #47, #39,
-#29–#32.
+#29, #30, #32.
+
+**2026-08-03, later same day: #31 shipped + closed** (`10382c3`) — Anchor
+vocabulary consolidation. CONTEXT.md's Construct/Guide/Anchor entries
+already existed from ADR-0008; the Anchor entry needed #33/#34 folded in
+(was still pointing at #33 as an unshipped follow-up), and the actual gap
+was UI copy still saying "vertex" for Anchor pick targets. Swept
+`EditorPickerOverlay` (header/aria-label/hints), `DesignPanel` Complete
+prompts, `patchSelectable` validity labels. Left untouched: code
+identifiers/comments, and the PIC/Figure sense of "vertex"
+(`vertexContactAngle`, a Tile's own geometric vertex) — different noun
+from the pick-target umbrella. Tests 1551 green, tsc clean.
 
 ---
 

@@ -60,6 +60,7 @@ import type { LatticeStamp } from '../editor/lattice'
 import { centroid, pointsEqual } from '../utils/math'
 import { EDITOR_EPS } from '../editor/exposedEdges'
 import { collectGuideAnchors, type GuideAnchor } from '../editor/guides'
+import { expandGuideOrbit, guideGroupIds, regenerateGuideGroup } from '../editor/guideOrbit'
 
 const FALLBACK_FIGURE: FigureConfig = { type: 'star', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
 
@@ -175,13 +176,19 @@ function baseIsDark(fig: FigureConfig): boolean {
   return fig.edgeLinesEnabled === false && !fig.vertexLinesEnabled
 }
 
-/** Apply a Guide popup/drag patch, re-pinning `id`/`kind` so the discriminant
- *  can't be widened and the patch's cross-kind optional fields drop out. */
+/** Apply a Guide popup/drag patch, re-pinning `id`/`kind`/`group` so the
+ *  discriminant can't be widened, the patch's cross-kind optional fields drop
+ *  out, and no popup edit can rewrite symmetry-orbit membership (slice 4 —
+ *  membership changes only by drawing or deleting). */
 function mergeGuide(g: EditorGuide, patch: EditorGuidePatch): EditorGuide {
+  // `group` is typed out of `EditorGuidePatch`; strip it at runtime too rather
+  // than re-pinning, so an absent group never becomes an explicit `undefined`.
+  const { group: _dropGroup, ...fields } = patch as EditorGuidePatch & { group?: unknown }
+  void _dropGroup
   if (g.kind === 'circle') {
-    return { ...g, ...patch, id: g.id, kind: 'circle' }
+    return { ...g, ...fields, id: g.id, kind: 'circle' }
   }
-  return { ...g, ...patch, id: g.id, kind: 'line' }
+  return { ...g, ...fields, id: g.id, kind: 'line' }
 }
 
 export function reducer(state: PatternConfig, action: Action): PatternConfig {
@@ -652,7 +659,19 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     }
     case 'EDITOR_ADD_GUIDE': {
       if (!state.editor) return state
-      const guides = [...(state.editor.guides ?? []), action.payload.guide]
+      // Slice 4 (#29): drawing inside a Cell with an active Symmetry picker
+      // lays down the whole orbit as one linked group — same lever as tile
+      // placement, no separate symmetry control. Outside every Cell, under
+      // `'none'`, or for a self-symmetric divided circle this returns the
+      // drawn Guide alone.
+      const drawn = action.payload.guide
+      const orbit = expandGuideOrbit(
+        state.editor,
+        drawn,
+        patchRotation(state.editor),
+        i => `${drawn.id}-s${i}`,
+      )
+      const guides = [...(state.editor.guides ?? []), ...orbit]
       return { ...state, editor: { ...state.editor, guides } }
     }
     case 'EDITOR_UPDATE_GUIDE': {
@@ -661,15 +680,26 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       const guides = state.editor?.guides
       if (!state.editor || !guides) return state
       const { guideId, patch } = action.payload
-      const idx = guides.findIndex(g => g.id === guideId)
-      if (idx === -1) return state
-      const next = guides.map(g => (g.id === guideId ? mergeGuide(g, patch) : g))
+      const target = guides.find(g => g.id === guideId)
+      if (!target) return state
+      const edited = mergeGuide(target, patch)
+      // Linked group (slice 4): the edited member is authoritative and every
+      // sibling is re-derived from it — settings copy across verbatim, geometry
+      // is carried through each sibling's own symmetry element so the orbit
+      // stays closed instead of collapsing onto the dragged member. Singles
+      // fall through unchanged.
+      const next = edited.group
+        ? regenerateGuideGroup(state.editor, guides, edited, patchRotation(state.editor))
+        : guides.map(g => (g.id === guideId ? edited : g))
       return { ...state, editor: { ...state.editor, guides: next } }
     }
     case 'EDITOR_DELETE_GUIDE': {
       const guides = state.editor?.guides
       if (!state.editor || !guides) return state
-      const next = guides.filter(g => g.id !== action.payload.guideId)
+      // Deleting one member of a linked group deletes all of them (spec
+      // Decision 8) — as one action, so undo restores the group in one step.
+      const doomed = guideGroupIds(guides, action.payload.guideId)
+      const next = guides.filter(g => !doomed.has(g.id))
       if (next.length === guides.length) return state
       // The last delete drops the block entirely (matches migration semantics).
       if (next.length === 0) {

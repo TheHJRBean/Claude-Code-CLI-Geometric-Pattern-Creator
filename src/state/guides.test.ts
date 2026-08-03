@@ -404,3 +404,75 @@ describe('Guides — undo wiring', () => {
     expect(a).not.toEqual(b)
   })
 })
+
+describe('Guides — symmetry-orbit groups (slice 4 / #29)', () => {
+  /** Default single-cell square Patch with the Symmetry picker turned on. */
+  const symBase = (mode: 'full' | 'rotation' | 'none'): PatternConfig => {
+    const s = base()
+    s.editor!.cells = s.editor!.cells.map(c => ({ ...c, symmetryMode: mode }))
+    return s
+  }
+
+  it('EDITOR_ADD_GUIDE lays down the whole orbit as one linked group', () => {
+    // A *generic* line — the shared `guide()` helper runs along the horizontal
+    // mirror axis, whose D4 orbit legitimately collapses from 8 images to 4.
+    const drawn: EditorGuideLine = { ...guide('g1'), start: { x: 20, y: 30 }, end: { x: 120, y: 70 } }
+    const s = reducer(symBase('full'), { type: 'EDITOR_ADD_GUIDE', payload: { guide: drawn } })
+    const guides = s.editor!.guides!
+    expect(guides).toHaveLength(8)
+    expect(guides[0].id).toBe('g1')
+    expect(new Set(guides.map(g => g.group!.id)).size).toBe(1)
+    expect(new Set(guides.map(g => g.id)).size).toBe(8)
+  })
+
+  it('symmetry "none" still adds exactly one unlinked Guide', () => {
+    const s = reducer(symBase('none'), { type: 'EDITOR_ADD_GUIDE', payload: { guide: guide('g1') } })
+    expect(s.editor!.guides).toHaveLength(1)
+    expect(s.editor!.guides![0].group).toBeUndefined()
+  })
+
+  it('EDITOR_UPDATE_GUIDE on one member applies to every member', () => {
+    let s = reducer(symBase('rotation'), { type: 'EDITOR_ADD_GUIDE', payload: { guide: guide('g1') } })
+    const memberId = s.editor!.guides![2].id
+    s = reducer(s, {
+      type: 'EDITOR_UPDATE_GUIDE',
+      payload: { guideId: memberId, patch: { stamp: true, extend: 'both' } },
+    })
+    expect(s.editor!.guides!.every(g => g.stamp)).toBe(true)
+    expect(s.editor!.guides!.every(g => (g as EditorGuideLine).extend === 'both')).toBe(true)
+    // Ids + membership survive the edit, so the open popup stays valid.
+    expect(s.editor!.guides!.map(g => g.id)).toEqual(['g1', 'g1-s1', 'g1-s2', 'g1-s3'])
+  })
+
+  it('a geometry edit reshapes the group symmetrically, not onto the dragged member', () => {
+    let s = reducer(symBase('rotation'), { type: 'EDITOR_ADD_GUIDE', payload: { guide: guide('g1') } })
+    s = reducer(s, {
+      type: 'EDITOR_UPDATE_GUIDE',
+      payload: { guideId: 'g1', patch: { end: { x: 60, y: 60 } } },
+    })
+    const lines = s.editor!.guides! as EditorGuideLine[]
+    expect(lines).toHaveLength(4)
+    expect(lines[0].end).toEqual({ x: 60, y: 60 })
+    // Four distinct positions — a collapse would leave one repeated point.
+    const ends = new Set(lines.map(g => `${Math.round(g.end.x)},${Math.round(g.end.y)}`))
+    expect(ends.size).toBe(4)
+  })
+
+  it('EDITOR_DELETE_GUIDE on one member deletes the whole group in one action', () => {
+    let s = reducer(symBase('rotation'), { type: 'EDITOR_ADD_GUIDE', payload: { guide: guide('g1') } })
+    expect(s.editor!.guides).toHaveLength(4)
+    s = reducer(s, { type: 'EDITOR_DELETE_GUIDE', payload: { guideId: 'g1-s2' } })
+    // Last group gone ⇒ the whole block drops, matching migration semantics.
+    expect(s.editor!.guides).toBeUndefined()
+  })
+
+  it('deleting a group leaves unrelated Guides alone', () => {
+    let s = reducer(symBase('rotation'), { type: 'EDITOR_ADD_GUIDE', payload: { guide: guide('g1') } })
+    // A canvas-space Guide (outside the Cell Boundary) never joins a group.
+    const stray: EditorGuideLine = { ...guide('stray'), start: { x: 5000, y: 0 }, end: { x: 5100, y: 0 } }
+    s = reducer(s, { type: 'EDITOR_ADD_GUIDE', payload: { guide: stray } })
+    expect(s.editor!.guides).toHaveLength(5)
+    s = reducer(s, { type: 'EDITOR_DELETE_GUIDE', payload: { guideId: 'g1-s1' } })
+    expect(s.editor!.guides!.map(g => g.id)).toEqual(['stray'])
+  })
+})

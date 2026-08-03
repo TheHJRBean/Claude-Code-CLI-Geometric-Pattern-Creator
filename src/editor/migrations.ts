@@ -18,6 +18,7 @@ import type {
   GradientStop,
   GroupingScope,
   GuideExtend,
+  GuideGroupRef,
   SymmetryMode,
   VoidStampRecord,
 } from '../types/editor'
@@ -342,7 +343,22 @@ function migrateGuide(raw: unknown): EditorGuide | null {
   }
   if (typeof r.tickSpacing === 'number' && r.tickSpacing > 0) out.tickSpacing = r.tickSpacing
   if (typeof r.ticksEnabled === 'boolean') out.ticksEnabled = r.ticksEnabled
+  const group = migrateGuideGroup(r.group)
+  if (group) out.group = group
   return out
+}
+
+/** Slice-4 symmetry-orbit group ref. A malformed ref drops to `undefined` —
+ *  the Guide then loads as an unlinked single rather than failing the load or,
+ *  worse, carrying a group id whose siblings would regenerate off garbage. */
+function migrateGuideGroup(raw: unknown): GuideGroupRef | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined
+  const r = raw as Record<string, unknown>
+  if (typeof r.id !== 'string' || r.id.length === 0) return undefined
+  if (typeof r.cellId !== 'string' || r.cellId.length === 0) return undefined
+  if (typeof r.mode !== 'string' || !SYMMETRY_MODES.has(r.mode as SymmetryMode)) return undefined
+  if (typeof r.symIndex !== 'number' || !Number.isInteger(r.symIndex) || r.symIndex < 0) return undefined
+  return { id: r.id, cellId: r.cellId, mode: r.mode as SymmetryMode, symIndex: r.symIndex }
 }
 
 /** Slice-2 Guide circle validator: needs a finite centre + positive radius;
@@ -363,6 +379,8 @@ function migrateGuideCircle(r: Record<string, unknown>): EditorGuideCircle | nul
   if (typeof r.divisions === 'number' && r.divisions >= 1) out.divisions = Math.round(r.divisions)
   if (typeof r.tickSpacing === 'number' && r.tickSpacing > 0) out.tickSpacing = r.tickSpacing
   if (typeof r.ticksEnabled === 'boolean') out.ticksEnabled = r.ticksEnabled
+  const group = migrateGuideGroup(r.group)
+  if (group) out.group = group
   return out
 }
 

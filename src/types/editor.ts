@@ -477,6 +477,32 @@ export interface StampUserTransform {
 export type GuideExtend = 'none' | 'start' | 'end' | 'both'
 
 /**
+ * Symmetry-orbit group membership (Guides slice 4, spec Decision 8). A Guide
+ * drawn inside a Cell whose **Symmetry** picker is active is expanded into its
+ * whole orbit; the resulting Guides are **linked as one group** — editing any
+ * member's settings or geometry re-derives the others, and deleting one deletes
+ * all. Absent ⇒ the Guide is a single (drawn outside every Cell, drawn under
+ * `'none'` symmetry, or a self-symmetric divided circle).
+ *
+ * `mode` is a **snapshot** of the Cell's symmetry at draw time, not a live read:
+ * changing the Cell's picker afterwards must not silently add or destroy
+ * members of an existing group. Together with `cellId` it reproduces the exact
+ * `boundarySymmetries` list, and `symIndex` says which element of that list
+ * this member is — so an edit to member k can be pulled back to the group's
+ * base frame and pushed out to every other member, with ids left stable.
+ */
+export interface GuideGroupRef {
+  /** Shared across every member of the orbit. */
+  id: string
+  /** The Cell whose Cell-Boundary symmetry generated the orbit. */
+  cellId: string
+  /** Symmetry subgroup snapshotted at draw time. */
+  mode: SymmetryMode
+  /** This member's index into `boundarySymmetries(cell.shape, mode)`. */
+  symIndex: number
+}
+
+/**
  * A Guide line — two-click segment in Patch-local world coordinates.
  * The `EditorGuide` union also carries `EditorGuideCircle` (slice 2).
  */
@@ -514,6 +540,8 @@ export interface EditorGuideLine {
    * configs don't change shape later.
    */
   manualAnchors: number[]
+  /** Symmetry-orbit group membership (slice 4) — see `GuideGroupRef`. */
+  group?: GuideGroupRef
 }
 
 /**
@@ -560,6 +588,10 @@ export interface EditorGuideCircle {
    * with the Anchor wiring (slice 3); the schema ships now for save-shape
    * stability. */
   manualAnchors: number[]
+  /** Symmetry-orbit group membership (slice 4) — see `GuideGroupRef`. A
+   *  **divided** circle is self-symmetric via its n-division and is never
+   *  expanded at draw time (spec Decision 8), so this stays absent there. */
+  group?: GuideGroupRef
 }
 
 /**
@@ -571,12 +603,13 @@ export type EditorGuide = EditorGuideLine | EditorGuideCircle
 /**
  * A partial edit applied to a single Guide by `EDITOR_UPDATE_GUIDE` / the
  * per-Guide popup. Union-friendly: every editable field of both variants,
- * all optional. `id` / `kind` are never patchable (the reducer re-pins them).
+ * all optional. `id` / `kind` / `group` are never patchable (the reducer
+ * re-pins them — group membership changes only by drawing or deleting).
  * Only fields relevant to the target Guide's kind are ever sent.
  */
 export type EditorGuidePatch =
-  Partial<Omit<EditorGuideLine, 'id' | 'kind'>> &
-  Partial<Omit<EditorGuideCircle, 'id' | 'kind'>>
+  Partial<Omit<EditorGuideLine, 'id' | 'kind' | 'group'>> &
+  Partial<Omit<EditorGuideCircle, 'id' | 'kind' | 'group'>>
 
 /**
  * A Patch — one repeat unit of the tiled Composition. Always carries one or

@@ -5,10 +5,21 @@ its **NEXT** list is the menu; this file carries the working context for the
 items that need a *decision* or have a trap waiting, so a cold session doesn't
 have to re-derive any of it.
 
-Nothing here is mid-flight. Tree clean, `main` pushed at `b8a733c`, suite
-**1546 green**, tsc clean. (Stamp stamp: refreshed at the end of the
-2026-08-03 Frame-origin + Void-seam session; the decision items below are
-untouched by it.)
+Nothing here is mid-flight. Tree clean, `main` pushed at `4040470`, suite
+**1551 green**, tsc + build clean. (Refreshed at the end of the 2026-08-03
+zero-input backlog pass. **#54 below is still the one live decision** — that
+pass deliberately took only work that needed nothing from the user, so it
+did not touch it.)
+
+**What the 2026-08-03 backlog pass changed, in one place:** 5 issues closed
+as shipped+verified (#44/#45/#46/#42/#28); **#40 scoped** with a throwaway
+probe (see the issue — the α > interior-half-angle predictor is exact at
+88/88, 20 of 26 tilings affected, and the "clamp the slider per shape"
+option is **ruled out** by per-vertex partial leaks); **#34 fixed and
+closed** (`a8af5b2`). Only one thing there is owed back: a browser pass on
+#34, written up as NEXT item 0's second half in `SESSION_STATE.md`. Open
+issues now: **#54** (decision), **#52** (decision), #41, #40, #47, #39,
+#29–#32.
 
 ---
 

@@ -1628,3 +1628,39 @@ or constructed-figure engine).
     class. `RENDER_SIMPLIFY_ANGLE_TOL` (0.05°) now applies there;
     `voidSignature` and `canonicaliseSignatures` keep the 1.5°/3° identity
     tolerances untouched.
+
+- **2026-08-03** — Vertex-line leak census (#40), measured across every shipping
+  tiling. Extends the 2026-07-17 Morph-probe entry above, which found the leak
+  but only on squares at θ<45°. Method: every tiling × θ ∈ {20, 30, 40, 45, 50,
+  60, 67.5, 71, 80} with `vertexLinesEnabled`, counting emitted vertex lines per
+  tile and testing each endpoint for containment in its own polygon (pulled 0.5%
+  toward the centre so on-boundary endpoints don't count); tiles judged only
+  within 120 units of the origin, so field-boundary trimming is excluded.
+  - **The predictor is exact for detection.** α = 90°−θ greater than the
+    *vertex's* interior half-angle ⇒ leak: **88 leaking cases, 88 predicted,
+    zero unpredicted**. 21 predicted-but-clean, all of them tiles whose arms
+    were already fully suppressed by other means (e.g. `hexagonal` @θ=30 emits
+    0/12), so the condition never misses and never fires where there is
+    anything left to clip.
+  - **20 of 26 shipping tilings** leak at some θ in that range.
+  - **Not a low-θ phenomenon.** Sharp irregular tiles push it deep into the
+    usable range: `pentagonal-rosette`'s 18°-half-angle quad (type `4.2`) leaks
+    at **θ=71°** — past the classic 67.5° — and `tetrakis-square`'s 22.5° right
+    triangle at θ=60.
+  - **Two regimes, only one of which is the bug.** 88 **leaks** (full 2n
+    emitted, endpoints outside) versus 28 **dropouts** (fewer than 2n, nothing
+    outside). Every dropout sits at α ≈ the interior half-angle *exactly* —
+    `square`@45, `hexagonal`@30, `triangular`@60, `tetrakis-square`@67.5 — where
+    the ray runs along the edge and dropping it is correct. This corrects a
+    working assumption that #40 was the only remaining cause of a sub-2n count;
+    #40's own signature is the opposite, a full count with wrong geometry, so
+    fixing it will push some counts *down*.
+  - **A per-shape θ clamp cannot work.** Partial leaks are routine on irregular
+    tiles — `decagonal-rosette` 6-gon type `6.3` @θ=40 emits 12/12 with 8 of 24
+    endpoints out; `pentagonal-rosette` type `4.2` @θ=20 emits 8/8 with 4 of 16
+    out. Vertices of a single tile differ in interior angle, so one θ is
+    simultaneously safe at one corner and leaking at another. The fix must
+    suppress or clip the individual **arm**, not the tile's vertex-line set, and
+    the honest regression test is "zero vertex-line endpoints outside their own
+    polygon" with counts left free — the same reasoning that made
+    `figureSymmetry.test.ts` assert symmetry rather than a fixed 2n.

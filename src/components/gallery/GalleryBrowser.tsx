@@ -185,7 +185,7 @@ export function GalleryBrowser({ library, onEditInLab, onGoToLab }: Props) {
               onRename={() => handleRename(entry)}
               onDuplicate={() => handleDuplicate(entry)}
               onDelete={() => handleDelete(entry)}
-              onExport={() => saveJSON(entry.config)}
+              onExport={() => saveJSON(entry.config, entry.name)}
             />
           ))}
         </div>

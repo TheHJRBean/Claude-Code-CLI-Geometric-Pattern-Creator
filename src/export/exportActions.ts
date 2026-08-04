@@ -37,6 +37,12 @@ export interface ExportActionsArgs {
    *  instead of the live on-screen camera. Off = today's screen-view export. */
   maxFill: boolean
   onToggleMaxFill: () => void
+  /** Resolves the name of the library entry this config is attached to, when
+   *  there is one — every download is named after it, unsaved work keeps the
+   *  generic default (see `exportFileName`). A getter, not a value: reading a
+   *  name means parsing the whole library out of localStorage, and it must be
+   *  the name as of the click (a rename between renders would go stale). */
+  resolveSaveName?: () => string | null | undefined
 }
 
 /** Resolve the Max-fill viewBox for the current live SVG, or undefined when
@@ -64,11 +70,12 @@ export function buildExportMenuItems({
   onTogglePngTransparent,
   maxFill,
   onToggleMaxFill,
+  resolveSaveName,
 }: ExportActionsArgs): ExportMenuItem[] {
   const handleExportSVG = () => {
     const el = svgRef.current
     if (!el) return
-    exportSVG(el, { viewBox: resolveMaxFillViewBox(el, maxFill) })
+    exportSVG(el, { viewBox: resolveMaxFillViewBox(el, maxFill), name: resolveSaveName?.() })
   }
   const exportPngAt = (width: number) => {
     const el = svgRef.current
@@ -89,9 +96,10 @@ export function buildExportMenuItems({
       // would silently revert to sand on export.
       background: pngTransparent ? null : (config.strand.background || DEFAULT_PNG_BACKGROUND),
       viewBox,
+      name: resolveSaveName?.(),
     })
   }
-  const handleSaveJSON = () => saveJSON(config)
+  const handleSaveJSON = () => saveJSON(config, resolveSaveName?.())
   const handleLoadJSON = async () => {
     try {
       onLoad(await loadJSON())

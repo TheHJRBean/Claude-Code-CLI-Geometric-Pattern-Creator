@@ -486,9 +486,18 @@ export function TessellationLabMode({
   // source now that the Gallery tuning sidebar is gone (ADR-0006 flip). Image
   // export runs against the live `<svg>`; Save-JSON round-trips the whole
   // PatternConfig.
+  // Name every download after the linked library entry, resolved at click time
+  // (`patternLibrary.get` re-parses the whole library, and a rename between
+  // renders must not name the file after the old title). Unlinked working
+  // configs fall back to the generic default.
+  const resolveSaveName = useCallback(
+    () => (activeSavedId ? patternLibrary.get(activeSavedId)?.name : null),
+    [activeSavedId],
+  )
   const exportItems = buildExportMenuItems({
     svgRef,
     config,
+    resolveSaveName,
     onLoad: loaded => dispatch({ type: 'LOAD_CONFIG', payload: loaded }),
     pngTransparent,
     onTogglePngTransparent: () => setPngTransparent(t => !t),

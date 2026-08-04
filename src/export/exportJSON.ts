@@ -1,18 +1,22 @@
 import type { PatternConfig } from '../types/pattern'
 import { ConfigValidationError, CURRENT_PATTERN_CONFIG_VERSION, loadPatternConfig } from '../state/configValidation'
 import { downloadBlob } from './download'
+import { exportFileName } from './fileName'
 
 /**
  * Write the working config to a `.json` file, stamped with the schema
  * generation that produced it — an exported file is the one carrier that can
  * outlive this build entirely, so it should say what wrote it rather than
  * import back as generation 0.
+ *
+ * `name` is the saved entry this config came from, when there is one — the
+ * file is named after it so a downloads folder stays readable.
  */
-export function saveJSON(config: PatternConfig) {
+export function saveJSON(config: PatternConfig, name?: string | null) {
   const stamped: PatternConfig = { ...config, version: CURRENT_PATTERN_CONFIG_VERSION }
   const json = JSON.stringify(stamped, null, 2)
   const blob = new Blob([json], { type: 'application/json' })
-  downloadBlob(blob, 'islamic-pattern.json')
+  downloadBlob(blob, exportFileName(name, 'json'))
 }
 
 export function loadJSON(): Promise<PatternConfig> {

@@ -1,6 +1,7 @@
 import type { Segment } from '../types/geometry'
 import { buildStrands } from '../strand/buildStrands'
 import { downloadBlob } from './download'
+import { exportFileName } from './fileName'
 import { DEFAULT_CANVAS_BACKGROUND } from '../state/defaults'
 
 /**
@@ -232,7 +233,9 @@ export function measureExportContentBounds(svgEl: SVGSVGElement): ContentBounds 
   }
 }
 
-export function exportSVG(svgEl: SVGSVGElement, opts: { viewBox?: ContentBounds } = {}) {
+/** `name` = the saved entry this pattern came from, when there is one; the
+ *  download is named after it (see `exportFileName`). */
+export function exportSVG(svgEl: SVGSVGElement, opts: { viewBox?: ContentBounds; name?: string | null } = {}) {
   const clone = svgEl.cloneNode(true) as SVGSVGElement
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
   const vb = opts.viewBox
@@ -243,7 +246,7 @@ export function exportSVG(svgEl: SVGSVGElement, opts: { viewBox?: ContentBounds 
   if (vb) clone.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.width} ${vb.height}`)
   const str = inlineCssVariables(stripExportExclusions(new XMLSerializer().serializeToString(clone)), svgEl)
   const blob = new Blob([str], { type: 'image/svg+xml;charset=utf-8' })
-  downloadBlob(blob, 'islamic-pattern.svg')
+  downloadBlob(blob, exportFileName(opts.name, 'svg'))
 }
 
 /**
@@ -281,9 +284,9 @@ ${pathEls}
  *  domain under the Lever A fast-path, so it emitted one unit cell rather than
  *  the full field. Kept (with `unwovenSvgMarkup` + its test) so it can return
  *  Lab-wide via the export epic's full-field re-derivation. */
-export function exportUnwovenSVG(segments: Segment[], viewBox: string, width: number, height: number) {
+export function exportUnwovenSVG(segments: Segment[], viewBox: string, width: number, height: number, name?: string | null) {
   const blob = new Blob([unwovenSvgMarkup(segments, viewBox, width, height)], { type: 'image/svg+xml;charset=utf-8' })
-  downloadBlob(blob, 'islamic-pattern-unwoven.svg')
+  downloadBlob(blob, exportFileName(name ? `${name}-unwoven` : 'islamic-pattern-unwoven', 'svg'))
 }
 
 /** Fallback raster fill for callers with no config to hand (the thumbnail
@@ -299,6 +302,9 @@ export interface PngExportOptions {
   /** Max-fill: override the rasterised viewBox instead of the live on-screen
    *  one, so `width`/`height` frame the given content bounds exactly. */
   viewBox?: ContentBounds
+  /** Saved-entry name to name the download after (`exportPNG` only — the
+   *  thumbnail/rasterise paths never hit the filesystem). */
+  name?: string | null
 }
 
 /**
@@ -370,6 +376,6 @@ export async function exportPNG(
   const canvas = await rasterizeSvgToCanvas(svgEl, opts)
   if (!canvas) return
   canvas.toBlob(b => {
-    if (b) downloadBlob(b, 'islamic-pattern.png')
+    if (b) downloadBlob(b, exportFileName(opts.name, 'png'))
   }, 'image/png')
 }

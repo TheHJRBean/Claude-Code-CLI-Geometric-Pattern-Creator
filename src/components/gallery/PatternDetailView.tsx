@@ -39,7 +39,7 @@ export function PatternDetailView({ save, badge, editAvailability, onBack, onEdi
     if (!el) return
     const cw = el.clientWidth || 1200
     const ch = el.clientHeight || 900
-    void exportPNG(el, { width: 2048, height: Math.max(1, Math.round(2048 * (ch / cw))) })
+    void exportPNG(el, { width: 2048, height: Math.max(1, Math.round(2048 * (ch / cw))), name: save.name })
   }
 
   return (
@@ -55,9 +55,9 @@ export function PatternDetailView({ save, badge, editAvailability, onBack, onEdi
           </button>
           {exportOpen && (
             <div className="gallery-detail__export-menu" role="menu">
-              <button role="menuitem" onClick={() => { if (svgRef.current) exportSVG(svgRef.current); setExportOpen(false) }}>SVG</button>
+              <button role="menuitem" onClick={() => { if (svgRef.current) exportSVG(svgRef.current, { name: save.name }); setExportOpen(false) }}>SVG</button>
               <button role="menuitem" onClick={() => { exportPngNow(); setExportOpen(false) }}>PNG</button>
-              <button role="menuitem" onClick={() => { saveJSON(save.config); setExportOpen(false) }}>JSON</button>
+              <button role="menuitem" onClick={() => { saveJSON(save.config, save.name); setExportOpen(false) }}>JSON</button>
             </div>
           )}
         </div>

@@ -20,6 +20,7 @@ import type {
   GuideExtend,
   GuideGroupRef,
   SymmetryMode,
+  VoidMergeRecord,
   VoidStampRecord,
 } from '../types/editor'
 import type { StrandLineStyle } from '../types/pattern'
@@ -254,6 +255,18 @@ export function migrateDecoration(raw: unknown): DecorationConfig | undefined {
     }
     if (stamps.length > 0) out.voidStamps = stamps
   }
+  // Combine — Void merge groups. A malformed record is dropped on its own:
+  // losing one combine leaves the group's members painting separately, which
+  // is recoverable, where failing the block would lose every paint on the
+  // pattern.
+  if (Array.isArray(r.voidMerges)) {
+    const merges: VoidMergeRecord[] = []
+    for (const rec of r.voidMerges) {
+      const merge = migrateVoidMerge(rec)
+      if (merge) merges.push(merge)
+    }
+    if (merges.length > 0) out.voidMerges = merges
+  }
   // Slice 2 (#45) — across-frame gradient. A malformed spec drops the whole
   // frame gradient (never crashes the load); the rest of decoration survives.
   if (typeof r.frameGradient === 'object' && r.frameGradient !== null) {
@@ -282,6 +295,29 @@ export function migrateDecoration(raw: unknown): DecorationConfig | undefined {
     }
   }
   return out
+}
+
+/** Validate one persisted `VoidMergeRecord` (Combine); invalid records are
+ * dropped. A record with no members would match nothing, so it is treated as
+ * malformed rather than carried as a combine of one. */
+function migrateVoidMerge(raw: unknown): VoidMergeRecord | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const r = raw as Record<string, unknown>
+  if (!GROUPING_SCOPES.has(r.scope as GroupingScope)) return null
+  if (typeof r.key !== 'string' || r.key.length === 0) return null
+  if (typeof r.signature !== 'string' || r.signature.length === 0) return null
+  if (!Array.isArray(r.members) || r.members.length === 0) return null
+  const members: VoidMergeRecord['members'] = []
+  for (const m of r.members) {
+    if (typeof m !== 'object' || m === null) return null
+    const mm = m as Record<string, unknown>
+    const off = mm.offset as Record<string, unknown> | undefined
+    if (typeof mm.signature !== 'string' || mm.signature.length === 0) return null
+    if (!off || typeof off.x !== 'number' || typeof off.y !== 'number') return null
+    if (!isFinite(off.x) || !isFinite(off.y)) return null
+    members.push({ signature: mm.signature, offset: { x: off.x, y: off.y } })
+  }
+  return { scope: r.scope as GroupingScope, key: r.key, signature: r.signature, members }
 }
 
 /** Validate one persisted `VoidStampRecord`; invalid records are dropped. */

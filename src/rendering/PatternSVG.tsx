@@ -10,6 +10,7 @@ import { StrandLayer } from './StrandLayer'
 import { ControlPointLayer } from './ControlPointLayer'
 import { VoidFillLayer } from './VoidFillLayer'
 import { VoidStampLayer } from './VoidStampLayer'
+import { VoidSeamLayer } from './VoidSeamLayer'
 import type { VoidFill } from '../decoration/resolve'
 import type { StampPlacement } from '../decoration/stamps'
 import type { ColourRecord, FrameGradient, StrandGradient } from '../types/editor'
@@ -309,6 +310,11 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
               {voidFills && <VoidFillLayer fills={voidFills} idPrefix="void-fill-world" />}
               {voidStamps && <VoidStampLayer placements={voidStamps} idPrefix="void-stamp-world" />}
               {showLines && <StrandLayer segments={segments} config={config} ghostPolygonIds={ghostPolygonIds} strandRecords={strandRecords} orbitStamps={orbitStamps} cellFrames={cellFrames} identitySource={strandIdentitySource} strandGradient={strandGradient} />}
+              {/* Combine seam cover — above the Strands by necessity: it exists
+                  to hide the rays crossing a combined group's interior. Only
+                  the world-space path needs it; a combine disqualifies the
+                  periodic fast path (a group can straddle the domain). */}
+              {showLines && <VoidSeamLayer fills={voidFills} stamps={voidStamps} strandWidth={config.strand.width} idPrefix="void-seam-world" />}
               <ControlPointLayer
                 segments={segments}
                 config={config}

@@ -23,6 +23,7 @@ import { morphActive } from '../pic/morph'
 import { runRosettePIC } from '../pic/rosettePatch'
 import { recordPerf, periodicityEnabled } from '../utils/perf'
 import { colourVoids, keyVoids, makeVoidFill, type KeyedVoid, type PaintVoid, type StrandHit, type VoidFill } from '../decoration/resolve'
+import { applyVoidMerges } from '../decoration/voidMerge'
 import { resolveVoidStamps, type StampPlacement } from '../decoration/stamps'
 import { extractVoids, pairCurvedOutlines, RENDER_SIMPLIFY_ANGLE_TOL, type VoidRegion } from '../decoration/voids'
 import { buildColourIndex, orbitOffset, resolveFill, scopedKey } from '../decoration/scopes'
@@ -213,6 +214,12 @@ export function periodicFastPathEligible(
     // order across records stops holding. Fall through to the exact
     // world-space field, where one flat paint order covers the whole plane.
     && !(config.editor?.decoration?.voidStamps?.some(r => r.overlap))
+    // Combine (`decoration/voidMerge.ts`) fuses adjacent Voids into one shape.
+    // A combined group can straddle the fundamental domain's boundary — that
+    // is the whole point of combining across a seam — and the <use> fragment
+    // has no way to express a shape that leaves it. Fall through to the exact
+    // world-space field, where the arrangement is whole.
+    && !(config.editor?.decoration?.voidMerges?.length)
     // Weave (Lacing) interlaces over the FULL planar arrangement: crossings at
     // the seams BETWEEN stamped copies must alternate over/under with the ones
     // inside a domain. computeWeave over one base domain never sees those seam
@@ -479,7 +486,7 @@ export function usePattern(
     const fills: VoidFill[] = []
     for (const r of decorationReps) {
       const fill = resolveFill(voidIndex, r.signature, r.centroid, null, r.cellKey)
-      if (fill) fills.push(makeVoidFill(r.polygon, r.keyPolygon, fill))
+      if (fill) fills.push(makeVoidFill(r, fill))
     }
     // Void Stamps over the same representative set — fragment-space, tiled by
     // <use> exactly like the fills.
@@ -838,6 +845,26 @@ export function usePattern(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [legacyBoundSig, legacyField, config.figures, config.smoothTransitions])
 
+  // Combine (`decoration/voidMerge.ts`) — fuse each merge record's group into
+  // one composite Void. Deliberately a SEPARATE memo from the extraction above:
+  // keying a Void is the expensive half (cellOrbitKey canonicalises its outline
+  // over every dihedral image) and must stay memoised on the field, while
+  // merges change on a user click. This pass re-keys only the composites.
+  const voidMerges = patternDecoration(config)?.voidMerges
+  const mergedNonFastVoids = useMemo(() => {
+    if (!nonFastVoidData) return null
+    return {
+      ...nonFastVoidData,
+      keyed: applyVoidMerges(
+        nonFastVoidData.keyed, voidMerges, nonFastVoidData.stampTranslations, decorationCellFrames ?? [],
+      ),
+    }
+  }, [nonFastVoidData, voidMerges, decorationCellFrames])
+  const mergedLegacyVoids = useMemo(
+    () => (legacyVoidData ? applyVoidMerges(legacyVoidData, voidMerges, [], []) : null),
+    [legacyVoidData, voidMerges],
+  )
+
   // Legacy-substrate Strand hit-targets. Identities come from the RENDERED
   // chains — there is no base fragment to key from on this substrate, which is
   // the same fallback `StrandLayer` already applies when `identitySource` is
@@ -1029,11 +1056,10 @@ export function usePattern(
                   // makeVoidFill re-derives the canonical pose off the
                   // translated straight outline, so a gradient record lands
                   // world-correct on the reconstructed instance.
-                  instanceVoidFills.push(makeVoidFill(
-                    r.polygon.map(p => ({ x: p.x + tx, y: p.y + ty })),
-                    r.keyPolygon?.map(p => ({ x: p.x + tx, y: p.y + ty })),
-                    rec,
-                  ))
+                  instanceVoidFills.push(makeVoidFill({
+                    polygon: r.polygon.map(p => ({ x: p.x + tx, y: p.y + ty })),
+                    keyPolygon: r.keyPolygon?.map(p => ({ x: p.x + tx, y: p.y + ty })),
+                  }, rec))
                   break
                 }
               }
@@ -1132,8 +1158,8 @@ export function usePattern(
       // strands the same way on both.
       const strandIdentitySource = { baseSegments: editorBase.baseSegments, stamps: stampedField.stamps }
       if (decorationActive) {
-        const keyed = nonFastVoidData?.keyed ?? []
-        const stampTranslations = nonFastVoidData?.stampTranslations ?? stamps.map(s => s.translation)
+        const keyed = mergedNonFastVoids?.keyed ?? []
+        const stampTranslations = mergedNonFastVoids?.stampTranslations ?? stamps.map(s => s.translation)
         return {
           polygons: picPolygons,
           // Strands render from the same EXTRACTION field the Void fills come
@@ -1163,7 +1189,7 @@ export function usePattern(
     // a paint. Empty orbit stamps / Cell frames are the truthful values, not
     // placeholders — StrandLayer's `patch` and `cell` rungs then never match,
     // matching the scopes the panel offers.
-    const keyed = legacyVoidData ?? []
+    const keyed = mergedLegacyVoids ?? []
     const deco = patternDecoration(config)
     return {
       polygons: legacyField.polygons,
@@ -1175,5 +1201,5 @@ export function usePattern(
       decorationOrbitStamps: [],
       decorationCellFrames: [],
     }
-  }, [config, editorBase, stampedField, decorationFills, baseStrandIds, decorationOrbitRing, decorationCellFrames, nonFastVoidData, nonFastStrandHits, legacyField, legacyVoidData, legacyStrandHits, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview, editorNeighbourBoundaries, editorNeighbourStrands, editorFrame, decorationActive, decorationPaintActive, decorationPaintTarget])
+  }, [config, editorBase, stampedField, decorationFills, baseStrandIds, decorationOrbitRing, decorationCellFrames, mergedNonFastVoids, nonFastStrandHits, legacyField, mergedLegacyVoids, legacyStrandHits, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview, editorNeighbourBoundaries, editorNeighbourStrands, editorFrame, decorationActive, decorationPaintActive, decorationPaintTarget])
 }

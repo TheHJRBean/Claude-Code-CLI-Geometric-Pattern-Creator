@@ -937,6 +937,32 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       voidStamps.splice(to, 0, rec)
       return withPatternDecoration(state, { ...deco, voidStamps })
     }
+    case 'COMBINE_VOIDS': {
+      // Combine (`decoration/voidMerge.ts`) — append a merge group. Appending
+      // (rather than replacing a matching record) is what gives the matcher
+      // its first-come rule a stable meaning: earlier records claim their
+      // Voids first, so a later overlapping combine loses rather than
+      // silently re-partitioning the field.
+      if (!canDecorate(state)) return state
+      const deco = patternDecoration(state) ?? emptyDecoration()
+      return withPatternDecoration(state, {
+        ...deco,
+        voidMerges: [...(deco.voidMerges ?? []), action.payload],
+      })
+    }
+    case 'SEPARATE_VOIDS': {
+      // Drop one merge record by index — the `mergedFrom` provenance the
+      // matcher stamps on the composite the user clicked.
+      const deco = patternDecoration(state)
+      if (!deco?.voidMerges) return state
+      const { index } = action.payload
+      if (index < 0 || index >= deco.voidMerges.length) return state
+      const voidMerges = deco.voidMerges.filter((_, i) => i !== index)
+      const next = { ...deco }
+      if (voidMerges.length > 0) next.voidMerges = voidMerges
+      else delete next.voidMerges
+      return withPatternDecoration(state, next)
+    }
     case 'SET_DECORATION_FRAME_GRADIENT': {
       // Across-frame gradient underlay (#45) — dumb setter. `null` clears the
       // slot; a spec sets/replaces it (enable flag + world geometry + stops).

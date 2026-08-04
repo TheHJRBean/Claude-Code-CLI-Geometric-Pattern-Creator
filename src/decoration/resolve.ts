@@ -23,6 +23,13 @@ import { cellOrbitKey, reduceToOrbit, type CellFrame } from './cellScope'
 export interface VoidFill {
   /** CCW outline of a Void to paint. */
   polygon: Vec2[]
+  /** Inner loops to leave unpainted — only a **Combine** composite ringing an
+   * unselected Void has any (`decoration/voidMerge.ts`). */
+  holes?: Vec2[][]
+  /** A **Combine** composite's internal edges: the strand-crossed seams
+   * between its members, which the seam cover paints over so the group reads
+   * as one shape. */
+  seams?: [Vec2, Vec2][]
   /** CSS colour (flat fill, and fallback when the gradient can't render). */
   colour: string
   /** Gradient fill — wins over `colour` when present. Geometry lives in the
@@ -136,24 +143,32 @@ export function colourVoids(
   const fills: VoidFill[] = []
   for (const v of keyed) {
     const fill = resolveFill(idx, v.signature, v.orbit, v.centre, v.cellKey)
-    if (fill) fills.push(makeVoidFill(v.polygon, v.keyPolygon, fill))
+    if (fill) fills.push(makeVoidFill(v, fill))
   }
   return fills
 }
 
+/** The outline data a `VoidFill` is built from — a whole `VoidRegion`, or the
+ * outlines alone where a caller reconstructs an instance by translation. */
+export type FillGeometry = Pick<VoidRegion, 'polygon'> & Partial<Pick<VoidRegion, 'keyPolygon' | 'holes' | 'seams'>>
+
 /** Assemble one render-ready `VoidFill`, deriving the canonical-pose transform
  * when the fill carries a gradient (from the STRAIGHT outline where present,
- * matching stamps — so a gradient survives curve-recipe changes). */
+ * matching stamps — so a gradient survives curve-recipe changes). A Combine
+ * composite's holes and seams ride along: the fill is painted through the same
+ * outline the group was posed from, so a gradient spans the whole union. */
 export function makeVoidFill(
-  polygon: Vec2[],
-  keyPolygon: Vec2[] | undefined,
+  region: FillGeometry,
   fill: { colour: string; gradient?: GradientSpec },
 ): VoidFill {
-  if (!fill.gradient) return { polygon, colour: fill.colour }
+  const { polygon, keyPolygon, holes, seams } = region
+  const base: VoidFill = { polygon, colour: fill.colour }
+  if (holes && holes.length > 0) base.holes = holes
+  if (seams && seams.length > 0) base.seams = seams
+  if (!fill.gradient) return base
   const pose = canonicalPose(keyPolygon ?? polygon)
-  return pose
-    ? { polygon, colour: fill.colour, gradient: fill.gradient, pose: pose.toInstance }
-    : { polygon, colour: fill.colour }
+  if (!pose) return base
+  return { ...base, gradient: fill.gradient, pose: pose.toInstance }
 }
 
 /**

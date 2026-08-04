@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import type { StampPlacement } from '../decoration/stamps'
-import { polygonPath } from './svgGeometry'
+import { polygonWithHolesPath } from './svgGeometry'
 
 /**
  * Decoration **Void Stamp** layer — draws each stamped Void's image clipped
@@ -33,7 +33,7 @@ export const VoidStampLayer = memo(function VoidStampLayer({
       <defs>
         {placements.map((p, i) => (p.overlap ? null : (
           <clipPath key={i} id={`${idPrefix}-${i}`} clipPathUnits="userSpaceOnUse">
-            <path d={polygonPath(p.clip)} />
+            <path d={polygonWithHolesPath(p.clip, p.clipHoles)} />
           </clipPath>
         )))}
       </defs>

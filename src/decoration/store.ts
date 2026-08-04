@@ -89,6 +89,7 @@ export function hasDecoration(config: PatternConfig): boolean {
   return d.strandColours.length > 0
     || d.voidFills.length > 0
     || (d.voidStamps?.length ?? 0) > 0
+    || (d.voidMerges?.length ?? 0) > 0
     || !!d.frameGradient
     || !!d.strandGradient
 }

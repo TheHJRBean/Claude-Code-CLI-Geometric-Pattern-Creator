@@ -2,12 +2,12 @@ import { memo } from 'react'
 import type { VoidFill } from '../decoration/resolve'
 import type { GradientSpec } from '../types/editor'
 import { sortedStops } from '../decoration/gradients'
-import { polygonPath } from './svgGeometry'
+import { polygonWithHolesPath } from './svgGeometry'
 
 /** One `<linearGradient>` / `<radialGradient>` def. `transform` carries a
  * per-shape gradient through its canonical→instance isometry; the world-space
  * frame gradient (#45) passes none (geometry is already in world coords). */
-function gradientDef(g: GradientSpec, id: string, transform?: string) {
+export function gradientDef(g: GradientSpec, id: string, transform?: string) {
   const stops = sortedStops(g.stops).map((s, j) => (
     <stop key={j} offset={s.offset} stopColor={s.colour} />
   ))
@@ -105,7 +105,7 @@ export const VoidFillLayer = memo(function VoidFillLayer({
         return (
           <path
             key={i}
-            d={polygonPath(f.polygon)}
+            d={polygonWithHolesPath(f.polygon, f.holes)}
             fill={paint}
             // Same paint as the fill (a gradient `url(...)` strokes fine), so
             // the bleed is invisible except where it closes the seam.

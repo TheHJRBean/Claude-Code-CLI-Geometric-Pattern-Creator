@@ -1,5 +1,5 @@
 import type { FigureLineSet, MorphConfig, MorphSides, PatternConfig, StrandStyle } from '../types/pattern'
-import type { BoundaryShape, ConfigurationId, DecorationConfig, EditorConfig, EditorGuide, EditorGuidePatch, FrameConfig, FrameGradient, GradientSpec, GroupingScope, StrandGradient, SymmetryMode, VoidStampRecord } from '../types/editor'
+import type { BoundaryShape, ConfigurationId, DecorationConfig, EditorConfig, EditorGuide, EditorGuidePatch, FrameConfig, FrameGradient, GradientSpec, GroupingScope, StrandGradient, SymmetryMode, VoidMergeRecord, VoidStampRecord } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import type { ClickedTargetKeys } from '../decoration/scopes'
 
@@ -155,6 +155,11 @@ export type Action =
   // ladder (`{ scope, key }`, mirroring the flat strand colour rungs) or clear
   // back to every Strand (`null`). No-op with no gradient.
   | { type: 'SET_STRAND_GRADIENT_SCOPE'; payload: { scope: GroupingScope; key: string } | null }
+  // Combine (`decoration/voidMerge.ts`) — fuse a group of adjacent Voids into
+  // one shape for the whole Decoration Phase. Appends a record; `SEPARATE_VOIDS`
+  // drops one by index (the `mergedFrom` provenance on the clicked composite).
+  | { type: 'COMBINE_VOIDS'; payload: VoidMergeRecord }
+  | { type: 'SEPARATE_VOIDS'; payload: { index: number } }
   | { type: 'CLEAR_DECORATION' }
   // Undo/redo for a **legacy substrate's** decoration (2026-08-04). A Patch's
   // decoration lives inside `EditorConfig` and is restored by

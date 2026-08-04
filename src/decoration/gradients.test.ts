@@ -81,13 +81,13 @@ describe('makeVoidFill', () => {
   const spec = seedGradientSpec('linear', stops, rect())!
 
   it('flat fill carries no pose', () => {
-    const f = makeVoidFill(rect(), undefined, { colour: '#abc' })
+    const f = makeVoidFill({ polygon: rect() }, { colour: '#abc' })
     expect(f).toEqual({ polygon: rect(), colour: '#abc' })
   })
 
   it('gradient fill carries the canonical→instance pose', () => {
     const poly = rot(rect(), 0.7, { x: 5, y: 9 })
-    const f = makeVoidFill(poly, undefined, { colour: '#abc', gradient: spec })
+    const f = makeVoidFill({ polygon: poly }, { colour: '#abc', gradient: spec })
     expect(f.gradient).toEqual(spec)
     expect(f.pose).toBeDefined()
     // The pose must map the canonical outline back onto this instance.
@@ -107,13 +107,13 @@ describe('makeVoidFill', () => {
   it('prefers the straight keyPolygon for the pose (curved fields)', () => {
     const straight = rect()
     const curvedish = rect().map(p => ({ ...p })) // stand-in rendered outline
-    const f = makeVoidFill(curvedish, straight, { colour: '#abc', gradient: spec })
+    const f = makeVoidFill({ polygon: curvedish, keyPolygon: straight }, { colour: '#abc', gradient: spec })
     expect(f.polygon).toBe(curvedish)
     expect(f.pose).toEqual(canonicalPose(straight)!.toInstance)
   })
 
   it('degenerate outline falls back to the flat colour', () => {
-    const f = makeVoidFill([{ x: 0, y: 0 }, { x: 1, y: 0 }], undefined, { colour: '#abc', gradient: spec })
+    const f = makeVoidFill({ polygon: [{ x: 0, y: 0 }, { x: 1, y: 0 }] }, { colour: '#abc', gradient: spec })
     expect(f.gradient).toBeUndefined()
     expect(f.colour).toBe('#abc')
   })

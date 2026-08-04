@@ -16,6 +16,24 @@ export function polygonPath(poly: Vec2[]): string {
   return `M${poly.map(p => `${p.x},${p.y}`).join('L')}Z`
 }
 
+/**
+ * Path for an outline plus inner loops, as one subpath each. Only a
+ * **Combine** composite ringing an unselected Void has holes
+ * (`decoration/voidMerge.ts`); everything else falls through to
+ * {@link polygonPath}.
+ *
+ * The loops come out oppositely wound (`polyUnion` traces outers CCW and holes
+ * CW), so `nonzero` — the SVG default — punches them out on its own and no
+ * caller has to set `fill-rule`. That matters because the same path data is
+ * reused as a `clipPath`, where an even-odd rule would also punch out any
+ * region a self-touching outline covers twice.
+ */
+export function polygonWithHolesPath(poly: Vec2[], holes?: Vec2[][]): string {
+  const outer = polygonPath(poly)
+  if (!holes || holes.length === 0) return outer
+  return outer + holes.map(h => polygonPath(h)).join('')
+}
+
 /** Shortest distance from point `p` to the segment a→b. The projection is
  *  clamped to the segment, and a zero-length segment degenerates to the
  *  distance from `p` to `a`. */

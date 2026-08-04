@@ -157,5 +157,10 @@ export const DESIGN_MODE_ACTIONS: ReadonlySet<string> = new Set([
   'SET_DECORATION_FRAME_GRADIENT',
   'SET_DECORATION_STRAND_GRADIENT',
   'SET_STRAND_GRADIENT_SCOPE',
+  // Combine — fusing Voids and separating them again are edits to the
+  // decoration block like any paint, and restructure what every later paint
+  // lands on, so they must be undoable in the same stack.
+  'COMBINE_VOIDS',
+  'SEPARATE_VOIDS',
   'CLEAR_DECORATION',
 ])

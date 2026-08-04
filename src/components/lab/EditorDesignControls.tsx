@@ -70,6 +70,9 @@ export interface EditorDesignControlsProps {
   onSetGradientDraft: (d: GradientDraft) => void
   gradientSelection: GradientSelection | null
   onClearGradientSelection: () => void
+  /** Combine target — the Voids picked on the canvas, and a reset. */
+  combineSelection: PaintVoid[]
+  onClearCombineSelection: () => void
   showBoundaryLattice: boolean
   onToggleShowBoundaryLattice: (next: boolean) => void
   showNeighbours: boolean
@@ -136,6 +139,8 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
     onSetGradientDraft,
     gradientSelection,
     onClearGradientSelection,
+    combineSelection,
+    onClearCombineSelection,
     showBoundaryLattice,
     onToggleShowBoundaryLattice,
     showNeighbours,
@@ -254,6 +259,8 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
           onSetGradientDraft={onSetGradientDraft}
           gradientSelection={gradientSelection}
           onClearGradientSelection={onClearGradientSelection}
+          combineSelection={combineSelection}
+          onClearCombineSelection={onClearCombineSelection}
         />
       )}
 

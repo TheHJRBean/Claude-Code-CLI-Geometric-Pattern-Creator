@@ -213,6 +213,10 @@ interface Props {
   onPaintGradientVoid?: (v: PaintVoid, payload: PaintPayload) => void
   /** Signature of the selected stamp shape (persistent highlight). */
   selectedStampSignature?: string | null
+  /** Combine target — `instanceKey`s of the Voids picked to fuse. */
+  combineSelection?: readonly string[]
+  /** Combine target — a Void click toggles it in the pick set. */
+  onToggleCombineVoid?: (v: PaintVoid) => void
   /** Stamp target — surfaces the current Void hit-targets so the Decoration
    * panel's "Export all shapes" can enumerate every distinct shape. */
   onDecorationVoids?: (voids: PaintVoid[]) => void
@@ -238,7 +242,7 @@ interface Props {
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, onPlaceTileOnAnchor, editorMode = 'place', constructSnap = true, constructAngleStep = DEFAULT_ANGLE_STEP, constructTool = 'line', showGuides = false, showDesignGuides = true, showGuideAnchors = true, showNeighbourGuides = true, onAddGuide, onUpdateGuide, onDeleteGuide, picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature, onPaintGradientVoid, onDecorationVoids, showMorphOverlay = false, onSetMorphAxisOrigin, onSetMorphDirection, onSetMorphOriginPosition, onSetMorphOriginReach, onSetMorphOriginAutoReach, onSetMorphOriginSides, onDeleteMorphOrigin, onSetFrameGradient, onSetStrandGradient, viewBoundsRef }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, onPlaceTileOnAnchor, editorMode = 'place', constructSnap = true, constructAngleStep = DEFAULT_ANGLE_STEP, constructTool = 'line', showGuides = false, showDesignGuides = true, showGuideAnchors = true, showNeighbourGuides = true, onAddGuide, onUpdateGuide, onDeleteGuide, picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature, onPaintGradientVoid, combineSelection, onToggleCombineVoid, onDecorationVoids, showMorphOverlay = false, onSetMorphAxisOrigin, onSetMorphDirection, onSetMorphOriginPosition, onSetMorphOriginReach, onSetMorphOriginAutoReach, onSetMorphOriginSides, onDeleteMorphOrigin, onSetFrameGradient, onSetStrandGradient, viewBoundsRef }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -281,8 +285,11 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     editorNeighbourStrands,
     editorFrame,
     decorationActive,
-    // Stamp + Gradient modes need the same Void hit-targets as Voids painting.
-    !decorationActive ? 'off' : paintTarget === 'stamp' || paintTarget === 'gradient' ? 'voids' : paintTarget,
+    // Stamp, Gradient and Combine all need the same Void hit-targets as Voids
+    // painting — usePattern only distinguishes which FIELD to build.
+    !decorationActive ? 'off'
+      : paintTarget === 'stamp' || paintTarget === 'gradient' || paintTarget === 'combine' ? 'voids'
+        : paintTarget,
   )
 
   // Mirror the Void hit-targets up so the Decoration panel can export every
@@ -1370,6 +1377,8 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         onSelectStampVoid={onSelectStampVoid}
         selectedStampSignature={selectedStampSignature}
         onPaintGradientVoid={onPaintGradientVoid}
+        combineSelection={combineSelection}
+        onToggleCombineVoid={onToggleCombineVoid}
       />
     )
     : null

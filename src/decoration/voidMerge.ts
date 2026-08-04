@@ -6,7 +6,7 @@ import { voidSignature } from './voids'
 import { unionOutlines } from './polyUnion'
 import { canonicalPoses, toCanonicalPoint, type StampTransform } from './stamps'
 import { KEY_TOL, parseScopedKey } from './scopes'
-import { keyVoids, type KeyedVoid } from './resolve'
+import { keyVoids, type KeyedVoid, type PaintVoid } from './resolve'
 import type { CellFrame } from './cellScope'
 
 /**
@@ -78,11 +78,11 @@ function identityOutline(v: VoidRegion): Vec2[] {
  * stacking a second record on the same group.
  */
 export function buildVoidMergeRecord(
-  members: KeyedVoid[],
+  members: PaintVoid[],
   scope: GroupingScope,
 ): VoidMergeRecord | null {
   if (members.length < 2) return null
-  const keyAt = (v: KeyedVoid): string => voidScopeKey(v, scope)
+  const keyAt = (v: PaintVoid): string => voidScopeKey(v, scope)
   const sorted = members.slice().sort((a, b) => (keyAt(a) < keyAt(b) ? -1 : keyAt(a) > keyAt(b) ? 1 : 0))
   const anchor = sorted[0]
   const pose = canonicalPoses(identityOutline(anchor))[0]
@@ -98,8 +98,19 @@ export function buildVoidMergeRecord(
   }
 }
 
+/**
+ * Can these Voids be combined? They must be at least two and must union to a
+ * single connected shape — the same test the matcher applies when a record
+ * resolves, run up front so the panel can refuse a disjoint pick instead of
+ * writing a record that silently never matches.
+ */
+export function canCombine(members: readonly { polygon: Vec2[] }[]): boolean {
+  if (members.length < 2) return false
+  return unionOutlines(members.map(m => m.polygon)).outers.length === 1
+}
+
 /** A Void's identity key at one Reach rung. */
-export function voidScopeKey(v: KeyedVoid, scope: GroupingScope): string {
+export function voidScopeKey(v: PaintVoid, scope: GroupingScope): string {
   return scope === 'congruent' ? v.signature
     : scope === 'cell' ? v.cellKey
       : scope === 'patch' ? v.patchKey
@@ -109,7 +120,7 @@ export function voidScopeKey(v: KeyedVoid, scope: GroupingScope): string {
 /** Does `v` answer to `rec`'s anchor key? Positioned rungs match numerically
  * with the same tolerance the colour resolver uses, so float noise across two
  * extractions can't orphan a combine. */
-function isAnchor(v: KeyedVoid, rec: VoidMergeRecord): boolean {
+function isAnchor(v: PaintVoid, rec: VoidMergeRecord): boolean {
   if (v.signature !== rec.signature) return false
   const key = voidScopeKey(v, rec.scope)
   if (key === rec.key) return true

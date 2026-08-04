@@ -4,9 +4,9 @@ import type { GroupingScope } from '../types/editor'
 import type { ClickedTargetKeys } from '../decoration/scopes'
 import type { PaintVoid, StrandHit } from '../decoration/resolve'
 import { buildVoidTargeting } from '../decoration/paintTargets'
-import { nearestSegmentIndex, polygonPath } from './svgGeometry'
+import { nearestSegmentIndex, polygonPath, polygonWithHolesPath } from './svgGeometry'
 
-export type PaintTarget = 'off' | 'voids' | 'strands' | 'stamp' | 'gradient'
+export type PaintTarget = 'off' | 'voids' | 'strands' | 'stamp' | 'gradient' | 'combine'
 
 /** Which Grouping-scope rung a Void click binds at (ADR-0005 ladder).
  * `cell` = the clicked Void plus its rotation/mirror twins within its Cell. */
@@ -63,6 +63,8 @@ export function DecorationPaintLayer({
   onSelectStampVoid,
   selectedStampSignature,
   onPaintGradientVoid,
+  combineSelection,
+  onToggleCombineVoid,
 }: {
   target: PaintTarget
   voids: PaintVoid[]
@@ -87,12 +89,21 @@ export function DecorationPaintLayer({
    * Carries the whole clicked Void so the handler can seed the gradient
    * geometry off its canonical pose. */
   onPaintGradientVoid?: (v: PaintVoid, payload: PaintPayload) => void
+  /** Combine target — `instanceKey`s of the Voids currently picked to fuse.
+   * World-position keys, so the selection survives a pan. */
+  combineSelection?: readonly string[]
+  /** Combine target — a Void click adds it to (or removes it from) the pick
+   * set. The Combine / Separate buttons live in the panel: the click itself
+   * never commits, because a combine only means anything once two Voids are
+   * picked. */
+  onToggleCombineVoid?: (v: PaintVoid) => void
 }) {
   const [hoveredVoid, setHoveredVoid] = useState<number | null>(null)
   const [hoveredStrand, setHoveredStrand] = useState<number | null>(null)
 
   // Stamp mode always groups by congruent signature (v1 stamp scope).
   const stampMode = target === 'stamp'
+  const combineMode = target === 'combine'
   const voidKey = (v: PaintVoid): string =>
     stampMode || voidScope === 'congruent' ? v.signature
       : voidScope === 'cell' ? v.cellKey
@@ -104,20 +115,28 @@ export function DecorationPaintLayer({
   // to the pan handler instead of writing a paint that silently disappears on
   // the next pan.
   const targeting = useMemo(() => buildVoidTargeting(voids), [voids])
-  const keyedBySignatureAlone = stampMode || voidScope === 'congruent'
+  // Combine is never "keyed by signature alone" even at the Matching rung: the
+  // record stores each member's centroid relative to the anchor, and a
+  // bound-cut face's centroid is a function of where the bound fell. A group
+  // recorded through one would aim its offsets at nothing after a pan.
+  const keyedBySignatureAlone = !combineMode && (stampMode || voidScope === 'congruent')
 
   const voidHits = useMemo(() => voids.map((v, i) => (
     targeting.canMint(v, keyedBySignatureAlone) ? (
       <path
         key={i}
-        d={polygonPath(v.polygon)}
+        d={polygonWithHolesPath(v.polygon, v.holes)}
         fill="transparent"
         stroke="none"
-        style={{ cursor: BUCKET_CURSOR }}
+        style={{ cursor: combineMode ? 'copy' : BUCKET_CURSOR }}
         onPointerEnter={() => setHoveredVoid(i)}
         onPointerLeave={() => setHoveredVoid(h => (h === i ? null : h))}
         onPointerDown={e => {
           e.stopPropagation()
+          if (combineMode) {
+            onToggleCombineVoid?.(v)
+            return
+          }
           // Both the stamp inspector and the gradient seeder read the clicked
           // Void's OUTLINE (canvas export, canonical pose). Hand them an
           // un-cut member of the class — posing a whole class off a truncated
@@ -138,15 +157,18 @@ export function DecorationPaintLayer({
       />
     ) : null
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  )), [voids, onPaintVoid, voidScope, stampMode, target, onSelectStampVoid, onPaintGradientVoid, targeting, keyedBySignatureAlone])
+  )), [voids, onPaintVoid, voidScope, stampMode, combineMode, onToggleCombineVoid, target, onSelectStampVoid, onPaintGradientVoid, targeting, keyedBySignatureAlone])
 
   const voidHighlight = useMemo(() => {
     if (hoveredVoid === null || hoveredVoid >= voids.length) return null
-    const k = voidKey(voids[hoveredVoid])
-    return voids.filter(v => voidKey(v) === k).map((v, i) => (
+    // Combine picks one Void at a time — its Reach is applied at commit, not
+    // at hover, so previewing a whole group here would promise the wrong thing.
+    const hovered = voids[hoveredVoid]
+    const k = voidKey(hovered)
+    return (combineMode ? [hovered] : voids.filter(v => voidKey(v) === k)).map((v, i) => (
       <path
         key={`hl-${i}`}
-        d={polygonPath(v.polygon)}
+        d={polygonWithHolesPath(v.polygon, v.holes)}
         fill={activeColor}
         fillOpacity={0.35}
         stroke={activeColor}
@@ -157,7 +179,26 @@ export function DecorationPaintLayer({
       />
     ))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hoveredVoid, voids, voidScope, activeColor])
+  }, [hoveredVoid, voids, voidScope, combineMode, activeColor])
+
+  const combineHighlight = useMemo(() => {
+    if (!combineMode || !combineSelection || combineSelection.length === 0) return null
+    const picked = new Set(combineSelection)
+    return voids.filter(v => picked.has(v.instanceKey)).map((v, i) => (
+      <path
+        key={`cb-${i}`}
+        d={polygonWithHolesPath(v.polygon, v.holes)}
+        fill="var(--accent, #d4af37)"
+        fillOpacity={0.28}
+        stroke="var(--accent, #d4af37)"
+        strokeOpacity={0.95}
+        strokeWidth={2}
+        strokeDasharray="4 3"
+        vectorEffect="non-scaling-stroke"
+        pointerEvents="none"
+      />
+    ))
+  }, [combineMode, combineSelection, voids])
 
   const strandPayload = (s: StrandHit): PaintPayload => {
     const clicked: ClickedTargetKeys = { signature: s.signature, cellKey: s.cellKey, patchKey: s.patchKey }
@@ -264,6 +305,10 @@ export function DecorationPaintLayer({
 
   if (target === 'voids' || target === 'gradient') {
     return <g id="decoration-paint-layer">{voidHighlight}{voidHits}</g>
+  }
+
+  if (target === 'combine') {
+    return <g id="decoration-paint-layer">{combineHighlight}{voidHighlight}{voidHits}</g>
   }
 
   if (target === 'stamp') {

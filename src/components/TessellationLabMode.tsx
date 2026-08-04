@@ -290,6 +290,24 @@ export function TessellationLabMode({
     () => ({ type: 'linear', stops: defaultGradientStops('#c0392b') }),
   )
   const [gradientSelection, setGradientSelection] = useState<GradientSelection | null>(null)
+  // Combine target — the Voids picked to fuse. Held as whole Voids, not keys:
+  // the record is built from their outlines and identity keys, and the canvas
+  // highlight needs the outlines too.
+  const [combineSelection, setCombineSelection] = useState<PaintVoid[]>([])
+  const clearCombineSelection = useCallback(() => setCombineSelection([]), [])
+  // Leaving the Combine target drops the pick set. A half-finished pick is
+  // about the target the user just left, and it would come back highlighted
+  // (and committable) the next time they return, on a field that may have
+  // moved since.
+  useEffect(() => {
+    if (paintTarget !== 'combine') setCombineSelection([])
+  }, [paintTarget])
+  const toggleCombineVoid = useCallback((v: PaintVoid) => {
+    setCombineSelection(prev => (prev.some(p => p.instanceKey === v.instanceKey)
+      ? prev.filter(p => p.instanceKey !== v.instanceKey)
+      : [...prev, v]))
+  }, [])
+  const combineSelectionKeys = combineSelection.map(v => v.instanceKey)
   // Stamp target — latest Void hit-targets mirrored up from the Canvas so
   // "Export all shapes" can enumerate every distinct shape on demand. A ref
   // (not state): it updates on every pan/zoom and nothing renders from it.
@@ -544,6 +562,10 @@ export function TessellationLabMode({
           { label: 'Decoration substrate', value: substrate },
           ...(paintTarget === 'gradient' ? [{ label: 'Gradient surface', value: gradientMode }] : []),
           ...(paintTarget === 'stamp' ? [{ label: 'Stamp selection', value: stampSelection ? 'a Void is selected' : 'none' }] : []),
+          ...(paintTarget === 'combine'
+            ? [{ label: 'Combine picks', value: combineSelection.length === 0 ? 'none' : `${combineSelection.length} Void(s)` }]
+            : []),
+          { label: 'Combines', value: String(patternDecoration(config)?.voidMerges?.length ?? 0) },
           { label: 'Paint colour', value: decorationColor },
         ]
         : []),
@@ -652,6 +674,8 @@ export function TessellationLabMode({
                 gradientMode={gradientMode}
                 onSetGradientMode={setGradientMode}
                 stampSelection={stampSelection}
+                combineSelection={combineSelection}
+                onClearCombineSelection={clearCombineSelection}
                 getStampVoids={getStampVoids}
                 gradientDraft={gradientDraft}
                 onSetGradientDraft={setGradientDraft}
@@ -717,6 +741,8 @@ export function TessellationLabMode({
                     gradientMode={gradientMode}
                     onSetGradientMode={setGradientMode}
                     stampSelection={stampSelection}
+                    combineSelection={combineSelection}
+                    onClearCombineSelection={clearCombineSelection}
                     getStampVoids={getStampVoids}
                     gradientDraft={gradientDraft}
                     onSetGradientDraft={setGradientDraft}
@@ -1119,6 +1145,8 @@ export function TessellationLabMode({
         }}
         onSelectStampVoid={setStampSelection}
         selectedStampSignature={paintTarget === 'stamp' ? stampSelection?.signature ?? null : null}
+        combineSelection={combineSelectionKeys}
+        onToggleCombineVoid={toggleCombineVoid}
         onDecorationVoids={handleDecorationVoids}
         editorFrame={!!config.editor?.frame}
         showBoundaryLattice={showBoundaryLattice}

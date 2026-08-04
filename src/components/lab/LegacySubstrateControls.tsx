@@ -72,6 +72,9 @@ interface Props {
   onSetGradientDraft: (d: GradientDraft) => void
   gradientSelection: GradientSelection | null
   onClearGradientSelection: () => void
+  /** Combine target — the Voids picked on the canvas, and a reset. */
+  combineSelection: PaintVoid[]
+  onClearCombineSelection: () => void
   /** Undo/redo of the Decoration Phase's paint actions — the only mutations
    *  this substrate puts on the history stack (there is no Design Phase here
    *  and Composition has never been undoable). Shown in Decoration only, since
@@ -105,6 +108,8 @@ export function LegacySubstrateControls({
   onSetGradientDraft,
   gradientSelection,
   onClearGradientSelection,
+  combineSelection,
+  onClearCombineSelection,
   onUndo,
   onRedo,
   canUndo,
@@ -197,6 +202,8 @@ export function LegacySubstrateControls({
           onSetGradientDraft={onSetGradientDraft}
           gradientSelection={gradientSelection}
           onClearGradientSelection={onClearGradientSelection}
+          combineSelection={combineSelection}
+          onClearCombineSelection={onClearCombineSelection}
         />
       )}
 

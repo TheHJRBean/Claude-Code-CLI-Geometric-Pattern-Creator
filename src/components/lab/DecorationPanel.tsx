@@ -9,6 +9,7 @@ import type { Vec2 } from '../../utils/math'
 import type { DecorationConfig, FrameConfig, GradientSpec, VoidStampRecord } from '../../types/editor'
 import { downloadAllVoidShapeCanvases, downloadVoidShapePNG, downloadVoidShapeSVG, importStampImage, voidStampCanvas } from '../../export/stampAssets'
 import { canonicalPose, canonicalSelfMirror } from '../../decoration/stamps'
+import { buildVoidMergeRecord, canCombine } from '../../decoration/voidMerge'
 import { ColourPicker, pushRecentColour } from '../ColourPicker'
 import { FieldLabel, segmentedButtonStyle } from './labShared'
 import { StampFocusEditor } from './StampFocusEditor'
@@ -55,6 +56,17 @@ export function clampVoidScope(scope: VoidPaintScope, substrate: DecorationSubst
 export function clampStrandScope(scope: StrandPaintScope, substrate: DecorationSubstrate): StrandPaintScope {
   return STRAND_SCOPES[substrate].some(([s]) => s === scope) ? scope : 'congruent'
 }
+
+/** The Paint targets, in bar order. Combine sits last: it restructures what
+ * the other targets act ON, so it reads as the odd one out, which it is. */
+const PAINT_TARGETS: readonly (readonly [PaintTarget, string])[] = [
+  ['off', 'Off'],
+  ['voids', 'Voids'],
+  ['strands', 'Strands'],
+  ['stamp', 'Stamp'],
+  ['gradient', 'Gradient'],
+  ['combine', 'Combine'],
+]
 
 const decorationButtonStyle: React.CSSProperties = {
   padding: '5px 8px',
@@ -113,6 +125,10 @@ interface DecorationPanelProps {
   gradientSelection: GradientSelection | null
   /** Detach the draft from the last-painted group ("New gradient"). */
   onClearGradientSelection: () => void
+  /** Combine target — the Voids currently picked on the canvas. */
+  combineSelection: PaintVoid[]
+  /** Combine target — drop the pick set (after a commit, or on demand). */
+  onClearCombineSelection: () => void
 }
 
 /**
@@ -145,6 +161,8 @@ export function DecorationPanel({
   onSetGradientDraft,
   gradientSelection,
   onClearGradientSelection,
+  combineSelection,
+  onClearCombineSelection,
 }: DecorationPanelProps) {
   const strandRec = decoration?.strandColours.find(r => r.scope === 'congruent' && r.key === '*')
   const strandRecCount = decoration?.strandColours.length ?? 0
@@ -155,6 +173,9 @@ export function DecorationPanel({
   // transition (they snap on click).
   const segButtonStyle = (active: boolean): React.CSSProperties =>
     segmentedButtonStyle(active, { transition: false })
+  // Colour picker + the flat apply/remove buttons belong to the two targets
+  // that paint a colour. Stamp, Gradient and Combine each own their section.
+  const paintsColour = paintTarget === 'voids' || paintTarget === 'strands'
   return (
     <div style={{
       marginTop: 0,
@@ -172,17 +193,22 @@ export function DecorationPanel({
         unpaints it. Strand geometry is frozen here — flip back to
         Composition to reshape.
       </div>
-      <FieldLabel label="Paint target" tooltip="What clicking on the canvas paints. Off frees panning; Voids fill the gaps between Strands; Strands colour the lines themselves; Stamp selects a Void shape to export as a canvas or fill with an uploaded image; Gradient fills the clicked Void group with a colour gradient." />
+      <FieldLabel label="Paint target" tooltip="What clicking on the canvas paints. Off frees panning; Voids fill the gaps between Strands; Strands colour the lines themselves; Stamp selects a Void shape to export as a canvas or fill with an uploaded image; Gradient fills the clicked Void group with a colour gradient; Combine fuses adjacent Voids so they act as one shape." />
       <div style={{ display: 'flex', gap: 0, marginBottom: 10, flexWrap: 'wrap' }}>
-        {(['off', 'voids', 'strands', 'stamp', 'gradient'] as const).map(t => (
+        {PAINT_TARGETS.map(([t, label]) => (
           <button key={t} onClick={() => onSetPaintTarget(t)} style={segButtonStyle(paintTarget === t)}>
-            {t === 'off' ? 'Off' : t === 'voids' ? 'Voids' : t === 'strands' ? 'Strands' : t === 'stamp' ? 'Stamp' : 'Gradient'}
+            {label}
           </button>
         ))}
       </div>
-      {(paintTarget === 'voids' || (paintTarget === 'gradient' && gradientMode !== 'strands')) && (
+      {(paintTarget === 'voids' || paintTarget === 'combine' || (paintTarget === 'gradient' && gradientMode !== 'strands')) && (
         <>
-          <FieldLabel label="Reach" tooltip="How far one click spreads. Matching = every Void with the clicked shape, everywhere. Twins = the clicked Void plus its rotation/mirror twins within its Cell, in every repeat. Repeat = the clicked Void's spot in every Patch repeat. Single = only the Void you click." />
+          <FieldLabel
+            label="Reach"
+            tooltip={paintTarget === 'combine'
+              ? 'How far a Combine spreads. Matching = every place the same group of shapes meets the same way, anywhere in the field, however it is rotated or mirrored. Twins = the group plus its symmetry twins within its Cell. Repeat = the group’s spot in every Patch repeat. Single = only the Voids you picked.'
+              : 'How far one click spreads. Matching = every Void with the clicked shape, everywhere. Twins = the clicked Void plus its rotation/mirror twins within its Cell, in every repeat. Repeat = the clicked Void’s spot in every Patch repeat. Single = only the Void you click.'}
+          />
           <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
             {VOID_SCOPES[substrate].map(([s, label]) => (
               <button key={s} onClick={() => onSetVoidScope(s)} style={segButtonStyle(voidScope === s)}>
@@ -209,6 +235,15 @@ export function DecorationPanel({
       {paintTarget === 'stamp' && (
         <StampSection decoration={decoration} dispatch={dispatch} selection={stampSelection} getStampVoids={getStampVoids} />
       )}
+      {paintTarget === 'combine' && (
+        <CombineSection
+          decoration={decoration}
+          dispatch={dispatch}
+          scope={voidScope}
+          selection={combineSelection}
+          onClearSelection={onClearCombineSelection}
+        />
+      )}
       {paintTarget === 'gradient' && (
         <GradientSection
           substrate={substrate}
@@ -227,8 +262,8 @@ export function DecorationPanel({
           onSetStrandScope={onSetStrandScope}
         />
       )}
-      {paintTarget !== 'stamp' && paintTarget !== 'gradient' && <ColourPicker value={decorationColor} onChange={onSetDecorationColor} />}
-      {paintTarget === 'stamp' || paintTarget === 'gradient' ? null : paintTarget === 'strands' ? (() => {
+      {paintsColour && <ColourPicker value={decorationColor} onChange={onSetDecorationColor} />}
+      {!paintsColour ? null : paintTarget === 'strands' ? (() => {
         // Toggle: if every strand already carries the current paint colour,
         // the button removes it; otherwise it applies/updates. Removal
         // stores the `'none'` sentinel (strands hidden, Void fills meet
@@ -265,7 +300,7 @@ export function DecorationPanel({
           Colour all Voids
         </button>
       )}
-      {paintTarget !== 'stamp' && paintTarget !== 'gradient' && <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+      {paintsColour && <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
         {strandRec?.colour !== 'none' && (
           <button
             onClick={() => dispatch({ type: 'SET_DECORATION_STRAND_COLOR', payload: { scope: 'congruent', key: '*', colour: 'none' } })}
@@ -423,6 +458,89 @@ export function DecorationPanel({
           </div>
         )
       })()}
+    </div>
+  )
+}
+
+/**
+ * The **Combine** target's panel section: pick adjacent Voids on the canvas,
+ * then fuse them into one shape for the whole Decoration Phase.
+ *
+ * Committing lives here rather than on the canvas click because a combine only
+ * means something once at least two Voids are picked — a click that committed
+ * on its own would have nothing to commit. The pick set is also where the
+ * user's intent about *which* Voids is expressed, and the Reach above decides
+ * how far the finished group repeats.
+ */
+function CombineSection({ decoration, dispatch, scope, selection, onClearSelection }: {
+  decoration: DecorationConfig | undefined
+  dispatch: React.Dispatch<Action>
+  scope: VoidPaintScope
+  selection: PaintVoid[]
+  onClearSelection: () => void
+}) {
+  const count = decoration?.voidMerges?.length ?? 0
+  const ready = canCombine(selection)
+  // Separating acts on a picked composite, so exactly one pick, and it has to
+  // be one the matcher made (`mergedFrom` is its provenance).
+  const separable = selection.length === 1 && selection[0].mergedFrom !== undefined
+    ? selection[0].mergedFrom
+    : null
+  const disabled = (on: boolean): React.CSSProperties =>
+    (on ? {} : { opacity: 0.4, cursor: 'not-allowed' })
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ marginBottom: 8 }}>
+        Click adjacent Voids to pick them, then Combine. The group then acts as
+        a single Void everywhere in this Phase — one fill, one gradient across
+        the whole shape, one stamp fitted to it — and the Strands crossing
+        between its members stop dividing it.
+      </div>
+      <div style={{ marginBottom: 8, color: selection.length > 0 && !ready && !separable ? 'var(--accent)' : undefined }}>
+        {selection.length === 0
+          ? 'Nothing picked.'
+          : selection.length === 1
+            ? separable !== null ? '1 combined Void picked.' : '1 Void picked — pick a neighbour.'
+            : ready ? `${selection.length} Voids picked.` : `${selection.length} Voids picked — they don’t all touch.`}
+      </div>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button
+          disabled={!ready}
+          onClick={() => {
+            const rec = buildVoidMergeRecord(selection, scope)
+            if (!rec) return
+            dispatch({ type: 'COMBINE_VOIDS', payload: rec })
+            onClearSelection()
+          }}
+          style={{ ...decorationButtonStyle, flex: 1, ...disabled(ready) }}
+        >
+          Combine
+        </button>
+        <button
+          disabled={separable === null}
+          onClick={() => {
+            if (separable === null) return
+            dispatch({ type: 'SEPARATE_VOIDS', payload: { index: separable } })
+            onClearSelection()
+          }}
+          style={{ ...decorationButtonStyle, flex: 1, ...disabled(separable !== null) }}
+        >
+          Separate
+        </button>
+        <button
+          disabled={selection.length === 0}
+          onClick={onClearSelection}
+          style={{ ...decorationButtonStyle, ...disabled(selection.length > 0) }}
+        >
+          Clear
+        </button>
+      </div>
+      {count > 0 && (
+        <div style={{ marginTop: 8, fontSize: 11 }}>
+          {count === 1 ? '1 combine' : `${count} combines`} on this pattern. Pick a
+          combined Void and press Separate to undo one.
+        </div>
+      )}
     </div>
   )
 }

@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Action } from '../state/actions'
-import type { EditorConfig } from '../types/editor'
+import type { DecorationConfig, EditorConfig } from '../types/editor'
 import {
   DESIGN_MODE_ACTIONS,
   HISTORY_COALESCE_MS,
   HISTORY_DEPTH,
   historyCoalesceKey,
+  restoreSnapshotActions,
+  type HistorySnapshot,
 } from './history'
 
 /**
@@ -20,18 +22,29 @@ import {
  * The wrapped dispatch coalesces consecutive same-type Design-Phase actions
  * fired within `HISTORY_COALESCE_MS` so a slider drag is one history entry
  * rather than dozens.
+ *
+ * A snapshot is a **pair** (`HistorySnapshot`), because the state a user can
+ * undo has two homes — see `restoreSnapshotActions`, which owns how one goes
+ * back.
  */
 export function useEditorHistory(
   editor: EditorConfig | null | undefined,
+  decoration: DecorationConfig | undefined,
   baseDispatch: React.Dispatch<Action>,
 ) {
-  // Mirror the live editor in a ref so the dispatch wrapper sees the latest
-  // value without re-binding on every render.
+  // Mirror the live state in refs so the dispatch wrapper sees the latest
+  // values without re-binding on every render.
   const editorRef = useRef<EditorConfig | null>(editor ?? null)
   useEffect(() => { editorRef.current = editor ?? null }, [editor])
+  const decorationRef = useRef<DecorationConfig | undefined>(decoration)
+  useEffect(() => { decorationRef.current = decoration }, [decoration])
+  const snapshot = useCallback((): HistorySnapshot => ({
+    editor: editorRef.current,
+    decoration: decorationRef.current,
+  }), [])
 
-  const past = useRef<(EditorConfig | null)[]>([])
-  const future = useRef<(EditorConfig | null)[]>([])
+  const past = useRef<HistorySnapshot[]>([])
+  const future = useRef<HistorySnapshot[]>([])
   const lastAction = useRef<{ key: string; t: number } | null>(null)
 
   // `tick` forces a re-render when stacks mutate so canUndo / canRedo update.
@@ -59,7 +72,7 @@ export function useEditorHistory(
         && last.key === key
         && now - last.t < HISTORY_COALESCE_MS
       if (!coalesce) {
-        past.current.push(editorRef.current)
+        past.current.push(snapshot())
         if (past.current.length > HISTORY_DEPTH) past.current.shift()
         future.current = []
         bump()
@@ -67,29 +80,34 @@ export function useEditorHistory(
       lastAction.current = { key, t: now }
     }
     baseDispatch(action)
-  }, [baseDispatch, bump])
+  }, [baseDispatch, bump, snapshot])
+
+  const restore = useCallback((snap: HistorySnapshot) => {
+    // Both dispatches land in one render (React batches inside the handler).
+    for (const a of restoreSnapshotActions(snap, editorRef.current)) baseDispatch(a)
+  }, [baseDispatch])
 
   const undo = useCallback(() => {
     if (past.current.length === 0) return
     const prev = past.current.pop()!
-    future.current.push(editorRef.current)
+    future.current.push(snapshot())
     if (future.current.length > HISTORY_DEPTH) future.current.shift()
     // Break coalescing — the next Design-Phase action should start a fresh
     // history entry rather than merge into the action we just undid.
     lastAction.current = null
     bump()
-    baseDispatch({ type: 'EDITOR_RESTORE_SNAPSHOT', payload: prev })
-  }, [baseDispatch, bump])
+    restore(prev)
+  }, [bump, restore, snapshot])
 
   const redo = useCallback(() => {
     if (future.current.length === 0) return
     const next = future.current.pop()!
-    past.current.push(editorRef.current)
+    past.current.push(snapshot())
     if (past.current.length > HISTORY_DEPTH) past.current.shift()
     lastAction.current = null
     bump()
-    baseDispatch({ type: 'EDITOR_RESTORE_SNAPSHOT', payload: next })
-  }, [baseDispatch, bump])
+    restore(next)
+  }, [bump, restore, snapshot])
 
   return {
     dispatch,

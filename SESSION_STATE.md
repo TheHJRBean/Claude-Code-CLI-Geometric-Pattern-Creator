@@ -17,7 +17,16 @@
 > unwritten content. See **NEXT item 5** for the full shape and the model
 > caveat.
 
-**Latest (2026-08-03, #30 — Guides slice 5, stamping under the Lattice + neighbour Anchors + overlay toggles): SHIPPED + ✅ BROWSER-VERIFIED (`7ffcb86`).** Slice 1 shipped the per-Guide **stamp** toggle with a colour signal but no behaviour; this is the behaviour. New `editor/guideStamps.ts`.
+**Latest (2026-08-04, Decoration-Phase Undo + Clear paint): SHIPPED (tests + build green, ⚠️ NOT browser-verified).** User asked for "an undo and clear button in the decoration phase". Both half-existed, and finding out how they were broken *is* the ticket:
+
+  - **Ctrl+Z could delete a painted preset.** Decoration actions were on the history allowlist, but a snapshot was only the `EditorConfig`. On a **legacy substrate** (Gallery preset / Generator sample) there is no Patch, so every paint pushed a `null` snapshot — and restoring it dispatches `EDITOR_RESTORE_SNAPSHOT(null)`, which *clears the Lab* (drops `editor`, blanks `tiling.type`). One undo after one Void fill blanked the canvas. A snapshot is now a **pair** (`HistorySnapshot = { editor, decoration }`, matching decoration's two homes per `decoration/store.ts`), and `restoreSnapshotActions` — pure and unit-tested — omits the Patch restore when there is no Patch on either side. The new `RESTORE_DECORATION_SNAPSHOT` writes the legacy home only and is **inert while a Patch is loaded** (that decoration already travelled inside the editor snapshot).
+  - **Undo skipped Stamps and every gradient.** The allowlist held only `SET_DECORATION_VOID_FILL` / `SET_DECORATION_STRAND_COLOR` / `CLEAR_DECORATION`. Added the stamp trio, all three gradient setters + `SET_STRAND_GRADIENT_SCOPE`.
+  - **Coalescing merged unrelated paints.** `historyCoalesceKey` fell through to bare action type for decoration, so two Voids painted inside 500 ms were one undo step. It now keys on the payload `key` (the `{scope,key}` group) — a gradient-handle drag stays one step, two shapes stay two.
+  - **The legacy substrate had no Undo buttons at all** and the Builder's "Clear all" sat inside `DecorationPanel`, hidden on the Stamp and Gradient targets — the two that make the most mess. The Undo/Redo row is now shared (`labShared.tsx::HistoryButtonRow`) and both substrates carry a third **Clear paint** button in Decoration (confirm-guarded, disabled via the new `hasDecoration`). Labelled "Clear paint", never "Clear": the same row position in Design wipes the whole Patch, and one word for both scopes is exactly how someone wipes a Patch meaning to wipe its colours.
+
+Tests **1609 green** (+11, `src/state/decorationHistory.test.ts`), tsc + build clean. **Next session: browser-verify** — paint a preset (legacy path) → Ctrl+Z → pattern must survive; stamp + gradient undo; Clear paint on both substrates.
+
+**Previous (2026-08-03, #30 — Guides slice 5, stamping under the Lattice + neighbour Anchors + overlay toggles): SHIPPED + ✅ BROWSER-VERIFIED (`7ffcb86`).** Slice 1 shipped the per-Guide **stamp** toggle with a colour signal but no behaviour; this is the behaviour. New `editor/guideStamps.ts`.
 
 **Why it is NOT just guideOrbit again.** A `LatticeStamp` acts directly on Patch-world coords, so there is no Cell frame to round-trip and — because a stamp is a **rigid motion, never a reflection** — a circle's CCW `manualAnchors` need no correction (the orbit path has to negate them). `stampGuide` still moves a circle by centre **and** `guideCircleRadiusPoint` so a rotating stamp turns `phase`.
 

@@ -79,6 +79,21 @@ export function dropDecoration(config: PatternConfig): PatternConfig {
 }
 
 /**
+ * Whether the config carries any painting at all — every field of the block,
+ * not just the two the panel counts. Drives the Clear-paint button's enabled
+ * state, so a config holding only a Frame gradient must still read as painted.
+ */
+export function hasDecoration(config: PatternConfig): boolean {
+  const d = patternDecoration(config)
+  if (!d) return false
+  return d.strandColours.length > 0
+    || d.voidFills.length > 0
+    || (d.voidStamps?.length ?? 0) > 0
+    || !!d.frameGradient
+    || !!d.strandGradient
+}
+
+/**
  * Whether there is anything to decorate. False only for the empty Lab (after
  * EDITOR_CLEAR, which leaves `tiling.type === ''`) — a guard so a stray paint
  * action can't attach decoration to a config with no substrate under it, where

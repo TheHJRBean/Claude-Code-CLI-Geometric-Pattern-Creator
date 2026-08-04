@@ -100,8 +100,12 @@ export function TessellationLabMode({
   // Step 17.9 — wrap dispatch so Design-Phase Builder mutations push undo
   // snapshots. All Lab-side dispatches must use this `dispatch`; bypassing
   // it skips history. `LOAD_CONFIG` clears the stack inside the hook (Q12).
+  // `config.decoration` is the LEGACY substrate's paint home — a Patch keeps
+  // its own inside `config.editor`, so the hook takes both and restores
+  // whichever the live substrate uses.
   const { dispatch: historyDispatch, undo, redo, canUndo, canRedo } = useEditorHistory(
     config.editor,
+    config.decoration,
     rawDispatch,
   )
 
@@ -709,6 +713,10 @@ export function TessellationLabMode({
                     onSetGradientDraft={setGradientDraft}
                     gradientSelection={gradientSelection}
                     onClearGradientSelection={() => setGradientSelection(null)}
+                    onUndo={undo}
+                    onRedo={redo}
+                    canUndo={canUndo}
+                    canRedo={canRedo}
                   />
                 ) : (
                   <p style={{

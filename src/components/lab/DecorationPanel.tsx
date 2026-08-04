@@ -282,14 +282,10 @@ export function DecorationPanel({
             Restore strands
           </button>
         )}
-        {hasDecoration && (
-          <button
-            onClick={() => dispatch({ type: 'CLEAR_DECORATION' })}
-            style={{ ...decorationButtonStyle, flex: 1 }}
-          >
-            Clear all
-          </button>
-        )}
+        {/* "Clear all" used to sit here. It moved to the sidebar's history row
+            as "Clear paint" (2026-08-04): here it was hidden on the Stamp and
+            Gradient paint targets — the two that make the most mess — and it
+            belongs beside the Undo that reverses it. */}
       </div>}
       {hasDecoration && (
         <div style={{ marginTop: 8, fontSize: 11 }}>

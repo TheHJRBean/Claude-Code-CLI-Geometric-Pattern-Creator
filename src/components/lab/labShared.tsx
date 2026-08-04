@@ -36,6 +36,49 @@ export function segmentedButtonStyle(
 }
 
 /**
+ * The Undo / Redo / Clear row that heads the Lab sidebar.
+ *
+ * Shared because both substrates carry one: the Builder has had it since Step
+ * 17.9, and the legacy substrate grew one when the Decoration Phase's paint
+ * actions joined the undo stack (2026-08-04) — a preset you can paint but not
+ * un-paint is worse than no undo at all. Equal-width buttons, so the row reads
+ * as one control group whether it holds two entries or three.
+ */
+export function HistoryButtonRow({ buttons }: {
+  buttons: readonly { label: string; onClick: () => void; disabled?: boolean; title?: string }[]
+}) {
+  return (
+    <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+      {buttons.map(b => (
+        <button
+          key={b.label}
+          onClick={b.onClick}
+          disabled={b.disabled}
+          title={b.title}
+          style={{
+            flex: 1,
+            padding: '5px 0',
+            fontFamily: "'Cinzel', Georgia, serif",
+            fontSize: 9,
+            fontWeight: 600,
+            letterSpacing: '0.10em',
+            textTransform: 'uppercase',
+            cursor: b.disabled ? 'not-allowed' : 'pointer',
+            border: '1px solid var(--border-subtle)',
+            background: 'transparent',
+            color: 'var(--text-muted)',
+            opacity: b.disabled ? 0.4 : 1,
+            transition: 'all 0.15s',
+          }}
+        >
+          {b.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/**
  * Typeable numeric field flanked by horizontal nudge arrows — the
  * precise-entry counterpart to a coarse slider, designed to sit *under* the
  * slider it refines. The text input keeps a local draft so partial entries

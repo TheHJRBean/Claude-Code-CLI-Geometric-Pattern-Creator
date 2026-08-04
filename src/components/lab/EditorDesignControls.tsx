@@ -6,7 +6,8 @@ import type { PaintTarget, StrandPaintScope, VoidPaintScope } from '../../render
 import type { PaintVoid } from '../../decoration/resolve'
 import type { GradientDraft, GradientSelection } from '../../decoration/gradients'
 import type { Vec2 } from '../../utils/math'
-import { FieldLabel, segmentedButtonStyle } from './labShared'
+import { FieldLabel, HistoryButtonRow, segmentedButtonStyle } from './labShared'
+import { hasDecoration } from '../../decoration/store'
 import { CompositionPanel } from './CompositionPanel'
 import { DecorationPanel } from './DecorationPanel'
 import { patchSeedBBox } from './decorationSeedBox'
@@ -150,51 +151,50 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
   } = props
   const inStrand = editorPhase === 'strand'
   const inDecoration = editorPhase === 'decoration'
+  const painted = hasDecoration(config)
   return (
     <>
-      {/* Step 17.9 — Undo / Redo header (Q12). Visible in both phases:
-          history is preserved across Design ↔ Strand flips, but only design-
-          mode actions ever push to it.
+      {/* Step 17.9 — Undo / Redo header (Q12). Visible in every phase: history
+          is preserved across phase-switches, and since 2026-08-04 Decoration
+          paint actions push to it too.
 
           Clear sits here rather than at the head of DesignPanel (moved
           2026-07-29): DesignPanel renders directly under FramePanel, so a
           Clear button at its top read as "clear the Frame" when it actually
           wipes the whole Patch. Grouped with Undo/Redo it reads as the
-          patch-level history/reset action it is. Still Design-phase only —
-          it is destructive and has no business firing from Composition or
-          Decoration. */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-        {([
+          patch-level history/reset action it is.
+
+          In Decoration the third slot is a *different* reset — "Clear paint",
+          which drops the decoration block and leaves the Patch alone. Never
+          the bare "Clear": one word covering both scopes in one row position
+          is exactly how a user wipes a Patch meaning to wipe its colours. */}
+      <HistoryButtonRow
+        buttons={[
           { label: '↶ Undo', onClick: onUndo, disabled: !canUndo },
           { label: '↷ Redo', onClick: onRedo, disabled: !canRedo },
           ...(editorPhase === 'design'
-            ? [{ label: 'Clear', onClick: onClear, disabled: false }]
+            ? [{
+              label: 'Clear',
+              onClick: onClear,
+              title: 'Discard the whole Patch and start a new one',
+            }]
             : []),
-        ]).map(b => (
-          <button
-            key={b.label}
-            onClick={b.onClick}
-            disabled={b.disabled}
-            style={{
-              flex: 1,
-              padding: '5px 0',
-              fontFamily: "'Cinzel', Georgia, serif",
-              fontSize: 9,
-              fontWeight: 600,
-              letterSpacing: '0.10em',
-              textTransform: 'uppercase',
-              cursor: b.disabled ? 'not-allowed' : 'pointer',
-              border: '1px solid var(--border-subtle)',
-              background: 'transparent',
-              color: 'var(--text-muted)',
-              opacity: b.disabled ? 0.4 : 1,
-              transition: 'all 0.15s',
-            }}
-          >
-            {b.label}
-          </button>
-        ))}
-      </div>
+          ...(inDecoration
+            ? [{
+              label: 'Clear paint',
+              onClick: () => {
+                if (window.confirm('Remove all decoration — Void fills, Strand colours, Stamps and gradients? The Patch itself is untouched, and Undo will bring the paint back.')) {
+                  dispatch({ type: 'CLEAR_DECORATION' })
+                }
+              },
+              disabled: !painted,
+              title: painted
+                ? 'Remove every fill, Strand colour, Stamp and gradient'
+                : 'Nothing painted yet',
+            }]
+            : []),
+        ]}
+      />
 
       {/* Step 17.6 — Design / Composition phase-switch (Decision 15). */}
       <FieldLabel

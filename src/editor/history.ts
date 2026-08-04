@@ -1,4 +1,5 @@
-import type { EditorConfig } from '../types/editor'
+import type { DecorationConfig, EditorConfig } from '../types/editor'
+import type { Action } from '../state/actions'
 
 /**
  * Step 17.9 — undo/redo for the Builder (Q12 resolution).
@@ -10,17 +11,56 @@ import type { EditorConfig } from '../types/editor'
  *
  * Composition-Phase mutations (figure-level: contact angle, line length,
  * Strand style, curves, etc.) are explicitly out of scope — only
- * `DESIGN_MODE_ACTIONS` push to the stack. History is preserved across
- * Design ↔ Composition phase-switches.
+ * `DESIGN_MODE_ACTIONS` push to the stack. Decoration-Phase paint actions ARE
+ * on it: painting is the one place a single click can wipe work that took
+ * many. History is preserved across every phase-switch.
  *
  * `LOAD_CONFIG` (library load) clears the entire stack per Q12.
  */
 
+/**
+ * One undo step. A **pair**, because the state a user can undo has two homes
+ * (see `decoration/store.ts`): the Builder Patch, and — on a legacy substrate,
+ * which has no Patch — the top-level `config.decoration` the Decoration Phase
+ * paints.
+ */
+export interface HistorySnapshot {
+  editor: EditorConfig | null
+  /** The LEGACY decoration home only. A Patch's decoration is inside `editor`. */
+  decoration: DecorationConfig | undefined
+}
+
+/**
+ * The actions that put `snap` back, given the live Patch (`liveEditor`).
+ *
+ * The Patch restore is **omitted** when there is no Patch on either side of
+ * the move: `EDITOR_RESTORE_SNAPSHOT(null)` *clears the Lab* — it drops
+ * `editor` and blanks `tiling.type` — which on a legacy substrate would delete
+ * the very pattern the user is painting. That was the live bug once Decoration
+ * actions started pushing snapshots on a Patch-less config: every paint stored
+ * a `null` Patch, and one Ctrl+Z emptied the canvas.
+ *
+ * The decoration restore is unconditional — the reducer ignores it whenever a
+ * Patch is present, since that Patch's decoration travelled inside the
+ * snapshot above.
+ */
+export function restoreSnapshotActions(
+  snap: HistorySnapshot,
+  liveEditor: EditorConfig | null,
+): Action[] {
+  const actions: Action[] = []
+  if (snap.editor !== null || liveEditor !== null) {
+    actions.push({ type: 'EDITOR_RESTORE_SNAPSHOT', payload: snap.editor })
+  }
+  actions.push({ type: 'RESTORE_DECORATION_SNAPSHOT', payload: snap.decoration })
+  return actions
+}
+
 export interface EditorHistory {
-  /** Snapshots prior to each Design-Phase mutation. Most recent at the end. */
-  past: (EditorConfig | null)[]
+  /** Snapshots prior to each undoable mutation. Most recent at the end. */
+  past: HistorySnapshot[]
   /** Snapshots from undone mutations, ready to redo. Most recent at the end. */
-  future: (EditorConfig | null)[]
+  future: HistorySnapshot[]
 }
 
 export const EMPTY_HISTORY: EditorHistory = { past: [], future: [] }
@@ -44,8 +84,18 @@ export const HISTORY_COALESCE_MS = 500
  * Actions without a Cell target coalesce on type as before.
  */
 export function historyCoalesceKey(action: { type: string; payload?: unknown }): string {
-  const payload = action.payload as { cellId?: string; hostCellId?: string; guideId?: string } | undefined
-  return `${action.type}@${payload?.cellId ?? payload?.hostCellId ?? payload?.guideId ?? ''}`
+  const payload = action.payload as {
+    cellId?: string
+    hostCellId?: string
+    guideId?: string
+    key?: string
+  } | undefined
+  // Decoration actions target a Void / Strand group by `{ scope, key }` rather
+  // than a Cell. Keying on it makes a gradient-handle drag one undo step (same
+  // group, many actions) while two shapes painted in quick succession stay two
+  // — without it, rapid painting merges into a single step and undo jumps back
+  // further than the user's last click.
+  return `${action.type}@${payload?.cellId ?? payload?.hostCellId ?? payload?.guideId ?? payload?.key ?? ''}`
 }
 
 /**
@@ -92,8 +142,20 @@ export const DESIGN_MODE_ACTIONS: ReadonlySet<string> = new Set([
   'EDITOR_ADD_GUIDE',
   'EDITOR_UPDATE_GUIDE',
   'EDITOR_DELETE_GUIDE',
-  // Step 19 Decoration — colouring Voids / Strands is undoable.
+  // Step 19 Decoration — every paint action is undoable, on BOTH substrates.
+  // A Patch's decoration lives inside `EditorConfig`, so these snapshots ride
+  // along in the editor snapshot; a legacy substrate's lives at
+  // `config.decoration` and is carried separately by `useEditorHistory`.
+  // Gradients and Stamps were missing here until 2026-08-04 — they were the
+  // one part of the Decoration Phase Ctrl+Z silently skipped.
   'SET_DECORATION_VOID_FILL',
+  'SET_DECORATION_VOID_GRADIENT',
   'SET_DECORATION_STRAND_COLOR',
+  'SET_DECORATION_VOID_STAMP',
+  'REMOVE_DECORATION_VOID_STAMP',
+  'REORDER_DECORATION_VOID_STAMP',
+  'SET_DECORATION_FRAME_GRADIENT',
+  'SET_DECORATION_STRAND_GRADIENT',
+  'SET_STRAND_GRADIENT_SCOPE',
   'CLEAR_DECORATION',
 ])

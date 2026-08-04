@@ -6,8 +6,8 @@ import type { GradientDraft, GradientSelection, WorldBBox } from '../../decorati
 import { pointsBBox } from '../../decoration/gradients'
 import type { WorldBounds } from '../../editor/guides'
 import { frameOutlinePolygon } from '../../editor/frame'
-import { patternDecoration } from '../../decoration/store'
-import { FieldLabel, segmentedButtonStyle } from './labShared'
+import { hasDecoration, patternDecoration } from '../../decoration/store'
+import { FieldLabel, HistoryButtonRow, segmentedButtonStyle } from './labShared'
 import { DecorationPanel } from './DecorationPanel'
 import { FramePanel } from './FramePanel'
 
@@ -72,6 +72,14 @@ interface Props {
   onSetGradientDraft: (d: GradientDraft) => void
   gradientSelection: GradientSelection | null
   onClearGradientSelection: () => void
+  /** Undo/redo of the Decoration Phase's paint actions — the only mutations
+   *  this substrate puts on the history stack (there is no Design Phase here
+   *  and Composition has never been undoable). Shown in Decoration only, since
+   *  in Composition the pair would always be inert. */
+  onUndo: () => void
+  onRedo: () => void
+  canUndo: boolean
+  canRedo: boolean
 }
 
 export function LegacySubstrateControls({
@@ -97,8 +105,13 @@ export function LegacySubstrateControls({
   onSetGradientDraft,
   gradientSelection,
   onClearGradientSelection,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
 }: Props) {
   const inDecoration = editorPhase === 'decoration'
+  const painted = hasDecoration(config)
   return (
     <>
       <p style={{
@@ -133,6 +146,31 @@ export function LegacySubstrateControls({
           </button>
         ))}
       </div>
+
+      {/* Paint history (2026-08-04). Sits directly above the panel it governs
+          rather than at the top of the sidebar like the Builder's copy: here
+          it is Decoration-only, so anchoring it to the Phase switch is what
+          makes "these undo the painting" read without a label. */}
+      {inDecoration && (
+        <HistoryButtonRow
+          buttons={[
+            { label: '↶ Undo', onClick: onUndo, disabled: !canUndo },
+            { label: '↷ Redo', onClick: onRedo, disabled: !canRedo },
+            {
+              label: 'Clear paint',
+              onClick: () => {
+                if (window.confirm('Remove all decoration — Void fills, Strand colours, Stamps and gradients? The pattern itself is untouched, and Undo will bring the paint back.')) {
+                  dispatch({ type: 'CLEAR_DECORATION' })
+                }
+              },
+              disabled: !painted,
+              title: painted
+                ? 'Remove every fill, Strand colour, Stamp and gradient'
+                : 'Nothing painted yet',
+            },
+          ]}
+        />
+      )}
 
       {inDecoration && (
         <DecorationPanel

@@ -964,8 +964,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       // Congruent is the ladder's default rung, so it's normalised away (store
       // just `scopeKey`, no `scope` — byte-identical to pre-ladder saves); the
       // positioned rungs (`cell` / `patch`) carry an explicit `scope`. No-op
-      // when no strand gradient exists yet (nothing to scope). Undo follows the
-      // gradient setter — not on the history allowlist.
+      // when no strand gradient exists yet (nothing to scope).
       const current = patternDecoration(state)?.strandGradient
       if (!current) return state
       const deco = patternDecoration(state)!
@@ -983,6 +982,24 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     case 'CLEAR_DECORATION': {
       if (!patternDecoration(state)) return state
       return withPatternDecoration(state, undefined)
+    }
+    case 'RESTORE_DECORATION_SNAPSHOT': {
+      // Undo/redo of a LEGACY substrate's decoration. Deliberately a no-op on
+      // a Patch: its decoration lives inside `editor`, so the paired
+      // EDITOR_RESTORE_SNAPSHOT has already restored it, and writing through
+      // `withPatternDecoration` here would target the same home a second time
+      // with a value the hook only tracks for the legacy field.
+      if (state.editor) return state
+      if (!action.payload) {
+        if (!state.decoration) return state
+        // Delete rather than set-undefined, so an undone-to-empty config is
+        // byte-identical to one that never carried decoration (see
+        // `withPatternDecoration`).
+        const { decoration: _drop, ...rest } = state
+        void _drop
+        return rest
+      }
+      return { ...state, decoration: action.payload }
     }
     case 'EDITOR_RUN_AUTO_COMPLETE': {
       if (!state.editor) return state

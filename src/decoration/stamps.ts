@@ -417,9 +417,6 @@ export interface StampPlacement {
   /** Inner loops of `clip` to leave uncovered — a **Combine** composite
    * ringing an unselected Void. */
   clipHoles?: Vec2[][]
-  /** A **Combine** composite's internal edges, so the seam cover can re-draw
-   * this same image over the strands crossing the group's interior. */
-  seams?: [Vec2, Vec2][]
   /** Canonical→instance isometry for the `<image>`'s group. */
   transform: StampTransform
   /** Data-URL image. */
@@ -440,8 +437,6 @@ export interface StampableVoid {
   signature: string
   /** Combine composite only — inner loops the clip must punch out. */
   holes?: Vec2[][]
-  /** Combine composite only — the internal edges its seam cover paints over. */
-  seams?: [Vec2, Vec2][]
 }
 
 /**
@@ -512,7 +507,6 @@ export function resolveVoidStamps(
         image: rec.image,
         rect: fitImageRect(box, rec.width, rec.height, rec.fit),
         ...(v.holes?.length ? { clipHoles: v.holes } : null),
-        ...(v.seams?.length ? { seams: v.seams } : null),
         ...(rec.overlap ? { overlap: true } : null),
       })
     }

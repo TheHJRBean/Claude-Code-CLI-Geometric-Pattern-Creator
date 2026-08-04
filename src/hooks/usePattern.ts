@@ -24,6 +24,7 @@ import { runRosettePIC } from '../pic/rosettePatch'
 import { recordPerf, periodicityEnabled } from '../utils/perf'
 import { colourVoids, keyVoids, makeVoidFill, type KeyedVoid, type PaintVoid, type StrandHit, type VoidFill } from '../decoration/resolve'
 import { applyVoidMerges } from '../decoration/voidMerge'
+import type { VoidSeamGroup } from '../rendering/StrandSeamMask'
 import { resolveVoidStamps, type StampPlacement } from '../decoration/stamps'
 import { extractVoids, pairCurvedOutlines, RENDER_SIMPLIFY_ANGLE_TOL, type VoidRegion } from '../decoration/voids'
 import { buildColourIndex, orbitOffset, resolveFill, scopedKey } from '../decoration/scopes'
@@ -92,6 +93,13 @@ export interface PatternData {
    * Only emitted in the Decoration phase (`decorationActive`).
    */
   voidFills?: VoidFill[]
+  /**
+   * Combine — the internal seams of each combined group, masked out of the
+   * strand layer (`StrandSeamMask`) so the group reads as one shape.
+   * Deliberately independent of `voidFills`: combining erases a group's
+   * dividing Rays whether or not it is ever painted.
+   */
+  voidSeams?: VoidSeamGroup[]
   /**
    * Stage 2 — world-space `instance`-scope Void fills. On the periodic
    * fast-path `voidFills` renders INSIDE the cloned fragment (so it tiles),
@@ -180,6 +188,19 @@ export function stampSegments(base: Segment[], stamps: LatticeStamp[]): Segment[
  * the patch: rotations come from the cell shape / Configuration basis, never
  * the viewport, so eligibility is viewport-independent. Exported for
  * characterization tests (thermo-nuclear review Chunk 4). */
+/** Combine (`decoration/voidMerge.ts`) — the seam groups a composite Void
+ * contributes to `StrandSeamMask`. Derived from the keyed field, NOT from the
+ * resolved fills: a combine erases the Rays dividing its members whether or
+ * not the group is ever painted. */
+function voidSeamGroups(keyed: KeyedVoid[]): VoidSeamGroup[] | undefined {
+  const out: VoidSeamGroup[] = []
+  for (const v of keyed) {
+    if (!v.seams || v.seams.length === 0) continue
+    out.push({ polygon: v.polygon, ...(v.holes ? { holes: v.holes } : null), seams: v.seams })
+  }
+  return out.length > 0 ? out : undefined
+}
+
 export function periodicFastPathEligible(
   config: PatternConfig,
   editorFrame: boolean,
@@ -1175,6 +1196,7 @@ export function usePattern(
           segments: stampedField.decoField,
           boundaryOutlines,
           voidFills: colourVoids(keyed, patch.decoration),
+          voidSeams: voidSeamGroups(keyed),
           voidStamps: resolveVoidStamps(keyed, patch.decoration?.voidStamps),
           decorationVoids: keyed,
           decorationStrandHits: nonFastStrandHits ?? undefined,
@@ -1201,6 +1223,7 @@ export function usePattern(
       polygons: legacyField.polygons,
       segments: legacyField.segments,
       voidFills: colourVoids(keyed, deco),
+      voidSeams: voidSeamGroups(keyed),
       voidStamps: resolveVoidStamps(keyed, deco?.voidStamps),
       decorationVoids: keyed,
       decorationStrandHits: legacyStrandHits ?? undefined,

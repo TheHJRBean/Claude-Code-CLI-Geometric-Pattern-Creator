@@ -26,10 +26,6 @@ export interface VoidFill {
   /** Inner loops to leave unpainted — only a **Combine** composite ringing an
    * unselected Void has any (`decoration/voidMerge.ts`). */
   holes?: Vec2[][]
-  /** A **Combine** composite's internal edges: the strand-crossed seams
-   * between its members, which the seam cover paints over so the group reads
-   * as one shape. */
-  seams?: [Vec2, Vec2][]
   /** CSS colour (flat fill, and fallback when the gradient can't render). */
   colour: string
   /** Gradient fill — wins over `colour` when present. Geometry lives in the
@@ -150,21 +146,22 @@ export function colourVoids(
 
 /** The outline data a `VoidFill` is built from — a whole `VoidRegion`, or the
  * outlines alone where a caller reconstructs an instance by translation. */
-export type FillGeometry = Pick<VoidRegion, 'polygon'> & Partial<Pick<VoidRegion, 'keyPolygon' | 'holes' | 'seams'>>
+export type FillGeometry = Pick<VoidRegion, 'polygon'> & Partial<Pick<VoidRegion, 'keyPolygon' | 'holes'>>
 
 /** Assemble one render-ready `VoidFill`, deriving the canonical-pose transform
  * when the fill carries a gradient (from the STRAIGHT outline where present,
  * matching stamps — so a gradient survives curve-recipe changes). A Combine
- * composite's holes and seams ride along: the fill is painted through the same
- * outline the group was posed from, so a gradient spans the whole union. */
+ * composite's holes ride along: the fill is painted through the same outline
+ * the group was posed from, so a gradient spans the whole union. Its seams do
+ * NOT — they erase Strands (`StrandSeamMask`), which is a property of the
+ * combine itself and must hold whether or not the group is ever painted. */
 export function makeVoidFill(
   region: FillGeometry,
   fill: { colour: string; gradient?: GradientSpec },
 ): VoidFill {
-  const { polygon, keyPolygon, holes, seams } = region
+  const { polygon, keyPolygon, holes } = region
   const base: VoidFill = { polygon, colour: fill.colour }
   if (holes && holes.length > 0) base.holes = holes
-  if (seams && seams.length > 0) base.seams = seams
   if (!fill.gradient) return base
   const pose = canonicalPose(keyPolygon ?? polygon)
   if (!pose) return base

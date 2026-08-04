@@ -10,7 +10,7 @@ import { StrandLayer } from './StrandLayer'
 import { ControlPointLayer } from './ControlPointLayer'
 import { VoidFillLayer } from './VoidFillLayer'
 import { VoidStampLayer } from './VoidStampLayer'
-import { VoidSeamLayer } from './VoidSeamLayer'
+import { StrandSeamMask, hasSeams, type VoidSeamGroup } from './StrandSeamMask'
 import type { VoidFill } from '../decoration/resolve'
 import type { StampPlacement } from '../decoration/stamps'
 import type { ColourRecord, FrameGradient, StrandGradient } from '../types/editor'
@@ -113,6 +113,11 @@ interface Props {
    * them; otherwise they're world-space. Absent / empty ⇒ nothing drawn.
    */
   voidFills?: VoidFill[]
+  /** Combine (`decoration/voidMerge.ts`) — the internal seams of each combined
+   * group, masked out of the strand layer so the group reads as one shape.
+   * Independent of `voidFills`: a combine erases its dividing Rays whether or
+   * not the group is ever painted. */
+  voidSeams?: VoidSeamGroup[]
   /**
    * Stage 2 — world-space `instance`-scope Void fills (fast-path only). A
    * single world copy can't render inside the tiled fragment, so when these
@@ -156,7 +161,7 @@ interface Props {
 }
 
 export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
-  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, compositionStamps, editorOverlay, clipEditorOverlayToFrame = false, editorOverlayUnclipped, frameOutline, clipToFrame = true, frameNodes, frameStroke, voidFills, instanceVoidFills, voidStamps, strandRecords, orbitStamps, cellFrames, strandIdentitySource, strandGradient, frameGradient },
+  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, compositionStamps, editorOverlay, clipEditorOverlayToFrame = false, editorOverlayUnclipped, frameOutline, clipToFrame = true, frameNodes, frameStroke, voidFills, voidSeams, instanceVoidFills, voidStamps, strandRecords, orbitStamps, cellFrames, strandIdentitySource, strandGradient, frameGradient },
   ref
 ) {
   const { x, y, zoom, rotation } = viewTransform
@@ -165,6 +170,14 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
   const viewBox = `${x} ${y} ${vw} ${vh}`
   const cx = x + vw / 2
   const cy = y + vh / 2
+
+  // Combine seam mask (world-space path only). The white "show everything"
+  // rect is the visible world rect grown by half again around the centre:
+  // under a view rotation the corners of the viewBox sweep outside it, and a
+  // strand outside the mask rect would vanish rather than merely be unmasked.
+  const seamMaskId = 'strand-seam-mask'
+  const seamMaskActive = hasSeams(voidSeams, config.strand.width)
+  const seamMaskRect = { x: x - vw / 2, y: y - vh / 2, width: vw * 2, height: vh * 2 }
 
   const hasFrame = !!frameOutline && frameOutline.length >= 3
   const framePoints = hasFrame ? frameOutline!.map(v => `${v.x},${v.y}`).join(' ') : ''
@@ -309,12 +322,19 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
               <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
               {voidFills && <VoidFillLayer fills={voidFills} idPrefix="void-fill-world" />}
               {voidStamps && <VoidStampLayer placements={voidStamps} idPrefix="void-stamp-world" />}
-              {showLines && <StrandLayer segments={segments} config={config} ghostPolygonIds={ghostPolygonIds} strandRecords={strandRecords} orbitStamps={orbitStamps} cellFrames={cellFrames} identitySource={strandIdentitySource} strandGradient={strandGradient} />}
-              {/* Combine seam cover — above the Strands by necessity: it exists
-                  to hide the rays crossing a combined group's interior. Only
-                  the world-space path needs it; a combine disqualifies the
-                  periodic fast path (a group can straddle the domain). */}
-              {showLines && <VoidSeamLayer fills={voidFills} stamps={voidStamps} strandWidth={config.strand.width} idPrefix="void-seam-world" />}
+              {/* Combine: mask the Rays crossing a combined group's interior
+                  out of the strand layer, so a combined group reads as one
+                  shape whether or not it is painted. Only the world-space path
+                  needs it — a combine disqualifies the periodic fast path (a
+                  group can straddle the domain). */}
+              {showLines && seamMaskActive && (
+                <StrandSeamMask groups={voidSeams!} strandWidth={config.strand.width} rect={seamMaskRect} id={seamMaskId} />
+              )}
+              {showLines && (
+                <g mask={seamMaskActive ? `url(#${seamMaskId})` : undefined}>
+                  <StrandLayer segments={segments} config={config} ghostPolygonIds={ghostPolygonIds} strandRecords={strandRecords} orbitStamps={orbitStamps} cellFrames={cellFrames} identitySource={strandIdentitySource} strandGradient={strandGradient} />
+                </g>
+              )}
               <ControlPointLayer
                 segments={segments}
                 config={config}

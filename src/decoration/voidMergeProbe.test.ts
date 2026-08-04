@@ -137,12 +137,14 @@ describe('Combine on real PIC fields', () => {
             fit: 'cover' as const,
           }],
         }
-        // One fill covering the union, carrying the seams the cover repaints.
+        // One fill covering the union.
         const fills = colourVoids(merged, decoration)
         expect(fills).toHaveLength(1)
         expect(Math.abs(signedArea(fills[0].polygon)))
           .toBeCloseTo(pair![0].area + pair![1].area, 4)
-        expect(fills[0].seams!.length).toBeGreaterThan(0)
+        // The seams ride on the Void, not on the fill: they erase the Rays
+        // dividing the group, which has to hold whether or not it is painted.
+        expect(composite.seams!.length).toBeGreaterThan(0)
         // One stamp, clipped to the union rather than to either member.
         const stamps = resolveVoidStamps(merged, decoration.voidStamps)
         expect(stamps).toHaveLength(1)

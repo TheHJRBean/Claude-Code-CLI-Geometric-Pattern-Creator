@@ -472,7 +472,11 @@ export function usePattern(
     // `editor.decoration`, so paints reuse the reps (19.4 snag #1). Curve
     // reads: curvesEnabled/flatten → `config.figures` + `config.smoothTransitions`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editorBase, decorationActive, editorFrame, showBoundaryLattice, config.figures, config.smoothTransitions, decorationCellFrames])
+    // `voidMerges` for the same reason as in `stampedField` above: it flips the
+    // shared eligibility predicate, so without it this extraction stays alive
+    // (and wasted) after a combine.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editorBase, decorationActive, editorFrame, showBoundaryLattice, config.figures, config.smoothTransitions, decorationCellFrames, config.editor?.decoration?.voidMerges])
 
   // Cheap colouring pass over the stable reps. Keys on the LIVE decoration
   // records (off `config.editor`, never `editorBase.patch` — that snapshot is
@@ -678,13 +682,15 @@ export function usePattern(
       decoField = runPIC(decorationExtractionPolygons(polygons, worldPolys), config)
     }
     return { fastPath: false as const, stamps, polygons, picPolygons, segments, boundaryOutlines, decoField }
-    // frameGradient.enabled / strandGradient.enabled flip periodicFastPathEligible
-    // (#45 / #46) but aren't part of the geometry captured by editorBase, so they
-    // must be explicit deps — else toggling a gradient leaves fastPath stale-true
-    // and the world-space render path (the only one either gradient uses) never
-    // engages.
+    // frameGradient.enabled / strandGradient.enabled / voidMerges flip
+    // periodicFastPathEligible (#45 / #46 / Combine) but aren't part of the
+    // geometry captured by editorBase, so they must be explicit deps — else
+    // adding one leaves fastPath stale-true and the world-space render path
+    // (the only one any of them uses) never engages. Combine hit exactly this:
+    // the record was written, the eligibility predicate said non-fast, and the
+    // memo that reads it never re-ran, so nothing on the canvas changed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editorBase, ed?.frame, ed?.decoration?.frameGradient?.enabled, ed?.decoration?.strandGradient?.enabled, editorFrame, showBoundaryLattice, editorStrandMode, decorationActive, fbX, fbY, fbW, fbH])
+  }, [editorBase, ed?.frame, ed?.decoration?.frameGradient?.enabled, ed?.decoration?.strandGradient?.enabled, ed?.decoration?.voidMerges, editorFrame, showBoundaryLattice, editorStrandMode, decorationActive, fbX, fbY, fbW, fbH])
 
   // Non-fast-path Decoration extraction + Void keying — FIELD-keyed, never
   // decoration- or Paint-target-keyed (the fast path's `decorationReps` twin):

@@ -165,6 +165,29 @@ describe('periodicFastPathEligible', () => {
     expect(periodicFastPathEligible(flat, false, false, [T(0, 0), T(10, 0)])).toBe(true)
   })
 
+  it('is ineligible when the pattern carries a Combine — a group can leave the domain', () => {
+    const decoration = {
+      version: 1 as const,
+      strandColours: [],
+      voidFills: [],
+      voidMerges: [{
+        scope: 'congruent' as const,
+        key: 'abc',
+        signature: 'abc',
+        members: [{ signature: 'def', offset: { x: 3, y: 0 } }],
+      }],
+    }
+    const base = cfg()
+    const combined: PatternConfig = { ...base, editor: { ...base.editor!, decoration } }
+    expect(periodicFastPathEligible(combined, false, false, [T(0, 0), T(10, 0)])).toBe(false)
+    // …and an empty list is not a Combine.
+    const none: PatternConfig = {
+      ...base,
+      editor: { ...base.editor!, decoration: { ...decoration, voidMerges: [] } },
+    }
+    expect(periodicFastPathEligible(none, false, false, [T(0, 0), T(10, 0)])).toBe(true)
+  })
+
   it('is ineligible when the periodicity flag is off, even with everything else clear', () => {
     perfFlag.periodicity = false
     expect(periodicFastPathEligible(cfg(), false, false, [T(0, 0)])).toBe(false)

@@ -514,7 +514,9 @@ function CombineSection({ decoration, dispatch, scope, selection, onClearSelecti
           }}
           style={{ ...decorationButtonStyle, flex: 1, ...disabled(ready) }}
         >
-          Combine
+          {/* Not just "Combine" — the paint-target button above says that, and
+              two live buttons with one label is a coin flip for the user. */}
+          {selection.length > 1 ? `Combine ${selection.length}` : 'Combine picked'}
         </button>
         <button
           disabled={separable === null}

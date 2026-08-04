@@ -3,7 +3,8 @@ import { reducer } from './reducer'
 import { DEFAULT_CONFIG } from './defaults'
 import { createDefaultEditorConfig } from '../editor/createDefault'
 import type { PatternConfig } from '../types/pattern'
-import type { GradientSpec } from '../types/editor'
+import type { GradientSpec, VoidMergeRecord } from '../types/editor'
+import { migrateDecoration, migrateEditorConfig } from '../editor/migrations'
 import type { Action } from './actions'
 
 const base = (): PatternConfig => ({
@@ -466,5 +467,80 @@ describe('Void Stamps — reducer actions', () => {
     expect(s.editor!.decoration!.voidStamps).toHaveLength(1)
     s = reducer(s, { type: 'CLEAR_DECORATION' } as Action)
     expect(s.editor!.decoration).toBeUndefined()
+  })
+})
+
+describe('Combine — merge records on the decoration block', () => {
+  const merge = (key: string): VoidMergeRecord => ({
+    scope: 'instance',
+    key,
+    signature: 'abc',
+    members: [{ signature: 'def', offset: { x: 3, y: 0 } }],
+  })
+
+  it('COMBINE_VOIDS appends to voidMerges, creating the block', () => {
+    let s = base()
+    s = reducer(s, { type: 'COMBINE_VOIDS', payload: merge('abc@0.00,0.00') } as Action)
+    expect(s.editor!.decoration!.voidMerges).toHaveLength(1)
+    s = reducer(s, { type: 'COMBINE_VOIDS', payload: merge('abc@9.00,0.00') } as Action)
+    expect(s.editor!.decoration!.voidMerges).toHaveLength(2)
+  })
+
+  it('appends rather than replacing a same-key record, so first-come still decides', () => {
+    // Two records with the same anchor key are legitimately different combines
+    // (different member sets). Upserting like a paint would silently discard
+    // the older one and re-partition the field.
+    let s = base()
+    s = reducer(s, { type: 'COMBINE_VOIDS', payload: merge('abc@0.00,0.00') } as Action)
+    s = reducer(s, { type: 'COMBINE_VOIDS', payload: merge('abc@0.00,0.00') } as Action)
+    expect(s.editor!.decoration!.voidMerges).toHaveLength(2)
+  })
+
+  it('SEPARATE_VOIDS drops one by index and deletes the key when empty', () => {
+    let s = base()
+    s = reducer(s, { type: 'COMBINE_VOIDS', payload: merge('abc@0.00,0.00') } as Action)
+    s = reducer(s, { type: 'COMBINE_VOIDS', payload: merge('abc@9.00,0.00') } as Action)
+    s = reducer(s, { type: 'SEPARATE_VOIDS', payload: { index: 0 } } as Action)
+    expect(s.editor!.decoration!.voidMerges).toEqual([merge('abc@9.00,0.00')])
+    s = reducer(s, { type: 'SEPARATE_VOIDS', payload: { index: 0 } } as Action)
+    expect('voidMerges' in s.editor!.decoration!).toBe(false)
+  })
+
+  it('ignores an out-of-range SEPARATE_VOIDS rather than dropping the wrong record', () => {
+    let s = base()
+    s = reducer(s, { type: 'COMBINE_VOIDS', payload: merge('abc@0.00,0.00') } as Action)
+    const before = s
+    s = reducer(s, { type: 'SEPARATE_VOIDS', payload: { index: 5 } } as Action)
+    expect(s).toBe(before)
+  })
+
+  it('CLEAR_DECORATION drops combines with everything else', () => {
+    let s = base()
+    s = reducer(s, { type: 'COMBINE_VOIDS', payload: merge('abc@0.00,0.00') } as Action)
+    s = reducer(s, { type: 'CLEAR_DECORATION' } as Action)
+    expect(s.editor!.decoration).toBeUndefined()
+  })
+
+  it('round-trips through load validation', () => {
+    let s = base()
+    s = reducer(s, { type: 'COMBINE_VOIDS', payload: merge('abc@0.00,0.00') } as Action)
+    const loaded = migrateEditorConfig(JSON.parse(JSON.stringify(s.editor)))
+    expect(loaded!.decoration!.voidMerges).toEqual([merge('abc@0.00,0.00')])
+  })
+
+  it('drops a malformed merge record without losing the rest of the block', () => {
+    const raw = {
+      version: 1,
+      strandColours: [],
+      voidFills: [{ scope: 'congruent', key: 'abc', colour: '#111' }],
+      voidMerges: [
+        merge('abc@0.00,0.00'),
+        { scope: 'instance', key: 'x', signature: 'y', members: [] },
+        { scope: 'nonsense', key: 'x', signature: 'y', members: [{ signature: 'z', offset: { x: 1, y: 1 } }] },
+      ],
+    }
+    const out = migrateDecoration(raw)
+    expect(out!.voidMerges).toEqual([merge('abc@0.00,0.00')])
+    expect(out!.voidFills).toHaveLength(1)
   })
 })

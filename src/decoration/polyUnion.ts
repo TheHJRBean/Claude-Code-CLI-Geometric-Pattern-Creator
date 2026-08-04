@@ -72,7 +72,24 @@ export function unionOutlines(polys: Vec2[][], tol = 1e-3): OutlineUnion {
   // Bucket the vertex set so the re-split scan below is local, not O(V) per
   // edge — a merged group is small, but this also runs per candidate group on
   // every re-extraction.
-  const cell = Math.max(tol * 64, 1e-6)
+  //
+  // The cell is sized off the MEAN EDGE LENGTH, not off `tol`. Tying it to the
+  // snap tolerance looked harmless and was quadratic in disguise: at tol 1e-3
+  // the cells are ~0.06 world units, so a 40-unit edge sweeps ~600×600 of them
+  // and the scan cost tracks the pattern's world scale rather than its
+  // complexity. Measured on 3.6.3.6: 5.5 s to resolve 78 combined groups,
+  // every one of which is two triangles.
+  let edgeSum = 0
+  let edgeCount = 0
+  for (const poly of usable) {
+    for (let i = 0; i < poly.length; i++) {
+      const a = poly[i]
+      const b = poly[(i + 1) % poly.length]
+      edgeSum += Math.abs(b.x - a.x) + Math.abs(b.y - a.y)
+      edgeCount++
+    }
+  }
+  const cell = Math.max(edgeSum / Math.max(1, edgeCount), tol * 8, 1e-6)
   const buckets = new Map<string, Vec2[]>()
   for (const p of pts.values()) {
     const k = `${Math.floor(p.x / cell)},${Math.floor(p.y / cell)}`

@@ -63,6 +63,25 @@ describe('unionOutlines', () => {
     expect(u.seams).toHaveLength(0)
   })
 
+  it('costs the same on a large pattern as on a small one', () => {
+    // The vertex grid must be sized off the geometry, not off the snap
+    // tolerance. Sized off `tol` it was quadratic in the pattern's WORLD SCALE
+    // — identical work, 500× the time on a full-size tiling (5.5 s to resolve
+    // 78 two-triangle groups on 3.6.3.6). A ratio guard rather than a wall
+    // clock: it catches that class of regression without depending on how fast
+    // the machine is.
+    const time = (s: number): number => {
+      const a = sq(0, 0, s)
+      const b = sq(s, 0, s)
+      const t = performance.now()
+      for (let i = 0; i < 200; i++) unionOutlines([a, b])
+      return performance.now() - t
+    }
+    const small = time(1)
+    const large = time(10_000)
+    expect(large).toBeLessThan(small * 20 + 50)
+  })
+
   it('passes a single outline through, CCW-normalised', () => {
     const cw = sq(0, 0).slice().reverse()
     const u = unionOutlines([cw])

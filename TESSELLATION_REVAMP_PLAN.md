@@ -927,6 +927,34 @@ Known limits / deferred:
 - Non-fast-path strand hit-targets chain the full visible field once per pan
   while the Strands target is active (same order of cost as StrandLayer).
 
+### Combine — ✅ DELIVERED 2026-08-04 (`8e75aee`..`9460709`), browser-verified
+
+Not one of the deferred stages below — a user request that turned out to slot
+into the existing model cleanly. **Combine** fuses a group of *adjacent* Voids
+into one Void for every Decoration operation at once: one Fill, one gradient
+spanning the fused shape, one Stamp fitted to it, one hover/hit target, and the
+Rays crossing between its members masked out of the strand layer.
+
+- **It is a matcher, not an edit.** Voids are re-derived from the ray field
+  every frame, so a Combine has to be a record that re-finds its own members —
+  same reasoning that makes a `ColourRecord` identity-keyed rather than
+  position-keyed. Stored as an anchor named at a Grouping-scope rung plus the
+  other members' centroids **in the anchor's canonical pose**, which is what
+  makes the `congruent` rung carry onto rotated and mirrored instances with no
+  lattice or symmetry bookkeeping.
+- **A composite is an ordinary `VoidRegion`** with the union outline, so
+  `colourVoids` / `resolveVoidStamps` / `buildVoidTargeting` / the Paint overlay
+  were untouched — and a composite is congruent to another composite of the same
+  shape, so `congruent` paint spreads across combined groups unchanged.
+- **A Combine disqualifies the periodic fast path**: a combined group can
+  straddle the fundamental domain, which the `<use>` fragment cannot express.
+  `voidMerges` is therefore an explicit dep of `stampedField` + `decorationReps`
+  (see the memo-dep trap under 19.4 — this was its third occurrence).
+- Modules: `decoration/voidMerge.ts`, `decoration/polyUnion.ts`,
+  `rendering/StrandSeamMask.tsx`; schema `DecorationConfig.voidMerges`.
+- **Open:** a Stamp on a combined Void is covered by `voidMergeProbe.test.ts`
+  but not browser-verified (needs a real image upload).
+
 ### Deferred stages (capture only)
 
 - **Stage 3 — world-instance Strands.** Per-world-copy strand records would

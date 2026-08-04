@@ -16,6 +16,15 @@
 > (Girih presets are tier-3 view-only with no Patch to attach Guides to) plus
 > unwritten content. See **NEXT item 5** for the full shape and the model
 > caveat.
+>
+> **2026-08-04: Decoration `Combine` shipped and browser-verified** (entry
+> below) — an unplanned user request, so #32 is still the agreed next task. One
+> loose end only: **a Stamp on a combined Void is not browser-verified** (needs
+> a real image upload); the probe suite asserts the clip equals the union area.
+> Fold it into the outstanding stamp verify pass. New trap earned this session,
+> promoted to its own memo: anything that flips `periodicFastPathEligible` must
+> be an explicit dep of the memos that call it, or the feature renders **nothing**
+> while every other signal says it worked.
 
 **Latest (2026-08-04, Decoration **Combine** — adjacent Voids act as one): SHIPPED + ✅ BROWSER-VERIFIED (`8e75aee` · `94b29f1` · `e2a3e1d` · `514aef5` · `384d4c8` · `9be114e` + seam-mask follow-up).** User: *"I want to be able to combine voids so they act as a single void in the decoration phase."* Confirmed scope: full Reach ladder (Matching included) and all four behaviours — flat fill + seamless render, gradients, stamps, hover/select as one.
 

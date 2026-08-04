@@ -1,10 +1,15 @@
 /**
  * Download filenames.
  *
- * Every export names its file after the saved entry it came from, so a folder
- * of downloads still says which tessellation is which. Unsaved work (and any
- * name that sanitises away to nothing) falls back to the historic default.
+ * Every export names its file after the config it came from, so a folder of
+ * downloads still says which tessellation is which. Priority: the library
+ * entry's own name (what the user typed for this piece of work) → the name the
+ * config designates for itself (its preset / Configuration) → the historic
+ * `islamic-pattern` default for a from-scratch Patch.
  */
+
+import type { PatternConfig } from '../types/pattern'
+import { TILINGS } from '../tilings/index'
 
 export const DEFAULT_EXPORT_BASENAME = 'islamic-pattern'
 
@@ -38,4 +43,22 @@ export function sanitiseFileBase(name: string | null | undefined): string | null
  */
 export function exportFileName(name: string | null | undefined, extension: string): string {
   return `${sanitiseFileBase(name) ?? DEFAULT_EXPORT_BASENAME}.${extension}`
+}
+
+/**
+ * The name a config designates for itself, when it has one — the preset it was
+ * built from (`editor.presetId` on a converted Patch, `tiling.type` on a legacy
+ * render), else the Builder Configuration it is a Patch of. A Patch the user
+ * drew from scratch designates nothing and returns null.
+ *
+ * This is the *fallback*: a library entry's own name always wins, because that
+ * is the name the user typed for this particular piece of work.
+ */
+export function patternDisplayName(config: PatternConfig): string | null {
+  if (config.tiling.type === 'editor') {
+    const presetId = config.editor?.presetId
+    if (presetId) return TILINGS[presetId]?.label ?? presetId
+    return config.editor?.configuration ?? null
+  }
+  return TILINGS[config.tiling.type]?.label ?? config.tiling.type ?? null
 }

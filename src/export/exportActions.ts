@@ -2,6 +2,7 @@ import type { RefObject } from 'react'
 import type { PatternConfig } from '../types/pattern'
 import { exportSVG, exportPNG, DEFAULT_PNG_BACKGROUND, measureExportContentBounds, padContentBounds, type ContentBounds } from './exportSVG'
 import { saveJSON, loadJSON } from './exportJSON'
+import { patternDisplayName } from './fileName'
 
 /** A leaf action in the export menu. */
 export interface ExportAction {
@@ -38,10 +39,10 @@ export interface ExportActionsArgs {
   maxFill: boolean
   onToggleMaxFill: () => void
   /** Resolves the name of the library entry this config is attached to, when
-   *  there is one — every download is named after it, unsaved work keeps the
-   *  generic default (see `exportFileName`). A getter, not a value: reading a
-   *  name means parsing the whole library out of localStorage, and it must be
-   *  the name as of the click (a rename between renders would go stale). */
+   *  there is one — it outranks the config's own designated name (see
+   *  `downloadName`). A getter, not a value: reading a name means parsing the
+   *  whole library out of localStorage, and it must be the name as of the
+   *  click (a rename between renders would go stale). */
   resolveSaveName?: () => string | null | undefined
 }
 
@@ -72,10 +73,13 @@ export function buildExportMenuItems({
   onToggleMaxFill,
   resolveSaveName,
 }: ExportActionsArgs): ExportMenuItem[] {
+  // Saved name first, then whatever the config designates for itself; only a
+  // from-scratch unsaved Patch falls through to the generic default.
+  const downloadName = () => resolveSaveName?.() ?? patternDisplayName(config)
   const handleExportSVG = () => {
     const el = svgRef.current
     if (!el) return
-    exportSVG(el, { viewBox: resolveMaxFillViewBox(el, maxFill), name: resolveSaveName?.() })
+    exportSVG(el, { viewBox: resolveMaxFillViewBox(el, maxFill), name: downloadName() })
   }
   const exportPngAt = (width: number) => {
     const el = svgRef.current
@@ -96,10 +100,10 @@ export function buildExportMenuItems({
       // would silently revert to sand on export.
       background: pngTransparent ? null : (config.strand.background || DEFAULT_PNG_BACKGROUND),
       viewBox,
-      name: resolveSaveName?.(),
+      name: downloadName(),
     })
   }
-  const handleSaveJSON = () => saveJSON(config, resolveSaveName?.())
+  const handleSaveJSON = () => saveJSON(config, downloadName())
   const handleLoadJSON = async () => {
     try {
       onLoad(await loadJSON())

@@ -380,6 +380,35 @@ export interface DecorationConfig {
   /** V2 (#46) — the single strand gradient (world-space) stroked across every
    * Strand. Optional + additive; absent ⇒ pre-v2 behaviour byte-identical. */
   strandGradient?: StrandGradient
+  /** **Combine** — groups of adjacent Voids fused into one shape for the whole
+   * Decoration Phase. Applied to the extracted field before anything resolves
+   * against it (`decoration/voidMerge.ts`), so fills, gradients, stamps and
+   * hit-testing all see one Void where the pattern draws several. Optional +
+   * additive; absent ⇒ pre-Combine behaviour byte-identical. */
+  voidMerges?: VoidMergeRecord[]
+}
+
+/**
+ * One **Combine**: a group of adjacent Voids that act as a single Void.
+ *
+ * Stored as an *anchor* named at a Reach rung plus the other members' positions
+ * in the anchor's canonical pose — see `decoration/voidMerge.ts` for why that
+ * is the shape of the thing, and what makes the `congruent` rung repeat a
+ * combine across every rotated and mirrored instance in the field.
+ */
+export interface VoidMergeRecord {
+  /** Reach rung the anchor is named at — the same ladder a paint binds at.
+   * `congruent` repeats the combine on every instance of the anchor's shape. */
+  scope: GroupingScope
+  /** The anchor Void's identity key at `scope`. */
+  key: string
+  /** The anchor's congruent signature. Redundant with `key` at the `congruent`
+   * rung and load-bearing at the others, where `key` carries a position: it is
+   * what lets the matcher reject a candidate on shape before doing pose work. */
+  signature: string
+  /** Every member except the anchor: its congruent signature, and its centroid
+   * in the **anchor's canonical-pose** coordinates. */
+  members: { signature: string; offset: Vec2 }[]
 }
 
 /**

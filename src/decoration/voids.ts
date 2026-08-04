@@ -35,6 +35,21 @@ export interface VoidRegion {
    * outline that identity keys must derive from; `polygon` is then only the
    * rendered (curved) outline. Absent ⇒ key from `polygon`. */
   keyPolygon?: Vec2[]
+  /** **Combine** (`voidMerge.ts`) — inner boundary loops (CW) when the merged
+   * members ring an unselected Void. Absent on every extracted face; only a
+   * composite can have one. Fills and stamp clips render them as holes. */
+  holes?: Vec2[][]
+  /** **Combine** — the internal edges the union erased, which the seam cover
+   * paints over so the group reads as one shape rather than same-coloured
+   * neighbours with strands still crossing between them. */
+  seams?: [Vec2, Vec2][]
+  /** **Combine** — how many Voids this composite fused. Absent ⇒ an ordinary
+   * extracted face. */
+  mergedCount?: number
+  /** **Combine** — index of the `VoidMergeRecord` that produced this
+   * composite, so a Separate click knows which record to drop. Render-time
+   * provenance; never persisted. */
+  mergedFrom?: number
   /** True when the face touches the extraction `bound` — i.e. it is a
    * viewport/frame-bbox CUT through the field, not a shape the pattern
    * actually makes. Its outline (and therefore its congruent signature) is an

@@ -66,11 +66,31 @@ const ANGLE_SNAP = (0.5 * Math.PI) / 180
  * noise); each carries its own `toInstance`. Null for degenerate input.
  */
 export function canonicalPose(polygon: Vec2[]): CanonicalPose | null {
-  if (polygon.length < 3) return null
+  return canonicalPoses(polygon)[0] ?? null
+}
+
+/**
+ * Every pose tied for canonical — one per **self-symmetry** of the outline,
+ * ordered by the same world-orientation tie-break `canonicalPose` applies, so
+ * `[0]` is exactly what that function returns.
+ *
+ * Stamps and gradients only ever want `[0]`: one pose per instance, chosen the
+ * same way everywhere. The **Combine** matcher (`voidMerge.ts`) wants the rest.
+ * It locates a merge group's other members by mapping stored canonical-frame
+ * offsets out through the anchor Void's pose — and for a *symmetric* anchor the
+ * tie-break picks by world orientation, which is not the symmetry image that
+ * carries the offsets onto the right neighbours. A square anchor with a
+ * neighbour on one side poses identically whichever side that is; only one of
+ * its four tied poses aims the offset at the neighbour. Trying them all makes
+ * the match succeed on every instance instead of the quarter that happen to
+ * agree with world orientation.
+ */
+export function canonicalPoses(polygon: Vec2[]): CanonicalPose[] {
+  if (polygon.length < 3) return []
   const ccw = signedArea(polygon) < 0 ? polygon.slice().reverse() : polygon
   const kp = simplifyCollinear(ccw)
   const n = kp.length
-  if (n < 3) return null
+  if (n < 3) return []
 
   // Interior angle token per vertex (direction-independent) + edge lengths.
   const angleTok: string[] = []
@@ -112,54 +132,50 @@ export function canonicalPose(polygon: Vec2[]): CanonicalPose | null {
   // most world-aligned pose the shape's symmetry group offers.
   const ANGLE_EPS = 1e-7
   const TAU = 2 * Math.PI
-  let bestStart = 0
-  let bestDir: 1 | -1 = 1
-  let bestAng = Infinity
-  for (const c of candidates) {
-    if (c.ser !== bestSer) continue
+  const tied = candidates.filter(c => c.ser === bestSer).map(c => {
     const p0 = kp[c.start]
     const p1 = kp[((c.start + c.dir) % n + n) % n]
     let ang = Math.atan2(p1.y - p0.y, p1.x - p0.x)
     if (ang < 0) ang += TAU
     if (ang > TAU - ANGLE_EPS) ang = 0
-    if (
-      ang < bestAng - ANGLE_EPS
-      || (Math.abs(ang - bestAng) <= ANGLE_EPS && c.dir === 1 && bestDir === -1)
-    ) {
-      bestAng = ang
-      bestStart = c.start
-      bestDir = c.dir
-    }
-  }
-
-  const traversal: Vec2[] = []
-  for (let i = 0; i < n; i++) {
-    traversal.push(kp[((bestStart + bestDir * i) % n + n) % n])
-  }
-  const t0 = traversal[0]
-  const theta = Math.atan2(traversal[1].y - t0.y, traversal[1].x - t0.x)
-  const cosT = Math.cos(theta)
-  const sinT = Math.sin(theta)
-  // Reversed traversal is CW in instance coords — flip y after rotating so
-  // the canonical points come out CCW with the first edge still along +x.
-  const flip = bestDir === -1 ? -1 : 1
-  const points = traversal.map(p => {
-    const dx = p.x - t0.x
-    const dy = p.y - t0.y
-    return { x: cosT * dx + sinT * dy, y: flip * (-sinT * dx + cosT * dy) }
+    return { ...c, ang }
   })
-  // Inverse: p → t0 + R(theta)·F(p), F = diag(1, flip).
-  return {
-    points,
-    toInstance: {
-      a: cosT,
-      b: sinT,
-      c: -flip * sinT,
-      d: flip * cosT,
-      e: t0.x,
-      f: t0.y,
-    },
-  }
+  tied.sort((a, b) => {
+    if (Math.abs(a.ang - b.ang) > ANGLE_EPS) return a.ang - b.ang
+    if (a.dir !== b.dir) return b.dir - a.dir // unreflected (dir 1) first
+    return a.start - b.start
+  })
+
+  return tied.map(({ start, dir }) => {
+    const traversal: Vec2[] = []
+    for (let i = 0; i < n; i++) {
+      traversal.push(kp[((start + dir * i) % n + n) % n])
+    }
+    const t0 = traversal[0]
+    const theta = Math.atan2(traversal[1].y - t0.y, traversal[1].x - t0.x)
+    const cosT = Math.cos(theta)
+    const sinT = Math.sin(theta)
+    // Reversed traversal is CW in instance coords — flip y after rotating so
+    // the canonical points come out CCW with the first edge still along +x.
+    const flip = dir === -1 ? -1 : 1
+    const points = traversal.map(p => {
+      const dx = p.x - t0.x
+      const dy = p.y - t0.y
+      return { x: cosT * dx + sinT * dy, y: flip * (-sinT * dx + cosT * dy) }
+    })
+    // Inverse: p → t0 + R(theta)·F(p), F = diag(1, flip).
+    return {
+      points,
+      toInstance: {
+        a: cosT,
+        b: sinT,
+        c: -flip * sinT,
+        d: flip * cosT,
+        e: t0.x,
+        f: t0.y,
+      },
+    }
+  })
 }
 
 /** Instance coords → canonical coords: the inverse of `pose.toInstance`.

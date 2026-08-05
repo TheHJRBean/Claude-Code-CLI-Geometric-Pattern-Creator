@@ -77,13 +77,21 @@
 > border width cap 30 → 120. **#32 remains the agreed next task** and #54 still
 > needs your decision — nothing on the NEXT list moved.
 >
-> **Then a fourth (SHIPPED + headless-verified, `622a578`): the Frame border
-> hangs outside the outline and gaps fill per ring** (individual vs all, on
-> Strands *and* the border). Gradients in gaps were deferred by the user and
-> are now **#56**. Still: **#32 is the agreed next task**, #54 needs your
-> decision.
+> **Then a fourth + fifth (SHIPPED + headless-verified, `622a578`, `229a269`):
+> the Frame border hangs outside the outline, and gaps fill at three grains —
+> All / Matching (per ring, both surfaces) / Individual (per gap, **Frame
+> border only**, because a Strand has no fixed outward side).** Gradients in
+> gaps were deferred by the user and are now **#56**. Still: **#32 is the
+> agreed next task**, #54 needs your decision.
 
-**Latest (2026-08-05, Frame border outside the outline + per-gap-ring fills): SHIPPED + ✅ HEADLESS-VERIFIED (`622a578`).** User: *"I want border stroke to always be outside the frame so that it doesn't encroach on the pattern. I also want to be able to fill each individual gap (toggle individual vs all) including with gradients (if that isn't completed)."* Scope agreed with the user: **both** surfaces (Strands + Frame border), **flat colours now, gradients later** → filed as **#56**.
+**Latest (2026-08-05, gap fills — All / Matching / Individual): SHIPPED + ✅ HEADLESS-VERIFIED (`229a269`).** User: *"at the moment it's either all or matching, although it says individual … if I want it to be asymmetrical I need finer control. Add a further option called matching, move the current 'individual' method into that and create a new individual option."* Exactly right about what shipped an hour earlier — the mode named Individual was per **ring**.
+
+  - **Rings cannot express asymmetry, by construction.** A stroke is centred on its path, so a concentric band cut at `+x` is also cut at `−x`; the whole underlay-stack model is symmetric. `'individual'` therefore does something different in kind: it paints each gap on the **outline offset to that gap's own centre** (`gapCrossSections` + the `offsetPolygonOutward` written for the border), stroked its own thickness. No reveal mask at all — an unfilled gap is simply not drawn.
+  - **Individual is a Frame-border mode only, and that's a real distinction, not a shortcut.** Outward and inward are fixed directions on a closed outline. A **Strand**'s two sides are whichever way its Rays happened to chain, so the same control would colour one strand's left and its neighbour's right — visually random. Strands keep All / Matching; a config carrying `individual` renders there as Matching (`gapRingFills` resolves an asymmetric pair to the outer gap) rather than dropping the fill.
+  - **One array across all three grains.** `gapFills` is now one entry per GAP; Matching writes a ring's pair together. Changing grain never loses a colour. Yesterday-shaped saves (`'individual'` + a ring-length array) rename to `'matching'` and expand mirrored in `readLineStyleFields`, keyed on **array length** — the only case where the two lengths agree is 2 lines, where mirroring is the identity.
+  - Headless-verified (`scripts/verify/gapFillsAndBorder.mjs`, now covering both grains): under Individual, clearing **only** the outermost gap leaves the inner two painted at different depths through the border (r 296 / 313) — the exact thing Matching cannot do. Tests **1721 green** (+9), tsc + build clean.
+
+**Previous (2026-08-05, Frame border outside the outline + per-gap-ring fills): SHIPPED + ✅ HEADLESS-VERIFIED (`622a578`).** User: *"I want border stroke to always be outside the frame so that it doesn't encroach on the pattern. I also want to be able to fill each individual gap (toggle individual vs all) including with gradients (if that isn't completed)."* Scope agreed with the user: **both** surfaces (Strands + Frame border), **flat colours now, gradients later** → filed as **#56**.
 
   - **The border encroached because SVG centres a stroke on its path.** Half the width sat inside the outline the pattern is clipped to — invisible at the old 30 px cap, half a centimetre of buried pattern at the new 120. The border now draws on the outline pushed out by `w / 2` (`offsetPolygonOutward` in `utils/math.ts`), so its inner edge lands on the outline exactly. **The offset picks its direction by which sign grows the polygon**, not by a winding convention: frame outlines come from half a dozen generators and a flipped sign would quietly eat the pattern instead of hanging outside it. Miters are clamped (an n-ring outline has reflex corners). Corners now **mitre** rather than round — hung outside, a round join reads as a heavily rounded picture frame.
   - **Gap fills are per RING, and the UI says so.** A stroke is centred on its path, so the gap left of the centreline and its mirror on the right are one ring and *cannot* differ; only an even line count's centre gap stands alone. `gapRingCount(n) = floor(n/2)`, labels read "Outer gaps / Gaps 2 / Centre gap". Pretending otherwise would have been a control that silently ignores half its input.

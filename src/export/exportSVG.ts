@@ -233,9 +233,61 @@ export function measureExportContentBounds(svgEl: SVGSVGElement): ContentBounds 
   }
 }
 
+/** Parse a `viewBox="x y w h"` attribute out of a serialized root `<svg>` open
+ *  tag. Null when absent or malformed — the caller then falls back to a
+ *  viewport-relative cover. */
+function viewBoxFromOpenTag(openTag: string): ContentBounds | null {
+  const m = /viewBox\s*=\s*"([^"]*)"/.exec(openTag)
+  if (!m) return null
+  const n = m[1].trim().split(/[\s,]+/).map(Number)
+  if (n.length < 4 || n.some(v => !Number.isFinite(v)) || n[2] <= 0 || n[3] <= 0) return null
+  return { x: n[0], y: n[1], width: n[2], height: n[3] }
+}
+
+/**
+ * Insert an opaque background `<rect>` as the exported SVG's first drawn
+ * element.
+ *
+ * The live canvas carries its backdrop as a CSS `background` on the root
+ * `<svg>` and a clone keeps that — but a CSS background is *presentation, not
+ * content*: browsers honour it, Illustrator and Inkscape generally don't. Once
+ * the backdrop became user-editable (the Decoration panel's Canvas background
+ * control, `b8a733c`) an SVG export was silently dropping a deliberate choice
+ * while the PNG path — which flattens onto the same colour — kept it. A real
+ * `<rect>` is the only form every consumer reads.
+ *
+ * Pure string transform (no DOM), like the rest of this module's markup
+ * helpers. Geometry comes from the export's **own** viewBox so the rect covers
+ * exactly what is exported, including a Max-fill viewBox whose origin is not
+ * (0,0). With no viewBox at all, user space *is* the viewport, so a 100% cover
+ * from the origin is correct.
+ */
+export function insertBackgroundRect(
+  markup: string,
+  background: string | null | undefined,
+  viewBox?: ContentBounds,
+): string {
+  if (!background) return markup
+  const svgStart = markup.indexOf('<svg')
+  if (svgStart === -1) return markup
+  const openEnd = markup.indexOf('>', svgStart)
+  if (openEnd === -1) return markup
+  const vb = viewBox ?? viewBoxFromOpenTag(markup.slice(svgStart, openEnd))
+  const geom = vb
+    ? `x="${vb.x}" y="${vb.y}" width="${vb.width}" height="${vb.height}"`
+    : 'x="0" y="0" width="100%" height="100%"'
+  const rect = `<rect ${geom} fill="${background}" data-export-background="true"/>`
+  return markup.slice(0, openEnd + 1) + rect + markup.slice(openEnd + 1)
+}
+
 /** `name` = the saved entry this pattern came from, when there is one; the
- *  download is named after it (see `exportFileName`). */
-export function exportSVG(svgEl: SVGSVGElement, opts: { viewBox?: ContentBounds; name?: string | null } = {}) {
+ *  download is named after it (see `exportFileName`). `background` paints an
+ *  underlay rect (see `insertBackgroundRect`); null/undefined exports on
+ *  transparency, which is what every export did before 2026-08-05. */
+export function exportSVG(
+  svgEl: SVGSVGElement,
+  opts: { viewBox?: ContentBounds; name?: string | null; background?: string | null } = {},
+) {
   const clone = svgEl.cloneNode(true) as SVGSVGElement
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
   const vb = opts.viewBox
@@ -244,7 +296,13 @@ export function exportSVG(svgEl: SVGSVGElement, opts: { viewBox?: ContentBounds;
   clone.setAttribute('width', String(w))
   clone.setAttribute('height', String(h))
   if (vb) clone.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.width} ${vb.height}`)
-  const str = inlineCssVariables(stripExportExclusions(new XMLSerializer().serializeToString(clone)), svgEl)
+  // Inserted last, so the rect is not itself subject to exclusion-stripping or
+  // var() substitution — its fill is already a literal colour.
+  const str = insertBackgroundRect(
+    inlineCssVariables(stripExportExclusions(new XMLSerializer().serializeToString(clone)), svgEl),
+    opts.background,
+    vb,
+  )
   const blob = new Blob([str], { type: 'image/svg+xml;charset=utf-8' })
   downloadBlob(blob, exportFileName(opts.name, 'svg'))
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { unwovenSvgMarkup, substituteCssVariables, stripExportExclusions, boundsFromPointsAttr, padContentBounds } from './exportSVG'
+import { unwovenSvgMarkup, substituteCssVariables, stripExportExclusions, boundsFromPointsAttr, padContentBounds, insertBackgroundRect } from './exportSVG'
 import type { Segment } from '../types/geometry'
 
 // Pin the pure "unwoven" SVG markup builder extracted from exportUnwovenSVG:
@@ -209,5 +209,53 @@ describe('padContentBounds', () => {
     expect(out.y).toBeCloseTo(10 - margin)
     expect(out.width).toBeCloseTo(50 + margin * 2)
     expect(out.height).toBeCloseTo(200 + margin * 2)
+  })
+})
+
+describe('insertBackgroundRect', () => {
+  const svg = (attrs: string, body = '<g id="art"><path d="M0,0"/></g>') =>
+    `<svg xmlns="http://www.w3.org/2000/svg" ${attrs}>${body}</svg>`
+
+  it('covers the markup viewBox exactly, including a non-zero origin', () => {
+    // Max-fill viewBoxes are content bounds, so their origin is rarely (0,0);
+    // an x=0/y=0 rect would leave the artwork's own quadrant unpainted.
+    const out = insertBackgroundRect(svg('viewBox="-120 -80 400 300"'), '#f5f0e8')
+    expect(out).toContain('<rect x="-120" y="-80" width="400" height="300" fill="#f5f0e8"')
+  })
+
+  it('prefers the explicit viewBox argument over the markup attribute', () => {
+    const out = insertBackgroundRect(svg('viewBox="0 0 10 10"'), '#fff', { x: 5, y: 6, width: 70, height: 80 })
+    expect(out).toContain('x="5" y="6" width="70" height="80"')
+    expect(out).not.toContain('width="10"')
+  })
+
+  it('is the FIRST child, so it sits behind every drawn element', () => {
+    const out = insertBackgroundRect(svg('viewBox="0 0 10 10"'), '#000')
+    expect(out.indexOf('<rect')).toBeLessThan(out.indexOf('<g id="art"'))
+  })
+
+  it('falls back to a 100% cover when there is no viewBox at all', () => {
+    // Without a viewBox, user space IS the viewport — origin (0,0), 100%/100%.
+    const out = insertBackgroundRect(svg('width="800" height="600"'), '#abc')
+    expect(out).toContain('<rect x="0" y="0" width="100%" height="100%" fill="#abc"')
+  })
+
+  it('inserts nothing when the background is null, undefined or empty', () => {
+    // This is the pre-2026-08-05 behaviour and what the Transparent-background
+    // toggle must still reach — a transparent export has no underlay at all.
+    const markup = svg('viewBox="0 0 10 10"')
+    expect(insertBackgroundRect(markup, null)).toBe(markup)
+    expect(insertBackgroundRect(markup, undefined)).toBe(markup)
+    expect(insertBackgroundRect(markup, '')).toBe(markup)
+  })
+
+  it('leaves malformed markup untouched rather than corrupting it', () => {
+    expect(insertBackgroundRect('not markup', '#fff')).toBe('not markup')
+    expect(insertBackgroundRect('<svg viewBox="0 0 1 1"', '#fff')).toBe('<svg viewBox="0 0 1 1"')
+  })
+
+  it('ignores a malformed or degenerate viewBox and covers the viewport instead', () => {
+    expect(insertBackgroundRect(svg('viewBox="0 0 nope 10"'), '#fff')).toContain('width="100%"')
+    expect(insertBackgroundRect(svg('viewBox="0 0 0 10"'), '#fff')).toContain('width="100%"')
   })
 })

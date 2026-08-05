@@ -85,7 +85,7 @@ export function TessellationLabMode({
   // Canvas keeps this current with its visible world-rect; MorphPanel reads
   // it on Add Boundary so the default position lands on screen.
   const viewBoundsRef = useRef<WorldBounds | null>(null)
-  const [pngTransparent, setPngTransparent] = useState(false)
+  const [transparentBackground, setTransparentBackground] = useState(false)
   const [maxFillExport, setMaxFillExport] = useState(false)
   const [cpVisible, setCpVisible] = useState<Record<string, boolean>>({})
   const [cpActive, setCpActive] = useState<Record<string, number>>({})
@@ -517,8 +517,8 @@ export function TessellationLabMode({
     config,
     resolveSaveName,
     onLoad: loaded => dispatch({ type: 'LOAD_CONFIG', payload: loaded }),
-    pngTransparent,
-    onTogglePngTransparent: () => setPngTransparent(t => !t),
+    transparentBackground,
+    onToggleTransparentBackground: () => setTransparentBackground(t => !t),
     maxFill: maxFillExport,
     onToggleMaxFill: () => setMaxFillExport(v => !v),
   })

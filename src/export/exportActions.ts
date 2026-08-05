@@ -11,7 +11,7 @@ export interface ExportAction {
 }
 
 /** One entry in the export menu: a plain action, a nested submenu (PNG
- *  resolutions), or a checkbox toggle (transparent background). */
+ *  resolutions), or a checkbox toggle (transparent background / Max-fill). */
 export type ExportMenuItem =
   | ({ kind: 'action' } & ExportAction)
   | { kind: 'submenu'; label: string; items: ExportAction[] }
@@ -29,10 +29,13 @@ export interface ExportActionsArgs {
   config: PatternConfig
   /** Receives a validated PatternConfig from Load JSON (caller dispatches). */
   onLoad: (config: PatternConfig) => void
-  /** PNG on transparent alpha instead of the sandy default. Caller owns the
-   *  toggle state so it persists while the menu is open. */
-  pngTransparent: boolean
-  onTogglePngTransparent: () => void
+  /** Export on transparency instead of the pattern's backdrop — alpha for PNG,
+   *  no underlay rect for SVG. Governs BOTH formats: an SVG export gained a
+   *  real background rect on 2026-08-05, and one "Transparent background"
+   *  control that meant it for only one of the two formats would be a lie.
+   *  Caller owns the toggle state so it persists while the menu is open. */
+  transparentBackground: boolean
+  onToggleTransparentBackground: () => void
   /** Max-fill: recompute the export viewBox to the content's own bounds
    *  (Frame outline when clipping is active, else the rendered pattern)
    *  instead of the live on-screen camera. Off = today's screen-view export. */
@@ -67,8 +70,8 @@ export function buildExportMenuItems({
   svgRef,
   config,
   onLoad,
-  pngTransparent,
-  onTogglePngTransparent,
+  transparentBackground,
+  onToggleTransparentBackground,
   maxFill,
   onToggleMaxFill,
   resolveSaveName,
@@ -76,10 +79,20 @@ export function buildExportMenuItems({
   // Saved name first, then whatever the config designates for itself; only a
   // from-scratch unsaved Patch falls through to the generic default.
   const downloadName = () => resolveSaveName?.() ?? patternDisplayName(config)
+  // The pattern's own backdrop, not a fixed paper tone — both formats bake it
+  // in (PNG flattens onto it, SVG gets an underlay rect), so a painted
+  // background that only lived in the live canvas would otherwise silently
+  // revert to sand on export.
+  const exportBackground = () =>
+    transparentBackground ? null : (config.strand.background || DEFAULT_PNG_BACKGROUND)
   const handleExportSVG = () => {
     const el = svgRef.current
     if (!el) return
-    exportSVG(el, { viewBox: resolveMaxFillViewBox(el, maxFill), name: downloadName() })
+    exportSVG(el, {
+      viewBox: resolveMaxFillViewBox(el, maxFill),
+      name: downloadName(),
+      background: exportBackground(),
+    })
   }
   const exportPngAt = (width: number) => {
     const el = svgRef.current
@@ -95,10 +108,7 @@ export function buildExportMenuItems({
     void exportPNG(el, {
       width,
       height,
-      // The pattern's own backdrop, not a fixed paper tone — a raster is
-      // flattened, so a painted background that only lived in the live canvas
-      // would silently revert to sand on export.
-      background: pngTransparent ? null : (config.strand.background || DEFAULT_PNG_BACKGROUND),
+      background: exportBackground(),
       viewBox,
       name: downloadName(),
     })
@@ -121,7 +131,7 @@ export function buildExportMenuItems({
       label: 'Export PNG',
       items: PNG_SIZES.map(px => ({ label: `${px} px`, onClick: () => exportPngAt(px) })),
     },
-    { kind: 'toggle', label: 'Transparent background', checked: pngTransparent, onToggle: onTogglePngTransparent },
+    { kind: 'toggle', label: 'Transparent background', checked: transparentBackground, onToggle: onToggleTransparentBackground },
     { kind: 'toggle', label: 'Max-fill export', checked: maxFill, onToggle: onToggleMaxFill },
   ]
   items.push({ kind: 'action', label: 'Save JSON', onClick: handleSaveJSON })

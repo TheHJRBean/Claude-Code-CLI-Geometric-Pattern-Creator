@@ -10,8 +10,8 @@ function args(overrides: Partial<ExportActionsArgs> = {}): ExportActionsArgs {
     svgRef: { current: null },
     config: {} as PatternConfig,
     onLoad: () => {},
-    pngTransparent: false,
-    onTogglePngTransparent: () => {},
+    transparentBackground: false,
+    onToggleTransparentBackground: () => {},
     maxFill: false,
     onToggleMaxFill: () => {},
     ...overrides,
@@ -33,14 +33,14 @@ describe('buildExportMenuItems', () => {
   })
 
   it('reflects transparent state on the toggle and fires the callback', () => {
-    const onTogglePngTransparent = vi.fn()
-    const toggle = buildExportMenuItems(args({ pngTransparent: true, onTogglePngTransparent }))
+    const onToggleTransparentBackground = vi.fn()
+    const toggle = buildExportMenuItems(args({ transparentBackground: true, onToggleTransparentBackground }))
       .find(i => i.label === 'Transparent background')
     expect(toggle?.kind).toBe('toggle')
     if (toggle?.kind !== 'toggle') throw new Error('expected toggle')
     expect(toggle.checked).toBe(true)
     toggle.onToggle()
-    expect(onTogglePngTransparent).toHaveBeenCalledOnce()
+    expect(onToggleTransparentBackground).toHaveBeenCalledOnce()
   })
 
   it('reflects Max-fill state on its own toggle and fires the callback', () => {

@@ -3,7 +3,7 @@ import type { Segment } from '../../types/geometry'
 import type { SavedConfig } from '../../state/configLibrary'
 import { Canvas } from '../Canvas'
 import { faithfulRenderFlags } from '../../rendering/faithfulRender'
-import { exportSVG, exportPNG } from '../../export/exportSVG'
+import { exportSVG, exportPNG, DEFAULT_PNG_BACKGROUND } from '../../export/exportSVG'
 import { saveJSON } from '../../export/exportJSON'
 import type { EditAvailability } from './galleryBrowser.logic'
 
@@ -34,12 +34,23 @@ export function PatternDetailView({ save, badge, editAvailability, onBack, onEdi
         ? 'Convert to an editable Patch (your saved copy is kept)'
         : 'Open in the Lab'
 
+  // The save's own backdrop, so a Gallery export matches what the detail view
+  // shows. Both formats bake it in — PNG flattens onto it, SVG gets an underlay
+  // rect — and neither did before 2026-08-05: PNG fell through to the sandy
+  // default and SVG carried the colour only as unhonoured CSS.
+  const exportBackground = () => save.config.strand.background || DEFAULT_PNG_BACKGROUND
+
   const exportPngNow = () => {
     const el = svgRef.current
     if (!el) return
     const cw = el.clientWidth || 1200
     const ch = el.clientHeight || 900
-    void exportPNG(el, { width: 2048, height: Math.max(1, Math.round(2048 * (ch / cw))), name: save.name })
+    void exportPNG(el, {
+      width: 2048,
+      height: Math.max(1, Math.round(2048 * (ch / cw))),
+      background: exportBackground(),
+      name: save.name,
+    })
   }
 
   return (
@@ -55,7 +66,7 @@ export function PatternDetailView({ save, badge, editAvailability, onBack, onEdi
           </button>
           {exportOpen && (
             <div className="gallery-detail__export-menu" role="menu">
-              <button role="menuitem" onClick={() => { if (svgRef.current) exportSVG(svgRef.current, { name: save.name }); setExportOpen(false) }}>SVG</button>
+              <button role="menuitem" onClick={() => { if (svgRef.current) exportSVG(svgRef.current, { name: save.name, background: exportBackground() }); setExportOpen(false) }}>SVG</button>
               <button role="menuitem" onClick={() => { exportPngNow(); setExportOpen(false) }}>PNG</button>
               <button role="menuitem" onClick={() => { saveJSON(save.config, save.name); setExportOpen(false) }}>JSON</button>
             </div>

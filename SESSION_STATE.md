@@ -4,6 +4,24 @@
 
 ## ▶ RESUME HERE
 
+> **2026-08-05, latest — junction ornaments are CLOSED** (`87c16a7`). The
+> user's browser pass found one real defect and it is fixed: the twinkle's
+> fillets sat ~8° off the line work on any **asymmetric** field (Cairo
+> pentagonal), because a junction's arms were rebuilt as ±through-direction.
+> Junctions carry their real arms now. Full entry below. **Two things are
+> owed and neither is a defect:**
+>
+> - **Discoverability, unaddressed by choice.** The user missed the "Ornament
+>   every junction" button entirely and read it as the UI not responding.
+>   Worth a look at where that control sits in `DecorationPanel`; not touched,
+>   because it is a design call, not a bug.
+> - **The deliberately-unbuilt v1 edges** (ornaments on divided `lines`
+>   strands; an ornament library; per-junction rotation handles) are listed in
+>   `memory/project_strand_junction_ornaments_idea.md`.
+>
+> **#32 is still the agreed next task** and #54 still needs your decision —
+> nothing on either moved.
+>
 > **`HANDOFF.md`** (repo root) carries the working context for the live NEXT
 > items — #54 still needs a **decision** before any code. Verified file:line
 > anchors, the proposed change, what to check first, and the traps this month
@@ -93,7 +111,7 @@
 > gaps were deferred by the user and are now **#56**. Still: **#32 is the
 > agreed next task**, #54 needs your decision.
 
-**Latest (2026-08-05, junction ornaments on ASYMMETRIC fields): FIXED + ✅ HEADLESS-VERIFIED (`87c16a7`).** User: *"it doesn't work on junctions that are not symmetrical. Fix that. Cairo pentagon is a good example."* (Their other remark — *"the issue was that I didn't spot the ornament on all junctions button"* — was discoverability, not a defect; **not addressed**, see NEXT.)
+**Latest (2026-08-05, junction ornaments on ASYMMETRIC fields): FIXED + ✅ HEADLESS-VERIFIED (`87c16a7`).** User: *"it doesn't work on junctions that are not symmetrical. Fix that. Cairo pentagon is a good example."* (Their other remark — *"the issue was that I didn't spot the ornament on all junctions button"* — was discoverability, not a defect; **not addressed by choice**, see the RESUME block.)
 
   - **`StrandVisit.dir` is the CHORD through a crossing, and the twinkle rebuilt its arms as `±dir`.** That is exact only where a thread runs straight through — a property of *symmetric* fields, not of fields in general. Cairo's threads kink **15.2°** at their contact points (196 of its 244 junctions), so every fillet was built against arms ~8° off the strands it claimed to be rounding: the A/B screenshots show the gold crossing over the line work and spiking into open space. Junctions now carry their real `arms`, recorded per visit at enumeration time.
   - **The same lie was in the identity.** `junctionSignature` / `junctionAngle` folded each pass onto one undirected *line*, which assumes straight-through and discards exactly the asymmetry that separates two junctions — it reported Cairo's 15° kink as a **1° wobble** and put visibly different crossings in one class. Both read arms now.

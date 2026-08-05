@@ -5,9 +5,11 @@ its **NEXT** list is the menu; this file carries the working context for the
 items that need a *decision* or have a trap waiting, so a cold session doesn't
 have to re-derive any of it.
 
-Nothing here is mid-flight. Tree clean, `main` pushed at `65d09d9`, suite
-**1609 green**, tsc + build clean. (Refreshed after #29 + #30 shipped
-2026-08-03. **Two live decisions now: #54 below, and #32 — see the stanza
+Nothing here is mid-flight. Tree clean, `main` pushed at `e6cff4e`, suite
+**1795 green**, tsc + build clean. (Refreshed 2026-08-05 after junction
+ornaments shipped and their asymmetric-field defect was fixed — that whole
+feature is closed, see `SESSION_STATE.md`; the two decisions below are
+unchanged. **Two live decisions: #54 below, and #32 — see the stanza
 immediately after this one.**)
 
 ~~**One unverified item (2026-08-04, `65d09d9`): Decoration-Phase Undo + Clear

@@ -128,6 +128,26 @@ Key bits:
 
 Authoritative design context lives in `TESSELLATION_REVAMP_PLAN.md` (Step 17 section) and `SESSION_STATE.md` (resume anchor). Eight multi-cell Configurations ship (4.8.8, 3.12.12, 4.6.12, 3.6.3.6, 3.4.6.4, 3.3.3.4.4 via ticket #11, 3.3.4.3.4 snub square via ticket #14, and 3.3.3.3.6 snub hexagonal via ticket #16 — tier 2 is now empty, every Archimedean preset converts). Step 17.12 boundary-inward (single-shape v1) and Step 17.13 vertex placement are delivered.
 
+### Apply to all Tiles (`state/figureBroadcast.ts`)
+
+The Strands panel's **Apply to all Tiles** toggle links every Tile type's Figure
+recipe: one edit lands on all of them. It is a **dispatch-layer fan-out**, not a
+reducer feature — `broadcastFigureAction(action, enabled, tileTypeIds, figures)`
+expands one Figure action into one per Tile type (source first) and the Lab's
+`dispatch` wrapper replays them, so the reducer keeps its one-Tile-type contract
+and its per-Tile guards (never-go-dark, curve seeding) all still run. Every path
+that edits a Figure obeys it, including on-canvas control-point dragging.
+
+- The toggle is **session state, never `PatternConfig`** — an editing mode, not
+  pattern data (and so not subject to the `PATTERN_CONFIG_KEYS` two-site rule).
+- Targets are the **live Tile types**, not `Object.keys(figures)`: a loaded
+  config's figures map can carry stale keys, and broadcasting would revive them.
+- `UPDATE_FIGURE_SET` / `REMOVE_FIGURE_SET` reach another Tile type only when its
+  set of that id has the same `kind` — ids are per-Figure and collide across
+  independently-authored Tiles, and Figure actions have **no undo** (they aren't
+  on `DESIGN_MODE_ACTIONS`). `SET_MORPH_ORIGIN_ANGLE` carries a `tileTypeId` and
+  is deliberately excluded: it edits a Morph stop's overlay, not the recipe.
+
 ### Decoration — Combine (`decoration/voidMerge.ts`)
 
 **Combine** fuses adjacent **Voids** into one shape for the whole Decoration Phase (CONTEXT: Combine). Voids are re-derived from the ray field every frame, so a Combine cannot be an edit of a Void — it is a **record that re-finds its own members**, the same way a `ColourRecord` re-finds the shapes it paints.

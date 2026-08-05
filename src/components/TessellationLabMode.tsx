@@ -28,6 +28,7 @@ import { editorTileTypes } from '../editor/tileTypes'
 import { activeCell } from '../editor/active'
 import { useEditorHistory } from '../editor/useEditorHistory'
 import { FigureControls } from './strands/FigureControls'
+import { broadcastFigureAction } from '../state/figureBroadcast'
 import { pushRecentColour } from './ColourPicker'
 import { SectionTitle, FieldLabel } from './lab/labShared'
 import { StrandStyleControls } from './ui/StrandStyleControls'
@@ -96,6 +97,17 @@ export function TessellationLabMode({
     setCpActive(prev => (prev[tileTypeId] === index ? prev : { ...prev, [tileTypeId]: index }))
   }, [])
   const [showAdvanced, setShowAdvanced] = useState(false)
+  // "Apply to all Tiles" — one Figure edit reaches every Tile type in the
+  // Configuration (see `figureBroadcast.ts`). Session state, not part of
+  // `PatternConfig`: it is an editing mode, not pattern data.
+  const [applyToAllTiles, setApplyToAllTiles] = useState(false)
+  // Latest fan-out inputs, read at dispatch time. A ref rather than callback
+  // deps because `config.figures` changes on every slider tick and would churn
+  // `dispatch`'s identity — and with it every child holding onto it. Assigned
+  // below, once `tileTypes` is derived.
+  const broadcastRef = useRef<{ enabled: boolean; ids: string[]; figures: PatternConfig['figures'] }>(
+    { enabled: false, ids: [], figures: config.figures },
+  )
 
   // Step 17.9 — wrap dispatch so Design-Phase Builder mutations push undo
   // snapshots. All Lab-side dispatches must use this `dispatch`; bypassing
@@ -129,7 +141,10 @@ export function TessellationLabMode({
       try { localStorage.setItem(STRUCTURAL_NOTE_KEY, 'true') } catch { /* ignore */ }
       setStructuralNoteVisible(true)
     }
-    historyDispatch(action)
+    // Dirty / structural-note bookkeeping keys on the action the user actually
+    // took; the fan-out copies are the same edit on sibling Tile types.
+    const { enabled, ids, figures } = broadcastRef.current
+    for (const a of broadcastFigureAction(action, enabled, ids, figures)) historyDispatch(a)
   }, [historyDispatch, presetId])
 
   // Cmd/Ctrl+Z and Cmd/Ctrl+Shift+Z (or Ctrl+Y) drive undo / redo. Listener
@@ -491,6 +506,15 @@ export function TessellationLabMode({
       : []
   })()
 
+  // Keep the fan-out ref current. Broadcasting targets the LIVE Tile types, not
+  // `Object.keys(config.figures)` — a loaded config's figures map can carry
+  // stale keys for Tile types no longer on canvas.
+  broadcastRef.current = {
+    enabled: applyToAllTiles,
+    ids: tileTypes.map(t => t.id),
+    figures: config.figures,
+  }
+
   // 17.11.4 — preview validates in multi mode with ≥3 picks. Same gates the
   // reducer applies (selectable, real-Cell pick, non-overlapping,
   // non-self-intersecting, centroid outside tiles). Computed once and
@@ -579,6 +603,9 @@ export function TessellationLabMode({
         }),
       },
       { label: 'Tile outline weight', value: `${outlineWidth} px` },
+      // Figure edits fan out across Tile types while this is on — a report of
+      // "changing one Tile changed them all" is answered by this line.
+      { label: 'Apply to all Tiles', value: applyToAllTiles ? 'on' : 'off' },
     ],
   })
 
@@ -870,6 +897,38 @@ export function TessellationLabMode({
                 const advancedActive = advancedAvailable && showAdvanced
                 return (
                   <>
+                    {/* One edit, every Tile type. Pointless with a single Tile
+                        type on canvas, so it only appears from two up. */}
+                    {tileTypes.length > 1 && (
+                      <div style={{ marginBottom: 14 }}>
+                        <label
+                          title="Edit one Tile type and every other Tile type in this Configuration takes the same value — contact angle, Ray length, curve, the lot. Existing differences between Tiles are overwritten as you touch each control, not on switching this on."
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 12,
+                            cursor: 'pointer',
+                            fontFamily: "'EB Garamond', Georgia, serif",
+                            fontSize: 13.5,
+                            color: applyToAllTiles ? 'var(--text)' : 'var(--text-muted)',
+                            transition: 'color 0.15s',
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            className="pattern-checkbox"
+                            checked={applyToAllTiles}
+                            onChange={e => setApplyToAllTiles(e.target.checked)}
+                          />
+                          Apply to all Tiles
+                        </label>
+                        {applyToAllTiles && (
+                          <div style={{ fontSize: 10, lineHeight: 1.45, fontStyle: 'italic', opacity: 0.62, marginTop: 6 }}>
+                            Linked — every control below writes to all {tileTypes.length} Tile types.
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {tileTypes.map(tt => {
                       const fig = config.figures[tt.id]
                       if (!fig) return null

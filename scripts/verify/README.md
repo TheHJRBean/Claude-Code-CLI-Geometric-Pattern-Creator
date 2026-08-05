@@ -28,6 +28,11 @@ LD_LIBRARY_PATH=<libdir>/usr/lib/x86_64-linux-gnu node verify3.mjs
 | `verify2.mjs` | SVG-export background rect on a real Composition field (550 `<use>` clones); saved-library name outranking the preset label | ✅ passes |
 | `verify3.mjs` | Download naming across all three rungs; the Gallery name filter end to end (match, case-insensitivity, AND tokens, no-match empty state, Clear) | ✅ passes |
 | `c34.mjs` | #34 Place-on-Anchor host-Cell resolution on 4.8.8 | ⚠️ **incomplete — see below** |
+| `applyToAllTiles.mjs` | Strands "Apply to all Tiles": off ⇒ Tile types diverge, on ⇒ one drag moves every card | ✅ passes |
+
+⚠️ The sidebar is taller than the viewport — `scrollIntoViewIfNeeded()` before
+any synthetic drag. A slider below the fold swallows every mouse event in
+silence, and the run still reads "no change" like a real failure.
 
 ## `c34.mjs` — what it establishes and what it does not
 

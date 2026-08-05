@@ -30,6 +30,7 @@ LD_LIBRARY_PATH=<libdir>/usr/lib/x86_64-linux-gnu node verify3.mjs
 | `c34.mjs` | #34 Place-on-Anchor host-Cell resolution on 4.8.8 | ⚠️ **incomplete — see below** |
 | `applyToAllTiles.mjs` | Strands "Apply to all Tiles": off ⇒ Tile types diverge, on ⇒ one drag moves every card | ✅ passes |
 | `gradientStops.mjs` | `GRADIENT_MAX_STOPS` 8 → 16: panel caps at 16/16 **and** the rendered gradient def carries 16 `<stop>`s | ✅ passes |
+| `lineDivisions.mjs` | Strand line divisions 1–10 + line/gap ratio: the rendered `#strand-style-mask` carries n−1 alternating bands at n = 2/4/7/10, and a higher ratio narrows the outermost cut | ✅ passes |
 
 ⚠️ Each gradient **surface** (This shape / Across frame / Strands) holds its own
 draft. Switch surface first, then add stops — doing it the other way leaves the
@@ -38,6 +39,12 @@ count behind on the surface you left, which reads as the cap not applying.
 ⚠️ The sidebar is taller than the viewport — `scrollIntoViewIfNeeded()` before
 any synthetic drag. A slider below the fold swallows every mouse event in
 silence, and the run still reads "no change" like a real failure.
+
+⚠️ A click at fraction 0 or 1 of a range track lands on the **thumb's own half
+width** and stops short of the end, so both extremes are unreachable by click
+alone — and the readout just sits at the previous value, which reads exactly
+like the control being capped. `lineDivisions.mjs` clicks roughly, then
+arrow-keys to the exact value.
 
 ## `c34.mjs` — what it establishes and what it does not
 

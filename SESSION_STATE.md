@@ -70,7 +70,23 @@
 >   silence, reading exactly like a real "no change" failure), and each gradient
 >   **surface** holds its own stop draft.
 
-**Latest (2026-08-05, Strands — "Apply to all Tiles"): SHIPPED + ✅ HEADLESS-VERIFIED.** User: *"a toggle for the strand editing features that is 'apply to all tiles' so if I change the angle of one tile, it changes it for the rest in the config."*
+> **2026-08-05, third request this day (SHIPPED + headless-verified, `362d370`):
+> strand line styles are now `solid | lines` with a 1–10 division count and a
+> line/gap ratio.** `dashed` / `dotted` were withdrawn on the user's follow-up;
+> old saves translate on load (`readLineStyleFields`, both schema gates). Frame
+> border width cap 30 → 120. **#32 remains the agreed next task** and #54 still
+> needs your decision — nothing on the NEXT list moved.
+
+**Latest (2026-08-05, Strand line divisions 1–10 + line/gap ratio): SHIPPED + ✅ HEADLESS-VERIFIED (`362d370`).** User: *"increase max border stroke width and add toggles for the ratio between line and gap in the double, triple, dash and dot"*, then *"remove dotted and dashed lines and add line divisions up to 10"*.
+
+  - **The five fixed styles became one parameterised style.** `StrandLineStyle` is now `'solid' | 'lines'`, with `lineCount` (2–10) and `styleRatio` (line thickness ÷ gap thickness, 0.25×–4×) beside it — same trio on `FrameStroke`, and the Frame border now shares the Strands' `strandStyleAttrs` instead of the copy it had been carrying since `2a2a3cb`.
+  - **The mask is a band stack, not a centre cut.** `strandStyleAttrs` returns concentric bands widest-first, alternating cut/restore; each band's stroke overwrites the inside of the one before it, so the alternation walks inward to the centre and n lines fall out of n−1 bands. That retires `triple`'s separate coloured centre-line overdraw — doing the inner lines **in the mask** keeps per-Strand colours, gradients and weave breaks correct at every count, for free.
+  - **Divisions and `lineStyle` are ONE control.** "1 line" *is* solid, so a style dropdown could only ever disagree with the count; `LineStyleControls` (shared by the Strand panel and the Decoration Frame border) writes both fields in a single patch. The ratio track is logarithmic so 1× sits centre — linear would bunch every thinner-line setting into the first fifth of it.
+  - **One shared load-path reader, `readLineStyleFields`**, used by *both* schema gates (`configValidation.ts` + `migrations.ts`): `double` → 2 lines at ratio 0.5 (the exact quarter–half–quarter it always drew), `triple` → 3 at 0.745, and the withdrawn `dashed`/`dotted` → `solid` rather than silently rendering as something they never were. Verified against a resvg render: the migrated `double` is pixel-identical to the old one.
+  - Frame border width max **30 → 120**. Generator `LINE_STYLES` + sampler weights follow the live union (the ADR-0007 docstring already required models to re-index features by name).
+  - Headless-verified (`scripts/verify/lineDivisions.mjs`): the rendered `#strand-style-mask` carries exactly n−1 bands at n = 2/4/7/10 with the widths the maths predicts, and 4× leaves a narrower outer cut than 0.25×. New trap in that README: **a click at fraction 0 or 1 of a range track lands on the thumb's own half-width and stops short**, so both extremes are unreachable by click alone and the stale readout looks exactly like a capped control. Tests **1702 green**, tsc + build clean.
+
+**Previous (2026-08-05, Strands — "Apply to all Tiles"): SHIPPED + ✅ HEADLESS-VERIFIED.** User: *"a toggle for the strand editing features that is 'apply to all tiles' so if I change the angle of one tile, it changes it for the rest in the config."*
 
   - **It lives at the dispatch layer, not the reducer** (`src/state/figureBroadcast.ts`, pure + 12 tests). `broadcastFigureAction(action, enabled, tileTypeIds, figures)` expands one Figure edit into one action per Tile type, source first; the reducer keeps its one-Tile-type contract and every guard (never-go-dark, curve seeding) still runs **per Tile**. Routing it here means the on-canvas control-point drag obeys the toggle too, without that call site opting in.
   - **Session state, deliberately not `PatternConfig`.** It is an editing mode, not pattern data — and adding a config field means the `PATTERN_CONFIG_KEYS` + `readConfig` two-site dance for something no save should carry.

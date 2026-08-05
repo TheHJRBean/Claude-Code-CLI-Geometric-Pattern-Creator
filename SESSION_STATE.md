@@ -50,6 +50,25 @@
 > - **Still needing YOU, unchanged:** **#54** (canonical-pose split — a decision,
 >   Opus) and **#32** (Girih reveal — the substrate fork; the issue asks for
 >   **Fable**).
+>
+> **2026-08-05, later session (two unplanned user requests, both SHIPPED +
+> headless-verified — `586e8ab`, `aa34c60`, `d6e1f9b`).** Nothing on the NEXT
+> list moved; **#32 is still the agreed next task** and #54 still needs your
+> decision. What landed:
+>
+> - **Strands → "Apply to all Tiles"** — one Figure edit reaches every Tile type.
+>   The fan-out is a **dispatch-layer** expansion (`state/figureBroadcast.ts`), so
+>   the reducer keeps its one-Tile contract and its per-Tile guards, and the
+>   on-canvas control-point drag obeys the toggle for free. Toggle is session
+>   state, never `PatternConfig`. Full entry below.
+> - **Gradient stop cap 8 → 20** (`GRADIENT_MAX_STOPS`). UI-only constant —
+>   `migrations.ts` has no maximum, so no saved work is invalidated.
+> - **Two new verify scripts pass** (`applyToAllTiles.mjs`, `gradientStops.mjs`),
+>   joining `verify2`/`verify3`. Two traps recorded in `scripts/verify/README.md`:
+>   `scrollIntoViewIfNeeded()` before any synthetic drag (the sidebar is taller
+>   than the viewport and a below-the-fold slider swallows every mouse event in
+>   silence, reading exactly like a real "no change" failure), and each gradient
+>   **surface** holds its own stop draft.
 
 **Latest (2026-08-05, Strands — "Apply to all Tiles"): SHIPPED + ✅ HEADLESS-VERIFIED.** User: *"a toggle for the strand editing features that is 'apply to all tiles' so if I change the angle of one tile, it changes it for the rest in the config."*
 

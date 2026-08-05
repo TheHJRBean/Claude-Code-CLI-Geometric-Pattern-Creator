@@ -274,8 +274,13 @@ export interface GradientStop {
   colour: string
 }
 
-/** Soft cap on gradient stops (DECORATION_GRADIENTS_SPEC decision 2). */
-export const GRADIENT_MAX_STOPS = 8
+/**
+ * Soft cap on gradient stops (DECORATION_GRADIENTS_SPEC decision 2, raised from
+ * 8 to 16 on 2026-08-05 at the user's request). UI-only — `migrations.ts`
+ * enforces the min of 2 on load but no maximum, so a save authored under a
+ * higher cap still loads, and raising this never invalidates existing work.
+ */
+export const GRADIENT_MAX_STOPS = 16
 
 /**
  * A gradient fill (DECORATION_GRADIENTS_SPEC). Shared by per-shape Void

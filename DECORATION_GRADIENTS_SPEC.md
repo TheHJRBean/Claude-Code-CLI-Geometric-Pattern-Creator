@@ -21,7 +21,10 @@ via SVG gradient defs.
 1. **V1 targets = Void fills only.** Strand + frame-border gradients deferred
    to v2; canvas background stays flat.
 2. **Gradient vocabulary:** `linear` + `radial`. Arbitrary stops — min 2,
-   soft cap ~8 — each stop has a draggable offset, add/remove, and its own
+   soft cap `GRADIENT_MAX_STOPS` (~8 at v1, **raised to 16 on 2026-08-05** at
+   the user's request; the cap is UI-only, so the change invalidates no saved
+   work and markers thin to 8 px past 10 stops to stay grabbable) — each stop
+   has a draggable offset, add/remove, and its own
    colour. `≡ Even` redistributes the whole set at equal intervals across
    0..1 in its current left-to-right order (`evenlySpacedStops`), tidying a
    hand-dragged set in one click. `⇄ Reverse` switches the gradient's
@@ -65,7 +68,7 @@ via SVG gradient defs.
   behaviour byte-identical.
 - `GradientSpec` (shared by both modes and by v2 strands):
   - `type: 'linear' | 'radial'`
-  - `stops: { offset: number /* 0..1 */; colour: string }[]` (min 2, cap ~8)
+  - `stops: { offset: number /* 0..1 */; colour: string }[]` (min 2, cap `GRADIENT_MAX_STOPS` = 16)
   - geometry — linear: start/end points; radial: centre + radius. Per-shape
     records store geometry in **canonical-pose coordinates**; the frame
     gradient stores **world coordinates**.

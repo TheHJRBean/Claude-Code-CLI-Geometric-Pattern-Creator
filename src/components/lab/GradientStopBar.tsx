@@ -9,7 +9,8 @@ import { isHexColour, multiplyColour } from '../colourPicker.logic'
  * draggable marker per stop. Click a marker to select it (the caller binds
  * its colour to the shared `ColourPicker`); drag to move its offset;
  * double-click a marker to remove it. `+ Stop` / `− Stop` add/remove (min 2,
- * cap `GRADIENT_MAX_STOPS`); `× Multiply` deepens the selected stop's colour
+ * cap `GRADIENT_MAX_STOPS`, with the live count shown beside the controls);
+ * `× Multiply` deepens the selected stop's colour
  * (self-multiply, repeatable); `≡ Even` redistributes every stop at equal
  * intervals across 0..1 in its current order; `⇄ Reverse` switches the
  * gradient's direction by mirroring the stops (not the axis). Each stop also gets its own colour well under
@@ -80,6 +81,11 @@ export function GradientStopBar({ stops, selected, onSelect, onChange }: {
   // the on-canvas start/end handles stay where the user put them.
   const reverse = () => onChange(reversedStops(stops))
 
+  // Markers thin out once the set is dense, so each stays individually
+  // grabbable on a sidebar-width track at the cap rather than fusing into a
+  // solid bar of overlapping handles.
+  const markerW = stops.length > 10 ? 8 : 12
+
   return (
     <div style={{ marginBottom: 8 }}>
       <div
@@ -107,9 +113,9 @@ export function GradientStopBar({ stops, selected, onSelect, onChange }: {
             key={i}
             style={{
               position: 'absolute',
-              left: `calc(${s.offset * 100}% - 6px)`,
+              left: `calc(${s.offset * 100}% - ${markerW / 2}px)`,
               top: -4,
-              width: 12,
+              width: markerW,
               height: 24,
               background: s.colour,
               border: i === selected ? '2px solid var(--accent, #d4af37)' : '1px solid var(--text-muted)',
@@ -187,7 +193,9 @@ export function GradientStopBar({ stops, selected, onSelect, onChange }: {
           onClick={addStop}
           disabled={stops.length >= GRADIENT_MAX_STOPS}
           style={{ ...stopButtonStyle, opacity: stops.length >= GRADIENT_MAX_STOPS ? 0.4 : 1 }}
-          title="Add a colour stop"
+          title={stops.length >= GRADIENT_MAX_STOPS
+            ? `Maximum ${GRADIENT_MAX_STOPS} stops`
+            : `Add a colour stop (max ${GRADIENT_MAX_STOPS})`}
         >
           + Stop
         </button>
@@ -221,8 +229,10 @@ export function GradientStopBar({ stops, selected, onSelect, onChange }: {
         >
           ⇄ Reverse
         </button>
+        {/* Count first, so how close the set is to the cap is visible before
+            `+ Stop` greys out; selected offset second. */}
         <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
-          {hasSelection ? `${(stops[selected].offset * 100).toFixed(0)}%` : ''}
+          {stops.length}/{GRADIENT_MAX_STOPS}{hasSelection ? ` · ${(stops[selected].offset * 100).toFixed(0)}%` : ''}
         </span>
       </div>
     </div>

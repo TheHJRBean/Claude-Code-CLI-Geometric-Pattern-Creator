@@ -29,6 +29,11 @@ LD_LIBRARY_PATH=<libdir>/usr/lib/x86_64-linux-gnu node verify3.mjs
 | `verify3.mjs` | Download naming across all three rungs; the Gallery name filter end to end (match, case-insensitivity, AND tokens, no-match empty state, Clear) | ✅ passes |
 | `c34.mjs` | #34 Place-on-Anchor host-Cell resolution on 4.8.8 | ⚠️ **incomplete — see below** |
 | `applyToAllTiles.mjs` | Strands "Apply to all Tiles": off ⇒ Tile types diverge, on ⇒ one drag moves every card | ✅ passes |
+| `gradientStops.mjs` | `GRADIENT_MAX_STOPS` 8 → 16: panel caps at 16/16 **and** the rendered gradient def carries 16 `<stop>`s | ✅ passes |
+
+⚠️ Each gradient **surface** (This shape / Across frame / Strands) holds its own
+draft. Switch surface first, then add stops — doing it the other way leaves the
+count behind on the surface you left, which reads as the cap not applying.
 
 ⚠️ The sidebar is taller than the viewport — `scrollIntoViewIfNeeded()` before
 any synthetic drag. A slider below the fold swallows every mouse event in

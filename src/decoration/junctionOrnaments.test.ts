@@ -4,6 +4,7 @@ import type { StrandJunction } from '../strand/junctions'
 import {
   DEFAULT_JUNCTION_ORNAMENT,
   buildJunctionIndex,
+  flarePathD,
   junctionOrnamentsSupported,
   keyJunctions,
   ornamentPaint,
@@ -105,6 +106,14 @@ describe('resolveJunctionPlacements', () => {
     expect((p.angle * 180) / Math.PI).toBeCloseTo(55)
   })
 
+  it('a twinkle is never rotated — its geometry already follows the threads', () => {
+    const [p] = resolveJunctionPlacements(keyJunctions([j(0, 0)], []), [
+      { scope: 'congruent', key: '*', ...DEFAULT_JUNCTION_ORNAMENT, shape: 'twinkle', align: 'thread', angle: 40 },
+    ])
+    expect(p.angle).toBe(0)
+    expect(p.dirs).toHaveLength(2)
+  })
+
   it('an upright ornament ignores the threads', () => {
     const [p] = resolveJunctionPlacements(keyJunctions([j(0, 0)], []), [
       { scope: 'congruent', key: '*', ...DEFAULT_JUNCTION_ORNAMENT, shape: 'star', align: 'upright' },
@@ -132,9 +141,8 @@ describe('ornament geometry', () => {
     expect((d.match(/L/g) ?? []).length).toBe(9)
   })
 
-  it('a twinkle bows its sides in with one curve per point', () => {
-    const d = ornamentPathD({ ...DEFAULT_JUNCTION_ORNAMENT, shape: 'twinkle', points: 4 }, 10)
-    expect((d.match(/Q/g) ?? []).length).toBe(4)
+  it('a twinkle has no free-standing figure — it is built from the threads', () => {
+    expect(ornamentPathD({ ...DEFAULT_JUNCTION_ORNAMENT, shape: 'twinkle' }, 10)).toBe('')
   })
 
   it('every tip sits on the nominal radius', () => {
@@ -165,6 +173,60 @@ describe('ornament geometry', () => {
     expect((d.match(/L/g) ?? []).length).toBe(12 * 2 - 1) // clamped to 12 points
     const coords = pathPoints(d).map(c => Math.hypot(c.x, c.y))
     expect(Math.max(...coords)).toBeCloseTo(10, 6) // waist clamped below the tip
+  })
+})
+
+describe('flarePathD — the twinkle', () => {
+  const cross = [{ x: 1, y: 0 }, { x: 0, y: 1 }] // two threads at right angles
+  const W = 4
+
+  it('rounds every corner of the crossing — two threads make FOUR', () => {
+    // A thread passing through continues both ways, so 2 dirs = 4 arms = 4
+    // wedges. Treating a dir as one arm would round only half the corners.
+    const d = flarePathD(cross, W, 12, 0.55)
+    expect((d.match(/M/g) ?? []).length).toBe(4)
+    expect((d.match(/C/g) ?? []).length).toBe(4)
+  })
+
+  it('lands each fillet on the arm’s edge at the requested reach', () => {
+    const reach = 12
+    const d = flarePathD(cross, W, reach, 0.55)
+    // First subpath's start: up the +x arm at half-width off its centreline.
+    const start = pathPoints(d)[0]
+    expect(Math.abs(start.x)).toBeCloseTo(reach, 6)
+    expect(Math.abs(start.y)).toBeCloseTo(W / 2, 6)
+  })
+
+  it('leaves each arm ALONG the arm, so the fillet meets the Strand smoothly', () => {
+    // The first control point must sit on the same edge line as the start —
+    // i.e. differ only along the arm. A kink there is what "rounding" is for.
+    const pts = pathPoints(flarePathD(cross, W, 12, 0.55))
+    const [start, c1] = pts
+    expect(c1.y).toBeCloseTo(start.y, 6)
+    expect(Math.abs(c1.x)).toBeLessThan(Math.abs(start.x))
+  })
+
+  it('grows with the reach', () => {
+    const near = pathPoints(flarePathD(cross, W, 6, 0.55))[0]
+    const far = pathPoints(flarePathD(cross, W, 20, 0.55))[0]
+    expect(Math.abs(far.x)).toBeGreaterThan(Math.abs(near.x))
+  })
+
+  it('never cuts INTO the crossing — a tiny reach is lifted past the corner', () => {
+    // The corner of a right-angle crossing sits at half-width along each arm;
+    // a reach shorter than that would put the fillet inside the line work.
+    const start = pathPoints(flarePathD(cross, W, 0.1, 0.55))[0]
+    expect(Math.abs(start.x)).toBeGreaterThan(W / 2)
+  })
+
+  it('skips a wedge with no corner to round', () => {
+    // One thread alone: its two arms are collinear, so there is no corner.
+    expect(flarePathD([{ x: 1, y: 0 }], W, 12, 0.55)).toBe('')
+  })
+
+  it('rounds all six corners where three threads meet', () => {
+    const three = [{ x: 1, y: 0 }, { x: 0.5, y: Math.sqrt(3) / 2 }, { x: -0.5, y: Math.sqrt(3) / 2 }]
+    expect((flarePathD(three, W, 12, 0.55).match(/M/g) ?? []).length).toBe(6)
   })
 })
 

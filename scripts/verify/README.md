@@ -31,7 +31,7 @@ LD_LIBRARY_PATH=<libdir>/usr/lib/x86_64-linux-gnu node verify3.mjs
 | `applyToAllTiles.mjs` | Strands "Apply to all Tiles": off ⇒ Tile types diverge, on ⇒ one drag moves every card | ✅ passes |
 | `gradientStops.mjs` | `GRADIENT_MAX_STOPS` 8 → 16: panel caps at 16/16 **and** the rendered gradient def carries 16 `<stop>`s | ✅ passes |
 | `lineDivisions.mjs` | Strand line divisions 1–10 + line/gap ratio: the rendered `#strand-style-mask` carries n−1 alternating bands at n = 2/4/7/10, and a higher ratio narrows the outermost cut | ✅ passes |
-| `junctionOrnaments.mjs` | Junction ornaments: 1307 crossings marked on 4.8.8, the fast path off, All = one `<use>` per crossing, Single = exactly one, re-click clears, shape/hollow reach the `<defs>` geometry, the draft moves placed ornaments, divided strands withdraw them | ✅ passes |
+| `junctionOrnaments.mjs` | Junction ornaments: 1307 crossings marked on 4.8.8, the fast path off, All = one `<use>` per crossing, Single = exactly one, re-click clears, the twinkle draws 4 rounded corners per crossing and its reach runs them up the arms, shape/hollow reach the geometry, the draft moves placed ornaments, divided strands withdraw them | ✅ passes |
 | `gapFillsAndBorder.mjs` | Per-gap-ring fills (mixed rings render behind `#strand-gap-fill-mask` / `#frame-gap-fill-mask`) on both Strands and the Frame border; the border polygon offset outward by exactly w/2 | ✅ passes |
 
 ⚠️ Each gradient **surface** (This shape / Across frame / Strands) holds its own

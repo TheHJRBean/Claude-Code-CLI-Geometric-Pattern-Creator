@@ -1,6 +1,6 @@
 import { memo, useMemo } from 'react'
 import type { JunctionPlacement } from '../decoration/junctionOrnaments'
-import { ornamentPaint, ornamentPathD } from '../decoration/junctionOrnaments'
+import { flarePathD, ornamentPaint, ornamentPathD } from '../decoration/junctionOrnaments'
 import type { JunctionOrnamentStyle } from '../types/editor'
 
 /**
@@ -28,12 +28,34 @@ export const StrandJunctionLayer = memo(function StrandJunctionLayer({
    *  document can't collide on `<defs>` ids. */
   idPrefix?: string
 }) {
+  // A **twinkle** is derived from the threads at its own junction, so it can't
+  // share one rotated `<defs>` path the way a dot or a star does — it is built
+  // and drawn per junction. Everything else keeps the shared-geometry route.
+  const flares = useMemo(() => placements
+    .filter(p => p.style.shape === 'twinkle')
+    .map(p => {
+      const r = (p.style.size * strandWidth) / 2
+      const paint = ornamentPaint(p.style, r)
+      return {
+        point: p.point,
+        // `size` is the reach ALONG the strand here, not a diameter: a twinkle
+        // has no radius, it runs up the arms.
+        d: flarePathD(p.dirs, strandWidth, p.style.size * strandWidth, p.style.innerRatio ?? 0.55),
+        fill: paint.fill,
+        stroke: paint.stroke,
+        strokeWidth: paint.strokeWidth,
+      }
+    })
+    .filter(f => f.d.length > 0),
+  [placements, strandWidth])
+
   // One geometry per distinct style. The key has to name everything the path
   // and its paint depend on, or two styles would share one shape.
   const { defs, ids } = useMemo(() => {
     const byKey = new Map<string, { id: string; style: JunctionOrnamentStyle }>()
-    const ids: string[] = []
+    const ids: (string | null)[] = []
     for (const p of placements) {
+      if (p.style.shape === 'twinkle') { ids.push(null); continue }
       const key = styleKey(p.style)
       let entry = byKey.get(key)
       if (!entry) {
@@ -64,11 +86,22 @@ export const StrandJunctionLayer = memo(function StrandJunctionLayer({
   return (
     <g id={`${idPrefix}-layer`} pointerEvents="none">
       <defs>{defs}</defs>
-      {placements.map((p, i) => (
+      {placements.map((p, i) => (ids[i] === null ? null : (
         <use
           key={i}
           href={`#${ids[i]}`}
           transform={`translate(${p.point.x},${p.point.y})${p.angle ? ` rotate(${(p.angle * 180) / Math.PI})` : ''}`}
+        />
+      )))}
+      {flares.map((f, i) => (
+        <path
+          key={`f${i}`}
+          d={f.d}
+          transform={`translate(${f.point.x},${f.point.y})`}
+          fill={f.fill}
+          stroke={f.stroke}
+          strokeWidth={f.strokeWidth || undefined}
+          strokeLinejoin="round"
         />
       ))}
     </g>

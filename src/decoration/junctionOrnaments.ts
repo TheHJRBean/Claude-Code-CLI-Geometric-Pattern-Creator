@@ -51,6 +51,10 @@ export interface KeyedJunction {
   point: Vec2
   /** Ornament orientation from the threads (radians); see `junctionAngle`. */
   threadAngle: number
+  /** Through-direction of each thread meeting here. Carried because the
+   *  **twinkle** is built FROM the line work rather than stamped on it
+   *  (`flarePathD`) — a dot or a star only needs `threadAngle`. */
+  dirs: Vec2[]
   signature: string
   /** Lattice-orbit key (`patch` rung). Equals `instanceKey` with no lattice. */
   patchKey: string
@@ -61,8 +65,12 @@ export interface KeyedJunction {
 /** A resolved ornament, ready to draw. */
 export interface JunctionPlacement {
   point: Vec2
-  /** Final rotation in radians (thread alignment + the style's own offset). */
+  /** Final rotation in radians (thread alignment + the style's own offset).
+   *  Zero for a twinkle: its geometry already follows the threads, so
+   *  rotating it would take it off them. */
   angle: number
+  /** The threads meeting here — the twinkle's geometry is derived from them. */
+  dirs: Vec2[]
   style: JunctionOrnamentStyle
 }
 
@@ -90,6 +98,7 @@ export function keyJunctions(junctions: readonly StrandJunction[], stamps: reado
     return {
       point: j.point,
       threadAngle: junctionAngle(j.dirs),
+      dirs: j.dirs,
       signature: j.signature,
       patchKey: scopedKey(j.signature, orbit),
       instanceKey: scopedKey(j.signature, j.point),
@@ -207,8 +216,13 @@ export function resolveJunctionPlacements(
   for (const j of junctions) {
     const style = resolveJunctionOrnament(idx, j)
     if (!style) continue
-    const base = (style.align ?? 'thread') === 'thread' ? j.threadAngle : 0
-    out.push({ point: j.point, angle: base + ((style.angle ?? 0) * Math.PI) / 180, style })
+    // A twinkle is already drawn in the junction's own frame — the alignment
+    // and rotation controls belong to the free-standing figures, and the panel
+    // hides them for it rather than letting them turn a fillet off its arms.
+    const base = style.shape === 'twinkle' ? 0
+      : (style.align ?? 'thread') === 'thread' ? j.threadAngle : 0
+    const angle = style.shape === 'twinkle' ? 0 : base + ((style.angle ?? 0) * Math.PI) / 180
+    out.push({ point: j.point, angle, dirs: j.dirs, style })
   }
   return out
 }
@@ -260,19 +274,88 @@ export function ornamentPathD(style: JunctionOrnamentStyle, r: number): string {
     }
     return `${d}Z`
   }
-  // Twinkle: the same tips, but the sides bow INWARD through the waist —
-  // the sparkle silhouette. Quadratic control at the waist point pulled
-  // towards the centre gives the concave sweep without a second radius knob.
-  let d = ''
-  for (let i = 0; i < n; i++) {
-    const t = tip(i)
-    const next = tip((i + 1) % n)
-    const w = waist(i)
-    const c = { x: w.x * 0.45, y: w.y * 0.45 }
-    if (i === 0) d += `M${t.x},${t.y}`
-    d += `Q${c.x},${c.y} ${next.x},${next.y}`
+  // A twinkle is not a free-standing figure — it is built from the threads
+  // themselves (`flarePathD`), so it never reaches this branch.
+  return ''
+}
+
+/**
+ * **Twinkle** — the crossing's corners rounded off.
+ *
+ * Not a figure stamped on the junction but a shape derived from the threads
+ * meeting there: in each wedge between two adjacent arms, a fillet runs from a
+ * point `reach` along one arm's side, curves in past the corner, and leaves
+ * along the next arm's side. Filled, it reads as the two Strands swelling into
+ * each other; hollow, as a thin web arcing across each corner.
+ *
+ * Because the shape IS the local line work, it cannot be a shared `<defs>`
+ * path rotated into place like a dot or a star: it is built per junction, in
+ * coordinates local to it, from
+ *
+ * - `dirs` — the through-direction of each thread. Each contributes TWO arms
+ *   (a thread passing through a crossing continues both ways), which is what
+ *   makes an ordinary crossing four corners rather than two.
+ * - `strandWidth` — the arms' half-width is where the fillet has to land, or
+ *   it would float off the line work.
+ * - `reach` — how far along each arm the fillet starts. One value for every
+ *   arm: "further up this thread than that one" would need a per-thread
+ *   control with no stable way to say *which* thread across a whole congruent
+ *   class.
+ * - `roundness` — the tangent-handle fraction. The curve leaves each arm
+ *   along the arm, so at any roundness the fillet meets the Strand smoothly
+ *   instead of at a visible kink.
+ *
+ * Wedges with no corner to round (two collinear arms — a thread crossed by
+ * nothing on that side) are skipped rather than drawn degenerate.
+ */
+export function flarePathD(
+  dirs: readonly Vec2[],
+  strandWidth: number,
+  reach: number,
+  roundness: number,
+): string {
+  const half = strandWidth / 2
+  // A thread through a crossing continues both ways: two arms per direction.
+  const arms: Vec2[] = []
+  for (const d of dirs) {
+    const len = Math.hypot(d.x, d.y)
+    if (len < 1e-9) continue
+    const u = { x: d.x / len, y: d.y / len }
+    arms.push(u, { x: -u.x, y: -u.y })
   }
-  return `${d}Z`
+  if (arms.length < 2) return ''
+  arms.sort((a, b) => Math.atan2(a.y, a.x) - Math.atan2(b.y, b.x))
+
+  const k = Math.max(0.05, Math.min(1, roundness))
+  let d = ''
+  for (let i = 0; i < arms.length; i++) {
+    const u = arms[i]
+    const v = arms[(i + 1) % arms.length]
+    // `v` is the next arm counter-clockwise, so the wedge's inward normals are
+    // fixed: CCW off `u`, CW off `v`. `sin` is the wedge angle's sine — zero
+    // when the arms are collinear, i.e. no corner exists to round.
+    const sin = u.x * v.y - u.y * v.x
+    if (sin <= 1e-6) continue
+    const nu = { x: -u.y, y: u.x }
+    const nv = { x: v.y, y: -v.x }
+    const a0 = { x: nu.x * half, y: nu.y * half }
+    const b0 = { x: nv.x * half, y: nv.y * half }
+    // Corner: where the two arms' wedge-side edges meet.
+    const t = ((b0.x - a0.x) * v.y - (b0.y - a0.y) * v.x) / sin
+    if (!isFinite(t) || t < 0) continue
+    const corner = { x: a0.x + u.x * t, y: a0.y + u.y * t }
+    // The fillet must start beyond the corner or it would cut INTO the
+    // crossing; a short reach is lifted to just past it rather than dropped,
+    // so the control still does something at every setting.
+    const len = Math.max(reach, t + strandWidth * 0.15)
+    const a = { x: a0.x + u.x * len, y: a0.y + u.y * len }
+    const b = { x: b0.x + v.x * len, y: b0.y + v.y * len }
+    const h = (len - t) * k
+    const c1 = { x: a.x - u.x * h, y: a.y - u.y * h }
+    const c2 = { x: b.x - v.x * h, y: b.y - v.y * h }
+    d += `M${a.x},${a.y}C${c1.x},${c1.y} ${c2.x},${c2.y} ${b.x},${b.y}L${corner.x},${corner.y}Z`
+  }
+  return d
 }
 
 /**

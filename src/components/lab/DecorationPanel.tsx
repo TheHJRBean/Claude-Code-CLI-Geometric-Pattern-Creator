@@ -604,14 +604,21 @@ function JunctionSection({ substrate, decoration, dispatch, draft, onSetDraft, s
 }) {
   const count = decoration?.junctionOrnaments?.length ?? 0
   const patch = (p: Partial<JunctionOrnamentStyle>) => onSetDraft({ ...draft, ...p })
-  const shaped = draft.shape !== 'dot'
+  // A twinkle is built from the threads themselves, so the free-standing
+  // figures' knobs (points, waist, alignment, rotation) have nothing to act on
+  // — it gets reach + roundness instead.
+  const flare = draft.shape === 'twinkle'
+  const shaped = draft.shape === 'star'
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ marginBottom: 8 }}>
-        Click where two Strands cross to mark it with a dot, star or twinkle.
-        Every crossing is dotted faintly while this target is active, so you can
-        see what is clickable. Clicking one that already wears this exact
-        ornament removes it.
+        Click where two Strands cross to mark it. A <strong>dot</strong> or
+        <strong> star</strong> sits on the crossing; a <strong>twinkle</strong>
+        rounds off the corners between the Strands, running up each arm — set
+        its colour to the Strand colour for a smooth swelling, or contrast it
+        for an accent. Every crossing is dotted faintly while this target is
+        active, so you can see what is clickable. Clicking one that already
+        wears this exact ornament removes it.
       </div>
       {!supported && (
         <div style={{ marginBottom: 8, color: 'var(--accent)' }}>
@@ -645,10 +652,12 @@ function JunctionSection({ substrate, decoration, dispatch, draft, onSetDraft, s
         ))}
       </div>
       <FieldLabel
-        label="Size"
+        label={flare ? 'Reach along the strand' : 'Size'}
         value={draft.size.toFixed(1)}
         unit="× strand width"
-        tooltip="Diameter as a multiple of the Strand width, so the ornament keeps its proportion when the line work or the pattern scale changes."
+        tooltip={flare
+          ? 'How far up each arm of the crossing the rounding runs, as a multiple of the Strand width. Longer reads as the Strands swelling into each other; shorter as a tight fillet on the corner.'
+          : 'Diameter as a multiple of the Strand width, so the ornament keeps its proportion when the line work or the pattern scale changes.'}
       />
       <input
         type="range" className="pattern-slider"
@@ -656,6 +665,21 @@ function JunctionSection({ substrate, decoration, dispatch, draft, onSetDraft, s
         value={draft.size}
         onChange={e => patch({ size: Number(e.target.value) })}
       />
+      {flare && (
+        <>
+          <FieldLabel
+            label="Roundness"
+            value={(draft.innerRatio ?? 0.55).toFixed(2)}
+            tooltip="How much the fillet bows. The curve always leaves each arm ALONG the arm, so it meets the Strand smoothly at any setting — this only says how quickly it turns."
+          />
+          <input
+            type="range" className="pattern-slider"
+            min={0.05} max={1} step={0.01}
+            value={draft.innerRatio ?? 0.55}
+            onChange={e => patch({ innerRatio: Number(e.target.value) })}
+          />
+        </>
+      )}
       {shaped && (
         <>
           <FieldLabel label="Points" value={String(draft.points ?? 6)} tooltip="How many points the star or twinkle has." />

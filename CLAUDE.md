@@ -183,8 +183,16 @@ after areas and lines.
   takes `junctionPaintActive` so the render branch and the reps memo read one
   predicate — and both memos list it as an explicit dep
   ([[feedback_predicate_inputs_are_memo_deps]]).
+- **A twinkle is not a figure stamped on the junction** — it is the crossing's
+  corners rounded off, built FROM the line work (`flarePathD`): in each wedge
+  between two adjacent arms, a fillet from a point `reach` along one arm's edge,
+  tangent-curved past the corner, out along the next. A thread through a
+  crossing continues both ways, so two threads give **four** arms and four
+  corners. Consequences: it carries the junction's `dirs` on the placement, it
+  is never rotated (its frame is the junction's own), it can't share a `<defs>`
+  path, and `size` means *reach along the arm*, not a diameter.
 - `rendering/StrandJunctionLayer.tsx` — one `<defs>` path per distinct style,
-  `<use>` per junction. Above the Strands (a hollow ornament must show its
+  `<use>` per junction (dot / star); one `<path>` per junction for a twinkle. Above the Strands (a hollow ornament must show its
   inside) and INSIDE the exported tree. A hollow ornament is the same outline
   stroked, with the radius reduced by half the stroke width so toggling hollow
   doesn't visibly grow it.

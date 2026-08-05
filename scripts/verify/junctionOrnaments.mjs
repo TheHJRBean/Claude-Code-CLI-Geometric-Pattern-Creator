@@ -37,10 +37,16 @@ await page.waitForTimeout(1500)
 const markers = () => page.evaluate(() =>
   document.querySelectorAll('#decoration-paint-layer circle').length)
 
-/** The rendered ornaments: one <use> per placement, plus the shared geometry. */
+/** The rendered ornaments. A dot / star is one shared <defs> path cloned by
+ *  <use>; a twinkle is derived from ITS OWN junction's threads, so it is one
+ *  <path> per junction outside the defs. */
 const ornaments = () => page.evaluate(() => {
   const layer = document.querySelector('#junction-ornament-world-layer')
   if (!layer) return null
+  const flares = [...layer.querySelectorAll(':scope > path')].map(p => ({
+    corners: (p.getAttribute('d').match(/M/g) ?? []).length,
+    curves: (p.getAttribute('d').match(/C/g) ?? []).length,
+  }))
   const defs = [...layer.querySelectorAll('defs path')].map(p => ({
     d: p.getAttribute('d').slice(0, 40),
     curves: (p.getAttribute('d').match(/Q/g) ?? []).length,
@@ -49,7 +55,7 @@ const ornaments = () => page.evaluate(() => {
     stroke: p.getAttribute('stroke'),
     strokeWidth: p.getAttribute('stroke-width'),
   }))
-  return { uses: layer.querySelectorAll('use').length, defs }
+  return { uses: layer.querySelectorAll('use').length, defs, flares }
 })
 
 /** Is the composition on the periodic fast path? (Ornaments must kill it.) */
@@ -99,10 +105,29 @@ console.log('  dot geometry   ', JSON.stringify(all?.defs?.[0]))
 
 // ── Shape + hollow reach the geometry (the '*' group is live-edited) ────
 await page.click('button:has-text("Twinkle")')
-await page.waitForTimeout(1000)
+await page.waitForTimeout(1500)
 const twinkle = await ornaments()
-console.log('TWINKLE          ', JSON.stringify(twinkle?.defs?.[0]),
-  (twinkle?.defs?.[0]?.curves ?? 0) > 0 ? 'PASS — bowed sides' : 'FAIL')
+// The twinkle rounds off the corners between the Strands: one path per
+// junction, four corners at an ordinary crossing (a thread continues both
+// ways, so 2 threads = 4 arms = 4 wedges), each a single tangent curve.
+const fourCornered = twinkle?.flares?.filter(f => f.corners === 4 && f.curves === 4).length ?? 0
+console.log('TWINKLE          ', `${twinkle?.flares?.length ?? 0} flare paths, ${fourCornered} with 4 rounded corners`,
+  twinkle && twinkle.flares.length === crossings && fourCornered > crossings / 2
+    ? 'PASS — built from the threads, not stamped'
+    : 'FAIL')
+
+// Reach runs the rounding further up each arm.
+const firstCorner = () => page.evaluate(() => {
+  const p = document.querySelector('#junction-ornament-world-layer > path')
+  const m = p.getAttribute('d').match(/^M(-?[\d.e-]+),(-?[\d.e-]+)/)
+  return Math.hypot(Number(m[1]), Number(m[2]))
+})
+const nearReach = await firstCorner()
+await setSlider('Reach along the strand', 8)
+const farReach = await firstCorner()
+console.log('TWINKLE REACH    ', `${nearReach.toFixed(1)} → ${farReach.toFixed(1)}`,
+  farReach > nearReach * 1.5 ? 'PASS — runs further up the arms' : 'FAIL')
+await setSlider('Reach along the strand', 2.5)
 
 await page.click('button:has-text("Star")')
 await page.waitForTimeout(300)

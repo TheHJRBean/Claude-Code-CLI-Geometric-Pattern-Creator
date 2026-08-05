@@ -10,12 +10,12 @@ Nothing here is mid-flight. Tree clean, `main` pushed at `65d09d9`, suite
 2026-08-03. **Two live decisions now: #54 below, and #32 — see the stanza
 immediately after this one.**)
 
-**One unverified item (2026-08-04, `65d09d9`): Decoration-Phase Undo + Clear
-paint.** Shipped complete with tests, never opened in a browser. It carries a
-**data-loss fix** — on a legacy substrate, one Ctrl+Z after one paint used to
-blank the canvas (the undo snapshot only covered the Patch, and restoring a
-`null` Patch clears the Lab) — so it is worth seeing work rather than
-assuming. Script is **NEXT item 0b** in `SESSION_STATE.md`.
+~~**One unverified item (2026-08-04, `65d09d9`): Decoration-Phase Undo + Clear
+paint.**~~ ✅ **USER-CONFIRMED 2026-08-05** (*"undo paint and clear is
+working"*). The **data-loss fix** it carried is therefore closed: on a legacy
+substrate, one Ctrl+Z after one paint used to blank the canvas, because the
+undo snapshot only covered the Patch and restoring a `null` Patch clears the
+Lab. `HistorySnapshot` is now a `{ editor, decoration }` pair.
 
 **2026-08-03, Guides v1 COMPLETE — #29 + #30 shipped, browser-verified, closed
 (`ffd9a6b`, `e2295b6`, `7ffcb86`).** Full write-ups are in `SESSION_STATE.md`

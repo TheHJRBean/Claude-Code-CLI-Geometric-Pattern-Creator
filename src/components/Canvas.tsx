@@ -9,7 +9,7 @@ import { usePanZoom } from '../hooks/usePanZoom'
 import type { PanZoomHandlers } from '../hooks/usePanZoom'
 import { PatternSVG } from '../rendering/PatternSVG'
 import { screenToWorld, worldToScreen } from '../rendering/screenSpace'
-import { DecorationPaintLayer, type PaintPayload, type PaintTarget, type StrandPaintScope, type VoidPaintScope } from '../rendering/DecorationPaintLayer'
+import { DecorationPaintLayer, type JunctionPaintScope, type PaintPayload, type PaintTarget, type StrandPaintScope, type VoidPaintScope } from '../rendering/DecorationPaintLayer'
 import { patternDecoration } from '../decoration/store'
 import type { PaintVoid } from '../decoration/resolve'
 import { GRADIENT_ANGLE_SNAP_DEG, snapPointToAngle } from '../decoration/gradients'
@@ -205,6 +205,11 @@ interface Props {
   paintVoidScope?: VoidPaintScope
   /** Stage 2 — how far a Strand click reaches (all / congruent / patch). */
   paintStrandScope?: StrandPaintScope
+  /** Junctions target — apply (or, on an identical re-click, remove) the
+   * panel's working ornament over the clicked crossing's group. */
+  onPaintJunction?: (payload: PaintPayload) => void
+  /** Junctions target — how far a junction click reaches. */
+  paintJunctionScope?: JunctionPaintScope
   /** Stamp target — a Void click selects its congruent shape for the
    * Decoration panel's inspector / export / upload flow. */
   onSelectStampVoid?: (v: PaintVoid) => void
@@ -242,7 +247,7 @@ interface Props {
 
 const INITIAL_ZOOM = 1
 
-export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, onPlaceTileOnAnchor, editorMode = 'place', constructSnap = true, constructAngleStep = DEFAULT_ANGLE_STEP, constructTool = 'line', showGuides = false, showDesignGuides = true, showGuideAnchors = true, showNeighbourGuides = true, onAddGuide, onUpdateGuide, onDeleteGuide, picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onSelectStampVoid, selectedStampSignature, onPaintGradientVoid, combineSelection, onToggleCombineVoid, onDecorationVoids, showMorphOverlay = false, onSetMorphAxisOrigin, onSetMorphDirection, onSetMorphOriginPosition, onSetMorphOriginReach, onSetMorphOriginAutoReach, onSetMorphOriginSides, onDeleteMorphOrigin, onSetFrameGradient, onSetStrandGradient, viewBoundsRef }: Props) {
+export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, cpVisible, cpActive, outlineWidth, selectedEdge, onSelectEdge, onPlaceTile, onDeleteTile, selectedSection, onSelectSection, onPlaceTileOnBoundarySection, onPlaceTileOnVertex, onPlaceTileOnAnchor, editorMode = 'place', constructSnap = true, constructAngleStep = DEFAULT_ANGLE_STEP, constructTool = 'line', showGuides = false, showDesignGuides = true, showGuideAnchors = true, showNeighbourGuides = true, onAddGuide, onUpdateGuide, onDeleteGuide, picks, onPickVertex, previewValid = null, previewMessage = null, previewForceable = false, onForceCommitMulti, editorStrandMode = false, showBoundaryLattice = false, editorNeighbourPreview = false, editorNeighbourBoundaries = false, editorNeighbourStrands = false, editorFrame = false, decorationActive = false, onPaintVoid, onPaintStrand, paintColor = '#c0392b', paintTarget = 'voids', paintVoidScope = 'congruent', paintStrandScope = 'all', onPaintJunction, paintJunctionScope = 'congruent', onSelectStampVoid, selectedStampSignature, onPaintGradientVoid, combineSelection, onToggleCombineVoid, onDecorationVoids, showMorphOverlay = false, onSetMorphAxisOrigin, onSetMorphDirection, onSetMorphOriginPosition, onSetMorphOriginReach, onSetMorphOriginAutoReach, onSetMorphOriginSides, onDeleteMorphOrigin, onSetFrameGradient, onSetStrandGradient, viewBoundsRef }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
 
@@ -273,7 +278,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // stay synchronous for a live preview; the real fix for their cost is the
   // periodicity-PIC lever (cheap recompute), not deferral.
   const deferredVT = useDeferredValue(viewTransform)
-  const { polygons, segments, boundaryOutlines, ghostPolygons, neighbourStamps, seedOutlineCount, ghostPolygonIds, compositionStamps, voidFills, voidSeams, instanceVoidFills, voidStamps, decorationVoids, decorationStrandHits, decorationOrbitStamps, decorationCellFrames, strandIdentitySource } = usePattern(
+  const { polygons, segments, boundaryOutlines, ghostPolygons, neighbourStamps, seedOutlineCount, ghostPolygonIds, compositionStamps, voidFills, voidSeams, instanceVoidFills, voidStamps, junctionOrnaments, decorationJunctions, decorationVoids, decorationStrandHits, decorationOrbitStamps, decorationCellFrames, strandIdentitySource } = usePattern(
     config,
     deferredVT,
     size.width,
@@ -1379,6 +1384,9 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         onPaintGradientVoid={onPaintGradientVoid}
         combineSelection={combineSelection}
         onToggleCombineVoid={onToggleCombineVoid}
+        junctions={decorationJunctions}
+        junctionScope={paintJunctionScope}
+        onPaintJunction={onPaintJunction}
       />
     )
     : null
@@ -1484,6 +1492,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         voidSeams={voidSeams}
         instanceVoidFills={instanceVoidFills}
         voidStamps={voidStamps}
+        junctionOrnaments={junctionOrnaments}
         strandRecords={decorationActive ? decoration?.strandColours : undefined}
         orbitStamps={decorationOrbitStamps}
         cellFrames={decorationCellFrames}

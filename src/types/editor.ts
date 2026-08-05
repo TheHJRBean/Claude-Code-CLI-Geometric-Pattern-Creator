@@ -402,6 +402,56 @@ export interface DecorationConfig {
    * hit-testing all see one Void where the pattern draws several. Optional +
    * additive; absent ⇒ pre-Combine behaviour byte-identical. */
   voidMerges?: VoidMergeRecord[]
+  /** **Junction ornaments** — a dot / star / twinkle drawn where Strands cross
+   * (`decoration/junctionOrnaments.ts`). Optional + additive; absent ⇒
+   * pre-ornament behaviour byte-identical. */
+  junctionOrnaments?: JunctionOrnamentRecord[]
+}
+
+/** Which figure a junction ornament draws. */
+export type JunctionOrnamentShape = 'dot' | 'star' | 'twinkle'
+
+/**
+ * How one junction ornament looks. Sizes are relative, never absolute: the
+ * ornament marks a crossing of the line work, so it has to track the line
+ * work's weight and stay right when the strand width or the pattern scale
+ * changes.
+ */
+export interface JunctionOrnamentStyle {
+  shape: JunctionOrnamentShape
+  /** Diameter as a multiple of the Strand width (`StrandStyle.width`). */
+  size: number
+  /** Points on a star / twinkle (3–12). Ignored by `dot`. */
+  points?: number
+  /** Waist radius ÷ tip radius on a star / twinkle (0.05–0.9). */
+  innerRatio?: number
+  /** `thread` aims the figure along the widest gap between the threads meeting
+   *  there (so it sits square in the crossing); `upright` ignores them. */
+  align?: 'thread' | 'upright'
+  /** Extra rotation (degrees) on top of `align`. */
+  angle?: number
+  /** The ornament's own colour — its fill when solid, its outline when hollow. */
+  colour: string
+  /** Hollow ⇒ drawn as an outline. */
+  hollow?: boolean
+  /** What fills a hollow ornament's inside. Absent ⇒ nothing (the pattern
+   *  shows through). */
+  hollowFill?: string
+  /** Outline thickness ÷ the ornament's radius, when hollow (0.05–0.6). */
+  outlineWidth?: number
+}
+
+/**
+ * One junction-ornament assignment: a style bound to a group of junctions at a
+ * Reach rung, exactly as a `ColourRecord` binds a colour to a group of Voids.
+ *
+ * `key` is interpreted per `scope` (`decoration/junctionOrnaments.ts`):
+ * `congruent` → a junction's congruent signature (`'*'` = every junction);
+ * `patch` → its Lattice-orbit id; `instance` → its world position.
+ */
+export interface JunctionOrnamentRecord extends JunctionOrnamentStyle {
+  scope: GroupingScope
+  key: string
 }
 
 /**

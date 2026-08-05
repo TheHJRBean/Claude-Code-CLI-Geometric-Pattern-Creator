@@ -1,11 +1,12 @@
 import { useRef, useState } from 'react'
 import type { Action } from '../../state/actions'
 import { DEFAULT_CANVAS_BACKGROUND as DEFAULT_BACKGROUND } from '../../state/defaults'
-import type { PaintTarget, StrandPaintScope, VoidPaintScope } from '../../rendering/DecorationPaintLayer'
+import type { JunctionPaintScope, PaintTarget, StrandPaintScope, VoidPaintScope } from '../../rendering/DecorationPaintLayer'
 import type { PaintVoid } from '../../decoration/resolve'
 import { axisAngleDeg, bboxAxisAtAngle, gradientCanonicalBox, rotateAxisTo, seedFrameGradientSpec, seedGradientSpec, DEFAULT_GRADIENT_ANGLE_DEG, type GradientDraft, type GradientSelection, type WorldBBox } from '../../decoration/gradients'
 import type { Vec2 } from '../../utils/math'
-import type { DecorationConfig, FrameConfig, GradientSpec, VoidStampRecord } from '../../types/editor'
+import type { DecorationConfig, FrameConfig, GradientSpec, JunctionOrnamentStyle, VoidStampRecord } from '../../types/editor'
+import { junctionOrnamentsSupported } from '../../decoration/junctionOrnaments'
 import { downloadAllVoidShapeCanvases, downloadVoidShapePNG, downloadVoidShapeSVG, importStampImage, voidStampCanvas } from '../../export/stampAssets'
 import { canonicalPose, canonicalSelfMirror } from '../../decoration/stamps'
 import { buildVoidMergeRecord, canCombine } from '../../decoration/voidMerge'
@@ -64,10 +65,26 @@ const PAINT_TARGETS: readonly (readonly [PaintTarget, string])[] = [
   ['off', 'Off'],
   ['voids', 'Voids'],
   ['strands', 'Strands'],
+  ['junctions', 'Junctions'],
   ['stamp', 'Stamp'],
   ['gradient', 'Gradient'],
   ['combine', 'Combine'],
 ]
+
+/**
+ * Reach rungs for junction ornaments. No `cell` (Twins): that key hashes a
+ * target's OUTLINE within its Cell's symmetry orbit, and a junction is a point
+ * (`decoration/junctionOrnaments.ts`). `patch` (Repeat) needs a Lattice, so a
+ * legacy substrate gets the same two rungs its Voids get, for the same reason.
+ */
+const JUNCTION_SCOPES: Record<DecorationSubstrate, readonly (readonly [JunctionPaintScope, string])[]> = {
+  patch: [['all', 'All'], ['congruent', 'Matching'], ['patch', 'Repeat'], ['instance', 'Single']],
+  legacy: [['all', 'All'], ['congruent', 'Matching'], ['instance', 'Single']],
+}
+
+export function clampJunctionScope(scope: JunctionPaintScope, substrate: DecorationSubstrate): JunctionPaintScope {
+  return JUNCTION_SCOPES[substrate].some(([s]) => s === scope) ? scope : 'congruent'
+}
 
 const decorationButtonStyle: React.CSSProperties = {
   padding: '5px 8px',
@@ -126,6 +143,14 @@ interface DecorationPanelProps {
   gradientSelection: GradientSelection | null
   /** Detach the draft from the last-painted group ("New gradient"). */
   onClearGradientSelection: () => void
+  /** Junctions target — the working ornament canvas clicks place. */
+  junctionDraft: JunctionOrnamentStyle
+  onSetJunctionDraft: (s: JunctionOrnamentStyle) => void
+  junctionScope: JunctionPaintScope
+  onSetJunctionScope: (s: JunctionPaintScope) => void
+  /** The live Strand line style — junction ornaments are solid-strand only in
+   *  v1, and the target says so rather than drawing something misleading. */
+  strandLineStyle: string | undefined
   /** Combine target — the Voids currently picked on the canvas. */
   combineSelection: PaintVoid[]
   /** Combine target — drop the pick set (after a commit, or on demand). */
@@ -162,6 +187,11 @@ export function DecorationPanel({
   onSetGradientDraft,
   gradientSelection,
   onClearGradientSelection,
+  junctionDraft,
+  onSetJunctionDraft,
+  junctionScope,
+  onSetJunctionScope,
+  strandLineStyle,
   combineSelection,
   onClearCombineSelection,
 }: DecorationPanelProps) {
@@ -169,7 +199,8 @@ export function DecorationPanel({
   const strandRecCount = decoration?.strandColours.length ?? 0
   const voidCount = decoration?.voidFills.length ?? 0
   const stampCount = decoration?.voidStamps?.length ?? 0
-  const hasDecoration = strandRecCount > 0 || voidCount > 0 || stampCount > 0
+  const ornamentCount = decoration?.junctionOrnaments?.length ?? 0
+  const hasDecoration = strandRecCount > 0 || voidCount > 0 || stampCount > 0 || ornamentCount > 0
   // The Decoration seg buttons match the phase switch minus the hover
   // transition (they snap on click).
   const segButtonStyle = (active: boolean): React.CSSProperties =>
@@ -232,6 +263,18 @@ export function DecorationPanel({
             ))}
           </div>
         </>
+      )}
+      {paintTarget === 'junctions' && (
+        <JunctionSection
+          substrate={substrate}
+          decoration={decoration}
+          dispatch={dispatch}
+          draft={junctionDraft}
+          onSetDraft={onSetJunctionDraft}
+          scope={junctionScope}
+          onSetScope={onSetJunctionScope}
+          supported={junctionOrnamentsSupported({ lineStyle: strandLineStyle })}
+        />
       )}
       {paintTarget === 'stamp' && (
         <StampSection decoration={decoration} dispatch={dispatch} selection={stampSelection} getStampVoids={getStampVoids} />
@@ -330,6 +373,8 @@ export function DecorationPanel({
           {strandRecCount > 0 && <span>{strandRecCount} Strand colour{strandRecCount === 1 ? '' : 's'}</span>}
           {stampCount > 0 && (voidCount > 0 || strandRecCount > 0) && <span> · </span>}
           {stampCount > 0 && <span>{stampCount} Stamp{stampCount === 1 ? '' : 's'}</span>}
+          {ornamentCount > 0 && (voidCount > 0 || strandRecCount > 0 || stampCount > 0) && <span> · </span>}
+          {ornamentCount > 0 && <span>{ornamentCount} Junction ornament{ornamentCount === 1 ? '' : 's'}</span>}
         </div>
       )}
       {/* Canvas background. Lives on `strand.background`, which has always been
@@ -516,6 +561,193 @@ function CombineSection({ decoration, dispatch, scope, selection, onClearSelecti
         <div style={{ marginTop: 8, fontSize: 11 }}>
           {count === 1 ? '1 combine' : `${count} combines`} on this pattern. Pick a
           combined Void and press Separate to undo one.
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The **Junctions** target's panel section: the working ornament — shape,
+ * size, hollow, colours — that a canvas click places on the clicked crossing's
+ * group at the active Reach.
+ *
+ * The draft is session state, like the gradient draft: an ornament becomes
+ * pattern data only when it is placed. Clicking a junction that already wears
+ * the identical ornament removes it (the reducer's guarded toggle), so the
+ * canvas both places and clears without a mode.
+ */
+function JunctionSection({ substrate, decoration, dispatch, draft, onSetDraft, scope, onSetScope, supported }: {
+  substrate: DecorationSubstrate
+  decoration: DecorationConfig | undefined
+  dispatch: React.Dispatch<Action>
+  draft: JunctionOrnamentStyle
+  onSetDraft: (s: JunctionOrnamentStyle) => void
+  scope: JunctionPaintScope
+  onSetScope: (s: JunctionPaintScope) => void
+  /** False while the Strands aren't solid — v1 draws nothing then, and says so
+   *  rather than letting the user paint into an invisible layer. */
+  supported: boolean
+}) {
+  const count = decoration?.junctionOrnaments?.length ?? 0
+  const patch = (p: Partial<JunctionOrnamentStyle>) => onSetDraft({ ...draft, ...p })
+  const shaped = draft.shape !== 'dot'
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ marginBottom: 8 }}>
+        Click where two Strands cross to mark it with a dot, star or twinkle.
+        Every crossing is dotted faintly while this target is active, so you can
+        see what is clickable. Clicking one that already wears this exact
+        ornament removes it.
+      </div>
+      {!supported && (
+        <div style={{ marginBottom: 8, color: 'var(--accent)' }}>
+          Junction ornaments draw on <strong>solid</strong> Strands only. Set
+          Line divisions back to 1 (Display panel) to see them.
+        </div>
+      )}
+      <FieldLabel
+        label="Reach"
+        tooltip="How far one click spreads. All = every crossing in the pattern. Matching = every crossing where the same threads meet at the same angles, however it is rotated or mirrored. Repeat = that crossing's spot in every Patch repeat. Single = the one crossing you click."
+      />
+      <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
+        {JUNCTION_SCOPES[substrate].map(([s, label]) => (
+          <button key={s} onClick={() => onSetScope(s)} style={segmentedButtonStyle(scope === s, { transition: false })}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <FieldLabel label="Ornament" tooltip="Dot = a plain disc. Star = straight-sided points. Twinkle = the same points with the sides bowed inward, a sparkle." />
+      <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
+        {(['dot', 'star', 'twinkle'] as const).map(sh => (
+          <button key={sh} onClick={() => patch({ shape: sh })} style={segmentedButtonStyle(draft.shape === sh, { transition: false })}>
+            {sh === 'dot' ? 'Dot' : sh === 'star' ? 'Star' : 'Twinkle'}
+          </button>
+        ))}
+      </div>
+      <FieldLabel
+        label="Size"
+        value={draft.size.toFixed(1)}
+        unit="× strand width"
+        tooltip="Diameter as a multiple of the Strand width, so the ornament keeps its proportion when the line work or the pattern scale changes."
+      />
+      <input
+        type="range" className="pattern-slider"
+        min={0.5} max={10} step={0.1}
+        value={draft.size}
+        onChange={e => patch({ size: Number(e.target.value) })}
+      />
+      {shaped && (
+        <>
+          <FieldLabel label="Points" value={String(draft.points ?? 6)} tooltip="How many points the star or twinkle has." />
+          <input
+            type="range" className="pattern-slider"
+            min={3} max={12} step={1}
+            value={draft.points ?? 6}
+            onChange={e => patch({ points: Number(e.target.value) })}
+          />
+          <FieldLabel
+            label="Waist"
+            value={(draft.innerRatio ?? 0.45).toFixed(2)}
+            tooltip="Where the sides pinch in between the points, as a fraction of the radius. Lower = spikier."
+          />
+          <input
+            type="range" className="pattern-slider"
+            min={0.05} max={0.9} step={0.01}
+            value={draft.innerRatio ?? 0.45}
+            onChange={e => patch({ innerRatio: Number(e.target.value) })}
+          />
+          <FieldLabel label="Alignment" tooltip="Aim the figure along the widest gap between the threads meeting there (so it sits square in the crossing), or keep every ornament upright." />
+          <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
+            {(['thread', 'upright'] as const).map(a => (
+              <button key={a} onClick={() => patch({ align: a })} style={segmentedButtonStyle((draft.align ?? 'thread') === a, { transition: false })}>
+                {a === 'thread' ? 'To threads' : 'Upright'}
+              </button>
+            ))}
+          </div>
+          <FieldLabel label="Rotation" value={String(Math.round(draft.angle ?? 0))} unit="°" tooltip="Extra turn on top of the alignment." />
+          <input
+            type="range" className="pattern-slider"
+            min={0} max={180} step={1}
+            value={draft.angle ?? 0}
+            onChange={e => patch({ angle: Number(e.target.value) })}
+          />
+        </>
+      )}
+      <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 8 }}>
+        <input
+          type="color"
+          value={/^#[0-9a-fA-F]{6}$/.test(draft.colour) ? draft.colour : '#d4af37'}
+          onChange={e => patch({ colour: e.target.value })}
+          title="The ornament's colour — its fill when solid, its outline when hollow"
+          style={{ width: 26, height: 20, padding: 0, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer' }}
+        />
+        Ornament colour
+      </label>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 8 }}>
+        <input
+          type="checkbox"
+          className="pattern-checkbox"
+          checked={!!draft.hollow}
+          onChange={e => patch({ hollow: e.target.checked })}
+        />
+        Hollow
+      </label>
+      {draft.hollow && (
+        <div style={{ marginTop: 6 }}>
+          <FieldLabel
+            label="Outline weight"
+            value={(draft.outlineWidth ?? 0.25).toFixed(2)}
+            tooltip="Thickness of the hollow ornament's outline, as a fraction of its radius. The ornament keeps its overall size — the outline grows inward."
+          />
+          <input
+            type="range" className="pattern-slider"
+            min={0.05} max={0.6} step={0.01}
+            value={draft.outlineWidth ?? 0.25}
+            onChange={e => patch({ outlineWidth: Number(e.target.value) })}
+          />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 8 }}>
+            <input
+              type="color"
+              value={/^#[0-9a-fA-F]{6}$/.test(draft.hollowFill ?? '') ? draft.hollowFill! : '#ffffff'}
+              onChange={e => patch({ hollowFill: e.target.value })}
+              title="Colour inside a hollow ornament"
+              style={{ width: 26, height: 20, padding: 0, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer' }}
+            />
+            Hollow fill
+          </label>
+          {draft.hollowFill !== undefined && (
+            <button
+              onClick={() => {
+                const { hollowFill: _drop, ...rest } = draft
+                void _drop
+                onSetDraft(rest)
+              }}
+              style={{ ...decorationButtonStyle, marginTop: 6 }}
+            >
+              Clear hollow fill (see through)
+            </button>
+          )}
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+        <button
+          onClick={() => { pushRecentColour(draft.colour); dispatch({ type: 'SET_JUNCTION_ORNAMENT', payload: { scope: 'congruent', key: '*', style: draft } }) }}
+          style={{ ...decorationButtonStyle, flex: 1 }}
+        >
+          Ornament every junction
+        </button>
+        <button
+          onClick={() => dispatch({ type: 'CLEAR_JUNCTION_ORNAMENTS' })}
+          disabled={count === 0}
+          style={{ ...decorationButtonStyle, ...(count === 0 ? { opacity: 0.4, cursor: 'not-allowed' } : null) }}
+        >
+          Remove all
+        </button>
+      </div>
+      {count > 0 && (
+        <div style={{ marginTop: 8, fontSize: 11 }}>
+          {count === 1 ? '1 ornament group' : `${count} ornament groups`} on this pattern.
         </div>
       )}
     </div>

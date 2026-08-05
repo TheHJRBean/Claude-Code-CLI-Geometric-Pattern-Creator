@@ -12,6 +12,8 @@ import { ControlPointLayer } from './ControlPointLayer'
 import { VoidFillLayer } from './VoidFillLayer'
 import { VoidStampLayer } from './VoidStampLayer'
 import { StrandSeamMask, hasSeams, type VoidSeamGroup } from './StrandSeamMask'
+import { StrandJunctionLayer } from './StrandJunctionLayer'
+import type { JunctionPlacement } from '../decoration/junctionOrnaments'
 import type { VoidFill } from '../decoration/resolve'
 import type { StampPlacement } from '../decoration/stamps'
 import type { ColourRecord, FrameGradient, FrameStroke, StrandGradient } from '../types/editor'
@@ -134,6 +136,13 @@ interface Props {
    */
   voidStamps?: StampPlacement[]
   /**
+   * Decoration **junction ornaments** — dots / stars / twinkles on the
+   * crossings, drawn ABOVE the Strands (a hollow one has to show its own fill
+   * inside) and INSIDE the exported tree. World-space: ornaments disqualify
+   * the periodic fast path, so there is no fragment variant.
+   */
+  junctionOrnaments?: JunctionPlacement[]
+  /**
    * Step 19 Stage 2 — Decoration **Strand colour** records; StrandLayer
    * resolves each Strand's stroke through the scope ladder. Absent ⇒ the
    * global `config.strand.color`.
@@ -162,7 +171,7 @@ interface Props {
 }
 
 export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
-  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, compositionStamps, editorOverlay, clipEditorOverlayToFrame = false, editorOverlayUnclipped, frameOutline, clipToFrame = true, frameNodes, frameStroke, voidFills, voidSeams, instanceVoidFills, voidStamps, strandRecords, orbitStamps, cellFrames, strandIdentitySource, strandGradient, frameGradient },
+  { polygons, segments, config, viewTransform, containerWidth, containerHeight, showTileLayer, showLines, handlers, cpVisible, cpActive, outlineWidth, boundaryOutlines, seedOutlineCount, ghostPolygons, ghostPolygonIds, compositionStamps, editorOverlay, clipEditorOverlayToFrame = false, editorOverlayUnclipped, frameOutline, clipToFrame = true, frameNodes, frameStroke, voidFills, voidSeams, instanceVoidFills, voidStamps, junctionOrnaments, strandRecords, orbitStamps, cellFrames, strandIdentitySource, strandGradient, frameGradient },
   ref
 ) {
   const { x, y, zoom, rotation } = viewTransform
@@ -335,6 +344,12 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
                 <g mask={seamMaskActive ? `url(#${seamMaskId})` : undefined}>
                   <StrandLayer segments={segments} config={config} ghostPolygonIds={ghostPolygonIds} strandRecords={strandRecords} orbitStamps={orbitStamps} cellFrames={cellFrames} identitySource={strandIdentitySource} strandGradient={strandGradient} />
                 </g>
+              )}
+              {/* Junction ornaments sit on top of the line work they mark —
+                  and outside the seam mask, which exists to erase Rays inside
+                  a combined Void, not to cut the ornaments above them. */}
+              {showLines && junctionOrnaments && (
+                <StrandJunctionLayer placements={junctionOrnaments} strandWidth={config.strand.width} idPrefix="junction-ornament-world" />
               )}
               <ControlPointLayer
                 segments={segments}

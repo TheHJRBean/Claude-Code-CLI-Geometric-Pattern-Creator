@@ -3,10 +3,16 @@ import type { Vec2 } from '../utils/math'
 import type { GroupingScope } from '../types/editor'
 import type { ClickedTargetKeys } from '../decoration/scopes'
 import type { PaintVoid, StrandHit } from '../decoration/resolve'
+import type { KeyedJunction } from '../decoration/junctionOrnaments'
 import { buildVoidTargeting } from '../decoration/paintTargets'
 import { nearestSegmentIndex, polygonPath, polygonWithHolesPath } from './svgGeometry'
 
-export type PaintTarget = 'off' | 'voids' | 'strands' | 'stamp' | 'gradient' | 'combine'
+export type PaintTarget = 'off' | 'voids' | 'strands' | 'stamp' | 'gradient' | 'combine' | 'junctions'
+
+/** Which rung a junction click binds at. `all` = the congruent `'*'` record;
+ * `patch` = the crossing's spot in every Patch repeat; `instance` = the one
+ * crossing clicked. There is no `cell` rung — see `junctionOrnaments.ts`. */
+export type JunctionPaintScope = 'all' | 'congruent' | 'patch' | 'instance'
 
 /** Which Grouping-scope rung a Void click binds at (ADR-0005 ladder).
  * `cell` = the clicked Void plus its rotation/mirror twins within its Cell. */
@@ -65,6 +71,9 @@ export function DecorationPaintLayer({
   onPaintGradientVoid,
   combineSelection,
   onToggleCombineVoid,
+  junctions,
+  junctionScope,
+  onPaintJunction,
 }: {
   target: PaintTarget
   voids: PaintVoid[]
@@ -97,9 +106,16 @@ export function DecorationPaintLayer({
    * never commits, because a combine only means anything once two Voids are
    * picked. */
   onToggleCombineVoid?: (v: PaintVoid) => void
+  /** Junctions target — every crossing of the field, with its identity keys. */
+  junctions?: KeyedJunction[]
+  junctionScope?: JunctionPaintScope
+  /** A junction click applies (or, on an identical re-click, removes) the
+   *  panel's working ornament over the scope's whole group. */
+  onPaintJunction?: (payload: PaintPayload) => void
 }) {
   const [hoveredVoid, setHoveredVoid] = useState<number | null>(null)
   const [hoveredStrand, setHoveredStrand] = useState<number | null>(null)
+  const [hoveredJunction, setHoveredJunction] = useState<number | null>(null)
 
   // Stamp mode always groups by congruent signature (v1 stamp scope).
   const stampMode = target === 'stamp'
@@ -302,6 +318,94 @@ export function DecorationPaintLayer({
       />
     )
   }, [hoveredStrand, strandHits, strandScope, activeColor])
+
+  // ── Junctions ──────────────────────────────────────────────────────────
+  // Same shape as the Strands target and for the same reason: a decoration-
+  // scale field has thousands of crossings, and one DOM node each is what
+  // froze the tab when the Strands target did it per segment. One catch-all
+  // rect, math hit-testing, and a single highlight path.
+  const junctionList = junctions ?? []
+  const junctionKey = (j: KeyedJunction): string =>
+    junctionScope === 'all' ? '*'
+      : junctionScope === 'congruent' ? j.signature
+        : junctionScope === 'patch' ? j.patchKey
+          : j.instanceKey
+
+  const junctionIndexAt = (p: Vec2): number | null => {
+    // Constant ~10px screen pick radius: an ornament is a point, so there is
+    // no body to aim at and the target has to be generous.
+    const r = 10 / zoom
+    let best: number | null = null
+    let bestD = r * r
+    for (let i = 0; i < junctionList.length; i++) {
+      const q = junctionList[i].point
+      const d = (q.x - p.x) * (q.x - p.x) + (q.y - p.y) * (q.y - p.y)
+      if (d <= bestD) { bestD = d; best = i }
+    }
+    return best
+  }
+
+  const junctionBBox = (() => {
+    if (junctionList.length === 0) return null
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    for (const j of junctionList) {
+      minX = Math.min(minX, j.point.x); maxX = Math.max(maxX, j.point.x)
+      minY = Math.min(minY, j.point.y); maxY = Math.max(maxY, j.point.y)
+    }
+    return { minX, minY, maxX, maxY }
+  })()
+
+  if (target === 'junctions') {
+    const hovered = hoveredJunction !== null && hoveredJunction < junctionList.length
+      ? junctionList[hoveredJunction]
+      : null
+    const groupKey = hovered ? junctionKey(hovered) : null
+    return (
+      <g id="decoration-paint-layer">
+        {/* Every crossing gets a faint marker, so the user can see WHERE the
+            ornaments can go before placing one — a Void or Strand is visible
+            on its own, a junction is not. */}
+        {junctionList.map((j, i) => (
+          <circle
+            key={`j${i}`}
+            cx={j.point.x}
+            cy={j.point.y}
+            r={(groupKey !== null && junctionKey(j) === groupKey ? 5 : 2.5) / zoom}
+            fill={groupKey !== null && junctionKey(j) === groupKey ? activeColor : 'var(--accent, #d4af37)'}
+            fillOpacity={groupKey !== null && junctionKey(j) === groupKey ? 0.9 : 0.35}
+            pointerEvents="none"
+          />
+        ))}
+        {junctionBBox && (
+          <rect
+            x={junctionBBox.minX - 10 / zoom}
+            y={junctionBBox.minY - 10 / zoom}
+            width={junctionBBox.maxX - junctionBBox.minX + 20 / zoom}
+            height={junctionBBox.maxY - junctionBBox.minY + 20 / zoom}
+            fill="transparent"
+            style={hoveredJunction !== null ? { cursor: BUCKET_CURSOR } : undefined}
+            onPointerMove={e => {
+              const p = toWorld(e)
+              setHoveredJunction(p ? junctionIndexAt(p) : null)
+            }}
+            onPointerLeave={() => setHoveredJunction(null)}
+            onPointerDown={e => {
+              const p = toWorld(e)
+              const i = p ? junctionIndexAt(p) : null
+              if (i === null) return // off-junction: let the pan handler take it
+              e.stopPropagation()
+              const j = junctionList[i]
+              onPaintJunction?.({
+                scope: junctionScope === 'all' ? 'congruent' : junctionScope ?? 'congruent',
+                key: junctionKey(j),
+                clicked: { signature: j.signature, patchKey: j.patchKey, instanceKey: j.instanceKey },
+              })
+            }}
+          />
+        )}
+      </g>
+    )
+  }
 
   if (target === 'voids' || target === 'gradient') {
     return <g id="decoration-paint-layer">{voidHighlight}{voidHits}</g>

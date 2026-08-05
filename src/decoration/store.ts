@@ -90,6 +90,7 @@ export function hasDecoration(config: PatternConfig): boolean {
     || d.voidFills.length > 0
     || (d.voidStamps?.length ?? 0) > 0
     || (d.voidMerges?.length ?? 0) > 0
+    || (d.junctionOrnaments?.length ?? 0) > 0
     || !!d.frameGradient
     || !!d.strandGradient
 }

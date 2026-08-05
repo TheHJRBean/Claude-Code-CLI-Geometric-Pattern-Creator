@@ -1,6 +1,6 @@
 import type { CurveConfig, CurvePoint, FigureConfig, FigureLineSet, PatternConfig } from '../types/pattern'
 import type { CurveTarget } from './actions'
-import type { EditorCell, EditorConfig, EditorGuide, EditorGuidePatch, EditorRegularTile, EditorTile } from '../types/editor'
+import type { EditorCell, EditorConfig, EditorGuide, EditorGuidePatch, EditorRegularTile, EditorTile, JunctionOrnamentStyle } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import type { Action } from './actions'
 import { TILINGS } from '../tilings/index'
@@ -190,6 +190,25 @@ function mergeGuide(g: EditorGuide, patch: EditorGuidePatch): EditorGuide {
     return { ...g, ...fields, id: g.id, kind: 'circle' }
   }
   return { ...g, ...fields, id: g.id, kind: 'line' }
+}
+
+/**
+ * Do two junction ornaments look identical? Drives the same-style toggle-off,
+ * so it must compare every field that reaches the renderer — an "identical"
+ * re-click that differed only in, say, hollow fill would silently unpaint
+ * instead of restyling.
+ */
+function sameOrnamentStyle(a: JunctionOrnamentStyle, b: JunctionOrnamentStyle): boolean {
+  return a.shape === b.shape
+    && a.size === b.size
+    && (a.points ?? null) === (b.points ?? null)
+    && (a.innerRatio ?? null) === (b.innerRatio ?? null)
+    && (a.align ?? 'thread') === (b.align ?? 'thread')
+    && (a.angle ?? 0) === (b.angle ?? 0)
+    && a.colour.toLowerCase() === b.colour.toLowerCase()
+    && !!a.hollow === !!b.hollow
+    && (a.hollowFill ?? '').toLowerCase() === (b.hollowFill ?? '').toLowerCase()
+    && (a.outlineWidth ?? null) === (b.outlineWidth ?? null)
 }
 
 export function reducer(state: PatternConfig, action: Action): PatternConfig {
@@ -961,6 +980,35 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       const next = { ...deco }
       if (voidMerges.length > 0) next.voidMerges = voidMerges
       else delete next.voidMerges
+      return withPatternDecoration(state, next)
+    }
+    case 'SET_JUNCTION_ORNAMENT': {
+      // Junction ornaments (`decoration/junctionOrnaments.ts`) — the Void-fill
+      // ladder applied to the crossings: unmask finer records covering the
+      // clicked junction, then upsert by (scope, key). Re-applying an
+      // IDENTICAL style to a key removes it (the same guarded toggle a repaint
+      // in the current colour gets), so a click both places and clears.
+      // `style: null` removes explicitly (the panel's per-group Remove).
+      if (!canDecorate(state)) return state
+      const deco = patternDecoration(state) ?? emptyDecoration()
+      const { scope, key, style, clicked } = action.payload
+      const prev = deco.junctionOrnaments ?? []
+      const { records: unmasked, removedAny } = clearMaskingRecords(prev, scope, key, clicked)
+      const existing = unmasked.find(r => r.scope === scope && r.key === key)
+      const junctionOrnaments = unmasked.filter(r => !(r.scope === scope && r.key === key))
+      if (style !== null && (removedAny || !existing || !sameOrnamentStyle(existing, style))) {
+        junctionOrnaments.push({ scope, key, ...style })
+      }
+      const next = { ...deco }
+      if (junctionOrnaments.length > 0) next.junctionOrnaments = junctionOrnaments
+      else delete next.junctionOrnaments
+      return withPatternDecoration(state, next)
+    }
+    case 'CLEAR_JUNCTION_ORNAMENTS': {
+      const deco = patternDecoration(state)
+      if (!deco?.junctionOrnaments) return state
+      const next = { ...deco }
+      delete next.junctionOrnaments
       return withPatternDecoration(state, next)
     }
     case 'SET_DECORATION_FRAME_GRADIENT': {

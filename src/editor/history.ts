@@ -162,5 +162,10 @@ export const DESIGN_MODE_ACTIONS: ReadonlySet<string> = new Set([
   // lands on, so they must be undoable in the same stack.
   'COMBINE_VOIDS',
   'SEPARATE_VOIDS',
+  // Junction ornaments — a paint like any other (and "Remove all" can clear a
+  // whole field's worth in one click). Coalescing keys on the painted group's
+  // `key`, so ornamenting two junctions in quick succession stays two steps.
+  'SET_JUNCTION_ORNAMENT',
+  'CLEAR_JUNCTION_ORNAMENTS',
   'CLEAR_DECORATION',
 ])

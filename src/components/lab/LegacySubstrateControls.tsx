@@ -1,6 +1,7 @@
 import type { PatternConfig } from '../../types/pattern'
 import type { Action } from '../../state/actions'
-import type { PaintTarget, StrandPaintScope, VoidPaintScope } from '../../rendering/DecorationPaintLayer'
+import type { JunctionPaintScope, PaintTarget, StrandPaintScope, VoidPaintScope } from '../../rendering/DecorationPaintLayer'
+import type { JunctionOrnamentStyle } from '../../types/editor'
 import type { PaintVoid } from '../../decoration/resolve'
 import type { GradientDraft, GradientSelection, WorldBBox } from '../../decoration/gradients'
 import { pointsBBox } from '../../decoration/gradients'
@@ -72,6 +73,11 @@ interface Props {
   onSetGradientDraft: (d: GradientDraft) => void
   gradientSelection: GradientSelection | null
   onClearGradientSelection: () => void
+  junctionDraft: JunctionOrnamentStyle
+  onSetJunctionDraft: (s: JunctionOrnamentStyle) => void
+  junctionScope: JunctionPaintScope
+  onSetJunctionScope: (s: JunctionPaintScope) => void
+  strandLineStyle: string | undefined
   /** Combine target — the Voids picked on the canvas, and a reset. */
   combineSelection: PaintVoid[]
   onClearCombineSelection: () => void
@@ -108,6 +114,11 @@ export function LegacySubstrateControls({
   onSetGradientDraft,
   gradientSelection,
   onClearGradientSelection,
+  junctionDraft,
+  onSetJunctionDraft,
+  junctionScope,
+  onSetJunctionScope,
+  strandLineStyle,
   combineSelection,
   onClearCombineSelection,
   onUndo,
@@ -202,6 +213,11 @@ export function LegacySubstrateControls({
           onSetGradientDraft={onSetGradientDraft}
           gradientSelection={gradientSelection}
           onClearGradientSelection={onClearGradientSelection}
+          junctionDraft={junctionDraft}
+          onSetJunctionDraft={onSetJunctionDraft}
+          junctionScope={junctionScope}
+          onSetJunctionScope={onSetJunctionScope}
+          strandLineStyle={strandLineStyle}
           combineSelection={combineSelection}
           onClearCombineSelection={onClearCombineSelection}
         />

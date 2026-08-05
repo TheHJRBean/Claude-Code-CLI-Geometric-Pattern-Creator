@@ -30,6 +30,15 @@ import { extractVoids, pairCurvedOutlines, RENDER_SIMPLIFY_ANGLE_TOL, type VoidR
 import { buildColourIndex, orbitOffset, resolveFill, scopedKey } from '../decoration/scopes'
 import { cellFramesFromOutlines, cellOrbitKey, reduceToOrbit, type CellFrame } from '../decoration/cellScope'
 import { strandIdentities, strandIdentitiesFromBase } from '../decoration/strandGroups'
+import { buildStrands } from '../strand/buildStrands'
+import { strandJunctions } from '../strand/junctions'
+import {
+  junctionOrnamentsSupported,
+  keyJunctions,
+  resolveJunctionPlacements,
+  type JunctionPlacement,
+  type KeyedJunction,
+} from '../decoration/junctionOrnaments'
 import { curvesEnabled, flattenStrandsToSegments, flattenSegmentPolylines } from '../decoration/flatten'
 import { overlapsExisting } from '../editor/tileOverlap'
 import { patternDecoration } from '../decoration/store'
@@ -140,6 +149,18 @@ export interface PatternData {
    */
   decorationCellFrames?: CellFrame[]
   /**
+   * Decoration **junction ornaments** — the dots / stars / twinkles resolved
+   * onto the crossings of the field. World-space always (ornaments disqualify
+   * the periodic fast path, since a crossing on a domain seam is invisible
+   * inside one domain). Only emitted in the Decoration Phase.
+   */
+  junctionOrnaments?: JunctionPlacement[]
+  /**
+   * Junction hit-targets for the Paint overlay, carrying each crossing's
+   * identity keys. Only emitted while painting Junctions.
+   */
+  decorationJunctions?: KeyedJunction[]
+  /**
    * Base-fragment strand-identity source for the NON-fast editor path.
    * StrandLayer resolves each rendered strand's congruent signature from the
    * base fragment's chains (majority over its segments' stamp-mapped base
@@ -206,6 +227,10 @@ export function periodicFastPathEligible(
   editorFrame: boolean,
   showBoundaryLattice: boolean,
   stamps: LatticeStamp[],
+  /** The Junctions Paint target is selected — the user is about to place
+   *  ornaments, so the crossings must be enumerated over the whole world field
+   *  even before the first record exists (see the junction note below). */
+  junctionPaintActive = false,
 ): boolean {
   return periodicityEnabled()
     && !editorFrame
@@ -241,6 +266,15 @@ export function periodicFastPathEligible(
     // has no way to express a shape that leaves it. Fall through to the exact
     // world-space field, where the arrangement is whole.
     && !(config.editor?.decoration?.voidMerges?.length)
+    // Junction ornaments sit on the CROSSINGS, which is exactly what one
+    // fundamental domain cannot see: a crossing on the seam between two copies
+    // is only a chain endpoint inside either one. Enumerated over a base
+    // domain, every seam junction would be missed — the same class of miss the
+    // weave hits just below, and the same fix. Both the placed records and a
+    // live Junctions Paint target (whose hit-targets are those crossings)
+    // disqualify.
+    && !junctionPaintActive
+    && !(config.editor?.decoration?.junctionOrnaments?.length)
     // Weave (Lacing) interlaces over the FULL planar arrangement: crossings at
     // the seams BETWEEN stamped copies must alternate over/under with the ones
     // inside a domain. computeWeave over one base domain never sees those seam
@@ -324,9 +358,14 @@ export function usePattern(
    * representative fills still cover the whole field). Voids/Strands ⇒ tile the
    * representative Voids / base Rays across the visible stamps as hit-targets
    * (translation only — no per-pan extraction). */
-  decorationPaintTarget: 'off' | 'voids' | 'strands' = 'off',
+  decorationPaintTarget: 'off' | 'voids' | 'strands' | 'junctions' = 'off',
 ): PatternData {
   const decorationPaintActive = decorationPaintTarget !== 'off'
+  // Junction ornaments need the world-space field (see periodicFastPathEligible)
+  // whenever they are placed OR about to be — pass the live target through the
+  // shared predicate rather than branching at one call site, so the render
+  // branch and the pan-independent reps memo can't drift.
+  const junctionPaintActive = decorationActive && decorationPaintTarget === 'junctions'
   // Visible viewport in world coordinates — at a BUCKETED zoom (√2 steps,
   // bucket lower bound, so the generated field always covers the exact
   // visible rect). The rendered viewBox keeps the exact zoom; vw/vh only
@@ -435,7 +474,7 @@ export function usePattern(
     // into basePolys AND the lattice basis (stamps stay pure-translation), so
     // the extraction field, Voronoi reps, and the <use>-cloned render all live
     // in the same rotated frame. Bailing on it blanked painted fills.
-    if (!periodicFastPathEligible(config, editorFrame, showBoundaryLattice, allStamps)) return null
+    if (!periodicFastPathEligible(config, editorFrame, showBoundaryLattice, allStamps, junctionPaintActive)) return null
     let d1 = Infinity
     for (const st of allStamps) {
       const d = Math.hypot(st.translation.x, st.translation.y)
@@ -497,7 +536,7 @@ export function usePattern(
     // shared eligibility predicate, so without it this extraction stays alive
     // (and wasted) after a combine.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editorBase, decorationActive, editorFrame, showBoundaryLattice, config.figures, config.smoothTransitions, decorationCellFrames, config.editor?.decoration?.voidMerges])
+  }, [editorBase, decorationActive, editorFrame, showBoundaryLattice, config.figures, config.smoothTransitions, decorationCellFrames, config.editor?.decoration?.voidMerges, config.editor?.decoration?.junctionOrnaments, junctionPaintActive])
 
   // Cheap colouring pass over the stable reps. Keys on the LIVE decoration
   // records (off `config.editor`, never `editorBase.patch` — that snapshot is
@@ -609,7 +648,7 @@ export function usePattern(
     const stamps = multiCell
       ? compositionLatticeStamps(patch, { x: fbX, y: fbY, width: fbW, height: fbH })
       : editorLatticeStamps(cell, { x: fbX, y: fbY, width: fbW, height: fbH })
-    if (periodicFastPathEligible(config, editorFrame, showBoundaryLattice, stamps)) {
+    if (periodicFastPathEligible(config, editorFrame, showBoundaryLattice, stamps, junctionPaintActive)) {
       return { fastPath: true as const, stamps }
     }
     const polygons: typeof basePolys = []
@@ -711,7 +750,7 @@ export function usePattern(
     // the record was written, the eligibility predicate said non-fast, and the
     // memo that reads it never re-ran, so nothing on the canvas changed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editorBase, ed?.frame, ed?.decoration?.frameGradient?.enabled, ed?.decoration?.strandGradient?.enabled, ed?.decoration?.voidMerges, editorFrame, showBoundaryLattice, editorStrandMode, decorationActive, fbX, fbY, fbW, fbH])
+  }, [editorBase, ed?.frame, ed?.decoration?.frameGradient?.enabled, ed?.decoration?.strandGradient?.enabled, ed?.decoration?.voidMerges, ed?.decoration?.junctionOrnaments, junctionPaintActive, editorFrame, showBoundaryLattice, editorStrandMode, decorationActive, fbX, fbY, fbW, fbH])
 
   // Non-fast-path Decoration extraction + Void keying — FIELD-keyed, never
   // decoration- or Paint-target-keyed (the fast path's `decorationReps` twin):
@@ -931,6 +970,45 @@ export function usePattern(
     // config.smoothTransitions.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [decorationActive, decorationPaintTarget, legacyField, config.figures, config.smoothTransitions])
+
+  // Junction ornaments — the crossings of the RENDERED field, keyed for the
+  // Reach ladder. Field-keyed, never decoration-keyed: resolving which
+  // ornament a junction wears is a map lookup, but FINDING the crossings costs
+  // a chain pass plus the edge sweep, so a paint must reuse this.
+  //
+  // Only built when ornaments are placed or the Junctions target is live —
+  // both of which also force the world-space field (see
+  // `periodicFastPathEligible`), which is why this can read `decoField` /
+  // `legacyField.segments` and never has a fast-path branch.
+  //
+  // Curves: the crossing points come from the STRAIGHT chains. Chain-point
+  // junctions are exact either way (a curve interpolates its chain vertices),
+  // and a mid-edge transversal drifts by however far the bow displaces the
+  // lines — the same straight-line approximation the weave's cut positions
+  // already make.
+  const junctionRecords = patternDecoration(config)?.junctionOrnaments
+  const junctionsNeeded = decorationActive
+    && junctionOrnamentsSupported(config.strand)
+    && (junctionPaintActive || (junctionRecords?.length ?? 0) > 0)
+  const junctionField = useMemo<KeyedJunction[] | null>(() => {
+    if (!junctionsNeeded) return null
+    if (stampedField && !stampedField.fastPath) {
+      return keyJunctions(
+        strandJunctions(buildStrands(stampedField.decoField)),
+        stampedField.stamps.map(s => s.translation),
+      )
+    }
+    // Legacy substrate: no Lattice, so no orbit to reduce to — the `patch` key
+    // collapses onto `instance`, exactly as it does for Voids there, and the
+    // panel withholds the rung for the same reason.
+    if (!ed && legacyField) return keyJunctions(strandJunctions(buildStrands(legacyField.segments)), [])
+    return null
+  }, [junctionsNeeded, stampedField, legacyField, ed])
+
+  const junctionPlacements = useMemo<JunctionPlacement[]>(
+    () => (junctionField ? resolveJunctionPlacements(junctionField, junctionRecords) : []),
+    [junctionField, junctionRecords],
+  )
 
   return useMemo(() => {
     // Step 17 Builder: when a Patch is active, render its Tiles directly.
@@ -1202,6 +1280,8 @@ export function usePattern(
           decorationStrandHits: nonFastStrandHits ?? undefined,
           decorationOrbitStamps: stampTranslations,
           decorationCellFrames: decorationCellFrames ?? [],
+          junctionOrnaments: junctionPlacements,
+          decorationJunctions: junctionPaintActive ? junctionField ?? undefined : undefined,
           strandIdentitySource,
         }
       }
@@ -1229,6 +1309,8 @@ export function usePattern(
       decorationStrandHits: legacyStrandHits ?? undefined,
       decorationOrbitStamps: [],
       decorationCellFrames: [],
+      junctionOrnaments: junctionPlacements,
+      decorationJunctions: junctionPaintActive ? junctionField ?? undefined : undefined,
     }
-  }, [config, editorBase, stampedField, decorationFills, baseStrandIds, decorationOrbitRing, decorationCellFrames, mergedNonFastVoids, nonFastStrandHits, legacyField, mergedLegacyVoids, legacyStrandHits, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview, editorNeighbourBoundaries, editorNeighbourStrands, editorFrame, decorationActive, decorationPaintActive, decorationPaintTarget])
+  }, [config, editorBase, stampedField, decorationFills, baseStrandIds, decorationOrbitRing, decorationCellFrames, mergedNonFastVoids, nonFastStrandHits, legacyField, mergedLegacyVoids, legacyStrandHits, junctionField, junctionPlacements, junctionPaintActive, genX, genY, genW, genH, editorStrandMode, showBoundaryLattice, editorNeighbourPreview, editorNeighbourBoundaries, editorNeighbourStrands, editorFrame, decorationActive, decorationPaintActive, decorationPaintTarget])
 }

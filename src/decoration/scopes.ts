@@ -244,20 +244,20 @@ function positionedKeysMatch(a: string, b: string, tol: number): boolean {
  * masking record was cleared the click visibly changed the target, so it
  * was not a no-op re-paint.
  */
-export function clearMaskingRecords(
-  records: ColourRecord[],
+export function clearMaskingRecords<T extends { scope: GroupingScope; key: string }>(
+  records: readonly T[],
   scope: GroupingScope,
   key: string,
   clicked: ClickedTargetKeys | undefined,
   tol = KEY_TOL,
-): { records: ColourRecord[]; removedAny: boolean } {
+): { records: readonly T[]; removedAny: boolean } {
   if (!clicked) return { records, removedAny: false }
   // `'*'` ranks below congruent signatures: painting "all" also unmasks the
   // clicked target's own signature record.
   const rankOf = (s: GroupingScope, k: string): number =>
     s === 'congruent' && k === '*' ? -1 : SCOPE_RANK[s]
   const rank = rankOf(scope, key)
-  const masks = (r: ColourRecord): boolean => {
+  const masks = (r: T): boolean => {
     if (rankOf(r.scope, r.key) <= rank) return false
     switch (r.scope) {
       case 'congruent': // a signature record, cleared only by a '*' paint

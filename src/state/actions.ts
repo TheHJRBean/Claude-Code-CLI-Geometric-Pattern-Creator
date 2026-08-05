@@ -1,5 +1,5 @@
 import type { FigureLineSet, MorphConfig, MorphSides, PatternConfig, StrandStyle } from '../types/pattern'
-import type { BoundaryShape, ConfigurationId, DecorationConfig, EditorConfig, EditorGuide, EditorGuidePatch, FrameConfig, FrameGradient, GradientSpec, GroupingScope, StrandGradient, SymmetryMode, VoidMergeRecord, VoidStampRecord } from '../types/editor'
+import type { BoundaryShape, ConfigurationId, DecorationConfig, EditorConfig, EditorGuide, EditorGuidePatch, FrameConfig, FrameGradient, GradientSpec, GroupingScope, JunctionOrnamentStyle, StrandGradient, SymmetryMode, VoidMergeRecord, VoidStampRecord } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import type { ClickedTargetKeys } from '../decoration/scopes'
 
@@ -160,6 +160,13 @@ export type Action =
   // drops one by index (the `mergedFrom` provenance on the clicked composite).
   | { type: 'COMBINE_VOIDS'; payload: VoidMergeRecord }
   | { type: 'SEPARATE_VOIDS'; payload: { index: number } }
+  // Junction ornaments (`decoration/junctionOrnaments.ts`) — a dot / star /
+  // twinkle where Strands cross. Same record ladder as a Void fill (congruent
+  // `'*'` = every junction, congruent `<sig>`, patch, instance), same
+  // "paint what you see" unmasking, and the same guarded toggle: re-applying
+  // an identical style to a key removes it. `style: null` removes explicitly.
+  | { type: 'SET_JUNCTION_ORNAMENT'; payload: { scope: GroupingScope; key: string; style: JunctionOrnamentStyle | null; clicked?: ClickedTargetKeys } }
+  | { type: 'CLEAR_JUNCTION_ORNAMENTS' }
   | { type: 'CLEAR_DECORATION' }
   // Undo/redo for a **legacy substrate's** decoration (2026-08-04). A Patch's
   // decoration lives inside `EditorConfig` and is restored by

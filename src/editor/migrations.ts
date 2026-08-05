@@ -17,6 +17,7 @@ import type {
   GradientSpec,
   GradientStop,
   GroupingScope,
+  JunctionOrnamentRecord,
   GuideExtend,
   GuideGroupRef,
   SymmetryMode,
@@ -264,6 +265,17 @@ export function migrateDecoration(raw: unknown): DecorationConfig | undefined {
     }
     if (merges.length > 0) out.voidMerges = merges
   }
+  // Junction ornaments — one bad record is dropped on its own, like a bad
+  // colour record: losing one ornament group is recoverable, failing the block
+  // would lose every paint on the pattern.
+  if (Array.isArray(r.junctionOrnaments)) {
+    const ornaments: JunctionOrnamentRecord[] = []
+    for (const rec of r.junctionOrnaments) {
+      const ornament = migrateJunctionOrnament(rec)
+      if (ornament) ornaments.push(ornament)
+    }
+    if (ornaments.length > 0) out.junctionOrnaments = ornaments
+  }
   // Slice 2 (#45) — across-frame gradient. A malformed spec drops the whole
   // frame gradient (never crashes the load); the rest of decoration survives.
   if (typeof r.frameGradient === 'object' && r.frameGradient !== null) {
@@ -315,6 +327,46 @@ function migrateVoidMerge(raw: unknown): VoidMergeRecord | null {
     members.push({ signature: mm.signature, offset: { x: off.x, y: off.y } })
   }
   return { scope: r.scope as GroupingScope, key: r.key, signature: r.signature, members }
+}
+
+/**
+ * Validate one persisted `JunctionOrnamentRecord`; invalid records are dropped.
+ *
+ * Every styling field is optional at rest and clamped at render
+ * (`junctionOrnaments.ts`), so validation only refuses what would make the
+ * record meaningless — an unknown shape, a missing colour, a size that isn't a
+ * positive number — and strips individual malformed knobs back to their
+ * defaults rather than dropping the ornament.
+ */
+function migrateJunctionOrnament(raw: unknown): JunctionOrnamentRecord | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const r = raw as Record<string, unknown>
+  if (!GROUPING_SCOPES.has(r.scope as GroupingScope)) return null
+  if (typeof r.key !== 'string' || r.key.length === 0) return null
+  if (r.shape !== 'dot' && r.shape !== 'star' && r.shape !== 'twinkle') return null
+  if (typeof r.colour !== 'string' || r.colour.length === 0) return null
+  if (typeof r.size !== 'number' || !isFinite(r.size) || r.size <= 0) return null
+  const out: JunctionOrnamentRecord = {
+    scope: r.scope as GroupingScope,
+    key: r.key,
+    shape: r.shape,
+    size: r.size,
+    colour: r.colour,
+  }
+  const num = (v: unknown): number | undefined =>
+    typeof v === 'number' && isFinite(v) ? v : undefined
+  const points = num(r.points)
+  if (points !== undefined) out.points = points
+  const innerRatio = num(r.innerRatio)
+  if (innerRatio !== undefined) out.innerRatio = innerRatio
+  const angle = num(r.angle)
+  if (angle !== undefined) out.angle = angle
+  const outlineWidth = num(r.outlineWidth)
+  if (outlineWidth !== undefined) out.outlineWidth = outlineWidth
+  if (r.align === 'thread' || r.align === 'upright') out.align = r.align
+  if (r.hollow === true) out.hollow = true
+  if (typeof r.hollowFill === 'string' && r.hollowFill.length > 0) out.hollowFill = r.hollowFill
+  return out
 }
 
 /** Validate one persisted `VoidStampRecord`; invalid records are dropped. */

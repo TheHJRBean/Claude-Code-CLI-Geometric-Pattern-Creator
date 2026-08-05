@@ -2,7 +2,8 @@ import type { PatternConfig } from '../../types/pattern'
 import type { Action } from '../../state/actions'
 import type { EditorMode } from '../../types/appMode'
 import type { GuideTool, WorldBounds } from '../../editor/guides'
-import type { PaintTarget, StrandPaintScope, VoidPaintScope } from '../../rendering/DecorationPaintLayer'
+import type { JunctionPaintScope, PaintTarget, StrandPaintScope, VoidPaintScope } from '../../rendering/DecorationPaintLayer'
+import type { JunctionOrnamentStyle } from '../../types/editor'
 import type { PaintVoid } from '../../decoration/resolve'
 import type { GradientDraft, GradientSelection } from '../../decoration/gradients'
 import type { Vec2 } from '../../utils/math'
@@ -70,6 +71,11 @@ export interface EditorDesignControlsProps {
   onSetGradientDraft: (d: GradientDraft) => void
   gradientSelection: GradientSelection | null
   onClearGradientSelection: () => void
+  junctionDraft: JunctionOrnamentStyle
+  onSetJunctionDraft: (s: JunctionOrnamentStyle) => void
+  junctionScope: JunctionPaintScope
+  onSetJunctionScope: (s: JunctionPaintScope) => void
+  strandLineStyle: string | undefined
   /** Combine target — the Voids picked on the canvas, and a reset. */
   combineSelection: PaintVoid[]
   onClearCombineSelection: () => void
@@ -139,6 +145,11 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
     onSetGradientDraft,
     gradientSelection,
     onClearGradientSelection,
+    junctionDraft,
+    onSetJunctionDraft,
+    junctionScope,
+    onSetJunctionScope,
+    strandLineStyle,
     combineSelection,
     onClearCombineSelection,
     showBoundaryLattice,
@@ -259,6 +270,11 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
           onSetGradientDraft={onSetGradientDraft}
           gradientSelection={gradientSelection}
           onClearGradientSelection={onClearGradientSelection}
+          junctionDraft={junctionDraft}
+          onSetJunctionDraft={onSetJunctionDraft}
+          junctionScope={junctionScope}
+          onSetJunctionScope={onSetJunctionScope}
+          strandLineStyle={strandLineStyle}
           combineSelection={combineSelection}
           onClearCombineSelection={onClearCombineSelection}
         />

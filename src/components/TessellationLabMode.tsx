@@ -14,7 +14,7 @@ import {
   type PresetShelfEntry,
 } from '../editor/presetShelf'
 import { Canvas, type SelectedEdge } from './Canvas'
-import type { PaintTarget, StrandPaintScope, VoidPaintScope } from '../rendering/DecorationPaintLayer'
+import type { JunctionPaintScope, PaintTarget, StrandPaintScope, VoidPaintScope } from '../rendering/DecorationPaintLayer'
 import type { PaintVoid } from '../decoration/resolve'
 import { axisAngleDeg, defaultGradientStops, seedGradientSpec, type GradientDraft, type GradientSelection } from '../decoration/gradients'
 import type { SectionKey } from './EditorBoundaryInwardLayer'
@@ -35,13 +35,14 @@ import { StrandStyleControls } from './ui/StrandStyleControls'
 import { EditorDesignControls } from './lab/EditorDesignControls'
 import { buildExportMenuItems } from '../export/exportActions'
 import type { AppMode, EditorMode } from '../types/appMode'
-import type { EditorGuide, EditorGuidePatch } from '../types/editor'
+import type { EditorGuide, EditorGuidePatch, JunctionOrnamentStyle } from '../types/editor'
+import { DEFAULT_JUNCTION_ORNAMENT } from '../decoration/junctionOrnaments'
 import { DEFAULT_ANGLE_STEP, type GuideTool, type WorldBounds } from '../editor/guides'
 import { canDecorate, patternDecoration } from '../decoration/store'
 import { useBugScreenContext } from '../bugreport/context'
 import { PHASE_LABELS, describeLabOverlays, describeLabSelection } from './lab/labBugFacts'
 import { LegacySubstrateControls } from './lab/LegacySubstrateControls'
-import { clampStrandScope, clampVoidScope, type DecorationSubstrate } from './lab/DecorationPanel'
+import { clampJunctionScope, clampStrandScope, clampVoidScope, type DecorationSubstrate } from './lab/DecorationPanel'
 
 
 /**
@@ -305,6 +306,13 @@ export function TessellationLabMode({
     () => ({ type: 'linear', stops: defaultGradientStops('#c0392b') }),
   )
   const [gradientSelection, setGradientSelection] = useState<GradientSelection | null>(null)
+  // Junctions target — the working ornament a canvas click places, and how far
+  // that click reaches. Session state like every other paint setting: an
+  // ornament only becomes pattern data once it is placed on a group.
+  const [junctionDraft, setJunctionDraft] = useState<JunctionOrnamentStyle>(
+    () => ({ ...DEFAULT_JUNCTION_ORNAMENT }),
+  )
+  const [junctionScope, setJunctionScope] = useState<JunctionPaintScope>('congruent')
   // Combine target — the Voids picked to fuse. Held as whole Voids, not keys:
   // the record is built from their outlines and identity keys, and the canvas
   // highlight needs the outlines too.
@@ -369,6 +377,7 @@ export function TessellationLabMode({
     config.tiling.type === 'editor' && config.editor ? 'patch' : 'legacy'
   const effectiveVoidScope = clampVoidScope(voidScope, substrate)
   const effectiveStrandScope = clampStrandScope(strandScope, substrate)
+  const effectiveJunctionScope = clampJunctionScope(junctionScope, substrate)
   // Reset picker state when patch changes or mode flips.
   const resetPicks = () => { setPicks([]); setMultiMode(false) }
   useEffect(() => { resetPicks() }, [editorMode, config.editor])
@@ -708,6 +717,11 @@ export function TessellationLabMode({
                 onSetGradientDraft={setGradientDraft}
                 gradientSelection={gradientSelection}
                 onClearGradientSelection={() => setGradientSelection(null)}
+                junctionDraft={junctionDraft}
+                onSetJunctionDraft={setJunctionDraft}
+                junctionScope={effectiveJunctionScope}
+                onSetJunctionScope={setJunctionScope}
+                strandLineStyle={config.strand.lineStyle}
                 onSetEditorPhase={p => {
                   // Step 17.7 — fire auto-complete when leaving Design for any
                   // later phase (Composition or Decoration) if the user opted
@@ -775,6 +789,11 @@ export function TessellationLabMode({
                     onSetGradientDraft={setGradientDraft}
                     gradientSelection={gradientSelection}
                     onClearGradientSelection={() => setGradientSelection(null)}
+                    junctionDraft={junctionDraft}
+                    onSetJunctionDraft={setJunctionDraft}
+                    junctionScope={effectiveJunctionScope}
+                    onSetJunctionScope={setJunctionScope}
+                    strandLineStyle={config.strand.lineStyle}
                     onUndo={undo}
                     onRedo={redo}
                     canUndo={canUndo}
@@ -1202,6 +1221,11 @@ export function TessellationLabMode({
           pushRecentColour(decorationColor)
           dispatch({ type: 'SET_DECORATION_STRAND_COLOR', payload: { ...p, colour: decorationColor } })
         }}
+        onPaintJunction={p => {
+          pushRecentColour(junctionDraft.colour)
+          dispatch({ type: 'SET_JUNCTION_ORNAMENT', payload: { ...p, style: junctionDraft } })
+        }}
+        paintJunctionScope={effectiveJunctionScope}
         onSelectStampVoid={setStampSelection}
         selectedStampSignature={paintTarget === 'stamp' ? stampSelection?.signature ?? null : null}
         combineSelection={combineSelectionKeys}

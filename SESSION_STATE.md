@@ -77,6 +77,14 @@
 > border width cap 30 → 120. **#32 remains the agreed next task** and #54 still
 > needs your decision — nothing on the NEXT list moved.
 >
+> **And a sixth (SHIPPED + headless-verified, `6a27ae6`..`a097eb7`): junction
+> ornaments — dots / stars / twinkles on the Strand crossings, hollow or solid,
+> with a fillable hollow.** A new Decoration paint target with the usual Reach
+> ladder minus Twins. The crossing enumeration moved out of `weave.ts` into
+> `strand/junctions.ts` so the weave and the ornaments can never disagree about
+> where a crossing is. Entry below. **#32 is still the agreed next task**; #54
+> still needs your decision.
+>
 > **Then a fourth + fifth (SHIPPED + headless-verified, `622a578`, `229a269`):
 > the Frame border hangs outside the outline, and gaps fill at three grains —
 > All / Matching (per ring, both surfaces) / Individual (per gap, **Frame
@@ -84,7 +92,15 @@
 > gaps were deferred by the user and are now **#56**. Still: **#32 is the
 > agreed next task**, #54 needs your decision.
 
-**Latest (2026-08-05, gap fills — All / Matching / Individual): SHIPPED + ✅ HEADLESS-VERIFIED (`229a269`).** User: *"at the moment it's either all or matching, although it says individual … if I want it to be asymmetrical I need finer control. Add a further option called matching, move the current 'individual' method into that and create a new individual option."* Exactly right about what shipped an hour earlier — the mode named Individual was per **ring**.
+**Latest (2026-08-05, junction ornaments — the sixth request this day): SHIPPED + ✅ HEADLESS-VERIFIED (`6a27ae6`..`a097eb7`).** User (as an `/idea`, then *"now implement the idea"*): *"add visual elements at strand junctions e.g. dots or stars or twinkles, these will be initially just for solid strands. They can be hollowed or not and the hollow can be filled."*
+
+  - **The crossings already existed — in the weave.** `computeWeave` enumerates every place two threads meet, from two sources (shared chain points; transversal mid-edge intersections, which is how vertex-line Strands cross edge-line ones). That enumeration moved to `strand/junctions.ts` unchanged and the weave now lifts its 2-colouring records out of it, so **one module decides where a crossing is** for both features. `computeWeave`'s 15 tests and its perf probe pass untouched, and a new test asserts the two agree (each crossing puts exactly one thread under ⇒ unders == junctions).
+  - **A junction is a point, so the ladder is one rung shorter.** All / Matching / Repeat / Single, and deliberately **no Twins**: that key hashes a target's *outline* within the Cell's symmetry orbit (`cellScope.ts`), and there is no outline to canonicalise. A `cell`-scoped record from a hand-edited save is ignored rather than matched loosely. Matching keys on a rotation/reflection-invariant signature of the incident line angles — on 4.8.8 every crossing turns out to be one class, which is the field's real geometry, not a bug (Single proves the keys narrow: 1 of 1307).
+  - **Ornaments disqualify the periodic fast path, and so does the live paint target.** A crossing on the seam between two `<use>` copies is only a chain endpoint inside either one — the same miss the weave documents three lines above it in `periodicFastPathEligible`. The paint target has to disqualify too, or the hit-targets wouldn't exist before the first record does. Both memos take it as an explicit dep ([[feedback_predicate_inputs_are_memo_deps]], fifth occurrence).
+  - **The browser pass found the one real gap.** After placing ornaments, changing shape or size did nothing until the next click: the sliders described the *future* ornament while the user watched the current one. They now live-edit the group last painted (the gradient draft's behaviour), which needs the gradient's `toggle` split — a canvas click carries it and an identical re-click clears; a panel edit never does, or a slider dragged back through its old value would delete the record it is editing.
+  - v1 is **solid Strands only** by one predicate both the renderer and the panel ask, so the control can't promise what the renderer won't draw; a divided stroke withdraws the ornaments and the panel says why. Verify: `scripts/verify/junctionOrnaments.mjs` (10 checks, all pass). Tests **1773 green** (+38), tsc + build clean.
+
+**Previous (2026-08-05, gap fills — All / Matching / Individual): SHIPPED + ✅ HEADLESS-VERIFIED (`229a269`).** User: *"at the moment it's either all or matching, although it says individual … if I want it to be asymmetrical I need finer control. Add a further option called matching, move the current 'individual' method into that and create a new individual option."* Exactly right about what shipped an hour earlier — the mode named Individual was per **ring**.
 
   - **Rings cannot express asymmetry, by construction.** A stroke is centred on its path, so a concentric band cut at `+x` is also cut at `−x`; the whole underlay-stack model is symmetric. `'individual'` therefore does something different in kind: it paints each gap on the **outline offset to that gap's own centre** (`gapCrossSections` + the `offsetPolygonOutward` written for the border), stroked its own thickness. No reveal mask at all — an unfilled gap is simply not drawn.
   - **Individual is a Frame-border mode only, and that's a real distinction, not a shortcut.** Outward and inward are fixed directions on a closed outline. A **Strand**'s two sides are whichever way its Rays happened to chain, so the same control would colour one strand's left and its neighbour's right — visually random. Strands keep All / Matching; a config carrying `individual` renders there as Matching (`gapRingFills` resolves an asymmetric pair to the outer gap) rather than dropping the fill.

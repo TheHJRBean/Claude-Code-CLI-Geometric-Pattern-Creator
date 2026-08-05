@@ -159,6 +159,43 @@ that edits a Figure obeys it, including on-canvas control-point dragging.
 - `rendering/StrandSeamMask.tsx` — **the internal Rays are masked out of the strand layer**, not painted over. Painting over was the first attempt and was wrong in an instructive way: the cover could only be drawn in the group's own paint, so an *unpainted* combined group kept its dividing line and a combine only took visible effect once you also filled it. Masking acts on rendered output, so curves, weave breaks, dashed/double/triple styles and per-strand colours all mask identically — cutting the seam intervals out of the `Segment` field instead would have had to reproduce every one of those AND would have re-chained the strands, moving the identities strand colours are keyed on. The band is clipped to the group's union outline (so it can never reach a Strand outside the group, however wide) and each quad overhangs its seam by a half-width (so interior junctions close, and the outer overhang clips away). Seam groups come from `usePattern`'s `voidSeams`, derived from the keyed field and **deliberately independent of `voidFills`**. World-space branch only (see fast-path note).
 - UI: a `combine` **Paint target** whose canvas clicks *pick* Voids into a set rather than committing (a combine means nothing until two are picked); `CombineSection` in `DecorationPanel` commits at the active Reach, or Separates a picked composite via its `mergedFrom` provenance. Combine never counts as `keyedBySignatureAlone` even at Matching — the record stores centroids, and a bound-cut face's centroid is a function of where the bound fell.
 
+### Decoration — Junction ornaments (`decoration/junctionOrnaments.ts`)
+
+A dot / star / twinkle on the **Junctions** — the crossings of the Strand
+arrangement (CONTEXT: Junction, Junction ornament). The third paint target
+after areas and lines.
+
+- **Where the crossings are is `strand/junctions.ts`**, extracted from
+  `computeWeave` so the weave and the ornaments enumerate the same set from the
+  same two sources (shared chain points + transversal mid-edge intersections).
+  `strandJunctions` adds the incident directions, the degree, a
+  rotation/reflection-invariant `signature` (the Matching key) and
+  `junctionAngle` (bisector of the widest gap between the incident lines —
+  order-independent, so it can't flip with the enumeration).
+- **Records re-find their junctions**, like every other decoration record.
+  Rungs: congruent `'*'` (All) / congruent `<sig>` (Matching) / `patch` (Repeat)
+  / `instance` (Single). **No `cell` (Twins) rung** — that key hashes a
+  target's *outline* within the Cell orbit and a junction is a point; a
+  `cell`-scoped record from a hand-edited save is ignored, not matched loosely.
+- **Ornaments disqualify the periodic fast path**, and so does a live Junctions
+  paint target: a crossing on the seam between two copies of the fundamental
+  domain is only a chain endpoint inside either one. `periodicFastPathEligible`
+  takes `junctionPaintActive` so the render branch and the reps memo read one
+  predicate — and both memos list it as an explicit dep
+  ([[feedback_predicate_inputs_are_memo_deps]]).
+- `rendering/StrandJunctionLayer.tsx` — one `<defs>` path per distinct style,
+  `<use>` per junction. Above the Strands (a hollow ornament must show its
+  inside) and INSIDE the exported tree. A hollow ornament is the same outline
+  stroked, with the radius reduced by half the stroke width so toggling hollow
+  doesn't visibly grow it.
+- **Canvas click vs panel edit** is the `toggle` flag: a click carries it (an
+  identical re-click clears the ornament), a panel edit never does, because the
+  draft syncs live onto the group last painted and a slider dragged back
+  through its old value would otherwise delete the record it is editing.
+- **v1 is solid Strands only** (`junctionOrnamentsSupported`) — one predicate
+  shared by the renderer and the panel, so the control and what it produces
+  can't disagree. Verify: `scripts/verify/junctionOrnaments.mjs`.
+
 ### Bug capture (`src/bugreport/`)
 
 In-app bug reporting. The top bar's bug button (or **Ctrl/Cmd+Shift+B**) opens

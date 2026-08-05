@@ -430,8 +430,18 @@ export interface JunctionOrnamentStyle {
   align?: 'thread' | 'upright'
   /** Extra rotation (degrees) on top of `align`. */
   angle?: number
-  /** The ornament's own colour — its fill when solid, its outline when hollow. */
+  /** The ornament's own colour — its fill when solid, its outline when hollow.
+   *  Ignored while `matchStrandColour` is on. */
   colour: string
+  /** Take the colour of the Strands meeting at the junction instead of
+   *  `colour`, resolved through the same ladder that paints them
+   *  (`decoration/strandColour.ts`). A hidden Strand (`'none'`) hides the
+   *  ornament with it. */
+  matchStrandColour?: boolean
+  /** Whether the ornament draws **over** the Strands (default) or **under**
+   *  them — under leaves the line work unbroken and the ornament reads as
+   *  something behind it. */
+  layer?: 'over' | 'under'
   /** Hollow ⇒ drawn as an outline. */
   hollow?: boolean
   /** What fills a hollow ornament's inside. Absent ⇒ nothing (the pattern

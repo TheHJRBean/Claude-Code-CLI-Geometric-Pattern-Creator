@@ -31,7 +31,7 @@ LD_LIBRARY_PATH=<libdir>/usr/lib/x86_64-linux-gnu node verify3.mjs
 | `applyToAllTiles.mjs` | Strands "Apply to all Tiles": off ⇒ Tile types diverge, on ⇒ one drag moves every card | ✅ passes |
 | `gradientStops.mjs` | `GRADIENT_MAX_STOPS` 8 → 16: panel caps at 16/16 **and** the rendered gradient def carries 16 `<stop>`s | ✅ passes |
 | `lineDivisions.mjs` | Strand line divisions 1–10 + line/gap ratio: the rendered `#strand-style-mask` carries n−1 alternating bands at n = 2/4/7/10, and a higher ratio narrows the outermost cut | ✅ passes |
-| `junctionOrnaments.mjs` | Junction ornaments: 1307 crossings marked on 4.8.8, the fast path off, All = one `<use>` per crossing, Single = exactly one, re-click clears, the twinkle draws 4 rounded corners per crossing and its reach runs them up the arms, shape/hollow reach the geometry, the draft moves placed ornaments, divided strands withdraw them | ✅ passes |
+| `junctionOrnaments.mjs` | Junction ornaments: 1307 crossings marked on 4.8.8, the fast path off, All = one `<use>` per crossing, Single = exactly one, re-click clears, the twinkle draws 4 rounded corners per crossing and its reach runs them up the arms, shape/hollow reach the geometry, the draft moves placed ornaments, divided strands withdraw them, and match-strand-colour + under/over hold through a repaint and a hidden Strand | ✅ passes |
 | `gapFillsAndBorder.mjs` | Per-gap-ring fills (mixed rings render behind `#strand-gap-fill-mask` / `#frame-gap-fill-mask`) on both Strands and the Frame border; the border polygon offset outward by exactly w/2 | ✅ passes |
 
 ⚠️ Each gradient **surface** (This shape / Across frame / Strands) holds its own
@@ -48,6 +48,10 @@ phase (the border block and the Display section's Strand controls both carry
 border's rows come first in the DOM — and prefer `title=` selectors for the
 ring buttons: `button:has-text("Clear")` also matches the panel's *disabled*
 "Clear paint", which fails as a 30 s click timeout rather than a wrong value.
+
+⚠️ A **hollow** ornament carries its colour on the `stroke` with `fill="none"`.
+A probe reading `fill` alone reports `"none"` and reads exactly like a colour
+that never resolved — `junctionOrnaments.mjs` checks fill-then-stroke.
 
 ⚠️ A click at fraction 0 or 1 of a range track lands on the **thumb's own half
 width** and stops short of the end, so both extremes are unreachable by click

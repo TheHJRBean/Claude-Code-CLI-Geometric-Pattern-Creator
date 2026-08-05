@@ -614,9 +614,9 @@ function JunctionSection({ substrate, decoration, dispatch, draft, onSetDraft, s
       <div style={{ marginBottom: 8 }}>
         Click where two Strands cross to mark it. A <strong>dot</strong> or
         <strong> star</strong> sits on the crossing; a <strong>twinkle</strong>
-        rounds off the corners between the Strands, running up each arm — set
-        its colour to the Strand colour for a smooth swelling, or contrast it
-        for an accent. Every crossing is dotted faintly while this target is
+        rounds off the corners between the Strands, running up each arm — tick
+        <em> Same colour as strand</em> for a smooth swelling, or give it its
+        own colour for an accent. Every crossing is dotted faintly while this target is
         active, so you can see what is clickable. Clicking one that already
         wears this exact ornament removes it.
       </div>
@@ -717,16 +717,40 @@ function JunctionSection({ substrate, decoration, dispatch, draft, onSetDraft, s
           />
         </>
       )}
+      <FieldLabel label="Draw" tooltip="Over the Strands marks the crossing on top of the line work; Under leaves the Strands unbroken and the ornament reads as something behind them — which is what a twinkle usually wants." />
+      <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
+        {(['over', 'under'] as const).map(l => (
+          <button key={l} onClick={() => patch({ layer: l })} style={segmentedButtonStyle((draft.layer ?? 'over') === l, { transition: false })}>
+            {l === 'over' ? 'Over strands' : 'Under strands'}
+          </button>
+        ))}
+      </div>
       <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 8 }}>
         <input
-          type="color"
-          value={/^#[0-9a-fA-F]{6}$/.test(draft.colour) ? draft.colour : '#d4af37'}
-          onChange={e => patch({ colour: e.target.value })}
-          title="The ornament's colour — its fill when solid, its outline when hollow"
-          style={{ width: 26, height: 20, padding: 0, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer' }}
+          type="checkbox"
+          className="pattern-checkbox"
+          checked={!!draft.matchStrandColour}
+          onChange={e => patch({ matchStrandColour: e.target.checked })}
         />
-        Ornament colour
+        Same colour as strand
       </label>
+      {draft.matchStrandColour ? (
+        <div style={{ marginTop: 6, fontSize: 11 }}>
+          Takes the colour of the Strands it sits on, painted ones included. A
+          crossing whose Strands are hidden loses its ornament with them.
+        </div>
+      ) : (
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 8 }}>
+          <input
+            type="color"
+            value={/^#[0-9a-fA-F]{6}$/.test(draft.colour) ? draft.colour : '#d4af37'}
+            onChange={e => patch({ colour: e.target.value })}
+            title="The ornament's colour — its fill when solid, its outline when hollow"
+            style={{ width: 26, height: 20, padding: 0, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer' }}
+          />
+          Ornament colour
+        </label>
+      )}
       <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 8 }}>
         <input
           type="checkbox"

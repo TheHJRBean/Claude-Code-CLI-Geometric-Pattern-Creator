@@ -13,7 +13,7 @@ import { VoidFillLayer } from './VoidFillLayer'
 import { VoidStampLayer } from './VoidStampLayer'
 import { StrandSeamMask, hasSeams, type VoidSeamGroup } from './StrandSeamMask'
 import { StrandJunctionLayer } from './StrandJunctionLayer'
-import type { JunctionPlacement } from '../decoration/junctionOrnaments'
+import { splitJunctionLayers, type JunctionPlacement } from '../decoration/junctionOrnaments'
 import type { VoidFill } from '../decoration/resolve'
 import type { StampPlacement } from '../decoration/stamps'
 import type { ColourRecord, FrameGradient, FrameStroke, StrandGradient } from '../types/editor'
@@ -189,6 +189,10 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
   const seamMaskActive = hasSeams(voidSeams, config.strand.width)
   const seamMaskRect = { x: x - vw / 2, y: y - vh / 2, width: vw * 2, height: vh * 2 }
 
+  // Junction ornaments draw on either side of the line work — under leaves the
+  // Strands unbroken, over marks the crossing on top of them.
+  const junctions = splitJunctionLayers(junctionOrnaments ?? [])
+
   const hasFrame = !!frameOutline && frameOutline.length >= 3
   const framePoints = hasFrame ? frameOutline!.map(v => `${v.x},${v.y}`).join(' ') : ''
   const frameClipId = 'pattern-frame-clip'
@@ -332,6 +336,12 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
               <TileLayer polygons={polygons} visible={showTileLayer} outlineWidth={outlineWidth} />
               {voidFills && <VoidFillLayer fills={voidFills} idPrefix="void-fill-world" />}
               {voidStamps && <VoidStampLayer placements={voidStamps} idPrefix="void-stamp-world" />}
+              {/* Ornaments set to draw UNDER: before the Strands, so the line
+                  work stays whole over them. Outside the seam mask — that
+                  mask erases Rays inside a combined Void, not the ornaments. */}
+              {showLines && junctions.under.length > 0 && (
+                <StrandJunctionLayer placements={junctions.under} strandWidth={config.strand.width} idPrefix="junction-ornament-under" />
+              )}
               {/* Combine: mask the Rays crossing a combined group's interior
                   out of the strand layer, so a combined group reads as one
                   shape whether or not it is painted. Only the world-space path
@@ -345,11 +355,8 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
                   <StrandLayer segments={segments} config={config} ghostPolygonIds={ghostPolygonIds} strandRecords={strandRecords} orbitStamps={orbitStamps} cellFrames={cellFrames} identitySource={strandIdentitySource} strandGradient={strandGradient} />
                 </g>
               )}
-              {/* Junction ornaments sit on top of the line work they mark —
-                  and outside the seam mask, which exists to erase Rays inside
-                  a combined Void, not to cut the ornaments above them. */}
-              {showLines && junctionOrnaments && (
-                <StrandJunctionLayer placements={junctionOrnaments} strandWidth={config.strand.width} idPrefix="junction-ornament-world" />
+              {showLines && junctions.over.length > 0 && (
+                <StrandJunctionLayer placements={junctions.over} strandWidth={config.strand.width} idPrefix="junction-ornament-world" />
               )}
               <ControlPointLayer
                 segments={segments}

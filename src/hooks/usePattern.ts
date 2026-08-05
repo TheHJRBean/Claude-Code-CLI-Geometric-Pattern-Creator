@@ -30,6 +30,7 @@ import { extractVoids, pairCurvedOutlines, RENDER_SIMPLIFY_ANGLE_TOL, type VoidR
 import { buildColourIndex, orbitOffset, resolveFill, scopedKey } from '../decoration/scopes'
 import { cellFramesFromOutlines, cellOrbitKey, reduceToOrbit, type CellFrame } from '../decoration/cellScope'
 import { strandIdentities, strandIdentitiesFromBase } from '../decoration/strandGroups'
+import { strandColour, strandColourContext } from '../decoration/strandColour'
 import { buildStrands } from '../strand/buildStrands'
 import { strandJunctions } from '../strand/junctions'
 import {
@@ -992,18 +993,56 @@ export function usePattern(
     && (junctionPaintActive || (junctionRecords?.length ?? 0) > 0)
   const junctionField = useMemo<KeyedJunction[] | null>(() => {
     if (!junctionsNeeded) return null
+    const deco = patternDecoration(config)
+    // An ornament can be set to match the Strands it sits on, which means
+    // resolving the SAME ladder that paints them — one shared resolver
+    // (`decoration/strandColour.ts`), or the ornament would sit on the line
+    // work in almost its colour.
+    const colours = (
+      chains: readonly ReturnType<typeof buildStrands>[number][],
+      sigOf: (i: number) => string | null,
+      ring: Vec2[],
+    ): ((i: number) => string) | undefined => {
+      const ctx = strandColourContext(deco?.strandColours, ring, decorationCellFrames ?? undefined, config.strand.color)
+      if (!ctx) return undefined
+      const cache = new Map<number, string>()
+      return i => {
+        let c = cache.get(i)
+        if (c === undefined) {
+          c = chains[i] ? strandColour(ctx, chains[i], sigOf(i)) : config.strand.color
+          cache.set(i, c)
+        }
+        return c
+      }
+    }
     if (stampedField && !stampedField.fastPath) {
+      const stamps = stampedField.stamps.map(s => s.translation)
+      // Base-fragment identities, exactly as StrandLayer keys its strokes:
+      // a stamped chain's own signature is field- and frame-dependent.
+      const ids = strandIdentitiesFromBase(stampedField.decoField, editorBase!.baseSegments, stampedField.stamps)
       return keyJunctions(
-        strandJunctions(buildStrands(stampedField.decoField)),
-        stampedField.stamps.map(s => s.translation),
+        strandJunctions(ids.strandData),
+        stamps,
+        colours(ids.strandData, i => ids.strands[i]?.signature ?? null, stamps),
       )
     }
     // Legacy substrate: no Lattice, so no orbit to reduce to — the `patch` key
     // collapses onto `instance`, exactly as it does for Voids there, and the
     // panel withholds the rung for the same reason.
-    if (!ed && legacyField) return keyJunctions(strandJunctions(buildStrands(legacyField.segments)), [])
+    if (!ed && legacyField) {
+      const ids = strandIdentities(legacyField.segments)
+      return keyJunctions(
+        strandJunctions(ids.strandData),
+        [],
+        colours(ids.strandData, i => ids.strands[i]?.signature ?? null, []),
+      )
+    }
     return null
-  }, [junctionsNeeded, stampedField, legacyField, ed])
+    // Strand records are read for the match-the-Strands option only; a paint
+    // there must re-resolve the ornament colours.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [junctionsNeeded, stampedField, legacyField, ed, editorBase, decorationCellFrames,
+    config.strand.color, patternDecoration(config)?.strandColours])
 
   const junctionPlacements = useMemo<JunctionPlacement[]>(
     () => (junctionField ? resolveJunctionPlacements(junctionField, junctionRecords) : []),

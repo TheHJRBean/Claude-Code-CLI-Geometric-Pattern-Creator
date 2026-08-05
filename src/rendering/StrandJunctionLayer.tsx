@@ -35,7 +35,7 @@ export const StrandJunctionLayer = memo(function StrandJunctionLayer({
     .filter(p => p.style.shape === 'twinkle')
     .map(p => {
       const r = (p.style.size * strandWidth) / 2
-      const paint = ornamentPaint(p.style, r)
+      const paint = ornamentPaint(p.style, r, p.colour)
       return {
         point: p.point,
         // `size` is the reach ALONG the strand here, not a diameter: a twinkle
@@ -52,21 +52,24 @@ export const StrandJunctionLayer = memo(function StrandJunctionLayer({
   // One geometry per distinct style. The key has to name everything the path
   // and its paint depend on, or two styles would share one shape.
   const { defs, ids } = useMemo(() => {
-    const byKey = new Map<string, { id: string; style: JunctionOrnamentStyle }>()
+    const byKey = new Map<string, { id: string; style: JunctionOrnamentStyle; colour: string }>()
     const ids: (string | null)[] = []
     for (const p of placements) {
       if (p.style.shape === 'twinkle') { ids.push(null); continue }
-      const key = styleKey(p.style)
+      // The RESOLVED colour is part of the key: one style matching the Strands
+      // can come out several colours across a field of painted Strands, and
+      // sharing one path would paint them all the first one.
+      const key = `${styleKey(p.style)}|${p.colour}`
       let entry = byKey.get(key)
       if (!entry) {
-        entry = { id: `${idPrefix}-${byKey.size}`, style: p.style }
+        entry = { id: `${idPrefix}-${byKey.size}`, style: p.style, colour: p.colour }
         byKey.set(key, entry)
       }
       ids.push(entry.id)
     }
-    const defs = [...byKey.values()].map(({ id, style }) => {
+    const defs = [...byKey.values()].map(({ id, style, colour }) => {
       const r = (style.size * strandWidth) / 2
-      const paint = ornamentPaint(style, r)
+      const paint = ornamentPaint(style, r, colour)
       return (
         <path
           key={id}
@@ -108,10 +111,11 @@ export const StrandJunctionLayer = memo(function StrandJunctionLayer({
   )
 })
 
-/** Everything an ornament's drawn geometry + paint depends on. */
+/** Everything an ornament's drawn geometry + paint depends on, EXCEPT the
+ *  resolved colour, which the caller appends (it varies per placement). */
 function styleKey(s: JunctionOrnamentStyle): string {
   return [
-    s.shape, s.size, s.points ?? '', s.innerRatio ?? '', s.colour,
+    s.shape, s.size, s.points ?? '', s.innerRatio ?? '',
     s.hollow ? 1 : 0, s.hollowFill ?? '', s.outlineWidth ?? '',
   ].join('|')
 }

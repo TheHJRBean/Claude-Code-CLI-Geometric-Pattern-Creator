@@ -64,6 +64,11 @@ describe('SET_JUNCTION_ORNAMENT', () => {
     s = reducer(s, place('jA', style({ hollow: true, hollowFill: '#fff' })))
     expect(s.editor!.decoration!.junctionOrnaments).toHaveLength(1)
     expect(s.editor!.decoration!.junctionOrnaments![0].hollowFill).toBe('#fff')
+    // …including the two that change nothing about the SHAPE.
+    s = reducer(s, place('jA', style({ hollow: true, hollowFill: '#fff', layer: 'under' })))
+    s = reducer(s, place('jA', style({ hollow: true, hollowFill: '#fff', layer: 'under', matchStrandColour: true })))
+    expect(s.editor!.decoration!.junctionOrnaments).toHaveLength(1)
+    expect(s.editor!.decoration!.junctionOrnaments![0].matchStrandColour).toBe(true)
   })
 
   it('`style: null` removes the record explicitly', () => {
@@ -144,7 +149,7 @@ describe('undo', () => {
 })
 
 describe('persistence', () => {
-  const record = { scope: 'congruent', key: 'jA', shape: 'star', size: 3, colour: '#abc', points: 5, hollow: true, hollowFill: '#fff', outlineWidth: 0.3, align: 'upright', angle: 12 }
+  const record = { scope: 'congruent', key: 'jA', shape: 'star', size: 3, colour: '#abc', points: 5, hollow: true, hollowFill: '#fff', outlineWidth: 0.3, align: 'upright', angle: 12, layer: 'under', matchStrandColour: true }
 
   it('round-trips through the decoration validator', () => {
     const out = migrateDecoration({ version: 1, strandColours: [], voidFills: [], junctionOrnaments: [record] })

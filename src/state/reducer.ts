@@ -206,6 +206,8 @@ function sameOrnamentStyle(a: JunctionOrnamentStyle, b: JunctionOrnamentStyle): 
     && (a.align ?? 'thread') === (b.align ?? 'thread')
     && (a.angle ?? 0) === (b.angle ?? 0)
     && a.colour.toLowerCase() === b.colour.toLowerCase()
+    && !!a.matchStrandColour === !!b.matchStrandColour
+    && (a.layer ?? 'over') === (b.layer ?? 'over')
     && !!a.hollow === !!b.hollow
     && (a.hollowFill ?? '').toLowerCase() === (b.hollowFill ?? '').toLowerCase()
     && (a.outlineWidth ?? null) === (b.outlineWidth ?? null)

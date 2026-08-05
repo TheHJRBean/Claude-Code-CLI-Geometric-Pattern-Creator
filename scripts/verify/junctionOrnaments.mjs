@@ -201,5 +201,89 @@ console.log('DIVIDED STRANDS  ', divided ? `${divided.uses} uses` : 'layer absen
   divided === null ? 'PASS — withdrawn' : 'FAIL — still drawn')
 console.log('  panel says why ', note ? 'PASS' : 'FAIL')
 
+// ── Same colour as strand + under/over ──────────────────────────────────
+// Restore a solid stroke first (the divided-strand check above withdrew the
+// ornaments), then paint every Strand and check the ornaments follow.
+await setSlider('Line divisions', 1)
+await page.waitForTimeout(800)
+await page.click('button:has-text("Strands")')
+await page.waitForTimeout(600)
+const setColour = async hex => page.evaluate(c => {
+  const el = [...document.querySelectorAll('input[type=color]')][0]
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
+  setter.call(el, c)
+  el.dispatchEvent(new Event('input', { bubbles: true }))
+  el.dispatchEvent(new Event('change', { bubbles: true }))
+}, hex)
+await setColour('#2e7d32')
+await page.waitForTimeout(400)
+await page.click('button:has-text("Colour all strands")')
+await page.waitForTimeout(1200)
+
+await page.click('button:has-text("Junctions")')
+await page.waitForTimeout(800)
+await page.click('button:has-text("Remove all")')
+await page.waitForTimeout(600)
+await page.click('label:has-text("Same colour as strand") input')
+await page.waitForTimeout(400)
+await page.click('button:has-text("Under strands")')
+await page.waitForTimeout(400)
+await page.click('button:has-text("Ornament every junction")')
+await page.waitForTimeout(1500)
+
+const layers = () => page.evaluate(() => {
+  const svg = document.querySelector('svg[data-pattern-canvas]')
+  const under = document.querySelector('#junction-ornament-under-layer')
+  const over = document.querySelector('#junction-ornament-world-layer')
+  // A HOLLOW ornament carries its colour on the stroke and `fill="none"` —
+  // reading `fill` alone reports "none" and looks like the colour never
+  // resolved.
+  const colourOf = layer => {
+    const el = layer?.querySelector('path')
+    if (!el) return null
+    const fill = el.getAttribute('fill')
+    return fill && fill !== 'none' ? fill : el.getAttribute('stroke')
+  }
+  const drawn = layer => (layer ? layer.querySelectorAll(':scope > path, :scope > use').length : 0)
+  return {
+    under: drawn(under),
+    over: drawn(over),
+    colour: colourOf(under) ?? colourOf(over),
+    // DOM order decides what covers what.
+    order: [...svg.querySelectorAll('g[id]')].map(g => g.id)
+      .filter(id => id.includes('junction') || id === 'strand-layer'),
+  }
+})
+const under = await layers()
+console.log('MATCH + UNDER    ', JSON.stringify(under),
+  under.under > 0 && under.over === 0 && under.colour === '#2e7d32'
+    && under.order[0].includes('under')
+    ? 'PASS — strand colour, drawn first'
+    : 'FAIL')
+
+await page.click('button:has-text("Over strands")')
+await page.waitForTimeout(1400)
+const over = await layers()
+console.log('OVER             ', JSON.stringify(over.order),
+  over.over > 0 && over.under === 0 && over.order[0] === 'strand-layer'
+    ? 'PASS — drawn after the Strands'
+    : 'FAIL')
+
+// Repainting the Strands must carry the ornaments with it.
+await page.click('button:has-text("Strands")')
+await page.waitForTimeout(600)
+await setColour('#8e24aa')
+await page.waitForTimeout(400)
+await page.click('button:has-text("Update strand colour"), button:has-text("Colour all strands")')
+await page.waitForTimeout(1500)
+const repainted = (await layers()).colour
+console.log('FOLLOWS REPAINT  ', repainted, repainted === '#8e24aa' ? 'PASS' : 'FAIL')
+
+// …and hiding them takes the ornaments too, or they would float.
+await page.click('button:has-text("Remove strand colour")')
+await page.waitForTimeout(1500)
+console.log('HIDDEN STRANDS   ', await page.evaluate(() => !!document.querySelector('#junction-ornament-world-layer'))
+  ? 'FAIL — ornaments left floating' : 'PASS — gone with the strands')
+
 console.log('ERRORS           ', JSON.stringify(errs.slice(0, 5)))
 await b.close()

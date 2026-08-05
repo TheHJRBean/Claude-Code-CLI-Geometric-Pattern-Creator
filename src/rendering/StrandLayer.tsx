@@ -11,6 +11,7 @@ import { computeWeave } from '../strand/weave'
 import { weaveCapWedgeD, wovenPath, wovenPathD } from '../strand/wovenPathD'
 import { gapFillMaskBands, gapRingFills, strandStyleAttrs } from './strandStyle'
 import { buildColourIndex, orbitOffset, resolveColour } from '../decoration/scopes'
+import { strandColour, strandColourContext } from '../decoration/strandColour'
 import { cellOrbitKey, reduceToOrbit, type CellFrame } from '../decoration/cellScope'
 import { baseSegmentSignatureMap, renderedStrandBaseSignatures, segmentBaseSignatures, strandIdentity } from '../decoration/strandGroups'
 import type { LatticeStamp } from '../editor/lattice'
@@ -162,23 +163,16 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
   const strokes = useMemo<{ perStrand: string[]; edgeStrokes: (string[] | null)[] } | null>(() => {
     if (!strandRecords || strandRecords.length === 0) return null
     if (ghostPolygonIds && ghostPolygonIds.size > 0) return null
-    const idx = buildColourIndex(strandRecords)
-    if (idx.starColour === null && idx.bySignature.size === 0 && !idx.hasPositioned) return null
-    const ring = orbitStamps ?? []
+    // Per-chain resolution is shared with junction ornaments (which can be set
+    // to match the Strand they sit on) — see `decoration/strandColour.ts`.
+    const ctx = strandColourContext(strandRecords, orbitStamps ?? [], cellFrames, stroke)
+    if (!ctx) return null
     const perStrand: string[] = []
     const edgeStrokes: (string[] | null)[] = []
     for (let si = 0; si < strandData.length; si++) {
       const sd = strandData[si]
-      const id = strandIdentity(sd.points)
-      const strandSig = baseSigs?.perStrand[si] ?? id.signature
-      const off = orbitOffset(id.centroid, ring)
-      // Cell-rung key only when cell records exist (saves the 2n-image walk).
-      const cellKey = idx.cell.size > 0 && cellFrames
-        ? cellOrbitKey(strandSig, reduceToOrbit(sd.points, id.centroid, off), id.closed, off, cellFrames)
-        : null
-      // World-instance strand records aren't produced by the UI (a "single"
-      // strand is its patch orbit), so no world centroid is passed here.
-      const resolveSig = (sig: string): string => resolveColour(idx, sig, off, null, cellKey) ?? stroke
+      const strandSig = baseSigs?.perStrand[si] ?? strandIdentity(sd.points).signature
+      const resolveSig = (sig: string): string => strandColour(ctx, sd, sig)
       const strandStroke = resolveSig(strandSig)
       perStrand.push(strandStroke)
       if (!baseSigs) { edgeStrokes.push(null); continue }

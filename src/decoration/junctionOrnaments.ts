@@ -55,6 +55,19 @@ export interface KeyedJunction {
    *  **twinkle** is built FROM the line work rather than stamped on it
    *  (`flarePathD`) — a dot or a star only needs `threadAngle`. */
   dirs: Vec2[]
+  /**
+   * The colour of the Strands meeting here, for an ornament set to match them
+   * (`decoration/strandColour.ts`). `'none'` — the sentinel a removed strand
+   * paint stores — means the line work is hidden here, and an ornament
+   * matching it hides too. Absent when the caller didn't resolve colours.
+   *
+   * ONE colour for the whole junction: the threads can be painted
+   * differently, and a wedge is bounded by two arms that may belong to two of
+   * them, so there is no per-part answer to give. The caller resolves the
+   * threads in enumeration order and hands over the first — deterministic,
+   * and right whenever they agree, which is the case the option is for.
+   */
+  strandColour?: string
   signature: string
   /** Lattice-orbit key (`patch` rung). Equals `instanceKey` with no lattice. */
   patchKey: string
@@ -71,6 +84,9 @@ export interface JunctionPlacement {
   angle: number
   /** The threads meeting here — the twinkle's geometry is derived from them. */
   dirs: Vec2[]
+  /** The colour to draw in: the style's own, or the Strands' where the style
+   *  matches them. Resolved here so the renderer never has to ask again. */
+  colour: string
   style: JunctionOrnamentStyle
 }
 
@@ -92,13 +108,22 @@ export const DEFAULT_JUNCTION_ORNAMENT: JunctionOrnamentStyle = {
  * substrate, where `patch` then collapses onto `instance` (which is why the
  * panel withholds the rung there, as it does for Voids).
  */
-export function keyJunctions(junctions: readonly StrandJunction[], stamps: readonly Vec2[]): KeyedJunction[] {
+export function keyJunctions(
+  junctions: readonly StrandJunction[],
+  stamps: readonly Vec2[],
+  /** Colour of chain `i` of the field the junctions came from — supply it to
+   *  support ornaments that match the Strands. */
+  colourOfStrand?: (strandIndex: number) => string,
+): KeyedJunction[] {
   return junctions.map(j => {
     const orbit = nearestOffset(j.point, stamps)
     return {
       point: j.point,
       threadAngle: junctionAngle(j.dirs),
       dirs: j.dirs,
+      ...(colourOfStrand && j.strands.length > 0
+        ? { strandColour: colourOfStrand(j.strands[0]) }
+        : null),
       signature: j.signature,
       patchKey: scopedKey(j.signature, orbit),
       instanceKey: scopedKey(j.signature, j.point),
@@ -216,13 +241,18 @@ export function resolveJunctionPlacements(
   for (const j of junctions) {
     const style = resolveJunctionOrnament(idx, j)
     if (!style) continue
+    const colour = style.matchStrandColour ? j.strandColour ?? style.colour : style.colour
+    // `'none'` is how a removed strand paint HIDES the line work. An ornament
+    // told to match the Strands has to disappear with them, or removing a
+    // strand colour would leave its junction ornaments floating.
+    if (colour === 'none') continue
     // A twinkle is already drawn in the junction's own frame — the alignment
     // and rotation controls belong to the free-standing figures, and the panel
     // hides them for it rather than letting them turn a fillet off its arms.
     const base = style.shape === 'twinkle' ? 0
       : (style.align ?? 'thread') === 'thread' ? j.threadAngle : 0
     const angle = style.shape === 'twinkle' ? 0 : base + ((style.angle ?? 0) * Math.PI) / 180
-    out.push({ point: j.point, angle, dirs: j.dirs, style })
+    out.push({ point: j.point, angle, dirs: j.dirs, colour, style })
   }
   return out
 }
@@ -367,18 +397,29 @@ export function flarePathD(
  * to keep a hollow ornament the same overall size as the solid one it toggles
  * from — otherwise turning "hollow" on visibly grows the ornament.
  */
-export function ornamentPaint(style: JunctionOrnamentStyle, r: number): {
+export function ornamentPaint(style: JunctionOrnamentStyle, r: number, colour = style.colour): {
   radius: number
   fill: string
   stroke: string | undefined
   strokeWidth: number
 } {
-  if (!style.hollow) return { radius: r, fill: style.colour, stroke: undefined, strokeWidth: 0 }
+  if (!style.hollow) return { radius: r, fill: colour, stroke: undefined, strokeWidth: 0 }
   const w = r * Math.max(0.05, Math.min(0.6, style.outlineWidth ?? 0.25))
   return {
     radius: Math.max(r - w / 2, r * 0.1),
     fill: style.hollowFill ?? 'none',
-    stroke: style.colour,
+    stroke: colour,
     strokeWidth: w,
   }
+}
+
+/** Split placements by which side of the Strands they draw on. */
+export function splitJunctionLayers(placements: readonly JunctionPlacement[]): {
+  under: JunctionPlacement[]
+  over: JunctionPlacement[]
+} {
+  const under: JunctionPlacement[] = []
+  const over: JunctionPlacement[] = []
+  for (const p of placements) ((p.style.layer ?? 'over') === 'under' ? under : over).push(p)
+  return { under, over }
 }

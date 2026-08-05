@@ -364,6 +364,8 @@ function migrateJunctionOrnament(raw: unknown): JunctionOrnamentRecord | null {
   const outlineWidth = num(r.outlineWidth)
   if (outlineWidth !== undefined) out.outlineWidth = outlineWidth
   if (r.align === 'thread' || r.align === 'upright') out.align = r.align
+  if (r.layer === 'under') out.layer = 'under'
+  if (r.matchStrandColour === true) out.matchStrandColour = true
   if (r.hollow === true) out.hollow = true
   if (typeof r.hollowFill === 'string' && r.hollowFill.length > 0) out.hollowFill = r.hollowFill
   return out

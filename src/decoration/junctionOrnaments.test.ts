@@ -9,6 +9,7 @@ import {
   keyJunctions,
   ornamentPaint,
   ornamentPathD,
+  splitJunctionLayers,
   resolveJunctionOrnament,
   resolveJunctionPlacements,
 } from './junctionOrnaments'
@@ -25,9 +26,10 @@ function pathPoints(d: string): { x: number; y: number }[] {
 const dot = (colour: string): JunctionOrnamentStyle => ({ ...DEFAULT_JUNCTION_ORNAMENT, colour })
 
 /** A junction with perpendicular threads at `p`. */
-const j = (x: number, y: number, sig = 'jA'): StrandJunction => ({
+const j = (x: number, y: number, sig = 'jA', strands = [0, 1]): StrandJunction => ({
   point: { x, y },
   dirs: [{ x: 1, y: 0 }, { x: 0, y: 1 }],
+  strands,
   degree: 2,
   signature: sig,
 })
@@ -173,6 +175,57 @@ describe('ornament geometry', () => {
     expect((d.match(/L/g) ?? []).length).toBe(12 * 2 - 1) // clamped to 12 points
     const coords = pathPoints(d).map(c => Math.hypot(c.x, c.y))
     expect(Math.max(...coords)).toBeCloseTo(10, 6) // waist clamped below the tip
+  })
+})
+
+describe('matching the Strand colour', () => {
+  const keyedWith = (colour: string) => keyJunctions([j(0, 0)], [], () => colour)
+
+  it('takes the Strands’ colour over its own', () => {
+    const [p] = resolveJunctionPlacements(keyedWith('#0000ff'), [
+      { scope: 'congruent', key: '*', ...DEFAULT_JUNCTION_ORNAMENT, colour: '#ff0000', matchStrandColour: true },
+    ])
+    expect(p.colour).toBe('#0000ff')
+  })
+
+  it('keeps its own colour when not matching', () => {
+    const [p] = resolveJunctionPlacements(keyedWith('#0000ff'), [
+      { scope: 'congruent', key: '*', ...DEFAULT_JUNCTION_ORNAMENT, colour: '#ff0000' },
+    ])
+    expect(p.colour).toBe('#ff0000')
+  })
+
+  it('disappears with a hidden Strand', () => {
+    // `'none'` is how removing a strand paint hides the line work. An ornament
+    // matching it must go too, or it would float with nothing under it.
+    expect(resolveJunctionPlacements(keyedWith('none'), [
+      { scope: 'congruent', key: '*', ...DEFAULT_JUNCTION_ORNAMENT, matchStrandColour: true },
+    ])).toEqual([])
+  })
+
+  it('falls back to its own colour where no Strand colour was resolved', () => {
+    const [p] = resolveJunctionPlacements(keyJunctions([j(0, 0)], []), [
+      { scope: 'congruent', key: '*', ...DEFAULT_JUNCTION_ORNAMENT, colour: '#abcdef', matchStrandColour: true },
+    ])
+    expect(p.colour).toBe('#abcdef')
+  })
+})
+
+describe('splitJunctionLayers', () => {
+  const place = (layer?: 'over' | 'under') => resolveJunctionPlacements(keyJunctions([j(0, 0)], []), [
+    { scope: 'congruent', key: '*', ...DEFAULT_JUNCTION_ORNAMENT, ...(layer ? { layer } : null) },
+  ])[0]
+
+  it('defaults to drawing over the Strands', () => {
+    const { under, over } = splitJunctionLayers([place()])
+    expect(over).toHaveLength(1)
+    expect(under).toHaveLength(0)
+  })
+
+  it('sends an under ornament to the other side', () => {
+    const { under, over } = splitJunctionLayers([place('under'), place('over')])
+    expect(under).toHaveLength(1)
+    expect(over).toHaveLength(1)
   })
 })
 

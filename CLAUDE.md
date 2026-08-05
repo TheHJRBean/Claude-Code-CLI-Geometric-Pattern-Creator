@@ -196,6 +196,17 @@ after areas and lines.
   inside) and INSIDE the exported tree. A hollow ornament is the same outline
   stroked, with the radius reduced by half the stroke width so toggling hollow
   doesn't visibly grow it.
+- **Match the Strand colour** (`matchStrandColour`) resolves the SAME ladder
+  that paints the Strands — `decoration/strandColour.ts`, extracted from
+  `StrandLayer` so the two cannot drift (an ornament resolving it slightly
+  differently would sit on the line work in *almost* its colour). One colour
+  per junction: the threads can be painted differently and a wedge is bounded
+  by two arms that may belong to two of them, so the first thread in
+  enumeration order wins. `'none'` — the hidden-Strand sentinel — **removes**
+  the ornament rather than drawing it in nothing.
+- **`layer: 'over' | 'under'`** splits the placements into two layers either
+  side of the strand `<g>` (`splitJunctionLayers`); the under layer sits
+  outside the Combine seam mask, which exists to erase Rays, not ornaments.
 - **Canvas click vs panel edit** is the `toggle` flag: a click carries it (an
   identical re-click clears the ornament), a panel edit never does, because the
   draft syncs live onto the group last painted and a slider dragged back

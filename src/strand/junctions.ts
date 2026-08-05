@@ -80,7 +80,7 @@ const ENDPOINT_TOL = 1e-4
  * from both sources (or from two adjacent edges of a bent thread) stays one
  * visit, while a self-crossing thread keeps its two distinct passes.
  */
-export function collectStrandVisits(strands: StrandData[]): VisitField {
+export function collectStrandVisits(strands: readonly StrandData[]): VisitField {
   const closedFlags = strands.map(sd => {
     const pts = sd.points
     return pts.length > 3 && samePt(pts[0], pts[pts.length - 1])
@@ -223,6 +223,11 @@ export interface StrandJunction {
   point: Vec2
   /** Unit direction of each thread pass, in enumeration order. */
   dirs: Vec2[]
+  /** Which chains pass through, aligned with `dirs` (indices into the input
+   *  `strands`). Lets a caller ask what the threads meeting here look like —
+   *  e.g. an ornament matching their colour. A self-crossing thread appears
+   *  twice, which is the truth about that junction. */
+  strands: number[]
   /** How many thread passes meet here (2 = an ordinary crossing). */
   degree: number
   /**
@@ -286,13 +291,19 @@ export function junctionSignature(dirs: Vec2[]): string {
  * function of the input chains — so the same field always yields the same
  * sequence, and a junction's identity never depends on the viewport.
  */
-export function strandJunctions(strands: StrandData[]): StrandJunction[] {
+export function strandJunctions(strands: readonly StrandData[]): StrandJunction[] {
   const field = collectStrandVisits(strands)
   const out: StrandJunction[] = []
   for (const c of field.crossings) {
     if (c.visits.length < 2) continue
     const dirs = c.visits.map(v => v.dir)
-    out.push({ point: c.point, dirs, degree: c.visits.length, signature: junctionSignature(dirs) })
+    out.push({
+      point: c.point,
+      dirs,
+      strands: c.visits.map(v => v.strand),
+      degree: c.visits.length,
+      signature: junctionSignature(dirs),
+    })
   }
   return out
 }

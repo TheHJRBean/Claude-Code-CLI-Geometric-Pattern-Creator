@@ -111,12 +111,22 @@ export interface FigureConfig {
 export type StrandLineStyle = 'solid' | 'lines'
 
 /**
- * How the gaps of a `'lines'` stroke are filled: one colour for all of them,
- * or a colour per gap **ring** (`rendering/strandStyle.ts` — a ring is one
- * radial gap position, which is a symmetric pair of gaps except an even line
- * count's centre one).
+ * How the gaps of a `'lines'` stroke are filled (`rendering/strandStyle.ts`):
+ *
+ * - `'all'` — one colour for every gap.
+ * - `'matching'` — a colour per gap **ring**: one radial position measured
+ *   from the centreline, so a gap and its mirror on the far side move
+ *   together. Drawable on any stroke, because a centred stroke is symmetric.
+ * - `'individual'` — a colour per gap, mirror included, so the stroke can be
+ *   asymmetric. Needs geometry that can be offset sideways, so it is offered
+ *   on the **Frame border** only (outward/inward are fixed directions there;
+ *   a Strand's two sides come from the order its Rays chained).
+ *
+ * Saves written before 2026-08-05 use `'individual'` for what is now
+ * `'matching'`, and a ring-length `gapFills`; `readLineStyleFields` renames
+ * the mode and expands the array.
  */
-export type GapFillMode = 'all' | 'individual'
+export type GapFillMode = 'all' | 'matching' | 'individual'
 
 export interface StrandStyle {
   /** Stroke width of each Strand (px). */
@@ -139,12 +149,12 @@ export interface StrandStyle {
    * mode. Absent ⇒ the gaps stay cut out (Void fills / background show
    * through). */
   innerFill?: string
-  /** Whether `innerFill` paints every gap or `gapFills` paints them per ring.
-   * Default `'all'`. */
+  /** Whether `innerFill` paints every gap, or `gapFills` paints them per ring
+   * (`'matching'`) or per gap (`'individual'`). Default `'all'`. */
   gapFillMode?: GapFillMode
-  /** Per-gap-ring fill colours, outermost first (`'individual'` mode). `null`
-   * or absent ⇒ that ring stays cut out. A ring is a symmetric *pair* of gaps
-   * except an even line count's centre one — see `StrandStyleAttrs`. */
+  /** Fill colour per **gap**, `lineCount − 1` of them, ordered across the
+   * stroke. `null` or absent ⇒ that gap stays cut out. `'matching'` writes a
+   * ring's pair together; `'individual'` writes each independently. */
   gapFills?: (string | null)[]
   /** How many parallel lines a `'lines'` stroke divides into, 2–10.
    * Default 2 (`DEFAULT_LINE_COUNT`). Ignored while `lineStyle` is solid. */

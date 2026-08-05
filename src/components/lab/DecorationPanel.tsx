@@ -414,6 +414,9 @@ export function DecorationPanel({
                   value={stroke}
                   onChange={patch => setStroke({ ...stroke, ...patch })}
                   defaultColour={decorationColor}
+                  // Outward and inward are fixed directions on a Frame
+                  // outline, so per-gap fills mean something here.
+                  allowIndividual
                 />
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 8 }}>
                   <input

@@ -301,7 +301,11 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
   // Gap fills: one colour for every gap, or one per gap ring. A mixed set —
   // some rings filled, some left showing what's behind — needs its own mask,
   // because an outer ring's underlay stroke covers every ring inside it.
-  const gapFills = gapRingFills(styleAttrs, strand)
+  // Rings, not gaps: a Strand's two sides are whichever way its Rays chained,
+  // so `'individual'` (which the Strand panel doesn't offer) renders as
+  // `'matching'` rather than colouring one strand's left and its neighbour's
+  // right.
+  const gapFills = gapRingFills(styleAttrs, strand, strand.lineCount)
   const gapMaskBands = gapFillMaskBands(styleAttrs, gapFills)
   // Visible pieces (hidden 'none' strands excluded — their mask cuts
   // would otherwise carve through visible strands crossing them).

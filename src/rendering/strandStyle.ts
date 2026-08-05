@@ -42,13 +42,30 @@ export interface StrandStyleAttrs {
 /** The gap-fill fields, as carried by `StrandStyle` and `FrameStroke`. */
 export interface GapFillStyle {
   innerFill?: string
+  /** One entry per **gap**, `n − 1` of them, ordered across the stroke: for a
+   * Frame border that is outermost → innermost. */
   gapFills?: (string | null)[]
   gapFillMode?: GapFillMode
 }
 
-/** Number of gap rings an `n`-line stroke has — `n − 1` gaps, paired by symmetry. */
+/** Number of gaps an `n`-line stroke has. */
+export function gapCount(lineCount: number): number {
+  return clampLineCount(lineCount) - 1
+}
+
+/**
+ * Number of gap **rings** — the `'matching'` mode's unit. A ring is a radial
+ * gap position measured from the stroke's centreline, so it covers a gap and
+ * its mirror on the far side; only an even line count's centre gap is alone.
+ */
 export function gapRingCount(lineCount: number): number {
   return Math.floor(clampLineCount(lineCount) / 2)
+}
+
+/** The two gap indices that make up ring `r` of an `n`-line stroke (equal at a lone centre gap). */
+export function ringGapIndices(r: number, lineCount: number): [number, number] {
+  const last = gapCount(lineCount) - 1
+  return [r, last - r]
 }
 
 /**
@@ -60,16 +77,25 @@ export function gapRingCount(lineCount: number): number {
  * ring's stroke exactly where the mask will reveal it. An unfilled ring can't
  * be expressed that way — an outer ring's stroke covers it — so a *mixed* set
  * needs the second mask `gapFillMaskBands` describes.
+ *
+ * This is the `'all'` and `'matching'` path. Truly per-gap fills can't be
+ * drawn concentrically at all (a stroke is centred on its path, so any band
+ * cut at `+x` is also cut at `−x`) — see `gapCrossSections`.
  */
 export function gapRingFills(
   attrs: StrandStyleAttrs,
   style: GapFillStyle,
+  lineCount: number = DEFAULT_LINE_COUNT,
 ): { width: number; colour: string | null }[] {
-  const individual = style.gapFillMode === 'individual'
-  return attrs.gapRingWidths.map((width, i) => ({
-    width,
-    colour: individual ? (style.gapFills?.[i] ?? null) : (style.innerFill ?? null),
-  }))
+  const perGap = style.gapFillMode === 'matching' || style.gapFillMode === 'individual'
+  return attrs.gapRingWidths.map((width, r) => {
+    if (!perGap) return { width, colour: style.innerFill ?? null }
+    // A ring shows one colour, so an asymmetric pair (only reachable by
+    // authoring in `'individual'` then rendering somewhere that can't do it)
+    // resolves to the outer gap's.
+    const [a, b] = ringGapIndices(r, lineCount)
+    return { width, colour: style.gapFills?.[a] ?? style.gapFills?.[b] ?? null }
+  })
 }
 
 /**
@@ -88,6 +114,33 @@ export function gapFillMaskBands(
     // Even band = the cut into gap ring b/2; odd band = back to a line, which
     // the ink covers anyway, so it stays hidden.
     colour: (b % 2 === 0 && fills[b / 2]?.colour !== null ? 'white' : 'black') as 'white' | 'black',
+  }))
+}
+
+/**
+ * Where each gap sits **across** the stroke: the distance from the stroke's
+ * FIRST edge to that gap's centre, plus its thickness. Gap 0 is the one
+ * adjacent to that edge — the Frame border reads the first edge as the outer
+ * one, so its gap 0 is the outermost, matching the ring order. This is what `'individual'`
+ * mode paints against: a fill drawn on the stroke's path offset by `centre`,
+ * stroked `width` thick, lands in exactly one gap — no mirror.
+ *
+ * Only geometry that can be offset sideways can use it. A closed Frame outline
+ * can (`offsetPolygonOutward`), which is why `'individual'` is a border mode:
+ * "outward" and "inward" are real, fixed directions there. A Strand's two
+ * sides are set by the direction its Rays happened to chain, so the same
+ * control would colour one strand's left and its neighbour's right.
+ */
+export function gapCrossSections(
+  w: number,
+  lineCount: number = DEFAULT_LINE_COUNT,
+  ratio: number = DEFAULT_STYLE_RATIO,
+): { centre: number; width: number }[] {
+  const n = clampLineCount(lineCount)
+  const { line, gap } = lineBandWidths(w, n, ratio)
+  return Array.from({ length: n - 1 }, (_, g) => ({
+    centre: (g + 1) * line + (g + 0.5) * gap,
+    width: gap,
   }))
 }
 
@@ -151,6 +204,8 @@ export function readLineStyleFields(raw: Record<string, unknown>): {
   gapFills?: (string | null)[]
   gapFillMode?: GapFillMode
 } {
+  // NOTE: `lineCount` must be resolved before the gap-fill block below reads
+  // it — the legacy ring→gap expansion is sized off it.
   const out: {
     lineStyle?: StrandLineStyle
     lineCount?: number
@@ -176,18 +231,33 @@ export function readLineStyleFields(raw: Record<string, unknown>): {
     out.styleRatio = clampStyleRatio(raw.styleRatio)
   }
   if (out.lineStyle === 'lines' && Array.isArray(raw.gapFills)) {
-    // Entries are colours or `null` (ring left unfilled); anything else is
+    // Entries are colours or `null` (gap left unfilled); anything else is
     // read as unfilled rather than dropping the whole array — one bad entry
-    // shouldn't cost the user the other rings.
+    // shouldn't cost the user the other gaps.
     out.gapFills = raw.gapFills
       .slice(0, LINE_COUNT_MAX)
       .map(c => (typeof c === 'string' && c.length > 0 ? c : null))
   }
-  if (out.lineStyle === 'lines' && (raw.gapFillMode === 'all' || raw.gapFillMode === 'individual')) {
-    out.gapFillMode = raw.gapFillMode
+  if (out.lineStyle === 'lines' && GAP_FILL_MODES.has(raw.gapFillMode as GapFillMode)) {
+    out.gapFillMode = raw.gapFillMode as GapFillMode
+  }
+  if (out.gapFillMode === 'individual' && out.gapFills) {
+    // Pre-2026-08-05 `'individual'` WAS today's `'matching'`, and stored one
+    // entry per ring. Length is the discriminator: a current array always
+    // carries one entry per gap. (At 2 lines the two agree and mirroring is
+    // the identity, so there is nothing to tell apart.)
+    const gaps = gapCount(out.lineCount ?? DEFAULT_LINE_COUNT)
+    if (out.gapFills.length !== gaps) {
+      const rings = out.gapFills
+      out.gapFillMode = 'matching'
+      out.gapFills = Array.from({ length: gaps }, (_, g) =>
+        rings[Math.min(g, gaps - 1 - g)] ?? null)
+    }
   }
   return out
 }
+
+const GAP_FILL_MODES = new Set<GapFillMode>(['all', 'matching', 'individual'])
 
 export function strandStyleAttrs(
   lineStyle: StrandLineStyle,

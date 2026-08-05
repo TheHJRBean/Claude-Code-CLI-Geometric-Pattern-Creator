@@ -218,9 +218,11 @@ export interface FrameStroke {
    * gap-fill mode. Absent ⇒ the gaps stay cut out (the pattern shows
    * through). */
   innerFill?: string
-  /** Gap-fill mode, same semantics as `StrandStyle.gapFillMode`. */
+  /** Gap-fill mode, same semantics as `StrandStyle.gapFillMode`. The border
+   * is the surface that supports `'individual'`. */
   gapFillMode?: GapFillMode
-  /** Per-gap-ring fills, same semantics as `StrandStyle.gapFills`. */
+  /** Per-gap fills, same semantics as `StrandStyle.gapFills` — outermost gap
+   * first. */
   gapFills?: (string | null)[]
   /** Parallel line count (2–10), same semantics as `StrandStyle.lineCount`. */
   lineCount?: number

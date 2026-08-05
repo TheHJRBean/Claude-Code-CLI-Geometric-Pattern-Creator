@@ -9,6 +9,9 @@
  * 2. Frame border: the border polygon must sit entirely OUTSIDE the Frame
  *    outline — measured as its bbox growing by the stroke width, so a wide
  *    border can't bury the pattern the outline clips.
+ * 3. Border gap fills at both grains: Matching (symmetric rings) and
+ *    Individual, where clearing only the outermost gap must leave the inner
+ *    ones painted — the asymmetry rings cannot express.
  */
 import { chromium } from 'playwright-core'
 
@@ -143,7 +146,7 @@ if (!g) {
     : `FAIL — offset ${grew.toFixed(2)}, expected ${(g.width / 2).toFixed(2)}`)
 }
 
-// ── 3. The same gap fills on the border, where they are actually visible ────
+// ── 3. Border gap fills: Matching, then true per-gap Individual ────────────
 await setSlider('Line divisions', 4, 'Border width')
 // FIRST match, not last: the Decoration panel's border block precedes the
 // Display section, whose Strand controls carry identically-labelled rows.
@@ -151,22 +154,44 @@ const borderFill = await page.$$('label:has-text("Fill between lines") input[typ
 if (borderFill.length && !(await borderFill[0].isChecked())) {
   await borderFill[0].check(); await page.waitForTimeout(600)
 }
-const indiv = await page.$$('button:has-text("Individual")')
-if (indiv.length) { await indiv[0].click(); await page.waitForTimeout(600) }
-const borderClears = await page.$$('button[title="Leave this ring unfilled"]')
-if (borderClears.length) { await borderClears[0].click(); await page.waitForTimeout(700) }
 
-const borderRings = await page.evaluate(() => {
+const borderRings = () => page.evaluate(() => {
   const mask = document.querySelector('#frame-gap-fill-mask')
-  const fills = [...document.querySelectorAll('svg[data-pattern-canvas] g > polygon[stroke]')]
-    .map(p => ({ w: Number(p.getAttribute('stroke-width')), c: p.getAttribute('stroke') }))
-    .filter(f => f.c !== 'black' && f.c !== 'white')
-  return { gapMask: !!mask, strokes: fills }
+  const fills = [...document.querySelectorAll('svg[data-pattern-canvas] g > polygon[stroke], svg[data-pattern-canvas] > g polygon[stroke]')]
+    .map(p => ({
+      w: Number(p.getAttribute('stroke-width')),
+      c: p.getAttribute('stroke'),
+      // Ring radius: half the bbox width, so two fills at different depths
+      // through the border are distinguishable.
+      r: (() => {
+        const xs = (p.getAttribute('points') ?? '').trim().split(/\s+/).map(q => Number(q.split(',')[0]))
+        return Math.round((Math.max(...xs) - Math.min(...xs)) / 2)
+      })(),
+    }))
+    .filter(f => f.c !== 'black' && f.c !== 'white' && f.w > 1)
+  return { gapMask: !!mask, fills }
 })
-console.log('BORDER rings    ', JSON.stringify(borderRings))
-console.log('BORDER FILL     ', borderRings.gapMask
-  ? 'PASS — mixed border rings render behind their own reveal mask'
-  : 'INCONCLUSIVE — no mixed-ring mask (all rings may be filled)')
+
+const matchBtn = await page.$$('button:has-text("Matching")')
+if (matchBtn.length) { await matchBtn[0].click(); await page.waitForTimeout(700) }
+const matchClears = await page.$$('button[title="Leave this ring unfilled"]')
+if (matchClears.length > 1) { await matchClears[1].click(); await page.waitForTimeout(700) }
+const matching = await borderRings()
+console.log('MATCHING        ', JSON.stringify(matching))
+
+const indivBtn = await page.$$('button:has-text("Individual")')
+if (indivBtn.length) { await indivBtn[0].click(); await page.waitForTimeout(700) }
+// Asymmetry: clear ONLY the outermost gap. Under Matching this was impossible
+// — its mirror, the innermost, went with it.
+const gapClears = await page.$$('button[title="Leave this ring unfilled"]')
+if (gapClears.length) { await gapClears[0].click(); await page.waitForTimeout(700) }
+const individual = await borderRings()
+console.log('INDIVIDUAL      ', JSON.stringify(individual))
+
+const radii = individual.fills.filter(f => f.w < 20).map(f => f.r).sort((a, b) => a - b)
+console.log('BORDER FILL     ', radii.length === 2 && radii[1] - radii[0] > 1
+  ? `PASS — 2 of 3 gaps painted at different depths (r ${radii.join(' / ')}), outermost left cut out`
+  : `FAIL — ${JSON.stringify(individual.fills)}`)
 
 // A picture too — the numbers can't see a gap fill leaking outside its ring.
 if (process.env.SHOT) {

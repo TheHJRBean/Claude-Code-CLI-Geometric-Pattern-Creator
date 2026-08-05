@@ -16,7 +16,7 @@ import type { VoidFill } from '../decoration/resolve'
 import type { StampPlacement } from '../decoration/stamps'
 import type { ColourRecord, FrameGradient, FrameStroke, StrandGradient } from '../types/editor'
 import { sortedStops } from '../decoration/gradients'
-import { gapFillMaskBands, gapRingFills, strandStyleAttrs } from './strandStyle'
+import { gapCrossSections, gapFillMaskBands, gapRingFills, strandStyleAttrs } from './strandStyle'
 import type { CellFrame } from '../decoration/cellScope'
 
 interface Props {
@@ -425,8 +425,14 @@ function FrameBorder({ outline, stroke }: {
   // and gap fills) reads identically on the border and in the pattern.
   const attrs = strandStyleAttrs(stroke.lineStyle ?? 'solid', w, stroke.styleRatio, stroke.lineCount)
   const { masked, maskBands } = attrs
-  const gapFills = gapRingFills(attrs, stroke)
-  const gapMaskBands = gapFillMaskBands(attrs, gapFills)
+  // `'individual'` paints each gap on its own offset ring — the border is the
+  // one surface where that is meaningful, because outward and inward are fixed
+  // directions. The other modes go through the concentric underlay stack.
+  const perGap = masked && stroke.gapFillMode === 'individual'
+    ? gapCrossSections(w, stroke.lineCount, stroke.styleRatio)
+    : null
+  const gapFills = perGap ? [] : gapRingFills(attrs, stroke, stroke.lineCount)
+  const gapMaskBands = perGap ? null : gapFillMaskBands(attrs, gapFills)
   const maskId = 'frame-stroke-mask'
   const gapMaskId = 'frame-gap-fill-mask'
   let maskRect = null as { x: number; y: number; width: number; height: number } | null
@@ -471,6 +477,28 @@ function FrameBorder({ outline, stroke }: {
           </mask>
         </defs>
       )}
+      {/* Individual gaps: one ring polygon per gap, offset out from the Frame
+          outline to that gap's own centre and stroked its thickness — so the
+          outer and inner gaps of the same ring can differ. No reveal mask:
+          an unfilled gap is simply not drawn. */}
+      {perGap && perGap.map((sec, g) => {
+        const colour = stroke.gapFills?.[g]
+        if (!colour) return null
+        // `outline` is the border's INNER edge (the stroke hangs outside it),
+        // and gap 0 is the outermost, so measure back from the outer edge.
+        const ring = offsetPolygonOutward(outline, w - sec.centre)
+        return (
+          <polygon
+            key={`gap-${g}`}
+            points={ring.map(p => `${p.x},${p.y}`).join(' ')}
+            fill="none"
+            stroke={colour}
+            strokeWidth={sec.width}
+            strokeLinejoin="miter"
+            strokeMiterlimit={8}
+          />
+        )
+      })}
       {/* Gap fills: concentric underlays beneath the masked stroke, outermost
           ring first, revealed by the style mask's cuts. */}
       {masked && gapFills.some(f => f.colour) && (

@@ -36,7 +36,7 @@ import { EditorDesignControls } from './lab/EditorDesignControls'
 import { buildExportMenuItems } from '../export/exportActions'
 import type { AppMode, EditorMode } from '../types/appMode'
 import type { EditorGuide, EditorGuidePatch, JunctionOrnamentStyle } from '../types/editor'
-import { DEFAULT_JUNCTION_ORNAMENT } from '../decoration/junctionOrnaments'
+import { DEFAULT_JUNCTION_ORNAMENT, junctionOrnamentsSupported } from '../decoration/junctionOrnaments'
 import { DEFAULT_ANGLE_STEP, type GuideTool, type WorldBounds } from '../editor/guides'
 import { canDecorate, patternDecoration } from '../decoration/store'
 import { useBugScreenContext } from '../bugreport/context'
@@ -586,7 +586,7 @@ export function TessellationLabMode({
       ...(editorPhase === 'decoration'
         ? [
           { label: 'Paint target', value: paintTarget },
-          { label: 'Reach', value: `Voids ${effectiveVoidScope} · Strands ${effectiveStrandScope}` },
+          { label: 'Reach', value: `Voids ${effectiveVoidScope} · Strands ${effectiveStrandScope} · Junctions ${effectiveJunctionScope}` },
           // Which Reach rungs the substrate offers at all — `patch` and `cell`
           // are withheld on a legacy substrate. Reported here rather than as a
           // general fact because this flag is a decoration-scope binary: it
@@ -595,6 +595,15 @@ export function TessellationLabMode({
           { label: 'Decoration substrate', value: substrate },
           ...(paintTarget === 'gradient' ? [{ label: 'Gradient surface', value: gradientMode }] : []),
           ...(paintTarget === 'stamp' ? [{ label: 'Stamp selection', value: stampSelection ? 'a Void is selected' : 'none' }] : []),
+          // The ornament draft AND whether the strand style lets it draw at
+          // all — "my ornaments don't show" is answered by the second one.
+          ...(paintTarget === 'junctions'
+            ? [{
+              label: 'Junction ornament',
+              value: `${junctionDraft.shape}${junctionDraft.hollow ? ' (hollow)' : ''} ×${junctionDraft.size}`
+                + (junctionOrnamentsSupported(config.strand) ? '' : ' — NOT DRAWN (strands are not solid)'),
+            }]
+            : []),
           ...(paintTarget === 'combine'
             ? [{ label: 'Combine picks', value: combineSelection.length === 0 ? 'none' : `${combineSelection.length} Void(s)` }]
             : []),

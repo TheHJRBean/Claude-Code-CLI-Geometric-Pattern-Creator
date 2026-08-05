@@ -113,7 +113,10 @@ function summariseCells(config: PatternConfig): CellSummary[] {
 function summariseStrand(config: PatternConfig): string {
   const s = config.strand
   if (!s) return 'none'
-  const bits = [`width ${num(s.width)}`, s.color, `bg ${s.background}`, s.lineStyle ?? 'solid']
+  const lines = s.lineStyle === 'lines'
+  const bits = [`width ${num(s.width)}`, s.color, `bg ${s.background}`,
+    lines ? `${s.lineCount ?? 2} lines` : 'solid']
+  if (lines && s.styleRatio !== undefined) bits.push(`ratio ${num(s.styleRatio)}`)
   if (s.weave) bits.push(`weave (gap ${num(s.weaveGap ?? 2)})`)
   if (s.innerFill) bits.push(`inner ${s.innerFill}`)
   return bits.join(', ')

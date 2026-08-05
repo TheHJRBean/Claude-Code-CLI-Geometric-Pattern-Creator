@@ -18,10 +18,7 @@ import { TILING_NAMES } from '../tilings/index'
 
 export const LINE_STYLES: readonly StrandLineStyle[] = [
   'solid',
-  'double',
-  'triple',
-  'dashed',
-  'dotted',
+  'lines',
 ]
 
 export const FEATURE_NAMES: readonly string[] = [

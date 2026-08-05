@@ -71,11 +71,53 @@ describe('loadPatternConfig — strand / legacy lacing', () => {
   it('reads the current strand shape with optional weave + lineStyle', () => {
     const out = loadPatternConfig({
       ...minimalRaw(),
-      strand: { width: 3, color: '#111', background: '#eee', weave: true, weaveGap: 4, lineStyle: 'double' },
+      strand: {
+        width: 3, color: '#111', background: '#eee', weave: true, weaveGap: 4,
+        lineStyle: 'lines', lineCount: 5, styleRatio: 2,
+      },
     })
     expect(out.strand.weave).toBe(true)
     expect(out.strand.weaveGap).toBe(4)
-    expect(out.strand.lineStyle).toBe('double')
+    expect(out.strand.lineStyle).toBe('lines')
+    expect(out.strand.lineCount).toBe(5)
+    expect(out.strand.styleRatio).toBe(2)
+  })
+
+  it('loads the withdrawn double/triple styles at their classic proportions', () => {
+    const dbl = loadPatternConfig({
+      ...minimalRaw(),
+      strand: { width: 3, color: '#111', background: '#eee', lineStyle: 'double' },
+    })
+    expect(dbl.strand.lineStyle).toBe('lines')
+    expect(dbl.strand.lineCount).toBe(2)
+    // 0.25w line · 0.5w gap · 0.25w line — what 'double' always drew.
+    expect(dbl.strand.styleRatio).toBe(0.5)
+
+    const tri = loadPatternConfig({
+      ...minimalRaw(),
+      strand: { width: 3, color: '#111', background: '#eee', lineStyle: 'triple' },
+    })
+    expect(tri.strand.lineStyle).toBe('lines')
+    expect(tri.strand.lineCount).toBe(3)
+  })
+
+  it('loads the withdrawn dashed/dotted styles as solid', () => {
+    for (const lineStyle of ['dashed', 'dotted']) {
+      const out = loadPatternConfig({
+        ...minimalRaw(),
+        strand: { width: 3, color: '#111', background: '#eee', lineStyle },
+      })
+      expect(out.strand.lineStyle).toBe('solid')
+      expect(out.strand.lineCount).toBeUndefined()
+    }
+  })
+
+  it('clamps an out-of-band persisted line count', () => {
+    const out = loadPatternConfig({
+      ...minimalRaw(),
+      strand: { width: 3, color: '#111', background: '#eee', lineStyle: 'lines', lineCount: 99 },
+    })
+    expect(out.strand.lineCount).toBe(10)
   })
 
   it('ignores an unknown lineStyle', () => {

@@ -1,6 +1,6 @@
 import { forwardRef } from 'react'
 import type { Polygon, Segment } from '../types/geometry'
-import type { PatternConfig, StrandLineStyle } from '../types/pattern'
+import type { PatternConfig } from '../types/pattern'
 import type { Vec2 } from '../utils/math'
 import type { ViewTransform } from '../hooks/usePanZoom'
 import type { PanZoomHandlers } from '../hooks/usePanZoom'
@@ -13,8 +13,9 @@ import { VoidStampLayer } from './VoidStampLayer'
 import { StrandSeamMask, hasSeams, type VoidSeamGroup } from './StrandSeamMask'
 import type { VoidFill } from '../decoration/resolve'
 import type { StampPlacement } from '../decoration/stamps'
-import type { ColourRecord, FrameGradient, StrandGradient } from '../types/editor'
+import type { ColourRecord, FrameGradient, FrameStroke, StrandGradient } from '../types/editor'
 import { sortedStops } from '../decoration/gradients'
+import { strandStyleAttrs } from './strandStyle'
 import type { CellFrame } from '../decoration/cellScope'
 
 interface Props {
@@ -102,10 +103,9 @@ interface Props {
    * Decorative Frame border stroke (`FrameConfig.stroke`, Decoration
    * styling). When set it REPLACES the accent guide outline; width is in
    * world units so the border scales with the pattern and exports as drawn.
-   * `lineStyle` mirrors the Strand vocabulary (solid/double/triple/dashed/
-   * dotted).
+   * `lineStyle` mirrors the Strand vocabulary (solid / parallel lines).
    */
-  frameStroke?: { colour: string; width: number; lineStyle?: StrandLineStyle; innerFill?: string } | null
+  frameStroke?: FrameStroke | null
   /**
    * Step 19.2 — Decoration **Void Fill**s (resolved). Drawn behind the Strands
    * (ADR-0005 layer stack). On the periodic fast-path these are the
@@ -402,26 +402,21 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
 })
 
 /**
- * Decorative Frame border with stroke styles, mirroring the Strand line
- * styles (`StrandLayer`): dashed/dotted are dash arrays scaled to the border
- * width; double/triple cut the stroke's centre out with a mask so the
- * pattern and background show through between the parallel lines (an
- * overdraw would paint over whatever the border straddles).
+ * Decorative Frame border, mirroring the Strand line styles (`StrandLayer`)
+ * through the shared `strandStyleAttrs`: a `'lines'` border cuts its gaps out
+ * with a mask so the pattern and background show through between the parallel
+ * lines (an overdraw would paint over whatever the border straddles).
  */
 function FrameBorder({ outline, points, stroke }: {
   outline: Vec2[]
   points: string
-  stroke: { colour: string; width: number; lineStyle?: StrandLineStyle; innerFill?: string }
+  stroke: FrameStroke
 }) {
   const w = stroke.width
-  const style = stroke.lineStyle ?? 'solid'
-  const masked = style === 'double' || style === 'triple'
-  const dashArray = style === 'dashed' ? `${w * 2.5} ${w * 1.5}`
-    : style === 'dotted' ? `0.01 ${w * 1.8}` : undefined
-  const lineCap = style === 'dashed' ? 'butt' as const : 'round' as const
-  // Centre cut width; triple keeps a thin centre line drawn separately.
-  const cutWidth = style === 'triple' ? w * 0.65 : w * 0.5
-  const centreWidth = w * 0.18
+  // Same resolver the Strands use, so a style (its line count and line/gap
+  // ratio) reads identically on the border and in the pattern.
+  const { masked, maskBands, innerFillWidth } =
+    strandStyleAttrs(stroke.lineStyle ?? 'solid', w, stroke.styleRatio, stroke.lineCount)
   const maskId = 'frame-stroke-mask'
   let maskRect = null as { x: number; y: number; width: number; height: number } | null
   if (masked) {
@@ -439,18 +434,28 @@ function FrameBorder({ outline, points, stroke }: {
         <defs>
           <mask id={maskId} maskUnits="userSpaceOnUse" x={maskRect.x} y={maskRect.y} width={maskRect.width} height={maskRect.height}>
             <rect x={maskRect.x} y={maskRect.y} width={maskRect.width} height={maskRect.height} fill="white" />
-            <polygon points={points} fill="none" stroke="black" strokeWidth={cutWidth} strokeLinejoin="round" />
+            {/* Widest first, alternating cut / restore — see StrandStyleAttrs. */}
+            {maskBands.map((band, b) => (
+              <polygon
+                key={b}
+                points={points}
+                fill="none"
+                stroke={b % 2 === 0 ? 'black' : 'white'}
+                strokeWidth={band}
+                strokeLinejoin="round"
+              />
+            ))}
           </mask>
         </defs>
       )}
-      {/* Inner fill for double/triple: cut-width underlay revealed by the
-          mask's centre cut instead of the pattern/background. */}
+      {/* Inner fill: one underlay spanning everything inside the outermost
+          lines, revealed by the mask's cuts instead of the pattern. */}
       {masked && stroke.innerFill && (
         <polygon
           points={points}
           fill="none"
           stroke={stroke.innerFill}
-          strokeWidth={cutWidth}
+          strokeWidth={innerFillWidth}
           strokeLinejoin="round"
         />
       )}
@@ -460,19 +465,9 @@ function FrameBorder({ outline, points, stroke }: {
         stroke={stroke.colour}
         strokeWidth={w}
         strokeLinejoin="round"
-        strokeLinecap={lineCap}
-        strokeDasharray={dashArray}
+        strokeLinecap="round"
         mask={maskRect ? `url(#${maskId})` : undefined}
       />
-      {style === 'triple' && (
-        <polygon
-          points={points}
-          fill="none"
-          stroke={stroke.colour}
-          strokeWidth={centreWidth}
-          strokeLinejoin="round"
-        />
-      )}
     </g>
   )
 }

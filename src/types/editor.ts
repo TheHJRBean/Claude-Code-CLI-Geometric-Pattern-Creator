@@ -211,12 +211,16 @@ export interface FrameStroke {
   /** Stroke width in world units (matches Strand width semantics). */
   width: number
   /** Stroke style, same vocabulary as Strands (`StrandStyle.lineStyle`).
-   * Double/Triple cut the centre out with a mask so the pattern shows
-   * through between the parallel lines. Default solid. */
+   * `'lines'` cuts the gaps out with a mask so the pattern shows through
+   * between the parallel lines. Default solid. */
   lineStyle?: StrandLineStyle
-  /** Fill colour painted in the centre gap of `double`/`triple` styles.
-   * Absent ⇒ the gap stays cut out (the pattern shows through). */
+  /** Fill colour painted in the gaps of a `'lines'` border.
+   * Absent ⇒ the gaps stay cut out (the pattern shows through). */
   innerFill?: string
+  /** Parallel line count (2–10), same semantics as `StrandStyle.lineCount`. */
+  lineCount?: number
+  /** Line ÷ gap thickness, same semantics as `StrandStyle.styleRatio`. */
+  styleRatio?: number
 }
 
 /**

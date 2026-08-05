@@ -1,38 +1,117 @@
 import { describe, it, expect } from 'vitest'
-import { strandStyleAttrs } from './strandStyle'
+import { lineBandWidths, readLineStyleFields, strandStyleAttrs } from './strandStyle'
+
+/**
+ * Reconstruct the drawn cross-section from the mask bands: what the viewer
+ * sees is alternating ink / gap thicknesses across the stroke, so that — not
+ * the band widths themselves — is what these tests assert on.
+ *
+ * A band of width `b` covers `|offset| ≤ b/2`; bands alternate cut, restore,
+ * cut, … over the full-width stroke. Walking the half-widths outside-in gives
+ * one half of the symmetric section, ending at the centre.
+ */
+function halfSection(w: number, bands: number[]): { ink: number[]; gaps: number[] } {
+  const edges = [w, ...bands, 0].map(b => b / 2)
+  const ink: number[] = []
+  const gaps: number[] = []
+  for (let i = 0; i < edges.length - 1; i++) {
+    const thickness = edges[i] - edges[i + 1]
+    if (thickness <= 1e-9) continue
+    ;(i % 2 === 0 ? ink : gaps).push(thickness)
+  }
+  return { ink, gaps }
+}
 
 describe('strandStyleAttrs', () => {
-  it('solid: unmasked, no dash, round cap, half-width cut', () => {
-    expect(strandStyleAttrs('solid', 4)).toEqual({
-      masked: false, dashArray: undefined, lineCap: 'round', cutWidth: 2, centreWidth: 0.72,
-    })
+  it('solid: no mask, no bands', () => {
+    expect(strandStyleAttrs('solid', 4)).toEqual({ masked: false, maskBands: [], innerFillWidth: 0 })
   })
 
-  it('double: masked, half-width cut', () => {
-    const a = strandStyleAttrs('double', 4)
+  it('lines: defaults to 2 lines at an equal line/gap ratio', () => {
+    const a = strandStyleAttrs('lines', 3)
     expect(a.masked).toBe(true)
-    expect(a.cutWidth).toBe(2)
-    expect(a.dashArray).toBeUndefined()
+    expect(a.maskBands).toHaveLength(1) // one cut = the single gap
+    expect(a.maskBands[0]).toBeCloseTo(1, 9) // 3 = line + gap + line, all equal
+    expect(a.innerFillWidth).toBeCloseTo(1, 9)
   })
 
-  it('triple: masked, wider cut + a thin centre line', () => {
-    const a = strandStyleAttrs('triple', 4)
-    expect(a.masked).toBe(true)
-    expect(a.cutWidth).toBeCloseTo(2.6, 9) // 4 * 0.65
-    expect(a.centreWidth).toBeCloseTo(0.72, 9) // 4 * 0.18
+  it('reproduces the withdrawn `double` cross-section at ratio 0.5', () => {
+    const { ink, gaps } = halfSection(4, strandStyleAttrs('lines', 4, 0.5, 2).maskBands)
+    expect(ink).toHaveLength(1)
+    expect(ink[0]).toBeCloseTo(1, 9)  // 0.25w line
+    expect(gaps[0]).toBeCloseTo(1, 9) // half of the 0.5w centre gap
   })
 
-  it('dashed: width-scaled dash with butt caps, unmasked', () => {
-    const a = strandStyleAttrs('dashed', 4)
-    expect(a.masked).toBe(false)
-    expect(a.dashArray).toBe('10 6') // `${4*2.5} ${4*1.5}`
-    expect(a.lineCap).toBe('butt')
+  it('every count from 2 to 10 lays down that many lines filling the width', () => {
+    const w = 12
+    for (let n = 2; n <= 10; n++) {
+      const { line, gap } = lineBandWidths(w, n, 1.4)
+      const { ink, gaps } = halfSection(w, strandStyleAttrs('lines', w, 1.4, n).maskBands)
+      // Half-section: ceil(n/2) ink runs (the centre one halved when n is odd).
+      const drawnLines = ink.length * 2 - (n % 2 === 1 ? 1 : 0)
+      expect(drawnLines).toBe(n)
+      for (const t of ink.slice(0, ink.length - 1)) expect(t).toBeCloseTo(line, 9)
+      for (const g of gaps.slice(0, gaps.length - 1)) expect(g).toBeCloseTo(gap, 9)
+      // Everything drawn adds back up to the stroke width.
+      const total = 2 * (ink.reduce((s, t) => s + t, 0) + gaps.reduce((s, g) => s + g, 0))
+      expect(total).toBeCloseTo(w, 6)
+    }
   })
 
-  it('dotted: round-cap dot pattern', () => {
-    const a = strandStyleAttrs('dotted', 5)
-    expect(a.dashArray).toBe('0.01 9') // `0.01 ${5*1.8}`
-    expect(a.lineCap).toBe('round')
-    expect(a.masked).toBe(false)
+  it('a higher ratio thickens the lines and tightens the gaps', () => {
+    const thick = lineBandWidths(10, 4, 3)
+    const thin = lineBandWidths(10, 4, 0.4)
+    expect(thick.line / thick.gap).toBeCloseTo(3, 9)
+    expect(thin.line / thin.gap).toBeCloseTo(0.4, 9)
+    expect(thick.line).toBeGreaterThan(thin.line)
+    expect(4 * thick.line + 3 * thick.gap).toBeCloseTo(10, 9)
+  })
+
+  it('the inner fill spans everything inside the outermost lines', () => {
+    const w = 8
+    const { line } = lineBandWidths(w, 5, 2)
+    expect(strandStyleAttrs('lines', w, 2, 5).innerFillWidth).toBeCloseTo(w - 2 * line, 9)
+  })
+
+  it('clamps out-of-band counts and ratios instead of emitting a degenerate stroke', () => {
+    expect(strandStyleAttrs('lines', 4, 1, 99)).toEqual(strandStyleAttrs('lines', 4, 1, 10))
+    expect(strandStyleAttrs('lines', 4, 1, 0)).toEqual(strandStyleAttrs('lines', 4, 1, 2))
+    expect(strandStyleAttrs('lines', 4, 1000, 3)).toEqual(strandStyleAttrs('lines', 4, 4, 3))
+    expect(strandStyleAttrs('lines', 4, NaN, 3)).toEqual(strandStyleAttrs('lines', 4, 1, 3))
+    for (const band of strandStyleAttrs('lines', 4, 4, 10).maskBands) {
+      expect(band).toBeGreaterThan(0)
+      expect(band).toBeLessThan(4)
+    }
+  })
+})
+
+describe('readLineStyleFields', () => {
+  it('passes the current vocabulary through, clamped', () => {
+    expect(readLineStyleFields({ lineStyle: 'lines', lineCount: 6, styleRatio: 2 }))
+      .toEqual({ lineStyle: 'lines', lineCount: 6, styleRatio: 2 })
+    expect(readLineStyleFields({ lineStyle: 'solid' })).toEqual({ lineStyle: 'solid' })
+  })
+
+  it('translates the withdrawn styles', () => {
+    expect(readLineStyleFields({ lineStyle: 'double' }))
+      .toEqual({ lineStyle: 'lines', lineCount: 2, styleRatio: 0.5 })
+    expect(readLineStyleFields({ lineStyle: 'triple' }).lineCount).toBe(3)
+    expect(readLineStyleFields({ lineStyle: 'dashed' })).toEqual({ lineStyle: 'solid' })
+    expect(readLineStyleFields({ lineStyle: 'dotted' })).toEqual({ lineStyle: 'solid' })
+  })
+
+  it('an explicit count/ratio wins over a legacy style name', () => {
+    expect(readLineStyleFields({ lineStyle: 'double', lineCount: 7, styleRatio: 3 }))
+      .toEqual({ lineStyle: 'lines', lineCount: 7, styleRatio: 3 })
+  })
+
+  it('drops an unknown style rather than guessing', () => {
+    expect(readLineStyleFields({ lineStyle: 'zigzag' })).toEqual({})
+    expect(readLineStyleFields({})).toEqual({})
+  })
+
+  it('ignores a count/ratio carried by a solid stroke', () => {
+    expect(readLineStyleFields({ lineStyle: 'solid', lineCount: 4, styleRatio: 3 }))
+      .toEqual({ lineStyle: 'solid' })
   })
 })

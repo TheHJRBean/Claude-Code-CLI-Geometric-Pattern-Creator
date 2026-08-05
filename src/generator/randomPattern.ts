@@ -47,13 +47,12 @@ export const SAMPLER_TUNING = {
   /** P(smoothTransitions), given any curve is enabled. */
   smoothTransitionsProbability: 0.5,
   strandWidth: { min: 2, max: 8 },
-  /** Weighted pick over all five stroke variants, biased to solid. */
+  /** Weighted pick over the stroke variants, biased to solid. Divided
+   * strokes sample at the default 2 lines — the sampler has never varied the
+   * count, and `features.ts` only encodes what it varies. */
   lineStyleWeights: {
     solid: 0.6,
-    double: 0.1,
-    triple: 0.1,
-    dashed: 0.1,
-    dotted: 0.1,
+    lines: 0.4,
   } as Record<StrandLineStyle, number>,
   weaveProbability: 0.5,
   /** Extra line sets (#42, layered families) per tile-type figure. Additive

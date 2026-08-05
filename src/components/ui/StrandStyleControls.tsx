@@ -1,11 +1,12 @@
-import type { PatternConfig, StrandLineStyle } from '../../types/pattern'
+import type { PatternConfig } from '../../types/pattern'
 import type { Action } from '../../state/actions'
 import { FieldLabel } from './FieldLabel'
+import { LineStyleControls } from './LineStyleControls'
 import { Toggle } from './Toggle'
 
 /**
- * Strand-level stroke controls: width, line style, the over–under Lacing
- * toggle, and (when laced) the weave gap. Previously duplicated verbatim in
+ * Strand-level stroke controls: width, line divisions + line/gap ratio, the
+ * over–under Lacing toggle, and (when laced) the weave gap. Previously duplicated verbatim in
  * the Gallery Sidebar's "Strand Thickness" section and the Lab's "Display"
  * section — now one component driving both. Strand-level, not Ray-level.
  */
@@ -20,7 +21,7 @@ export function StrandStyleControls({ strand, dispatch }: {
         label="Strand width"
         value={strand.width.toFixed(1)}
         unit=" px"
-        tooltip="Stroke width applied to every Strand. Dashed/Dotted spacing scales with it too."
+        tooltip="Stroke width applied to every Strand. Line divisions split this width, so a divided Strand covers the same span."
       />
       <input
         type="range"
@@ -30,23 +31,12 @@ export function StrandStyleControls({ strand, dispatch }: {
         onChange={e => dispatch({ type: 'SET_STRAND_STYLE', payload: { width: Number(e.target.value) } })}
       />
 
-      <FieldLabel
-        label="Strand style"
-        tooltip="How each Strand's stroke is drawn. Double/Triple are parallel lines (the middle is cut out, so fills show through); Dashed/Dotted scale with the Strand width."
+      <LineStyleControls
+        value={strand}
+        onChange={payload => dispatch({ type: 'SET_STRAND_STYLE', payload })}
       />
-      <select
-        value={strand.lineStyle ?? 'solid'}
-        onChange={e => dispatch({ type: 'SET_STRAND_STYLE', payload: { lineStyle: e.target.value as StrandLineStyle } })}
-        className="pattern-select"
-      >
-        <option value="solid">Solid</option>
-        <option value="double">Double lines</option>
-        <option value="triple">Triple lines</option>
-        <option value="dashed">Dashed</option>
-        <option value="dotted">Dotted</option>
-      </select>
 
-      {(strand.lineStyle === 'double' || strand.lineStyle === 'triple') && (
+      {strand.lineStyle === 'lines' && (
         <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
           <Toggle
             checked={!!strand.innerFill}

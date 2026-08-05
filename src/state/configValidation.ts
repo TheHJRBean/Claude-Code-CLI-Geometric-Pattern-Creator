@@ -1,7 +1,8 @@
-import type { FigureConfig, MorphConfig, MorphOrigin, PatternConfig, StrandLineStyle, StrandStyle, TilingConfig } from '../types/pattern'
+import type { FigureConfig, MorphConfig, MorphOrigin, PatternConfig, StrandStyle, TilingConfig } from '../types/pattern'
 import type { FrameConfig, FrameShape } from '../types/editor'
 import { migrateDecoration, migrateEditorConfig } from '../editor/migrations'
 import { MIN_FRAME_SIZE, MAX_FRAME_SIZE, DEFAULT_FRAME_SIZE } from '../editor/frame'
+import { readLineStyleFields } from '../rendering/strandStyle'
 
 /**
  * Step 17.8 — load-time validation for `PatternConfig`. Used by `loadJSON`
@@ -173,12 +174,14 @@ function readFigures(figures: Record<string, FigureConfig>): Record<string, Figu
 
 /**
  * Read the current `StrandStyle` shape — `{ width, color, background, weave?,
- * weaveGap?, lineStyle?, innerFill? }` keyed under `strand`.
+ * weaveGap?, lineStyle?, lineCount?, styleRatio?, innerFill? }` keyed under
+ * `strand`. The stroke-style trio goes through `readLineStyleFields`, which
+ * also translates the withdrawn `double` / `triple` / `dashed` / `dotted`
+ * vocabulary.
  *
  * Returns `null` if it doesn't parse; callers on the generation-0 path fall
  * back to `readLegacyLacing`.
  */
-const STRAND_LINE_STYLES = new Set<StrandLineStyle>(['solid', 'double', 'triple', 'dashed', 'dotted'])
 
 export function readStrandStyle(r: Record<string, unknown>): StrandStyle | null {
   const direct = r.strand as Record<string, unknown> | undefined
@@ -189,9 +192,7 @@ export function readStrandStyle(r: Record<string, unknown>): StrandStyle | null 
       const out: StrandStyle = { width: direct.width, color: direct.color, background: direct.background }
       if (typeof direct.weave === 'boolean') out.weave = direct.weave
       if (typeof direct.weaveGap === 'number') out.weaveGap = direct.weaveGap
-      if (STRAND_LINE_STYLES.has(direct.lineStyle as StrandLineStyle)) {
-        out.lineStyle = direct.lineStyle as StrandLineStyle
-      }
+      Object.assign(out, readLineStyleFields(direct))
       if (typeof direct.innerFill === 'string' && direct.innerFill.length > 0) {
         out.innerFill = direct.innerFill
       }
@@ -268,9 +269,7 @@ function readGalleryFrame(v: unknown): FrameConfig | undefined {
     if (typeof s.enabled === 'boolean' && typeof s.colour === 'string' && s.colour.length > 0
       && typeof s.width === 'number' && s.width > 0) {
       out.stroke = { enabled: s.enabled, colour: s.colour, width: s.width }
-      if (STRAND_LINE_STYLES.has(s.lineStyle as StrandLineStyle)) {
-        out.stroke.lineStyle = s.lineStyle as StrandLineStyle
-      }
+      Object.assign(out.stroke, readLineStyleFields(s))
       if (typeof s.innerFill === 'string' && s.innerFill.length > 0) {
         out.stroke.innerFill = s.innerFill
       }

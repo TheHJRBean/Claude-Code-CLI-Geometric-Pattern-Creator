@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react'
-import type { StrandLineStyle } from '../../types/pattern'
 import type { Action } from '../../state/actions'
 import { DEFAULT_CANVAS_BACKGROUND as DEFAULT_BACKGROUND } from '../../state/defaults'
 import type { PaintTarget, StrandPaintScope, VoidPaintScope } from '../../rendering/DecorationPaintLayer'
@@ -11,6 +10,7 @@ import { downloadAllVoidShapeCanvases, downloadVoidShapePNG, downloadVoidShapeSV
 import { canonicalPose, canonicalSelfMirror } from '../../decoration/stamps'
 import { buildVoidMergeRecord, canCombine } from '../../decoration/voidMerge'
 import { ColourPicker, pushRecentColour } from '../ColourPicker'
+import { LineStyleControls } from '../ui/LineStyleControls'
 import { FieldLabel, segmentedButtonStyle } from './labShared'
 import { StampFocusEditor } from './StampFocusEditor'
 import { GradientFocusEditor } from './GradientFocusEditor'
@@ -401,26 +401,15 @@ export function DecorationPanel({
                 <input
                   type="range"
                   className="pattern-slider"
-                  min={0.5} max={30} step={0.5}
+                  min={0.5} max={120} step={0.5}
                   value={stroke.width}
                   onChange={e => setStroke({ ...stroke, width: Number(e.target.value) })}
                 />
-                <FieldLabel
-                  label="Border style"
-                  tooltip="How the border stroke is drawn — same styles as Strands. Double/Triple are parallel lines (the middle is cut out, so the pattern shows through); Dashed/Dotted scale with the border width."
+                <LineStyleControls
+                  value={stroke}
+                  onChange={patch => setStroke({ ...stroke, ...patch })}
                 />
-                <select
-                  value={stroke.lineStyle ?? 'solid'}
-                  onChange={e => setStroke({ ...stroke, lineStyle: e.target.value as StrandLineStyle })}
-                  className="pattern-select"
-                >
-                  <option value="solid">Solid</option>
-                  <option value="double">Double lines</option>
-                  <option value="triple">Triple lines</option>
-                  <option value="dashed">Dashed</option>
-                  <option value="dotted">Dotted</option>
-                </select>
-                {(stroke.lineStyle === 'double' || stroke.lineStyle === 'triple') && (
+                {stroke.lineStyle === 'lines' && (
                   <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 8 }}>
                     <input
                       type="checkbox"

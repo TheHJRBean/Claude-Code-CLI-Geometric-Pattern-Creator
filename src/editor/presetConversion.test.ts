@@ -21,7 +21,7 @@ function presetConfig(type: string, scale = 100): PatternConfig {
   return {
     tiling: { type, scale },
     figures: (TILINGS[type]?.defaultConfig?.figures ?? {}) as PatternConfig['figures'],
-    strand: { width: 3, color: '#8b1e3f', background: '#f5f0e8', lineStyle: 'double' },
+    strand: { width: 3, color: '#8b1e3f', background: '#f5f0e8', lineStyle: 'lines' },
     smoothTransitions: true,
   }
 }

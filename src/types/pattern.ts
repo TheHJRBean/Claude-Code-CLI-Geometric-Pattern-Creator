@@ -99,14 +99,16 @@ export interface FigureConfig {
  */
 /**
  * How each Strand's stroke is drawn:
- * - `'solid'`  — one continuous stroke (default).
- * - `'double'` — two parallel lines (the stroke's centre is cut out with a
- *                mask, so Void fills / background show through the middle).
- * - `'triple'` — double plus a thin centre line.
- * - `'dashed'` — dash pattern scaled to the Strand width.
- * - `'dotted'` — round dots scaled to the Strand width.
+ * - `'solid'` — one continuous stroke (default).
+ * - `'lines'` — divided into `lineCount` parallel lines (2–10); the gaps are
+ *               cut out of the stroke with a mask, so Void fills / background
+ *               show through between the lines.
+ *
+ * The legacy `'double'` / `'triple'` values load as `'lines'` with the
+ * matching count (`editor/migrations.ts`, `state/configValidation.ts`); the
+ * legacy `'dashed'` / `'dotted'` styles were withdrawn and load as `'solid'`.
  */
-export type StrandLineStyle = 'solid' | 'double' | 'triple' | 'dashed' | 'dotted'
+export type StrandLineStyle = 'solid' | 'lines'
 
 export interface StrandStyle {
   /** Stroke width of each Strand (px). */
@@ -125,9 +127,16 @@ export interface StrandStyle {
   weaveGap?: number
   /** Stroke rendering variant. Default `'solid'`. */
   lineStyle?: StrandLineStyle
-  /** Fill colour painted in the centre gap of `double`/`triple` strokes.
-   * Absent ⇒ the gap stays cut out (Void fills / background show through). */
+  /** Fill colour painted in the gaps of a `'lines'` stroke.
+   * Absent ⇒ the gaps stay cut out (Void fills / background show through). */
   innerFill?: string
+  /** How many parallel lines a `'lines'` stroke divides into, 2–10.
+   * Default 2 (`DEFAULT_LINE_COUNT`). Ignored while `lineStyle` is solid. */
+  lineCount?: number
+  /** Line thickness ÷ gap thickness for a `'lines'` stroke
+   * (`rendering/strandStyle.ts`). Default 1 = equal; higher = thicker lines,
+   * tighter gaps. */
+  styleRatio?: number
 }
 
 /**

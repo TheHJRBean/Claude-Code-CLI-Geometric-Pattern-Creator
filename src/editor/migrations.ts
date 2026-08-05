@@ -23,12 +23,11 @@ import type {
   VoidMergeRecord,
   VoidStampRecord,
 } from '../types/editor'
-import type { StrandLineStyle } from '../types/pattern'
+import { readLineStyleFields } from '../rendering/strandStyle'
 
 const SYMMETRY_MODES = new Set<SymmetryMode>(['full', 'rotation', 'vertical', 'horizontal', 'none'])
 const FRAME_TYPES = new Set<FrameType>(['shape', 'n-ring'])
 const FRAME_SHAPES = new Set<FrameShape>(['square', 'pentagon', 'hexagon', 'octagon'])
-const FRAME_STROKE_STYLES = new Set<StrandLineStyle>(['solid', 'double', 'triple', 'dashed', 'dotted'])
 const GROUPING_SCOPES = new Set<GroupingScope>(['congruent', 'patch', 'cell', 'instance'])
 
 /**
@@ -165,9 +164,7 @@ function migrateFrame(raw: unknown): FrameConfig | undefined {
     if (typeof s.enabled === 'boolean' && typeof s.colour === 'string' && s.colour.length > 0
       && typeof s.width === 'number' && s.width > 0) {
       out.stroke = { enabled: s.enabled, colour: s.colour, width: s.width }
-      if (FRAME_STROKE_STYLES.has(s.lineStyle as StrandLineStyle)) {
-        out.stroke.lineStyle = s.lineStyle as StrandLineStyle
-      }
+      Object.assign(out.stroke, readLineStyleFields(s))
       if (typeof s.innerFill === 'string' && s.innerFill.length > 0) {
         out.stroke.innerFill = s.innerFill
       }

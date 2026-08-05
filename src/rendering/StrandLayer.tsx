@@ -290,14 +290,14 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
   if (pieces.length === 0 && ghostPaths.length === 0) return null
 
   // ── Strand line style ────────────────────────────────────────────────────
-  // dashed/dotted are dash arrays scaled to the Strand width; double/triple
-  // cut the stroke's centre out with a mask so Void fills / background show
-  // through between the parallel lines (an overdraw in the background colour
-  // would paint over Void fills — same trap as the hidden-strand fix).
+  // `'lines'` divides the stroke into parallel lines by cutting the gaps out
+  // with a mask, so Void fills / background show through between them (an
+  // overdraw in the background colour would paint over Void fills — same trap
+  // as the hidden-strand fix).
   const lineStyle = strand.lineStyle ?? 'solid'
   const w = strand.width
-  // dashed/dotted dash arrays, double/triple centre-cut mask flag + widths.
-  const { masked, dashArray, lineCap, cutWidth, centreWidth } = strandStyleAttrs(lineStyle, w)
+  const { masked, maskBands, innerFillWidth } =
+    strandStyleAttrs(lineStyle, w, strand.styleRatio, strand.lineCount)
   // Visible pieces (hidden 'none' strands excluded — their mask cuts
   // would otherwise carve through visible strands crossing them).
   const visiblePieces = pieces
@@ -356,17 +356,20 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
         <defs>
           <mask id={maskId} maskUnits="userSpaceOnUse" x={maskRect.x} y={maskRect.y} width={maskRect.width} height={maskRect.height}>
             <rect x={maskRect.x} y={maskRect.y} width={maskRect.width} height={maskRect.height} fill="white" />
-            {visiblePieces.map(({ d, i }) => (
+            {/* Widest first, alternating cut / restore: each band's stroke
+                overwrites the inside of the one before it, carving the gaps
+                and re-exposing the inner lines. */}
+            {maskBands.map((band, b) => visiblePieces.map(({ d, i }) => (
               <path
-                key={`cut-${i}`}
+                key={`band-${b}-${i}`}
                 d={d}
                 fill="none"
-                stroke="black"
-                strokeWidth={cutWidth}
+                stroke={b % 2 === 0 ? 'black' : 'white'}
+                strokeWidth={band}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
-            ))}
+            )))}
           </mask>
         </defs>
       )}
@@ -386,16 +389,17 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
           ))}
         </g>
       )}
-      {/* Inner fill for double/triple: a cut-width underlay stroke painted
-          beneath the masked outer stroke, so the mask's centre cut reveals
-          this colour instead of the background / Void fills. */}
+      {/* Inner fill: one underlay stroke spanning everything inside the two
+          outermost lines, painted beneath the masked stroke — so every gap
+          the mask cuts reveals this colour instead of the background / Void
+          fills, and the inner lines cover it back up. */}
       {masked && strand.innerFill && visiblePieces.map(({ d, i }) => (
         <path
           key={`strand-innerfill-${i}`}
           d={d}
           fill="none"
           stroke={strand.innerFill}
-          strokeWidth={cutWidth}
+          strokeWidth={innerFillWidth}
           strokeLinecap="round"
           strokeLinejoin="round"
         />
@@ -410,9 +414,8 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
             fill="none"
             stroke={paintOf(pieceStroke, si)}
             strokeWidth={strand.width}
-            strokeLinecap={lineCap}
+            strokeLinecap="round"
             strokeLinejoin="round"
-            strokeDasharray={dashArray}
           />
         ))}
         {/* Angled-cut wedges dressing the woven gap ends (solid style only). */}
@@ -427,17 +430,6 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
           ) : null,
         )}
       </g>
-      {lineStyle === 'triple' && visiblePieces.map(({ d, stroke: pieceStroke, i, si }) => (
-        <path
-          key={`strand-centre-${i}`}
-          d={d}
-          fill="none"
-          stroke={paintOf(pieceStroke, si)}
-          strokeWidth={centreWidth}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      ))}
     </g>
   )
 })

@@ -10,6 +10,7 @@ import { editAvailabilityFor, toCardModel } from './galleryBrowser.logic'
 import {
   cardMetaFor,
   DEFAULT_GALLERY_SORT,
+  filterSaves,
   GALLERY_SORT_STORAGE_KEY,
   groupedSortOptions,
   parseSortKey,
@@ -49,11 +50,16 @@ export function GalleryBrowser({ library, onEditInLab, onGoToLab }: Props) {
   const [sortKey, setSortKey] = useState<GallerySortKey>(() => {
     try { return parseSortKey(localStorage.getItem(GALLERY_SORT_STORAGE_KEY)) } catch { return DEFAULT_GALLERY_SORT }
   })
+  // The filter is deliberately NOT persisted, unlike the sort: a remembered
+  // query would greet the next visit with a near-empty grid and no visible
+  // cause. A sort always shows everything; a filter is a transient question.
+  const [query, setQuery] = useState('')
 
-  const sorted = useMemo(() => sortSaves(entries, sortKey), [entries, sortKey])
+  const visible = useMemo(() => sortSaves(filterSaves(entries, query), sortKey), [entries, query, sortKey])
+  const filtering = query.trim().length > 0
   // Thumbnail backfill follows the visible order, so the cards on screen render
   // before the ones further down the grid.
-  const { thumbs, markDeleted } = useThumbnails(sorted)
+  const { thumbs, markDeleted } = useThumbnails(visible)
 
   const refresh = () => setEntries(library.list())
 
@@ -128,6 +134,10 @@ export function GalleryBrowser({ library, onEditInLab, onGoToLab }: Props) {
     facts: [
       { label: 'Saved patterns', value: String(entries.length) },
       { label: 'Sort order', value: sortKey },
+      // Only when set: a filter is the single likeliest reason a report says
+      // "my pattern is missing from the Gallery", and it is invisible in a
+      // screenshot of the grid alone.
+      ...(filtering ? [{ label: 'Name filter', value: `“${query.trim()}” (${visible.length} of ${entries.length} shown)` }] : []),
       { label: 'Open in detail view', value: selected ? selected.name : 'none' },
       ...(error ? [{ label: 'Visible error', value: error }] : []),
     ],
@@ -141,10 +151,27 @@ export function GalleryBrowser({ library, onEditInLab, onGoToLab }: Props) {
           <p className="gallery-browser__subtitle">
             {entries.length === 0
               ? 'Your saved patterns will appear here.'
-              : `${entries.length} saved ${entries.length === 1 ? 'pattern' : 'patterns'}`}
+              : filtering
+                // Naming the total is what stops a narrow filter reading as a
+                // library that lost patterns.
+                ? `${visible.length} of ${entries.length} ${entries.length === 1 ? 'pattern' : 'patterns'}`
+                : `${entries.length} saved ${entries.length === 1 ? 'pattern' : 'patterns'}`}
           </p>
         </div>
         <div className="gallery-browser__tools">
+          {entries.length > 1 && (
+            <label className="gallery-browser__search">
+              <span className="gallery-browser__sort-label">Find</span>
+              <input
+                className="gallery-browser__search-input"
+                type="search"
+                value={query}
+                placeholder="Filter by name"
+                aria-label="Filter patterns by name"
+                onChange={e => setQuery(e.target.value)}
+              />
+            </label>
+          )}
           {entries.length > 1 && (
             <label className="gallery-browser__sort">
               <span className="gallery-browser__sort-label">Sort</span>
@@ -173,9 +200,18 @@ export function GalleryBrowser({ library, onEditInLab, onGoToLab }: Props) {
           <p>Start in the <strong>Lab</strong> — build or tune a pattern there, then save it to see it here.</p>
           <button className="gallery-browser__empty-cta" onClick={onGoToLab}>Open the Lab</button>
         </div>
+      ) : visible.length === 0 ? (
+        // A filter that matches nothing must never render the "Nothing saved
+        // yet" panel above — the patterns are all still there, and telling
+        // someone their library is empty when it isn't is the worst thing this
+        // screen could say.
+        <div className="gallery-browser__empty">
+          <p>No pattern names match “{query.trim()}”.</p>
+          <button className="gallery-browser__empty-cta" onClick={() => setQuery('')}>Clear the filter</button>
+        </div>
       ) : (
         <div className="gallery-grid">
-          {sorted.map(entry => (
+          {visible.map(entry => (
             <PatternCard
               key={entry.id}
               model={toCardModel(entry)}

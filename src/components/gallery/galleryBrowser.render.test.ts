@@ -66,8 +66,10 @@ describe('GalleryBrowser render', () => {
     expect(html).toContain('My Patterns')
     // Placeholder shown until the (effect-driven) thumbnail backfills.
     expect(html).toContain('Rendering preview')
-    // A single save has nothing to order, so the sort control stays out of the way.
+    // A single save has nothing to order or narrow, so both header controls
+    // stay out of the way.
     expect(html).not.toContain('gallery-browser__sort-select')
+    expect(html).not.toContain('gallery-browser__search-input')
   })
 
   it('renders the sort control and per-card meta once there is more than one save', async () => {
@@ -96,6 +98,8 @@ describe('GalleryBrowser render', () => {
 
     expect(html).toContain('gallery-browser__sort-select')
     expect(html).toContain('Recently edited')
+    // The name filter appears under the same "more than one save" gate.
+    expect(html).toContain('gallery-browser__search-input')
     // The persisted preference is honoured on mount: oldest created first, and
     // the meta line names the field being sorted on.
     expect(html.indexOf('Older Pattern')).toBeLessThan(html.indexOf('Newer Pattern'))

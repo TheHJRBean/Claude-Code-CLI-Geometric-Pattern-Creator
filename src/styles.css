@@ -794,7 +794,7 @@
   margin: 4px 0 0;
 }
 
-/* Header right-hand cluster: sort control + the New in Lab action. */
+/* Header right-hand cluster: name filter + sort control + the New in Lab action. */
 .gallery-browser__tools {
   display: flex;
   align-items: center;
@@ -802,10 +802,39 @@
   flex-wrap: wrap;
 }
 
-.gallery-browser__sort {
+.gallery-browser__sort,
+.gallery-browser__search {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* Borrows the .pattern-select treatment beside it (same input surface, border
+   and focus ring) so the two header controls read as one cluster; only the
+   arrow well and the full-width sizing are dropped. `type="search"` gives the
+   browser's own clear affordance; the empty-state button is the keyboard route
+   back. */
+.gallery-browser__search-input {
+  width: auto;
+  min-width: 170px;
+  background-color: var(--bg-input);
+  color: var(--text);
+  border: 1px solid var(--border-accent);
+  padding: 7px 10px;
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.gallery-browser__search-input:hover,
+.gallery-browser__search-input:focus {
+  border-color: var(--accent);
+}
+
+.gallery-browser__search-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .gallery-browser__sort-label {

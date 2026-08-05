@@ -2,13 +2,14 @@ import type { SavedConfig, SavedSourceCategory } from '../../state/configLibrary
 import { TILINGS } from '../../tilings/index'
 
 /**
- * Pure sorting logic for the Gallery saved-patterns browser.
+ * Pure logic for **which saves the Gallery grid shows, and in what order**.
  *
  * The library is stored in insertion order, which is only ever "oldest save
  * first" — useless once a profile holds more than a screenful. This module owns
- * the orderings the browser offers, the per-card meta line each one explains
- * itself with, and the persisted-preference parsing. Kept DOM-free so the
- * comparators are unit-testable in the node env, matching `galleryBrowser.logic`.
+ * the orderings the browser offers, the name filter that narrows them, the
+ * per-card meta line each ordering explains itself with, and the
+ * persisted-preference parsing. Kept DOM-free so the comparators are
+ * unit-testable in the node env, matching `galleryBrowser.logic`.
  *
  * Timestamps come from `SavedConfig`: `createdAt` (stable), `updatedAt` (moves
  * on every overwrite) and `lastOpenedAt` (undefined until first opened).
@@ -133,6 +134,31 @@ export function sortSaves(saves: readonly SavedConfig[], key: GallerySortKey): S
   return [...saves].sort(
     (a, b) => primary(a, b) || compareNames(a, b) || a.id.localeCompare(b.id),
   )
+}
+
+/**
+ * Narrow the saves to those whose **name** matches every whitespace-separated
+ * token of `query`, case-insensitively and in any order — so "star 8" finds
+ * "8-point Star" as readily as "Star (8)". An empty or whitespace-only query
+ * returns the input untouched, which is what makes this safe to run
+ * unconditionally in the grid's derived list.
+ *
+ * Tokens are ANDed rather than matched as one substring because a saved name
+ * is written by the user for their own filing, not for searching: they
+ * remember the words, rarely the order or the punctuation between them.
+ *
+ * Deliberately name-only. The kind label (`kindLabelFor`) reads like a search
+ * term — "4.8.8", "Builder" — but matching it would mean a query that visibly
+ * matches no name still returns cards, which reads as a bug rather than a
+ * feature. It is the *sort* that groups by kind.
+ */
+export function filterSaves(saves: readonly SavedConfig[], query: string): SavedConfig[] {
+  const tokens = query.toLowerCase().split(/\s+/).filter(Boolean)
+  if (tokens.length === 0) return [...saves]
+  return saves.filter(save => {
+    const name = save.name.toLowerCase()
+    return tokens.every(token => name.includes(token))
+  })
 }
 
 const MINUTE = 60_000

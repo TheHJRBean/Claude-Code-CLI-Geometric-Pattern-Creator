@@ -4,6 +4,7 @@ import type { SavedConfig, SavedSourceCategory } from '../../state/configLibrary
 import {
   cardMetaFor,
   DEFAULT_GALLERY_SORT,
+  filterSaves,
   formatRelativeTime,
   GALLERY_SORT_OPTIONS,
   groupedSortOptions,
@@ -223,5 +224,56 @@ describe('cardMetaFor', () => {
   it('falls back to the edit time for the name sorts, which have no time of their own', () => {
     expect(cardMetaFor(s, 'name-asc', now)).toBe('Edited 1 hr ago')
     expect(cardMetaFor(s, 'name-desc', now)).toBe('Edited 1 hr ago')
+  })
+})
+
+describe('filterSaves', () => {
+  const saves = [
+    save({ id: 'a', name: '8-point Star' }),
+    save({ id: 'b', name: 'Kagome study' }),
+    save({ id: 'c', name: "Kepler's Star (4.4.4.4)" }),
+  ]
+  const ids = (out: SavedConfig[]) => out.map(s => s.id)
+
+  it('matches on name, case-insensitively', () => {
+    expect(ids(filterSaves(saves, 'star'))).toEqual(['a', 'c'])
+    expect(ids(filterSaves(saves, 'STAR'))).toEqual(['a', 'c'])
+  })
+
+  it('ANDs whitespace-separated tokens in any order', () => {
+    // The point of tokenising: the user remembers the words, not the order or
+    // the punctuation between them.
+    expect(ids(filterSaves(saves, 'star 8'))).toEqual(['a'])
+    expect(ids(filterSaves(saves, '8 star'))).toEqual(['a'])
+    expect(ids(filterSaves(saves, 'kepler star'))).toEqual(['c'])
+  })
+
+  it('returns everything for an empty or whitespace-only query', () => {
+    // This is what makes the filter safe to run unconditionally in the grid's
+    // derived list — no "is the filter on?" branch at the call site.
+    expect(ids(filterSaves(saves, ''))).toEqual(['a', 'b', 'c'])
+    expect(ids(filterSaves(saves, '   '))).toEqual(['a', 'b', 'c'])
+  })
+
+  it('returns empty when nothing matches, rather than falling back to all', () => {
+    expect(filterSaves(saves, 'nonesuch')).toEqual([])
+  })
+
+  it('does not mutate the input array', () => {
+    const input = [...saves]
+    filterSaves(input, 'star')
+    expect(input).toHaveLength(3)
+  })
+
+  it('does not match the kind label — only the name', () => {
+    // "Builder"/"4.8.8" read like search terms, but matching them would return
+    // cards whose visible names contain nothing the user typed.
+    const builder = save({ id: 'd', name: 'Untitled', sourceCategory: 'editor' })
+    expect(filterSaves([builder], 'builder')).toEqual([])
+  })
+
+  it('composes with sortSaves — filter narrows, sort orders', () => {
+    expect(ids(sortSaves(filterSaves(saves, 'star'), 'name-asc'))).toEqual(['a', 'c'])
+    expect(ids(sortSaves(filterSaves(saves, 'star'), 'name-desc'))).toEqual(['c', 'a'])
   })
 })

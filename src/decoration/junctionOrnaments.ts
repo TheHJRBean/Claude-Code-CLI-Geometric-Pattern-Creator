@@ -51,10 +51,11 @@ export interface KeyedJunction {
   point: Vec2
   /** Ornament orientation from the threads (radians); see `junctionAngle`. */
   threadAngle: number
-  /** Through-direction of each thread meeting here. Carried because the
-   *  **twinkle** is built FROM the line work rather than stamped on it
-   *  (`flarePathD`) — a dot or a star only needs `threadAngle`. */
-  dirs: Vec2[]
+  /** Every arm leaving this junction — two per thread pass, as the line work
+   *  actually runs (`StrandJunction.arms`). Carried because the **twinkle**
+   *  is built FROM the line work rather than stamped on it (`flarePathD`) —
+   *  a dot or a star only needs `threadAngle`. */
+  arms: Vec2[]
   /**
    * The colour of the Strands meeting here, for an ornament set to match them
    * (`decoration/strandColour.ts`). `'none'` — the sentinel a removed strand
@@ -82,8 +83,8 @@ export interface JunctionPlacement {
    *  Zero for a twinkle: its geometry already follows the threads, so
    *  rotating it would take it off them. */
   angle: number
-  /** The threads meeting here — the twinkle's geometry is derived from them. */
-  dirs: Vec2[]
+  /** The arms meeting here — the twinkle's geometry is derived from them. */
+  arms: Vec2[]
   /** The colour to draw in: the style's own, or the Strands' where the style
    *  matches them. Resolved here so the renderer never has to ask again. */
   colour: string
@@ -119,8 +120,8 @@ export function keyJunctions(
     const orbit = nearestOffset(j.point, stamps)
     return {
       point: j.point,
-      threadAngle: junctionAngle(j.dirs),
-      dirs: j.dirs,
+      threadAngle: junctionAngle(j.arms),
+      arms: j.arms,
       ...(colourOfStrand && j.strands.length > 0
         ? { strandColour: colourOfStrand(j.strands[0]) }
         : null),
@@ -252,7 +253,7 @@ export function resolveJunctionPlacements(
     const base = style.shape === 'twinkle' ? 0
       : (style.align ?? 'thread') === 'thread' ? j.threadAngle : 0
     const angle = style.shape === 'twinkle' ? 0 : base + ((style.angle ?? 0) * Math.PI) / 180
-    out.push({ point: j.point, angle, dirs: j.dirs, colour, style })
+    out.push({ point: j.point, angle, arms: j.arms, colour, style })
   }
   return out
 }
@@ -322,9 +323,12 @@ export function ornamentPathD(style: JunctionOrnamentStyle, r: number): string {
  * path rotated into place like a dot or a star: it is built per junction, in
  * coordinates local to it, from
  *
- * - `dirs` — the through-direction of each thread. Each contributes TWO arms
- *   (a thread passing through a crossing continues both ways), which is what
- *   makes an ordinary crossing four corners rather than two.
+ * - `incident` — the junction's **arms** (`StrandJunction.arms`): the two
+ *   directions each thread pass actually leaves in, which is what makes an
+ *   ordinary crossing four corners rather than two. They are given, never
+ *   derived as ±through-direction: a thread only leaves antiparallel where
+ *   the field is symmetric there, and on one that bends, half the bend is
+ *   exactly how far off the strands the fillets land.
  * - `strandWidth` — the arms' half-width is where the fillet has to land, or
  *   it would float off the line work.
  * - `reach` — how far along each arm the fillet starts. One value for every
@@ -339,22 +343,30 @@ export function ornamentPathD(style: JunctionOrnamentStyle, r: number): string {
  * nothing on that side) are skipped rather than drawn degenerate.
  */
 export function flarePathD(
-  dirs: readonly Vec2[],
+  incident: readonly Vec2[],
   strandWidth: number,
   reach: number,
   roundness: number,
 ): string {
   const half = strandWidth / 2
-  // A thread through a crossing continues both ways: two arms per direction.
+  // The arms come in already — two per thread pass, and NOT antiparallel
+  // where the thread bends through the crossing. Synthesising them here as
+  // ±dir is what put the fillets off the line work on every asymmetric field.
   const arms: Vec2[] = []
-  for (const d of dirs) {
+  for (const d of incident) {
     const len = Math.hypot(d.x, d.y)
     if (len < 1e-9) continue
-    const u = { x: d.x / len, y: d.y / len }
-    arms.push(u, { x: -u.x, y: -u.y })
+    arms.push({ x: d.x / len, y: d.y / len })
   }
   if (arms.length < 2) return ''
-  arms.sort((a, b) => Math.atan2(a.y, a.x) - Math.atan2(b.y, b.x))
+  // Normalised to [0, 2π) — the same walk `armGapRing` takes, and immune to
+  // the signed zero that `atan2(-0, -1) = -π` would otherwise smuggle in.
+  // Only the order wedges are emitted in depends on it; the ring is the same.
+  const turn = (v: Vec2) => {
+    const a = Math.atan2(v.y, v.x)
+    return a < 0 ? a + 2 * Math.PI : a
+  }
+  arms.sort((a, b) => turn(a) - turn(b))
 
   const k = Math.max(0.05, Math.min(1, roundness))
   let d = ''

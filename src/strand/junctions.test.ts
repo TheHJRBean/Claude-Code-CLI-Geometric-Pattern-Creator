@@ -54,41 +54,78 @@ describe('strandJunctions', () => {
 })
 
 describe('junctionSignature', () => {
-  const dirsAt = (...degs: number[]) =>
+  const at = (...degs: number[]) =>
     degs.map(d => ({ x: Math.cos((d * Math.PI) / 180), y: Math.sin((d * Math.PI) / 180) }))
+  /** Arms of threads that run STRAIGHT through: each contributes a pair. */
+  const straight = (...degs: number[]) => at(...degs.flatMap(d => [d, d + 180]))
 
   it('is invariant under rotation', () => {
-    expect(junctionSignature(dirsAt(0, 90))).toBe(junctionSignature(dirsAt(31, 121)))
+    expect(junctionSignature(straight(0, 90))).toBe(junctionSignature(straight(31, 121)))
   })
 
   it('is invariant under reflection', () => {
     // A 60° crossing and its mirror image are the same junction shape.
-    expect(junctionSignature(dirsAt(0, 60))).toBe(junctionSignature(dirsAt(0, 120)))
+    expect(junctionSignature(straight(0, 60))).toBe(junctionSignature(straight(0, 120)))
   })
 
   it('is invariant under reversing a thread (a line, not a ray)', () => {
-    expect(junctionSignature(dirsAt(0, 90))).toBe(junctionSignature(dirsAt(180, 270)))
+    expect(junctionSignature(straight(0, 90))).toBe(junctionSignature(straight(180, 270)))
   })
 
   it('separates different crossing angles', () => {
-    expect(junctionSignature(dirsAt(0, 90))).not.toBe(junctionSignature(dirsAt(0, 60)))
+    expect(junctionSignature(straight(0, 90))).not.toBe(junctionSignature(straight(0, 60)))
   })
 
   it('separates different degrees', () => {
-    expect(junctionSignature(dirsAt(0, 90))).not.toBe(junctionSignature(dirsAt(0, 60, 120)))
+    expect(junctionSignature(straight(0, 90))).not.toBe(junctionSignature(straight(0, 60, 120)))
+  })
+
+  it('a straight crossing keys EXACTLY as it did before arms — saved records still resolve', () => {
+    // The ring of a straight junction repeats every half turn, and the
+    // signature reduces it to that period. This is the literal string the
+    // line-fold produced for a right-angle crossing, and a `Matching` record
+    // saved against it has to keep matching.
+    // Two threads 45° apart — the class every crossing of the 4.8.8 field
+    // falls in, and the string it has been keyed by since the feature shipped.
+    expect(junctionSignature(straight(0, 45))).toBe('j2:270,90')
+    // A right-angle crossing halves to a PAIR of equal gaps, never to one:
+    // reducing further would key it as something the line-fold never emitted.
+    expect(junctionSignature(straight(0, 90))).toBe('j2:180,180')
+  })
+
+  it('a BENT thread is a different class from the straight one it resembles', () => {
+    // The bug this pins: folding each pass onto one undirected line reported
+    // Cairo's 15° kink as a 1° wobble and put visibly different crossings in
+    // one class. A bent junction's ring has no half-turn period.
+    const bent = at(0, 180 - 15, 90, 270)
+    expect(junctionSignature(bent)).not.toBe(junctionSignature(straight(0, 90)))
+    // ...and two junctions bent the same way, rotated apart, still match.
+    const rotated = at(20, 200 - 15, 110, 290)
+    expect(junctionSignature(bent)).toBe(junctionSignature(rotated))
   })
 })
 
 describe('junctionAngle', () => {
-  it('bisects the widest gap between the incident lines', () => {
+  it('bisects the widest gap between the incident arms', () => {
     // A right-angle crossing: every gap is 90°, and the first one starts at 0.
-    const a = junctionAngle([{ x: 1, y: 0 }, { x: 0, y: 1 }])
+    const a = junctionAngle([{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 0, y: -1 }])
     expect((a * 180) / Math.PI).toBeCloseTo(45)
   })
 
   it('does not depend on the order the threads were enumerated in', () => {
-    const dirs = [{ x: 1, y: 0 }, { x: Math.cos(1), y: Math.sin(1) }]
-    expect(junctionAngle(dirs)).toBeCloseTo(junctionAngle(dirs.slice().reverse()))
+    const arms = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: Math.cos(1), y: Math.sin(1) },
+      { x: -Math.cos(1), y: -Math.sin(1) }]
+    expect(junctionAngle(arms)).toBeCloseTo(junctionAngle(arms.slice().reverse()))
+  })
+
+  it('aims into the wedge a bent thread actually opens', () => {
+    // Arms at 0 / 90 / 165 / 270: the widest wedge is 165°→270°, so the
+    // ornament aims at 217.5°. The line-fold saw only 0/90/(165) and would
+    // have aimed somewhere that wedge does not exist.
+    const a = junctionAngle([0, 90, 165, 270].map(d => ({
+      x: Math.cos((d * Math.PI) / 180), y: Math.sin((d * Math.PI) / 180),
+    })))
+    expect((a * 180) / Math.PI).toBeCloseTo(217.5, 4)
   })
 })
 

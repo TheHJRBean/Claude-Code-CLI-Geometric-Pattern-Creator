@@ -40,7 +40,7 @@ export const StrandJunctionLayer = memo(function StrandJunctionLayer({
         point: p.point,
         // `size` is the reach ALONG the strand here, not a diameter: a twinkle
         // has no radius, it runs up the arms.
-        d: flarePathD(p.dirs, strandWidth, p.style.size * strandWidth, p.style.innerRatio ?? 0.55),
+        d: flarePathD(p.arms, strandWidth, p.style.size * strandWidth, p.style.innerRatio ?? 0.55),
         fill: paint.fill,
         stroke: paint.stroke,
         strokeWidth: paint.strokeWidth,

@@ -188,9 +188,27 @@ after areas and lines.
   between two adjacent arms, a fillet from a point `reach` along one arm's edge,
   tangent-curved past the corner, out along the next. A thread through a
   crossing continues both ways, so two threads give **four** arms and four
-  corners. Consequences: it carries the junction's `dirs` on the placement, it
+  corners. Consequences: it carries the junction's `arms` on the placement, it
   is never rotated (its frame is the junction's own), it can't share a `<defs>`
   path, and `size` means *reach along the arm*, not a diameter.
+- **`arms`, never `±dirs` — and this is the whole of `StrandJunction.arms`.**
+  `StrandVisit.dir` is the *chord* through a crossing, which is what the weave
+  wants (how transversal two threads are). A thread only leaves antiparallel
+  where the field is **symmetric** there: on Cairo pentagonal it kinks 15° at
+  its contact points, and reconstructing arms as `±dir` put every fillet ~8°
+  off the strands it claimed to be rounding — crossing over the line work and
+  spiking into open space. `collectStrandVisits` now records both real arms per
+  visit, and `junctionSignature` / `junctionAngle` read them too: folding a
+  pass onto one undirected *line* throws away exactly the asymmetry that
+  distinguishes two junctions. The signature **halves its arm-gap ring when the
+  ring repeats every half turn** — which is precisely what a straight junction
+  does — so every key on a straight field is byte-identical to the pre-arms
+  one and saved `Matching` records still resolve. Only the half turn: a
+  right-angle ring is `[90,90,90,90]`, and reducing to its *minimal* period
+  would key it as something the old code never emitted.
+  Pinned by `src/strand/junctionArms.test.ts` over real straight and bent PIC
+  fields — a unit fixture is symmetric unless you make it otherwise, which is
+  why every shipped test passed while half the tilings drew it wrong.
 - `rendering/StrandJunctionLayer.tsx` — one `<defs>` path per distinct style,
   `<use>` per junction (dot / star); one `<path>` per junction for a twinkle. Above the Strands (a hollow ornament must show its
   inside) and INSIDE the exported tree. A hollow ornament is the same outline

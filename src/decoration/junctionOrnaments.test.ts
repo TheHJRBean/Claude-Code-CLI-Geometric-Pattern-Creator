@@ -29,6 +29,9 @@ const dot = (colour: string): JunctionOrnamentStyle => ({ ...DEFAULT_JUNCTION_OR
 const j = (x: number, y: number, sig = 'jA', strands = [0, 1]): StrandJunction => ({
   point: { x, y },
   dirs: [{ x: 1, y: 0 }, { x: 0, y: 1 }],
+  // Both threads run straight through, so each contributes an antiparallel
+  // pair. On a field that bends they would not (see `strandJunctions`).
+  arms: [{ x: -1, y: 0 }, { x: 1, y: 0 }, { x: 0, y: -1 }, { x: 0, y: 1 }],
   strands,
   degree: 2,
   signature: sig,
@@ -113,7 +116,7 @@ describe('resolveJunctionPlacements', () => {
       { scope: 'congruent', key: '*', ...DEFAULT_JUNCTION_ORNAMENT, shape: 'twinkle', align: 'thread', angle: 40 },
     ])
     expect(p.angle).toBe(0)
-    expect(p.dirs).toHaveLength(2)
+    expect(p.arms).toHaveLength(4)
   })
 
   it('an upright ornament ignores the threads', () => {
@@ -230,12 +233,14 @@ describe('splitJunctionLayers', () => {
 })
 
 describe('flarePathD — the twinkle', () => {
-  const cross = [{ x: 1, y: 0 }, { x: 0, y: 1 }] // two threads at right angles
+  // Two threads at right angles, as ARMS: each pass leaves the crossing both
+  // ways, and on a straight field those two ways are antiparallel.
+  const cross = [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 0, y: -1 }]
   const W = 4
 
   it('rounds every corner of the crossing — two threads make FOUR', () => {
-    // A thread passing through continues both ways, so 2 dirs = 4 arms = 4
-    // wedges. Treating a dir as one arm would round only half the corners.
+    // A thread passing through continues both ways, so 2 threads = 4 arms =
+    // 4 wedges. Treating a thread as one arm would round only half of them.
     const d = flarePathD(cross, W, 12, 0.55)
     expect((d.match(/M/g) ?? []).length).toBe(4)
     expect((d.match(/C/g) ?? []).length).toBe(4)
@@ -274,12 +279,36 @@ describe('flarePathD — the twinkle', () => {
 
   it('skips a wedge with no corner to round', () => {
     // One thread alone: its two arms are collinear, so there is no corner.
-    expect(flarePathD([{ x: 1, y: 0 }], W, 12, 0.55)).toBe('')
+    expect(flarePathD([{ x: 1, y: 0 }, { x: -1, y: 0 }], W, 12, 0.55)).toBe('')
   })
 
   it('rounds all six corners where three threads meet', () => {
-    const three = [{ x: 1, y: 0 }, { x: 0.5, y: Math.sqrt(3) / 2 }, { x: -0.5, y: Math.sqrt(3) / 2 }]
+    const three = [0, 60, 120].flatMap(d => [d, d + 180]).map(d => ({
+      x: Math.cos((d * Math.PI) / 180), y: Math.sin((d * Math.PI) / 180),
+    }))
     expect((flarePathD(three, W, 12, 0.55).match(/M/g) ?? []).length).toBe(6)
+  })
+
+  it('rounds the corners a BENT thread actually makes, not the ones it would if straight', () => {
+    // The regression: on an asymmetric field a thread kinks through the
+    // crossing, so its two arms are not antiparallel. Fillets built from
+    // ±through-direction land half the bend angle off the line work.
+    const bend = 16
+    const arms = [0, 180 - bend, 90, 270].map(d => ({
+      x: Math.cos((d * Math.PI) / 180), y: Math.sin((d * Math.PI) / 180),
+    }))
+    const d = flarePathD(arms, W, 12, 0.55)
+    expect((d.match(/M/g) ?? []).length).toBe(4)
+    // The fillet on the bent arm must start ALONG that arm: at reach 12 and
+    // half-width 2 off its centreline, i.e. 12 along a direction 164°, not 180°.
+    const pts = pathPoints(d)
+    const u = { x: Math.cos(((180 - bend) * Math.PI) / 180), y: Math.sin(((180 - bend) * Math.PI) / 180) }
+    const onBentArm = pts.some(p => {
+      const along = p.x * u.x + p.y * u.y
+      const off = Math.abs(p.x * -u.y + p.y * u.x)
+      return Math.abs(along - 12) < 1e-6 && Math.abs(off - W / 2) < 1e-6
+    })
+    expect(onBentArm).toBe(true)
   })
 })
 

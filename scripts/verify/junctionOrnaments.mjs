@@ -285,5 +285,50 @@ await page.waitForTimeout(1500)
 console.log('HIDDEN STRANDS   ', await page.evaluate(() => !!document.querySelector('#junction-ornament-world-layer'))
   ? 'FAIL — ornaments left floating' : 'PASS — gone with the strands')
 
+// ── An ASYMMETRIC field: the twinkle follows the bend ───────────────────
+// Cairo pentagonal's threads kink ~15° at their contact points. That makes
+// the four arms of a crossing NOT antiparallel — and the discriminating
+// signal: a twinkle built from the real arms is not point-symmetric, while
+// one rebuilt as ±through-direction always is, whatever the field does.
+// (The geometry itself is pinned by `src/strand/junctionArms.test.ts`.)
+const twinkleSymmetry = async () => page.evaluate(() => {
+  const layer = document.querySelector('#junction-ornament-world-layer')
+  if (!layer) return null
+  const paths = [...layer.querySelectorAll(':scope > path')]
+  const num = '-?\\d+(?:\\.\\d+)?(?:e[-+]?\\d+)?'
+  let symmetric = 0
+  for (const p of paths.slice(0, 200)) {
+    const starts = [...p.getAttribute('d').matchAll(new RegExp(`M(${num}),(${num})`, 'g'))]
+      .map(m => ({ x: Number(m[1]), y: Number(m[2]) }))
+    const paired = starts.every(a =>
+      starts.some(b => Math.hypot(b.x + a.x, b.y + a.y) < Math.hypot(a.x, a.y) * 0.02))
+    if (paired) symmetric++
+  }
+  return { sampled: Math.min(paths.length, 200), symmetric, total: paths.length }
+})
+
+const straight = await twinkleSymmetry()
+
+await page.goto('http://localhost:5173/', { waitUntil: 'networkidle' })
+await page.waitForTimeout(1500)
+await page.click('button:has-text("Cairo")')
+await page.waitForTimeout(2500)
+await page.click('button:has-text("Decoration")')
+await page.waitForTimeout(900)
+await page.click('button:has-text("Junctions")')
+await page.waitForTimeout(1500)
+const cairoCrossings = await markers()
+await page.click('button:has-text("Twinkle")')
+await page.waitForTimeout(400)
+await page.click('button:has-text("Ornament every junction")')
+await page.waitForTimeout(2000)
+const bent = await twinkleSymmetry()
+console.log('CAIRO ORNAMENTS  ', bent ? `${bent.total} of ${cairoCrossings} crossings` : 'LAYER ABSENT',
+  bent && bent.total === cairoCrossings ? 'PASS — a legacy asymmetric substrate' : 'FAIL')
+console.log('CAIRO BENT ARMS  ', bent && `${bent.symmetric}/${bent.sampled} point-symmetric`,
+  bent && bent.symmetric < bent.sampled * 0.2
+    ? 'PASS — the fillets follow the kink, not ±through-direction'
+    : 'FAIL — twinkles are still point-symmetric on a bent field')
+
 console.log('ERRORS           ', JSON.stringify(errs.slice(0, 5)))
 await b.close()

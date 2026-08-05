@@ -41,6 +41,18 @@ export interface StrandVisit {
   s: number
   /** Unit direction of the thread at the crossing (straight-line geometry). */
   dir: Vec2
+  /**
+   * The two directions the drawn line work actually leaves this point in —
+   * the thread's arms, pointing away from the crossing.
+   *
+   * `dir` is the *chord* through the crossing, which is what the weave wants
+   * (it asks how transversal two threads are). The arms are what anything
+   * drawn ON the line work needs: a thread only runs straight through when
+   * the pattern is symmetric there, and where it bends — Cairo pentagonal
+   * kinks 15° at its contact points — `±dir` misses both arms by half the
+   * bend. They coincide with `±dir` exactly when the thread is straight.
+   */
+  arms: [Vec2, Vec2]
 }
 
 /** A world point with every thread pass through it, in insertion order. */
@@ -91,11 +103,23 @@ export function collectStrandVisits(strands: readonly StrandData[]): VisitField 
   const byStrand: StrandVisit[][] = strands.map(() => [])
   const crossingOfVisit = new Map<StrandVisit, StrandCrossing>()
 
-  const addVisit = (strand: number, s: number, dir: Vec2, worldKey: string, point: Vec2) => {
+  /** The thread's two outgoing directions at chain point `idx` of strand `s`.
+   *  A closed Strand's wrap point joins its last edge to its first. */
+  const armsAtChainPoint = (s: number, idx: number): [Vec2, Vec2] => {
+    const pts = strands[s].points
+    const n = pts.length
+    const back = idx === 0 ? pts[n - 2] : pts[idx - 1]
+    const fwd = idx === 0 ? pts[1] : pts[idx + 1]
+    return [normalize(sub(back, pts[idx])), normalize(sub(fwd, pts[idx]))]
+  }
+
+  const addVisit = (
+    strand: number, s: number, dir: Vec2, worldKey: string, point: Vec2, arms: [Vec2, Vec2],
+  ) => {
     const vk = `${strand}|${worldKey}|${s.toFixed(6)}`
     if (seen.has(vk)) return
     seen.add(vk)
-    const v: StrandVisit = { strand, s, dir }
+    const v: StrandVisit = { strand, s, dir, arms }
     byStrand[strand].push(v)
     let c = byPoint.get(worldKey)
     if (!c) byPoint.set(worldKey, (c = { point, visits: [] }))
@@ -109,9 +133,11 @@ export function collectStrandVisits(strands: readonly StrandData[]): VisitField 
   for (let s = 0; s < strands.length; s++) {
     const pts = strands[s].points
     const n = pts.length
-    if (closedFlags[s]) addVisit(s, 0, normalize(sub(pts[1], pts[n - 2])), ptKey(pts[0]), pts[0])
+    if (closedFlags[s]) {
+      addVisit(s, 0, normalize(sub(pts[1], pts[n - 2])), ptKey(pts[0]), pts[0], armsAtChainPoint(s, 0))
+    }
     for (let i = 1; i < n - 1; i++) {
-      addVisit(s, i, normalize(sub(pts[i + 1], pts[i - 1])), ptKey(pts[i]), pts[i])
+      addVisit(s, i, normalize(sub(pts[i + 1], pts[i - 1])), ptKey(pts[i]), pts[i], armsAtChainPoint(s, i))
     }
   }
 
@@ -130,12 +156,17 @@ export function collectStrandVisits(strands: readonly StrandData[]): VisitField 
    * chain point when within ENDPOINT_TOL (sharing source a's visit), null
    * for an open-Strand terminus (T-junction — no interlace).
    */
-  const classify = (e: EdgeRef, t: number): { s: number; dir: Vec2; point: Vec2 | null } | null => {
+  const classify = (
+    e: EdgeRef, t: number,
+  ): { s: number; dir: Vec2; point: Vec2 | null; arms: [Vec2, Vec2] } | null => {
     const elen = dist(e.a, e.b)
     const fromStart = t * elen
     const fromEnd = (1 - t) * elen
     if (fromStart > ENDPOINT_TOL && fromEnd > ENDPOINT_TOL) {
-      return { s: e.edge + t, dir: normalize(sub(e.b, e.a)), point: null }
+      // Mid-edge: the thread runs straight through, so its arms are the
+      // edge's two directions.
+      const d = normalize(sub(e.b, e.a))
+      return { s: e.edge + t, dir: d, point: null, arms: [{ x: -d.x, y: -d.y }, d] as [Vec2, Vec2] }
     }
     let idx = fromStart <= ENDPOINT_TOL ? e.edge : e.edge + 1
     const pts = strands[e.strand].points
@@ -143,9 +174,16 @@ export function collectStrandVisits(strands: readonly StrandData[]): VisitField 
     if (idx === 0 || idx === n - 1) {
       if (!closedFlags[e.strand]) return null
       idx = 0
-      return { s: 0, dir: normalize(sub(pts[1], pts[n - 2])), point: pts[0] }
+      return {
+        s: 0, dir: normalize(sub(pts[1], pts[n - 2])), point: pts[0], arms: armsAtChainPoint(e.strand, 0),
+      }
     }
-    return { s: idx, dir: normalize(sub(pts[idx + 1], pts[idx - 1])), point: pts[idx] }
+    return {
+      s: idx,
+      dir: normalize(sub(pts[idx + 1], pts[idx - 1])),
+      point: pts[idx],
+      arms: armsAtChainPoint(e.strand, idx),
+    }
   }
 
   // Spatial-grid broad phase keeps the edge-pair sweep near-linear.
@@ -196,8 +234,8 @@ export function collectStrandVisits(strands: readonly StrandData[]): VisitField 
     if (pa.point && pb.point) return // both at chain points ⇒ source a covers it
     const worldPt = pa.point ?? pb.point ?? lerp(ea.a, ea.b, t)
     const key = ptKey(worldPt)
-    addVisit(ea.strand, pa.s, pa.dir, key, worldPt)
-    addVisit(eb.strand, pb.s, pb.dir, key, worldPt)
+    addVisit(ea.strand, pa.s, pa.dir, key, worldPt, pa.arms)
+    addVisit(eb.strand, pb.s, pb.dir, key, worldPt, pb.arms)
   }
 
   const tested = new Set<number>()
@@ -223,6 +261,18 @@ export interface StrandJunction {
   point: Vec2
   /** Unit direction of each thread pass, in enumeration order. */
   dirs: Vec2[]
+  /**
+   * Every arm leaving the junction — two per thread pass, in enumeration
+   * order, pointing away from the point.
+   *
+   * This, not `dirs`, is what the line work does here. They differ wherever a
+   * thread bends through the crossing, which is the general case: only a
+   * junction whose incident geometry is symmetric runs straight through. An
+   * ornament built FROM the line work (`flarePathD`) must use the arms, or
+   * its fillets sit at half the bend angle off the strands they claim to be
+   * rounding.
+   */
+  arms: Vec2[]
   /** Which chains pass through, aligned with `dirs` (indices into the input
    *  `strands`). Lets a caller ask what the threads meeting here look like —
    *  e.g. an ornament matching their colour. A self-crossing thread appears
@@ -244,43 +294,66 @@ export interface StrandJunction {
  *  noise between two extraction runs of the same field. */
 const ANGLE_SNAP = (0.5 * Math.PI) / 180
 
-/**
- * Congruent signature of one junction: the multiset of gaps between the
- * incident thread *lines* (undirected — a thread passing through arrives and
- * leaves, so its two rays are one line), canonicalised over rotation (which
- * start gap) and reflection (traversal direction).
- *
- * Undirected is what makes the class useful: an ordinary 2-thread crossing at
- * right angles is one class wherever it appears in the field, whatever the
- * pattern's orientation there.
- */
-export function junctionSignature(dirs: Vec2[]): string {
-  // Fold each direction onto [0, π): a line, not a ray.
-  const angles = dirs
-    .map(d => {
-      let a = Math.atan2(d.y, d.x)
-      if (a < 0) a += Math.PI
-      if (a >= Math.PI - 1e-9) a = 0
-      return a
-    })
-    .sort((a, b) => a - b)
+/** The gaps between the arms, walking once round the junction. */
+function armGapRing(arms: readonly Vec2[]): number[] {
+  const angles = arms.map(d => {
+    const a = Math.atan2(d.y, d.x)
+    return a < 0 ? a + 2 * Math.PI : a
+  }).sort((a, b) => a - b)
   const n = angles.length
   const gaps: number[] = []
   for (let i = 0; i < n; i++) {
-    const next = i + 1 < n ? angles[i + 1] : angles[0] + Math.PI
+    const next = i + 1 < n ? angles[i + 1] : angles[0] + 2 * Math.PI
     gaps.push(Math.round((next - angles[i]) / ANGLE_SNAP))
+  }
+  return gaps
+}
+
+/**
+ * Congruent signature of one junction: the ring of gaps between its incident
+ * **arms**, canonicalised over rotation (which arm starts) and reflection
+ * (which way round).
+ *
+ * Arms rather than through-lines is the whole content of the key. Folding a
+ * pass onto one undirected line assumes it runs straight through, which
+ * throws away exactly the asymmetry that distinguishes two junctions on a
+ * bent field — on Cairo pentagonal it reported a 15° kink as a 1° wobble and
+ * put visibly different crossings in one class.
+ *
+ * The ring is then halved **when it repeats every half turn** — which is
+ * exactly what a junction whose threads all run straight through does, its
+ * arms coming in antiparallel pairs. That reduction reproduces the old
+ * line-fold string byte for byte, so every signature on a straight field is
+ * unchanged and a `Matching` record saved against one still resolves. A bent
+ * junction has no half-turn period and keeps its full ring.
+ *
+ * Only the half turn, never the minimal period: a right-angle crossing's ring
+ * is `[90,90,90,90]`, and collapsing that to `[90]` would key it as something
+ * the old code never emitted.
+ */
+export function junctionSignature(arms: Vec2[]): string {
+  const full = armGapRing(arms)
+  const n = full.length
+  const half = n / 2
+  let gaps = full
+  if (Number.isInteger(half) && half > 0) {
+    let periodic = true
+    for (let i = 0; i < half && periodic; i++) periodic = full[i] === full[i + half]
+    if (periodic) gaps = full.slice(0, half)
   }
   // Canonical over rotation + reflection: the lexicographically smallest of
   // every rotation of the gap ring and of its reversal.
+  const m = gaps.length
   const variants: string[] = []
   const rings = [gaps, gaps.slice().reverse()]
   for (const ring of rings) {
-    for (let r = 0; r < n; r++) {
+    for (let r = 0; r < m; r++) {
       variants.push(ring.slice(r).concat(ring.slice(0, r)).join(','))
     }
   }
   variants.sort()
-  return `j${n}:${variants[0]}`
+  // Prefix is the thread count: every pass contributes exactly two arms.
+  return `j${arms.length / 2}:${variants[0]}`
 }
 
 /**
@@ -297,12 +370,14 @@ export function strandJunctions(strands: readonly StrandData[]): StrandJunction[
   for (const c of field.crossings) {
     if (c.visits.length < 2) continue
     const dirs = c.visits.map(v => v.dir)
+    const arms = c.visits.flatMap(v => v.arms)
     out.push({
       point: c.point,
       dirs,
+      arms,
       strands: c.visits.map(v => v.strand),
       degree: c.visits.length,
-      signature: junctionSignature(dirs),
+      signature: junctionSignature(arms),
     })
   }
   return out
@@ -311,27 +386,28 @@ export function strandJunctions(strands: readonly StrandData[]): StrandJunction[
 /**
  * The angle (radians) an ornament aligned to the junction's threads takes.
  *
- * A star or twinkle has a "up" direction, and the only orientation that means
- * anything at a crossing is one derived from the threads themselves — so the
- * bisector of the two most-separated incident lines is used, which is stable
- * under the enumeration order (it is computed from the sorted line angles, not
- * from which thread happened to be visited first) and under reflection.
+ * A star has an "up" direction, and the only orientation that means anything
+ * at a crossing is one derived from the threads themselves — so it aims down
+ * the middle of the widest wedge between two adjacent **arms**, which is
+ * stable under the enumeration order (computed from the sorted arm angles,
+ * not from which thread happened to be visited first).
+ *
+ * Arms, not lines, for the same reason the signature uses them: where a
+ * thread bends, its two arms open different wedges, and the widest one is
+ * what the eye reads as the gap. On a straight junction the arms come in
+ * antiparallel pairs and this returns the same angle the line version did.
  */
-export function junctionAngle(dirs: Vec2[]): number {
-  if (dirs.length === 0) return 0
-  const angles = dirs
-    .map(d => {
-      let a = Math.atan2(d.y, d.x)
-      if (a < 0) a += Math.PI
-      if (a >= Math.PI - 1e-9) a = 0
-      return a
-    })
-    .sort((a, b) => a - b)
+export function junctionAngle(arms: Vec2[]): number {
+  if (arms.length === 0) return 0
+  const angles = arms.map(d => {
+    const a = Math.atan2(d.y, d.x)
+    return a < 0 ? a + 2 * Math.PI : a
+  }).sort((a, b) => a - b)
   const n = angles.length
   let best = 0
   let bestGap = -1
   for (let i = 0; i < n; i++) {
-    const next = i + 1 < n ? angles[i + 1] : angles[0] + Math.PI
+    const next = i + 1 < n ? angles[i + 1] : angles[0] + 2 * Math.PI
     const gap = next - angles[i]
     if (gap > bestGap + 1e-9) {
       bestGap = gap

@@ -17,6 +17,18 @@ substrate, one Ctrl+Z after one paint used to blank the canvas, because the
 undo snapshot only covered the Patch and restoring a `null` Patch clears the
 Lab. `HistorySnapshot` is now a `{ editor, decoration }` pair.
 
+**2026-08-05, backlog working-through session.** Two features shipped and
+headless-verified (SVG-export background `63942ed`, Gallery name filter
+`2cc24e4`); **two backlog items were cancelled rather than built**, both because
+the codebase had already obsoleted them (Tile-stamping — a **Tile edges** line
+set with the base families off makes Tile faces ordinary Voids; the overlap-tile
+Strand toggle — `d99c725` deleted the gate rather than gating it). Read
+`feedback_missing_control_not_missing_feature` before picking up any remaining
+backlog item: **check the item against current code first**, since two of five
+evaporated on contact. One loose end, written up in `scripts/verify/README.md`:
+**#34's browser pass is partial** — hosting is right, the 8-image orbit was never
+entered.
+
 **2026-08-03, Guides v1 COMPLETE — #29 + #30 shipped, browser-verified, closed
 (`ffd9a6b`, `e2295b6`, `7ffcb86`).** Full write-ups are in `SESSION_STATE.md`
 and on the issues; nothing about them is pending.

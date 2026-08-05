@@ -21,10 +21,35 @@
 > below) — an unplanned user request, so #32 is still the agreed next task. One
 > loose end only: **a Stamp on a combined Void is not browser-verified** (needs
 > a real image upload); the probe suite asserts the clip equals the union area.
-> Fold it into the outstanding stamp verify pass. New trap earned this session,
-> promoted to its own memo: anything that flips `periodicFastPathEligible` must
-> be an explicit dep of the memos that call it, or the feature renders **nothing**
+> Fold it into the outstanding stamp verify pass. Trap earned there, promoted to
+> its own memo: anything that flips `periodicFastPathEligible` must be an
+> explicit dep of the memos that call it, or the feature renders **nothing**
 > while every other signal says it worked.
+>
+> **2026-08-05 (user: *"most of these open items just need working through"*):
+> two features shipped + headless-verified, two backlog items CANCELLED, one
+> verify partially done.** Full entry below. What a cold start needs:
+>
+> - ✅ **Decoration Undo + Clear paint is user-confirmed** — the data-loss item
+>   is closed, NEXT 0b is done.
+> - ✅ **SVG-export background (`63942ed`)** and the **Gallery name filter
+>   (`2cc24e4`)** are shipped and headless-verified. NEXT items 2c(a) and 9 are
+>   struck.
+> - ❌ **Two backlog items were cancelled after checking them against the code,
+>   not built.** Tile-stamping (a **Tile edges** line set with the base families
+>   off already turns Tile faces into Voids) and the overlap-tile Strand toggle
+>   (`d99c725` *deleted* the gate rather than gating it). **The lesson generalises
+>   — see `feedback_missing_control_not_missing_feature`: before building a
+>   backlog item, check whether a later commit or an upstream-layer control has
+>   already obsoleted it.** Two of the five items on this session's list evaporated
+>   that way.
+> - ⚠️ **#34's browser pass is PARTIAL** and is the one loose end: the placement
+>   hosts in the right Cell (no world-origin fling) but the **8-image orbit was
+>   never entered**. Pick-up instructions are in `scripts/verify/README.md`,
+>   alongside two scripts that pass.
+> - **Still needing YOU, unchanged:** **#54** (canonical-pose split — a decision,
+>   Opus) and **#32** (Girih reveal — the substrate fork; the issue asks for
+>   **Fable**).
 
 **Latest (2026-08-04, Decoration **Combine** — adjacent Voids act as one): SHIPPED + ✅ BROWSER-VERIFIED (`8e75aee` · `94b29f1` · `e2a3e1d` · `514aef5` · `384d4c8` · `9be114e` + seam-mask follow-up).** User: *"I want to be able to combine voids so they act as a single void in the decoration phase."* Confirmed scope: full Reach ladder (Matching included) and all four behaviours — flat fill + seamless render, gradients, stamps, hover/select as one.
 

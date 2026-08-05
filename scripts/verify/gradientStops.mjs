@@ -1,9 +1,10 @@
 /**
- * Gradient stop cap raised 8 → 16 (`GRADIENT_MAX_STOPS`).
+ * Gradient stop cap raised (`GRADIENT_MAX_STOPS`; 8 at v1 → 16 → 20).
  *
  * Drives the Decoration Phase's Gradient target on the 4.8.8 preset: clicks
- * `+ Stop` past the old cap, asserts the readout reaches 16/16 and the button
- * then disables, and — the part that matters — counts the `<stop>` elements
+ * `+ Stop` until it stops, asserts the readout reaches the cap the app itself
+ * reports (`n/CAP`, never a number hardcoded here) and the button then
+ * disables, and — the part that matters — counts the `<stop>` elements
  * the across-frame gradient actually renders into the SVG defs, so this is a
  * statement about the rendered output, not about panel text.
  */
@@ -45,7 +46,7 @@ console.log('RENDERED initial', JSON.stringify(await renderedStops()))
 // Past the OLD cap of 8, then past the new one.
 const add = page.locator('button:has-text("+ Stop")')
 await add.scrollIntoViewIfNeeded()
-for (let i = 0; i < 20; i++) {
+for (let i = 0; i < 40; i++) {
   if (await addDisabled()) break
   await add.click()
   await page.waitForTimeout(120)
@@ -55,11 +56,14 @@ await page.waitForTimeout(1000)
 const panel = await readout()
 const defs = await renderedStops()
 const maxRendered = defs.length ? Math.max(...defs) : 0
+// The cap comes from the app's own readout, so this script needs no edit when
+// the constant moves again — it asserts "filled to whatever the cap is".
+const [count, cap] = (panel.match(/^(\d+)\/(\d+)/) ?? []).slice(1).map(Number)
 console.log('READOUT capped  ', panel)
 console.log('+ Stop disabled ', await addDisabled())
 console.log('RENDERED STOPS  ', JSON.stringify(defs))
-console.log('VERDICT         ', panel.startsWith('16/16') && maxRendered >= 16
-  ? `PASS — panel at 16/16 and the rendered gradient def carries ${maxRendered} stops`
+console.log('VERDICT         ', count === cap && maxRendered >= cap
+  ? `PASS — panel at ${count}/${cap} and the rendered gradient def carries ${maxRendered} stops`
   : `FAIL — readout ${panel}, max rendered ${maxRendered}`)
 console.log('ERRORS          ', JSON.stringify(errs.slice(0, 5)))
 await b.close()

@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { lineBandWidths, readLineStyleFields, strandStyleAttrs } from './strandStyle'
+import {
+  gapFillMaskBands,
+  gapRingCount,
+  gapRingFills,
+  lineBandWidths,
+  readLineStyleFields,
+  strandStyleAttrs,
+} from './strandStyle'
 
 /**
  * Reconstruct the drawn cross-section from the mask bands: what the viewer
@@ -24,7 +31,8 @@ function halfSection(w: number, bands: number[]): { ink: number[]; gaps: number[
 
 describe('strandStyleAttrs', () => {
   it('solid: no mask, no bands', () => {
-    expect(strandStyleAttrs('solid', 4)).toEqual({ masked: false, maskBands: [], innerFillWidth: 0 })
+    expect(strandStyleAttrs('solid', 4))
+      .toEqual({ masked: false, maskBands: [], innerFillWidth: 0, gapRingWidths: [] })
   })
 
   it('lines: defaults to 2 lines at an equal line/gap ratio', () => {
@@ -113,5 +121,53 @@ describe('readLineStyleFields', () => {
   it('ignores a count/ratio carried by a solid stroke', () => {
     expect(readLineStyleFields({ lineStyle: 'solid', lineCount: 4, styleRatio: 3 }))
       .toEqual({ lineStyle: 'solid' })
+  })
+})
+
+describe('gap rings', () => {
+  it('counts one ring per radial gap position, pairing mirrored gaps', () => {
+    // n lines ⇒ n−1 gaps, but a gap and its mirror across the centreline are
+    // one ring: only an even count's centre gap stands alone.
+    expect([2, 3, 4, 5, 6, 10].map(gapRingCount)).toEqual([1, 1, 2, 2, 3, 5])
+    for (const n of [2, 3, 4, 5, 6, 7, 8, 9, 10]) {
+      expect(strandStyleAttrs('lines', 6, 1, n).gapRingWidths).toHaveLength(gapRingCount(n))
+    }
+  })
+
+  it('ring widths are the cut bands, so each is the underlay for its own gap', () => {
+    const a = strandStyleAttrs('lines', 8, 1, 5)
+    expect(a.gapRingWidths).toEqual([a.maskBands[0], a.maskBands[2]])
+    expect(a.gapRingWidths[0]).toBe(a.innerFillWidth)
+  })
+
+  it('all mode paints every ring the one colour; individual reads per ring', () => {
+    const a = strandStyleAttrs('lines', 8, 1, 6)
+    expect(gapRingFills(a, { innerFill: '#abc123' }).map(f => f.colour))
+      .toEqual(['#abc123', '#abc123', '#abc123'])
+    expect(gapRingFills(a, {
+      gapFillMode: 'individual',
+      gapFills: ['#111111', null, '#333333'],
+      innerFill: '#abc123', // ignored in individual mode
+    }).map(f => f.colour)).toEqual(['#111111', null, '#333333'])
+  })
+
+  it('an unset ring in individual mode is unfilled, not inherited', () => {
+    const a = strandStyleAttrs('lines', 8, 1, 6)
+    expect(gapRingFills(a, { gapFillMode: 'individual', gapFills: ['#111111'] }).map(f => f.colour))
+      .toEqual(['#111111', null, null])
+  })
+
+  it('mixed fills need their own mask; uniform ones do not', () => {
+    const a = strandStyleAttrs('lines', 8, 1, 6)
+    const all = gapRingFills(a, { innerFill: '#abc123' })
+    const none = gapRingFills(a, {})
+    const mixed = gapRingFills(a, { gapFillMode: 'individual', gapFills: ['#111111', null, '#333333'] })
+    expect(gapFillMaskBands(a, all)).toBeNull()
+    expect(gapFillMaskBands(a, none)).toBeNull()
+    const bands = gapFillMaskBands(a, mixed)!
+    expect(bands).toHaveLength(a.maskBands.length)
+    // White only where a filled ring is cut in; every line band stays hidden.
+    expect(bands.map(b => b.colour)).toEqual(['white', 'black', 'black', 'black', 'white'])
+    expect(bands.map(b => b.width)).toEqual(a.maskBands)
   })
 })

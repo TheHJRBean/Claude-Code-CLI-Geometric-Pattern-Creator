@@ -1,4 +1,4 @@
-import type { StrandLineStyle } from '../types/pattern'
+import type { GapFillMode, StrandLineStyle } from '../types/pattern'
 
 /**
  * Resolved SVG stroke attributes for a Strand `lineStyle` at width `w`
@@ -29,6 +29,66 @@ export interface StrandStyleAttrs {
    * outermost lines, so one underlay colours every gap at once.
    */
   innerFillWidth: number
+  /**
+   * Underlay stroke width per **gap ring**, outermost first — the even-index
+   * `maskBands`. A ring is one radial gap *position*, which for every ring but
+   * an even count's centre one is a symmetric **pair** of gaps: a stroke is
+   * centred on its path, so the gap left of the centreline and the gap right
+   * of it are the same ring and cannot take different colours.
+   */
+  gapRingWidths: number[]
+}
+
+/** The gap-fill fields, as carried by `StrandStyle` and `FrameStroke`. */
+export interface GapFillStyle {
+  innerFill?: string
+  gapFills?: (string | null)[]
+  gapFillMode?: GapFillMode
+}
+
+/** Number of gap rings an `n`-line stroke has — `n − 1` gaps, paired by symmetry. */
+export function gapRingCount(lineCount: number): number {
+  return Math.floor(clampLineCount(lineCount) / 2)
+}
+
+/**
+ * Resolve what each gap ring is painted with, outermost first. `null` = left
+ * unfilled (whatever is behind the stroke shows through).
+ *
+ * Rings paint as concentric underlay strokes beneath the masked ink, each
+ * narrower than the last, so an inner ring's colour overwrites the outer
+ * ring's stroke exactly where the mask will reveal it. An unfilled ring can't
+ * be expressed that way — an outer ring's stroke covers it — so a *mixed* set
+ * needs the second mask `gapFillMaskBands` describes.
+ */
+export function gapRingFills(
+  attrs: StrandStyleAttrs,
+  style: GapFillStyle,
+): { width: number; colour: string | null }[] {
+  const individual = style.gapFillMode === 'individual'
+  return attrs.gapRingWidths.map((width, i) => ({
+    width,
+    colour: individual ? (style.gapFills?.[i] ?? null) : (style.innerFill ?? null),
+  }))
+}
+
+/**
+ * Mask bands that reveal only the **filled** gap rings, black-backed (paint a
+ * black rect first, then these in order). Needed only when some rings are
+ * filled and others are not; `null` when the plain underlay stack suffices.
+ */
+export function gapFillMaskBands(
+  attrs: StrandStyleAttrs,
+  fills: { colour: string | null }[],
+): { width: number; colour: 'white' | 'black' }[] | null {
+  const filled = fills.filter(f => f.colour !== null).length
+  if (filled === 0 || filled === fills.length) return null
+  return attrs.maskBands.map((width, b) => ({
+    width,
+    // Even band = the cut into gap ring b/2; odd band = back to a line, which
+    // the ink covers anyway, so it stays hidden.
+    colour: (b % 2 === 0 && fills[b / 2]?.colour !== null ? 'white' : 'black') as 'white' | 'black',
+  }))
 }
 
 /** Number of parallel lines a `'lines'` stroke is divided into. */
@@ -74,8 +134,9 @@ const LEGACY_DOUBLE_RATIO = 0.5    // 0.25w line · 0.5w gap · 0.25w line
 const LEGACY_TRIPLE_RATIO = 0.745  // 0.175w lines · 0.235w gaps
 
 /**
- * Read the persisted stroke-style trio off a raw `strand` / `frame.stroke`
- * object, translating the withdrawn vocabulary.
+ * Read the persisted stroke-style fields off a raw `strand` / `frame.stroke`
+ * object — the line-style trio plus the gap-fill pair — translating the
+ * withdrawn vocabulary.
  *
  * Both load paths (`state/configValidation.ts` and `editor/migrations.ts`)
  * share this so a save reads the same on either — the legacy `'double'` /
@@ -87,8 +148,16 @@ export function readLineStyleFields(raw: Record<string, unknown>): {
   lineStyle?: StrandLineStyle
   lineCount?: number
   styleRatio?: number
+  gapFills?: (string | null)[]
+  gapFillMode?: GapFillMode
 } {
-  const out: { lineStyle?: StrandLineStyle; lineCount?: number; styleRatio?: number } = {}
+  const out: {
+    lineStyle?: StrandLineStyle
+    lineCount?: number
+    styleRatio?: number
+    gapFills?: (string | null)[]
+    gapFillMode?: GapFillMode
+  } = {}
   const style = raw.lineStyle
   if (style === 'solid' || style === 'dashed' || style === 'dotted') {
     out.lineStyle = 'solid'
@@ -106,6 +175,17 @@ export function readLineStyleFields(raw: Record<string, unknown>): {
   if (out.lineStyle === 'lines' && typeof raw.styleRatio === 'number') {
     out.styleRatio = clampStyleRatio(raw.styleRatio)
   }
+  if (out.lineStyle === 'lines' && Array.isArray(raw.gapFills)) {
+    // Entries are colours or `null` (ring left unfilled); anything else is
+    // read as unfilled rather than dropping the whole array — one bad entry
+    // shouldn't cost the user the other rings.
+    out.gapFills = raw.gapFills
+      .slice(0, LINE_COUNT_MAX)
+      .map(c => (typeof c === 'string' && c.length > 0 ? c : null))
+  }
+  if (out.lineStyle === 'lines' && (raw.gapFillMode === 'all' || raw.gapFillMode === 'individual')) {
+    out.gapFillMode = raw.gapFillMode
+  }
   return out
 }
 
@@ -116,7 +196,7 @@ export function strandStyleAttrs(
   lineCount: number = DEFAULT_LINE_COUNT,
 ): StrandStyleAttrs {
   if (lineStyle !== 'lines') {
-    return { masked: false, maskBands: [], innerFillWidth: 0 }
+    return { masked: false, maskBands: [], innerFillWidth: 0, gapRingWidths: [] }
   }
   const n = clampLineCount(lineCount)
   const { line, gap } = lineBandWidths(w, n, ratio)
@@ -138,5 +218,6 @@ export function strandStyleAttrs(
     masked: bands.length > 0,
     maskBands: bands,
     innerFillWidth: bands.length > 0 ? bands[0] : 0,
+    gapRingWidths: bands.filter((_, i) => i % 2 === 0),
   }
 }

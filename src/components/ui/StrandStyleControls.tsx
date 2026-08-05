@@ -1,6 +1,7 @@
 import type { PatternConfig } from '../../types/pattern'
 import type { Action } from '../../state/actions'
 import { FieldLabel } from './FieldLabel'
+import { GapFillControls } from './GapFillControls'
 import { LineStyleControls } from './LineStyleControls'
 import { Toggle } from './Toggle'
 
@@ -36,27 +37,11 @@ export function StrandStyleControls({ strand, dispatch }: {
         onChange={payload => dispatch({ type: 'SET_STRAND_STYLE', payload })}
       />
 
-      {strand.lineStyle === 'lines' && (
-        <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Toggle
-            checked={!!strand.innerFill}
-            onChange={v => dispatch({
-              type: 'SET_STRAND_STYLE',
-              payload: { innerFill: v ? (strand.innerFill ?? '#f5ead6') : undefined },
-            })}
-            label="Fill between lines"
-          />
-          {strand.innerFill && (
-            <input
-              type="color"
-              value={/^#[0-9a-fA-F]{6}$/.test(strand.innerFill) ? strand.innerFill : '#f5ead6'}
-              onChange={e => dispatch({ type: 'SET_STRAND_STYLE', payload: { innerFill: e.target.value } })}
-              title="Colour of the space between the parallel lines"
-              style={{ width: 26, height: 20, padding: 0, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer' }}
-            />
-          )}
-        </div>
-      )}
+      <GapFillControls
+        value={strand}
+        onChange={payload => dispatch({ type: 'SET_STRAND_STYLE', payload })}
+        defaultColour="#f5ead6"
+      />
 
       <div style={{ marginTop: 10 }}>
         <Toggle

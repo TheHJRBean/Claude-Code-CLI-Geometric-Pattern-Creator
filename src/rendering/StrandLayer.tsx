@@ -9,7 +9,7 @@ import { computeCurves, smoothCurves } from '../strand/computeCurves'
 import { curvedPathD, curvedPathDSplit, curvedPathDSplitBy } from '../strand/curvedPathD'
 import { computeWeave } from '../strand/weave'
 import { weaveCapWedgeD, wovenPath, wovenPathD } from '../strand/wovenPathD'
-import { strandStyleAttrs } from './strandStyle'
+import { gapFillMaskBands, gapRingFills, strandStyleAttrs } from './strandStyle'
 import { buildColourIndex, orbitOffset, resolveColour } from '../decoration/scopes'
 import { cellOrbitKey, reduceToOrbit, type CellFrame } from '../decoration/cellScope'
 import { baseSegmentSignatureMap, renderedStrandBaseSignatures, segmentBaseSignatures, strandIdentity } from '../decoration/strandGroups'
@@ -296,8 +296,13 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
   // as the hidden-strand fix).
   const lineStyle = strand.lineStyle ?? 'solid'
   const w = strand.width
-  const { masked, maskBands, innerFillWidth } =
-    strandStyleAttrs(lineStyle, w, strand.styleRatio, strand.lineCount)
+  const styleAttrs = strandStyleAttrs(lineStyle, w, strand.styleRatio, strand.lineCount)
+  const { masked, maskBands } = styleAttrs
+  // Gap fills: one colour for every gap, or one per gap ring. A mixed set —
+  // some rings filled, some left showing what's behind — needs its own mask,
+  // because an outer ring's underlay stroke covers every ring inside it.
+  const gapFills = gapRingFills(styleAttrs, strand)
+  const gapMaskBands = gapFillMaskBands(styleAttrs, gapFills)
   // Visible pieces (hidden 'none' strands excluded — their mask cuts
   // would otherwise carve through visible strands crossing them).
   const visiblePieces = pieces
@@ -325,6 +330,7 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
     maskRect = { x: minX - m, y: minY - m, width: maxX - minX + 2 * m, height: maxY - minY + 2 * m }
   }
   const maskId = 'strand-style-mask'
+  const gapMaskId = 'strand-gap-fill-mask'
 
   return (
     <g id="strand-layer">
@@ -350,6 +356,27 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
               ))}
             </radialGradient>
           )}
+        </defs>
+      )}
+      {maskRect && gapMaskBands && (
+        <defs>
+          {/* Reveals ONLY the filled gap rings, so an unfilled one keeps
+              showing whatever is behind the stroke. Black-backed: nothing
+              shows until a band whites it in. */}
+          <mask id={gapMaskId} maskUnits="userSpaceOnUse" x={maskRect.x} y={maskRect.y} width={maskRect.width} height={maskRect.height}>
+            <rect x={maskRect.x} y={maskRect.y} width={maskRect.width} height={maskRect.height} fill="black" />
+            {gapMaskBands.map((band, b) => visiblePieces.map(({ d, i }) => (
+              <path
+                key={`gapband-${b}-${i}`}
+                d={d}
+                fill="none"
+                stroke={band.colour}
+                strokeWidth={band.width}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            )))}
+          </mask>
         </defs>
       )}
       {maskRect && (
@@ -389,21 +416,25 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
           ))}
         </g>
       )}
-      {/* Inner fill: one underlay stroke spanning everything inside the two
-          outermost lines, painted beneath the masked stroke — so every gap
-          the mask cuts reveals this colour instead of the background / Void
-          fills, and the inner lines cover it back up. */}
-      {masked && strand.innerFill && visiblePieces.map(({ d, i }) => (
-        <path
-          key={`strand-innerfill-${i}`}
-          d={d}
-          fill="none"
-          stroke={strand.innerFill}
-          strokeWidth={innerFillWidth}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      ))}
+      {/* Gap fills: concentric underlay strokes beneath the masked ink,
+          outermost ring first. Each is narrower than the last, so an inner
+          ring's colour survives exactly where the style mask cuts through to
+          it, and the lines cover the rest back up. */}
+      {masked && gapFills.some(f => f.colour) && (
+        <g id="strand-gap-fills" mask={gapMaskBands ? `url(#${gapMaskId})` : undefined}>
+          {gapFills.map(({ width, colour }, r) => (colour ? visiblePieces.map(({ d, i }) => (
+            <path
+              key={`strand-gapfill-${r}-${i}`}
+              d={d}
+              fill="none"
+              stroke={colour}
+              strokeWidth={width}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )) : null))}
+        </g>
+      )}
       {/* `'none'` = the hidden-strand sentinel (Decoration "Remove strand
           colour"): emit nothing so Void fills meet seamlessly underneath. */}
       <g mask={maskRect ? `url(#${maskId})` : undefined}>

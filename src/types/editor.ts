@@ -1,5 +1,5 @@
 import type { Vec2 } from '../utils/math'
-import type { StrandLineStyle } from './pattern'
+import type { GapFillMode, StrandLineStyle } from './pattern'
 
 /**
  * Step 17 — user-editable tessellation editor data model (v3).
@@ -214,9 +214,14 @@ export interface FrameStroke {
    * `'lines'` cuts the gaps out with a mask so the pattern shows through
    * between the parallel lines. Default solid. */
   lineStyle?: StrandLineStyle
-  /** Fill colour painted in the gaps of a `'lines'` border.
-   * Absent ⇒ the gaps stay cut out (the pattern shows through). */
+  /** Fill colour painted in the gaps of a `'lines'` border, in `'all'`
+   * gap-fill mode. Absent ⇒ the gaps stay cut out (the pattern shows
+   * through). */
   innerFill?: string
+  /** Gap-fill mode, same semantics as `StrandStyle.gapFillMode`. */
+  gapFillMode?: GapFillMode
+  /** Per-gap-ring fills, same semantics as `StrandStyle.gapFills`. */
+  gapFills?: (string | null)[]
   /** Parallel line count (2–10), same semantics as `StrandStyle.lineCount`. */
   lineCount?: number
   /** Line ÷ gap thickness, same semantics as `StrandStyle.styleRatio`. */

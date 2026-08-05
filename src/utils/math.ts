@@ -96,6 +96,59 @@ export function centroid(poly: Vec2[]): Vec2 {
 }
 
 /**
+ * Push every edge of a closed polygon **outward** by `d` and re-corner it —
+ * a mitred offset. Used to hang the Frame border stroke entirely outside the
+ * Frame outline (offset by half the stroke width) so it can't encroach on the
+ * pattern the outline clips.
+ *
+ * Orientation-agnostic: the offset direction is chosen by whichever sign grows
+ * the polygon, so callers don't have to know their winding. Miters are clamped
+ * to `miterLimit` × `d`, which keeps a sharp or reflex corner from firing a
+ * spike off to infinity (regular Frame shapes never reach it; an n-ring
+ * outline's staircase corners can).
+ *
+ * `d ≤ 0`, or fewer than 3 points, returns the input unchanged.
+ */
+export function offsetPolygonOutward(poly: Vec2[], d: number, miterLimit = 4): Vec2[] {
+  if (poly.length < 3 || !(d > 0)) return poly
+  const grown = offsetPolygonBy(poly, d, 1, miterLimit)
+  // Pick the direction that GREW the polygon rather than trusting a winding
+  // convention — callers pass outlines built by half a dozen different
+  // generators and a flipped sign would quietly eat the pattern instead.
+  return Math.abs(signedArea(grown)) > Math.abs(signedArea(poly))
+    ? grown
+    : offsetPolygonBy(poly, d, -1, miterLimit)
+}
+
+function offsetPolygonBy(poly: Vec2[], d: number, sign: number, miterLimit: number): Vec2[] {
+  const n = poly.length
+  // Offset each edge line: a point on it + its direction.
+  const lines = poly.map((p, i) => {
+    const q = poly[(i + 1) % n]
+    const dir = normalize(sub(q, p))
+    return { at: add(p, scale(perp(dir), sign * d)), dir }
+  })
+  const out: Vec2[] = []
+  for (let i = 0; i < n; i++) {
+    // Vertex i joins edge i−1 and edge i; its offset corner is where those two
+    // offset lines cross.
+    const a = lines[(i - 1 + n) % n]
+    const b = lines[i]
+    const denom = cross(a.dir, b.dir)
+    // `b.at` is vertex i pushed along edge i's own normal — the un-mitred
+    // corner, and the only sane answer when the two lines are parallel.
+    const fallback = b.at
+    if (Math.abs(denom) < 1e-9) { out.push(fallback); continue }
+    const t = cross(sub(b.at, a.at), b.dir) / denom
+    const corner = add(a.at, scale(a.dir, t))
+    // Clamp the miter: past the limit, sit on the edge offset instead of
+    // letting a near-parallel pair throw the corner across the canvas.
+    out.push(dist(corner, poly[i]) > miterLimit * d ? fallback : corner)
+  }
+  return out
+}
+
+/**
  * Unsigned interior angle (radians) of polygon `poly` at vertex `i` — the angle
  * between the edges to the previous and next vertices. Operation order is fixed
  * (it underpins the `tileTypeId` signature hash, so the value must stay stable).

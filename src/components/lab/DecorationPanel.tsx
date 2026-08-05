@@ -10,6 +10,7 @@ import { downloadAllVoidShapeCanvases, downloadVoidShapePNG, downloadVoidShapeSV
 import { canonicalPose, canonicalSelfMirror } from '../../decoration/stamps'
 import { buildVoidMergeRecord, canCombine } from '../../decoration/voidMerge'
 import { ColourPicker, pushRecentColour } from '../ColourPicker'
+import { GapFillControls } from '../ui/GapFillControls'
 import { LineStyleControls } from '../ui/LineStyleControls'
 import { FieldLabel, segmentedButtonStyle } from './labShared'
 import { StampFocusEditor } from './StampFocusEditor'
@@ -409,29 +410,11 @@ export function DecorationPanel({
                   value={stroke}
                   onChange={patch => setStroke({ ...stroke, ...patch })}
                 />
-                {stroke.lineStyle === 'lines' && (
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 8 }}>
-                    <input
-                      type="checkbox"
-                      className="pattern-checkbox"
-                      checked={!!stroke.innerFill}
-                      onChange={e => setStroke(e.target.checked
-                        ? { ...stroke, innerFill: stroke.innerFill ?? decorationColor }
-                        : { ...stroke, innerFill: undefined })}
-                    />
-                    Fill between lines
-                    {stroke.innerFill && (
-                      <input
-                        type="color"
-                        value={/^#[0-9a-fA-F]{6}$/.test(stroke.innerFill) ? stroke.innerFill : '#f5ead6'}
-                        onChange={e => setStroke({ ...stroke, innerFill: e.target.value })}
-                        onClick={e => e.stopPropagation()}
-                        title="Colour of the space between the parallel border lines"
-                        style={{ width: 26, height: 20, padding: 0, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer' }}
-                      />
-                    )}
-                  </label>
-                )}
+                <GapFillControls
+                  value={stroke}
+                  onChange={patch => setStroke({ ...stroke, ...patch })}
+                  defaultColour={decorationColor}
+                />
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 8 }}>
                   <input
                     type="color"

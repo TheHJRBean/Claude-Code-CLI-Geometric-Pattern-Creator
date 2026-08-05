@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   add, sub, scale, dot, cross, len, lerp, normalize, rotate, perp,
   midpoint, dist, pointsEqual, clamp, degToRad, radToDeg,
-  pointInPolygon, centroid, EPSILON,
+  pointInPolygon, centroid, offsetPolygonOutward, signedArea, EPSILON,
 } from './math'
 
 const near = (a: number, b: number) => Math.abs(a - b) < 1e-9
@@ -178,5 +178,51 @@ describe('centroid', () => {
     const c = centroid(sq)
     expect(near(c.x, 2)).toBe(true)
     expect(near(c.y, 2)).toBe(true)
+  })
+})
+
+describe('offsetPolygonOutward', () => {
+  const square = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }]
+
+  it('grows a square by the offset on every side', () => {
+    const out = offsetPolygonOutward(square, 2)
+    expect(out).toEqual([{ x: -2, y: -2 }, { x: 12, y: -2 }, { x: 12, y: 12 }, { x: -2, y: 12 }])
+  })
+
+  it('grows it the same way whichever winding it arrives in', () => {
+    const cw = [...square].reverse()
+    expect(Math.sign(signedArea(cw))).toBe(-Math.sign(signedArea(square)))
+    const a = offsetPolygonOutward(square, 3)
+    const b = offsetPolygonOutward(cw, 3)
+    // Same ring, opposite winding — compare as sets of corners.
+    const key = (p: { x: number; y: number }) => `${p.x.toFixed(6)},${p.y.toFixed(6)}`
+    expect(new Set(b.map(key))).toEqual(new Set(a.map(key)))
+  })
+
+  it('mitres a corner so the offset edge really is `d` from the original', () => {
+    // Equilateral-ish triangle: the mitred corner sits further than `d` from
+    // the vertex, but each EDGE is exactly `d` out — which is what a stroke
+    // hanging off the outline needs.
+    const tri = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 5, y: 8 }]
+    const out = offsetPolygonOutward(tri, 1)
+    // Bottom edge y = 0 moves to y = −1 on both of its corners.
+    expect(out[0].y).toBeCloseTo(-1, 9)
+    expect(out[1].y).toBeCloseTo(-1, 9)
+    expect(dist(out[2], tri[2])).toBeGreaterThan(1) // the apex mitre reaches further
+  })
+
+  it('clamps a needle-sharp mitre instead of firing a spike', () => {
+    const needle = [{ x: 0, y: 0 }, { x: 100, y: 0.5 }, { x: 100, y: -0.5 }]
+    const out = offsetPolygonOutward(needle, 2, 4)
+    for (const p of out) {
+      expect(Number.isFinite(p.x) && Number.isFinite(p.y)).toBe(true)
+    }
+    expect(dist(out[0], needle[0])).toBeLessThanOrEqual(2 * 4 + EPSILON)
+  })
+
+  it('returns the input for a degenerate offset', () => {
+    expect(offsetPolygonOutward(square, 0)).toBe(square)
+    expect(offsetPolygonOutward(square, -1)).toBe(square)
+    expect(offsetPolygonOutward([{ x: 0, y: 0 }, { x: 1, y: 1 }], 2)).toHaveLength(2)
   })
 })

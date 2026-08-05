@@ -2,6 +2,7 @@ import { forwardRef } from 'react'
 import type { Polygon, Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
 import type { Vec2 } from '../utils/math'
+import { offsetPolygonOutward } from '../utils/math'
 import type { ViewTransform } from '../hooks/usePanZoom'
 import type { PanZoomHandlers } from '../hooks/usePanZoom'
 import type { LatticeStamp } from '../editor/lattice'
@@ -15,7 +16,7 @@ import type { VoidFill } from '../decoration/resolve'
 import type { StampPlacement } from '../decoration/stamps'
 import type { ColourRecord, FrameGradient, FrameStroke, StrandGradient } from '../types/editor'
 import { sortedStops } from '../decoration/gradients'
-import { strandStyleAttrs } from './strandStyle'
+import { gapFillMaskBands, gapRingFills, strandStyleAttrs } from './strandStyle'
 import type { CellFrame } from '../decoration/cellScope'
 
 interface Props {
@@ -349,7 +350,7 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
           frameStroke ? (
             // Decorative border stroke — part of the artwork (world-unit
             // width, scales with zoom, included in exports).
-            <FrameBorder outline={frameOutline!} points={framePoints} stroke={frameStroke} />
+            <FrameBorder outline={frameOutline!} stroke={frameStroke} />
           ) : (
             <polygon
               points={framePoints}
@@ -406,66 +407,90 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
  * through the shared `strandStyleAttrs`: a `'lines'` border cuts its gaps out
  * with a mask so the pattern and background show through between the parallel
  * lines (an overdraw would paint over whatever the border straddles).
+ *
+ * The stroke hangs **entirely outside** the Frame outline: SVG centres a
+ * stroke on its path, so drawing it on the outline itself buried a
+ * half-width band of the pattern the outline clips. The border is drawn on
+ * the outline pushed out by `w / 2` instead, which puts its inner edge on the
+ * outline exactly and leaves the composition untouched at any width.
  */
-function FrameBorder({ outline, points, stroke }: {
+function FrameBorder({ outline, stroke }: {
   outline: Vec2[]
-  points: string
   stroke: FrameStroke
 }) {
   const w = stroke.width
-  // Same resolver the Strands use, so a style (its line count and line/gap
-  // ratio) reads identically on the border and in the pattern.
-  const { masked, maskBands, innerFillWidth } =
-    strandStyleAttrs(stroke.lineStyle ?? 'solid', w, stroke.styleRatio, stroke.lineCount)
+  const outerOutline = offsetPolygonOutward(outline, w / 2)
+  const points = outerOutline.map(p => `${p.x},${p.y}`).join(' ')
+  // Same resolver the Strands use, so a style (its line count, line/gap ratio
+  // and gap fills) reads identically on the border and in the pattern.
+  const attrs = strandStyleAttrs(stroke.lineStyle ?? 'solid', w, stroke.styleRatio, stroke.lineCount)
+  const { masked, maskBands } = attrs
+  const gapFills = gapRingFills(attrs, stroke)
+  const gapMaskBands = gapFillMaskBands(attrs, gapFills)
   const maskId = 'frame-stroke-mask'
+  const gapMaskId = 'frame-gap-fill-mask'
   let maskRect = null as { x: number; y: number; width: number; height: number } | null
   if (masked) {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-    for (const p of outline) {
+    for (const p of outerOutline) {
       minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x)
       minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y)
     }
     const m = w * 2
     maskRect = { x: minX - m, y: minY - m, width: maxX - minX + 2 * m, height: maxY - minY + 2 * m }
   }
+  const bandPolygons = (bands: { width: number; colour: string }[], key: string) => bands.map((band, b) => (
+    <polygon
+      key={`${key}-${b}`}
+      points={points}
+      fill="none"
+      stroke={band.colour}
+      strokeWidth={band.width}
+      strokeLinejoin="miter"
+      strokeMiterlimit={8}
+    />
+  ))
   return (
     <g pointerEvents="none">
+      {maskRect && gapMaskBands && (
+        <defs>
+          {/* Reveals ONLY the filled gap rings, so an unfilled one keeps
+              showing the pattern behind the border. */}
+          <mask id={gapMaskId} maskUnits="userSpaceOnUse" x={maskRect.x} y={maskRect.y} width={maskRect.width} height={maskRect.height}>
+            <rect x={maskRect.x} y={maskRect.y} width={maskRect.width} height={maskRect.height} fill="black" />
+            {bandPolygons(gapMaskBands, 'gap')}
+          </mask>
+        </defs>
+      )}
       {maskRect && (
         <defs>
           <mask id={maskId} maskUnits="userSpaceOnUse" x={maskRect.x} y={maskRect.y} width={maskRect.width} height={maskRect.height}>
             <rect x={maskRect.x} y={maskRect.y} width={maskRect.width} height={maskRect.height} fill="white" />
             {/* Widest first, alternating cut / restore — see StrandStyleAttrs. */}
-            {maskBands.map((band, b) => (
-              <polygon
-                key={b}
-                points={points}
-                fill="none"
-                stroke={b % 2 === 0 ? 'black' : 'white'}
-                strokeWidth={band}
-                strokeLinejoin="round"
-              />
-            ))}
+            {bandPolygons(maskBands.map((width, b) => ({ width, colour: b % 2 === 0 ? 'black' : 'white' })), 'band')}
           </mask>
         </defs>
       )}
-      {/* Inner fill: one underlay spanning everything inside the outermost
-          lines, revealed by the mask's cuts instead of the pattern. */}
-      {masked && stroke.innerFill && (
-        <polygon
-          points={points}
-          fill="none"
-          stroke={stroke.innerFill}
-          strokeWidth={innerFillWidth}
-          strokeLinejoin="round"
-        />
+      {/* Gap fills: concentric underlays beneath the masked stroke, outermost
+          ring first, revealed by the style mask's cuts. */}
+      {masked && gapFills.some(f => f.colour) && (
+        <g mask={gapMaskBands ? `url(#${gapMaskId})` : undefined}>
+          {bandPolygons(
+            gapFills.filter(f => f.colour).map(f => ({ width: f.width, colour: f.colour! })),
+            'gapfill',
+          )}
+        </g>
       )}
       <polygon
         points={points}
         fill="none"
         stroke={stroke.colour}
         strokeWidth={w}
-        strokeLinejoin="round"
-        strokeLinecap="round"
+        // Mitred, not round: the stroke hangs outside the outline, so a round
+        // join reads as a heavily rounded picture frame at these widths — and
+        // the mask bands must join the same way or the cuts miss the corners.
+        strokeLinejoin="miter"
+        strokeMiterlimit={8}
         mask={maskRect ? `url(#${maskId})` : undefined}
       />
     </g>

@@ -110,6 +110,14 @@ export interface FigureConfig {
  */
 export type StrandLineStyle = 'solid' | 'lines'
 
+/**
+ * How the gaps of a `'lines'` stroke are filled: one colour for all of them,
+ * or a colour per gap **ring** (`rendering/strandStyle.ts` — a ring is one
+ * radial gap position, which is a symmetric pair of gaps except an even line
+ * count's centre one).
+ */
+export type GapFillMode = 'all' | 'individual'
+
 export interface StrandStyle {
   /** Stroke width of each Strand (px). */
   width: number
@@ -127,9 +135,17 @@ export interface StrandStyle {
   weaveGap?: number
   /** Stroke rendering variant. Default `'solid'`. */
   lineStyle?: StrandLineStyle
-  /** Fill colour painted in the gaps of a `'lines'` stroke.
-   * Absent ⇒ the gaps stay cut out (Void fills / background show through). */
+  /** Fill colour painted in the gaps of a `'lines'` stroke, in `'all'` gap-fill
+   * mode. Absent ⇒ the gaps stay cut out (Void fills / background show
+   * through). */
   innerFill?: string
+  /** Whether `innerFill` paints every gap or `gapFills` paints them per ring.
+   * Default `'all'`. */
+  gapFillMode?: GapFillMode
+  /** Per-gap-ring fill colours, outermost first (`'individual'` mode). `null`
+   * or absent ⇒ that ring stays cut out. A ring is a symmetric *pair* of gaps
+   * except an even line count's centre one — see `StrandStyleAttrs`. */
+  gapFills?: (string | null)[]
   /** How many parallel lines a `'lines'` stroke divides into, 2–10.
    * Default 2 (`DEFAULT_LINE_COUNT`). Ignored while `lineStyle` is solid. */
   lineCount?: number

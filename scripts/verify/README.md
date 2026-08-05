@@ -31,6 +31,7 @@ LD_LIBRARY_PATH=<libdir>/usr/lib/x86_64-linux-gnu node verify3.mjs
 | `applyToAllTiles.mjs` | Strands "Apply to all Tiles": off ⇒ Tile types diverge, on ⇒ one drag moves every card | ✅ passes |
 | `gradientStops.mjs` | `GRADIENT_MAX_STOPS` 8 → 16: panel caps at 16/16 **and** the rendered gradient def carries 16 `<stop>`s | ✅ passes |
 | `lineDivisions.mjs` | Strand line divisions 1–10 + line/gap ratio: the rendered `#strand-style-mask` carries n−1 alternating bands at n = 2/4/7/10, and a higher ratio narrows the outermost cut | ✅ passes |
+| `gapFillsAndBorder.mjs` | Per-gap-ring fills (mixed rings render behind `#strand-gap-fill-mask` / `#frame-gap-fill-mask`) on both Strands and the Frame border; the border polygon offset outward by exactly w/2 | ✅ passes |
 
 ⚠️ Each gradient **surface** (This shape / Across frame / Strands) holds its own
 draft. Switch surface first, then add stops — doing it the other way leaves the
@@ -39,6 +40,13 @@ count behind on the surface you left, which reads as the cap not applying.
 ⚠️ The sidebar is taller than the viewport — `scrollIntoViewIfNeeded()` before
 any synthetic drag. A slider below the fold swallows every mouse event in
 silence, and the run still reads "no change" like a real failure.
+
+⚠️ Identically-labelled rows exist on **both** substrates in the Decoration
+phase (the border block and the Display section's Strand controls both carry
+"Fill between lines", "Individual", "Line divisions"). Anchor to one — the
+border's rows come first in the DOM — and prefer `title=` selectors for the
+ring buttons: `button:has-text("Clear")` also matches the panel's *disabled*
+"Clear paint", which fails as a 30 s click timeout rather than a wrong value.
 
 ⚠️ A click at fraction 0 or 1 of a range track lands on the **thumb's own half
 width** and stops short of the end, so both extremes are unreachable by click

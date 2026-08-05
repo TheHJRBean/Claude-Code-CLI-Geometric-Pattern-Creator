@@ -1,7 +1,7 @@
 import type { PatternConfig } from '../../types/pattern'
 import type { Action } from '../../state/actions'
 import type { JunctionPaintScope, PaintTarget, StrandPaintScope, VoidPaintScope } from '../../rendering/DecorationPaintLayer'
-import type { JunctionOrnamentStyle } from '../../types/editor'
+import type { GroupingScope, JunctionOrnamentStyle } from '../../types/editor'
 import type { PaintVoid } from '../../decoration/resolve'
 import type { GradientDraft, GradientSelection, WorldBBox } from '../../decoration/gradients'
 import { pointsBBox } from '../../decoration/gradients'
@@ -77,6 +77,8 @@ interface Props {
   onSetJunctionDraft: (s: JunctionOrnamentStyle) => void
   junctionScope: JunctionPaintScope
   onSetJunctionScope: (s: JunctionPaintScope) => void
+  onSelectJunctionGroup: (g: { scope: GroupingScope; key: string } | null) => void
+  junctionSelected: boolean
   strandLineStyle: string | undefined
   /** Combine target — the Voids picked on the canvas, and a reset. */
   combineSelection: PaintVoid[]
@@ -118,6 +120,8 @@ export function LegacySubstrateControls({
   onSetJunctionDraft,
   junctionScope,
   onSetJunctionScope,
+  onSelectJunctionGroup,
+  junctionSelected,
   strandLineStyle,
   combineSelection,
   onClearCombineSelection,
@@ -217,6 +221,8 @@ export function LegacySubstrateControls({
           onSetJunctionDraft={onSetJunctionDraft}
           junctionScope={junctionScope}
           onSetJunctionScope={onSetJunctionScope}
+          onSelectJunctionGroup={onSelectJunctionGroup}
+          junctionSelected={junctionSelected}
           strandLineStyle={strandLineStyle}
           combineSelection={combineSelection}
           onClearCombineSelection={onClearCombineSelection}

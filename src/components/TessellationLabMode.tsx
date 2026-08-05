@@ -35,7 +35,7 @@ import { StrandStyleControls } from './ui/StrandStyleControls'
 import { EditorDesignControls } from './lab/EditorDesignControls'
 import { buildExportMenuItems } from '../export/exportActions'
 import type { AppMode, EditorMode } from '../types/appMode'
-import type { EditorGuide, EditorGuidePatch, JunctionOrnamentStyle } from '../types/editor'
+import type { EditorGuide, EditorGuidePatch, GroupingScope, JunctionOrnamentStyle } from '../types/editor'
 import { DEFAULT_JUNCTION_ORNAMENT, junctionOrnamentsSupported } from '../decoration/junctionOrnaments'
 import { DEFAULT_ANGLE_STEP, type GuideTool, type WorldBounds } from '../editor/guides'
 import { canDecorate, patternDecoration } from '../decoration/store'
@@ -313,6 +313,23 @@ export function TessellationLabMode({
     () => ({ ...DEFAULT_JUNCTION_ORNAMENT }),
   )
   const [junctionScope, setJunctionScope] = useState<JunctionPaintScope>('congruent')
+  // The group last ornamented. Draft edits re-apply to it live, so tweaking
+  // size or shape after placing changes what you are looking at instead of
+  // silently waiting for the next click (the gradient draft behaves the same
+  // way, and for the same reason).
+  const [junctionSelection, setJunctionSelection] = useState<{ scope: GroupingScope; key: string } | null>(null)
+  const updateJunctionDraft = useCallback((next: JunctionOrnamentStyle) => {
+    setJunctionDraft(next)
+    // No `toggle`: an upsert, never an unpaint. A slider dragged back through
+    // its previous value must not delete the record it is editing.
+    if (junctionSelection) {
+      dispatch({ type: 'SET_JUNCTION_ORNAMENT', payload: { ...junctionSelection, style: next } })
+    }
+  }, [junctionSelection, dispatch])
+  // Deliberately NOT cleared when the paint target changes: switching to Off
+  // to look at the artwork is a look-around, not a change of intent, and
+  // coming back to find the sliders inert reads as broken. The panel says
+  // which group they are editing and offers "New ornament" to detach.
   // Combine target — the Voids picked to fuse. Held as whole Voids, not keys:
   // the record is built from their outlines and identity keys, and the canvas
   // highlight needs the outlines too.
@@ -727,9 +744,11 @@ export function TessellationLabMode({
                 gradientSelection={gradientSelection}
                 onClearGradientSelection={() => setGradientSelection(null)}
                 junctionDraft={junctionDraft}
-                onSetJunctionDraft={setJunctionDraft}
+                onSetJunctionDraft={updateJunctionDraft}
                 junctionScope={effectiveJunctionScope}
                 onSetJunctionScope={setJunctionScope}
+                onSelectJunctionGroup={setJunctionSelection}
+                junctionSelected={!!junctionSelection}
                 strandLineStyle={config.strand.lineStyle}
                 onSetEditorPhase={p => {
                   // Step 17.7 — fire auto-complete when leaving Design for any
@@ -799,9 +818,11 @@ export function TessellationLabMode({
                     gradientSelection={gradientSelection}
                     onClearGradientSelection={() => setGradientSelection(null)}
                     junctionDraft={junctionDraft}
-                    onSetJunctionDraft={setJunctionDraft}
+                    onSetJunctionDraft={updateJunctionDraft}
                     junctionScope={effectiveJunctionScope}
                     onSetJunctionScope={setJunctionScope}
+                    onSelectJunctionGroup={setJunctionSelection}
+                    junctionSelected={!!junctionSelection}
                     strandLineStyle={config.strand.lineStyle}
                     onUndo={undo}
                     onRedo={redo}
@@ -1232,7 +1253,8 @@ export function TessellationLabMode({
         }}
         onPaintJunction={p => {
           pushRecentColour(junctionDraft.colour)
-          dispatch({ type: 'SET_JUNCTION_ORNAMENT', payload: { ...p, style: junctionDraft } })
+          dispatch({ type: 'SET_JUNCTION_ORNAMENT', payload: { ...p, style: junctionDraft, toggle: true } })
+          setJunctionSelection({ scope: p.scope, key: p.key })
         }}
         paintJunctionScope={effectiveJunctionScope}
         onSelectStampVoid={setStampSelection}

@@ -24,8 +24,13 @@ const legacy = (): PatternConfig => structuredClone(DEFAULT_CONFIG)
 const style = (over: Partial<JunctionOrnamentStyle> = {}): JunctionOrnamentStyle =>
   ({ ...DEFAULT_JUNCTION_ORNAMENT, ...over })
 
+/** A CANVAS click: carries `toggle`, so an identical re-application clears. */
 const place = (key: string, s: JunctionOrnamentStyle, scope: 'congruent' | 'patch' | 'instance' = 'congruent') =>
-  ({ type: 'SET_JUNCTION_ORNAMENT', payload: { scope, key, style: s } } as Action)
+  ({ type: 'SET_JUNCTION_ORNAMENT', payload: { scope, key, style: s, toggle: true } } as Action)
+
+/** A PANEL edit: no `toggle`, so it always upserts. */
+const edit = (key: string, s: JunctionOrnamentStyle) =>
+  ({ type: 'SET_JUNCTION_ORNAMENT', payload: { scope: 'congruent', key, style: s } } as Action)
 
 describe('SET_JUNCTION_ORNAMENT', () => {
   it('creates the decoration block and upserts by (scope, key)', () => {
@@ -42,6 +47,16 @@ describe('SET_JUNCTION_ORNAMENT', () => {
     let s = reducer(base(), place('jA', style()))
     s = reducer(s, place('jA', style()))
     expect(s.editor!.decoration!.junctionOrnaments).toBeUndefined()
+  })
+
+  it('a PANEL edit never toggles off — the draft syncs live onto its group', () => {
+    // Dragging a slider back through its previous value must not delete the
+    // record it is editing.
+    let s = reducer(base(), edit('jA', style({ size: 3 })))
+    s = reducer(s, edit('jA', style({ size: 4 })))
+    s = reducer(s, edit('jA', style({ size: 3 })))
+    expect(s.editor!.decoration!.junctionOrnaments).toHaveLength(1)
+    expect(s.editor!.decoration!.junctionOrnaments![0].size).toBe(3)
   })
 
   it('a difference the renderer can see is a restyle, not a toggle-off', () => {

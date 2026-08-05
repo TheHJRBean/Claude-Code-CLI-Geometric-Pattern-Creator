@@ -163,9 +163,12 @@ export type Action =
   // Junction ornaments (`decoration/junctionOrnaments.ts`) — a dot / star /
   // twinkle where Strands cross. Same record ladder as a Void fill (congruent
   // `'*'` = every junction, congruent `<sig>`, patch, instance), same
-  // "paint what you see" unmasking, and the same guarded toggle: re-applying
-  // an identical style to a key removes it. `style: null` removes explicitly.
-  | { type: 'SET_JUNCTION_ORNAMENT'; payload: { scope: GroupingScope; key: string; style: JunctionOrnamentStyle | null; clicked?: ClickedTargetKeys } }
+  // "paint what you see" unmasking. `toggle` marks a CANVAS click: re-clicking
+  // a junction that already wears the identical ornament then removes it.
+  // Panel edits omit it and always upsert — the draft's live sync would
+  // otherwise unpaint a group the moment a slider passed back through its
+  // current value. `style: null` removes explicitly.
+  | { type: 'SET_JUNCTION_ORNAMENT'; payload: { scope: GroupingScope; key: string; style: JunctionOrnamentStyle | null; clicked?: ClickedTargetKeys; toggle?: boolean } }
   | { type: 'CLEAR_JUNCTION_ORNAMENTS' }
   | { type: 'CLEAR_DECORATION' }
   // Undo/redo for a **legacy substrate's** decoration (2026-08-04). A Patch's

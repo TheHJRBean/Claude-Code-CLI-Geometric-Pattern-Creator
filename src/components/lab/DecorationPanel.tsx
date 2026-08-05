@@ -5,7 +5,7 @@ import type { JunctionPaintScope, PaintTarget, StrandPaintScope, VoidPaintScope 
 import type { PaintVoid } from '../../decoration/resolve'
 import { axisAngleDeg, bboxAxisAtAngle, gradientCanonicalBox, rotateAxisTo, seedFrameGradientSpec, seedGradientSpec, DEFAULT_GRADIENT_ANGLE_DEG, type GradientDraft, type GradientSelection, type WorldBBox } from '../../decoration/gradients'
 import type { Vec2 } from '../../utils/math'
-import type { DecorationConfig, FrameConfig, GradientSpec, JunctionOrnamentStyle, VoidStampRecord } from '../../types/editor'
+import type { DecorationConfig, FrameConfig, GradientSpec, GroupingScope, JunctionOrnamentStyle, VoidStampRecord } from '../../types/editor'
 import { junctionOrnamentsSupported } from '../../decoration/junctionOrnaments'
 import { downloadAllVoidShapeCanvases, downloadVoidShapePNG, downloadVoidShapeSVG, importStampImage, voidStampCanvas } from '../../export/stampAssets'
 import { canonicalPose, canonicalSelfMirror } from '../../decoration/stamps'
@@ -148,6 +148,12 @@ interface DecorationPanelProps {
   onSetJunctionDraft: (s: JunctionOrnamentStyle) => void
   junctionScope: JunctionPaintScope
   onSetJunctionScope: (s: JunctionPaintScope) => void
+  /** Which ornament group the draft is live-editing (null = none). Set when a
+   *  bulk button paints, cleared when the ornaments are removed. */
+  onSelectJunctionGroup: (g: { scope: GroupingScope; key: string } | null) => void
+  /** Whether an ornament group is claimed — i.e. whether the controls below
+   *  are editing something already on the canvas. */
+  junctionSelected: boolean
   /** The live Strand line style — junction ornaments are solid-strand only in
    *  v1, and the target says so rather than drawing something misleading. */
   strandLineStyle: string | undefined
@@ -191,6 +197,8 @@ export function DecorationPanel({
   onSetJunctionDraft,
   junctionScope,
   onSetJunctionScope,
+  onSelectJunctionGroup,
+  junctionSelected,
   strandLineStyle,
   combineSelection,
   onClearCombineSelection,
@@ -273,6 +281,8 @@ export function DecorationPanel({
           onSetDraft={onSetJunctionDraft}
           scope={junctionScope}
           onSetScope={onSetJunctionScope}
+          onSelectGroup={onSelectJunctionGroup}
+          selected={junctionSelected}
           supported={junctionOrnamentsSupported({ lineStyle: strandLineStyle })}
         />
       )}
@@ -577,7 +587,7 @@ function CombineSection({ decoration, dispatch, scope, selection, onClearSelecti
  * the identical ornament removes it (the reducer's guarded toggle), so the
  * canvas both places and clears without a mode.
  */
-function JunctionSection({ substrate, decoration, dispatch, draft, onSetDraft, scope, onSetScope, supported }: {
+function JunctionSection({ substrate, decoration, dispatch, draft, onSetDraft, scope, onSetScope, onSelectGroup, selected, supported }: {
   substrate: DecorationSubstrate
   decoration: DecorationConfig | undefined
   dispatch: React.Dispatch<Action>
@@ -585,6 +595,9 @@ function JunctionSection({ substrate, decoration, dispatch, draft, onSetDraft, s
   onSetDraft: (s: JunctionOrnamentStyle) => void
   scope: JunctionPaintScope
   onSetScope: (s: JunctionPaintScope) => void
+  onSelectGroup: (g: { scope: GroupingScope; key: string } | null) => void
+  /** True while the controls edit an already-placed group. */
+  selected: boolean
   /** False while the Strands aren't solid — v1 draws nothing then, and says so
    *  rather than letting the user paint into an invisible layer. */
   supported: boolean
@@ -604,6 +617,12 @@ function JunctionSection({ substrate, decoration, dispatch, draft, onSetDraft, s
         <div style={{ marginBottom: 8, color: 'var(--accent)' }}>
           Junction ornaments draw on <strong>solid</strong> Strands only. Set
           Line divisions back to 1 (Display panel) to see them.
+        </div>
+      )}
+      {selected && (
+        <div style={{ marginBottom: 8, display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span style={{ flex: 1 }}>Editing the ornaments you last placed.</span>
+          <button onClick={() => onSelectGroup(null)} style={decorationButtonStyle}>New ornament</button>
         </div>
       )}
       <FieldLabel
@@ -732,13 +751,19 @@ function JunctionSection({ substrate, decoration, dispatch, draft, onSetDraft, s
       )}
       <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
         <button
-          onClick={() => { pushRecentColour(draft.colour); dispatch({ type: 'SET_JUNCTION_ORNAMENT', payload: { scope: 'congruent', key: '*', style: draft } }) }}
+          onClick={() => {
+            pushRecentColour(draft.colour)
+            dispatch({ type: 'SET_JUNCTION_ORNAMENT', payload: { scope: 'congruent', key: '*', style: draft } })
+            // Claim the group so the sliders above now edit what was just
+            // placed, instead of only affecting the next thing painted.
+            onSelectGroup({ scope: 'congruent', key: '*' })
+          }}
           style={{ ...decorationButtonStyle, flex: 1 }}
         >
           Ornament every junction
         </button>
         <button
-          onClick={() => dispatch({ type: 'CLEAR_JUNCTION_ORNAMENTS' })}
+          onClick={() => { dispatch({ type: 'CLEAR_JUNCTION_ORNAMENTS' }); onSelectGroup(null) }}
           disabled={count === 0}
           style={{ ...decorationButtonStyle, ...(count === 0 ? { opacity: 0.4, cursor: 'not-allowed' } : null) }}
         >

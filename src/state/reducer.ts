@@ -985,18 +985,20 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
     case 'SET_JUNCTION_ORNAMENT': {
       // Junction ornaments (`decoration/junctionOrnaments.ts`) — the Void-fill
       // ladder applied to the crossings: unmask finer records covering the
-      // clicked junction, then upsert by (scope, key). Re-applying an
-      // IDENTICAL style to a key removes it (the same guarded toggle a repaint
-      // in the current colour gets), so a click both places and clears.
-      // `style: null` removes explicitly (the panel's per-group Remove).
+      // clicked junction, then upsert by (scope, key). A CANVAS click
+      // (`toggle`) re-applying an IDENTICAL style removes it, so one click
+      // both places and clears; a PANEL edit omits `toggle` and always
+      // upserts, because the draft syncs live onto the last-painted group and
+      // a slider passing back through its old value would otherwise unpaint
+      // it. `style: null` removes explicitly.
       if (!canDecorate(state)) return state
       const deco = patternDecoration(state) ?? emptyDecoration()
-      const { scope, key, style, clicked } = action.payload
+      const { scope, key, style, clicked, toggle } = action.payload
       const prev = deco.junctionOrnaments ?? []
       const { records: unmasked, removedAny } = clearMaskingRecords(prev, scope, key, clicked)
       const existing = unmasked.find(r => r.scope === scope && r.key === key)
       const junctionOrnaments = unmasked.filter(r => !(r.scope === scope && r.key === key))
-      if (style !== null && (removedAny || !existing || !sameOrnamentStyle(existing, style))) {
+      if (style !== null && (!toggle || removedAny || !existing || !sameOrnamentStyle(existing, style))) {
         junctionOrnaments.push({ scope, key, ...style })
       }
       const next = { ...deco }

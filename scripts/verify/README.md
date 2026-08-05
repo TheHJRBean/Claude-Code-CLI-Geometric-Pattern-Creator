@@ -1,0 +1,52 @@
+# Headless verification scripts (2026-08-05)
+
+Playwright scripts that drive the running dev server and assert against the
+**rendered SVG DOM** — never `localStorage`, which the Lab writes on a debounce
+(see `memory/feedback_headless_browser_no_sudo`).
+
+## Running them
+
+They need a Chromium that can actually launch in this sandbox. Full recipe is
+in `memory/feedback_headless_browser_no_sudo.md`; the short form:
+
+```bash
+# 1. dev server on 5173 (strictPort — a busy port is a deliberate loud failure)
+npm run dev
+
+# 2. find a surviving scratchpad with the extracted libs + the playwright driver
+find /tmp/claude-1000 -name 'libnspr4.so'
+find /tmp/claude-1000 -maxdepth 5 -name 'playwright-core' -type d
+
+# 3. run from a dir holding node_modules/playwright-core
+LD_LIBRARY_PATH=<libdir>/usr/lib/x86_64-linux-gnu node verify3.mjs
+```
+
+## What each one covers
+
+| Script | Covers | Status |
+|---|---|---|
+| `verify2.mjs` | SVG-export background rect on a real Composition field (550 `<use>` clones); saved-library name outranking the preset label | ✅ passes |
+| `verify3.mjs` | Download naming across all three rungs; the Gallery name filter end to end (match, case-insensitivity, AND tokens, no-match empty state, Clear) | ✅ passes |
+| `c34.mjs` | #34 Place-on-Anchor host-Cell resolution on 4.8.8 | ⚠️ **incomplete — see below** |
+
+## `c34.mjs` — what it establishes and what it does not
+
+**Establishes.** With the square Cell's Symmetry set to **Full** and a Guide
+line drawn across it, the Guide's own symmetry orbit renders as 4 linked
+members hugging the square Cell; and a triangle placed on an Anchor inside that
+Cell lands at world `(170.7, 149.6)` — 57 units from the square Cell centre
+`(120.71, 120.71)`, i.e. inside it. **The old bug's signature is absent**: no
+image anywhere near the `(±198, ±198)` fling across and past the octagon.
+
+**Does not establish.** The **8-image orbit**. The run commits exactly one
+Tile, which is the documented behaviour for a **non-stamping** Anchor
+(world-space `patch.guideTiles`, single, never repeated) — so the orbit branch
+may simply not have been entered. The script does toggle "Stamp with Lattice"
+on the selected Guide and confirms it reads `true` afterwards, but the Anchor
+it then clicks is the **Cell-centre crossing**, whose stamp flag is the AND of
+both crossing Guides, and whether both members of the linked group actually
+flipped was not confirmed.
+
+Next session: pick an Anchor that is *not* the Cell centre (the centre is also
+D4's fixed point, and it collides with the seed Tile so every size is badged
+⚠), confirm the Anchor's own stamp state before placing, then assert 8 images.

@@ -4,7 +4,42 @@
 
 ## ▶ RESUME HERE
 
-> **2026-08-07, latest — `f1e2f67` + `0126b83`: world-space Guide Tiles can be
+> **2026-08-07, latest — `fa752a9`: the Guides overlay toggles didn't govern
+> the Anchor dots. FIXED (2 of the 3 reported symptoms); the third is OPEN and
+> needs a bug capture.**
+>
+> Reported: (1) "Show neighbours isn't working", (2) "Show guides removes
+> construction lines but not anchors", (3) "Show anchors doesn't do anything".
+>
+> (2) + (3) were one bug with two faces. The Guide **Anchors** are rendered by
+> three different things and only one of them read the toggles:
+> `EditorGuideLayer`'s tick/division/manual dots (gated), the Complete-mode
+> pick dots in `editor-vertex-layer` (`Canvas.guideAnchorVertices` — NOT
+> gated), and the Place-mode synthetic Anchor vertices (`cellLocalVertices` —
+> NOT gated). So hiding the Guides left their big pick dots on the canvas and
+> still clickable, and "Show anchors" looked inert because the dots it governs
+> are the small tick markers, not the prominent ones. A line's endpoints and a
+> circle's centre/radius dot were also unconditional in the live renderer while
+> the *stamped-copy* renderer already treated them as Anchors — the two halves
+> of one file disagreed. Fix: hoist the visibility predicates above the
+> pick-target overlays and share one `guideAnchorsVisible`; an Anchor is only
+> pickable when its Guide is visible (an invisible click target is worse than a
+> missing one). Drag handles stay regardless, or a selected Guide would become
+> uneditable. Browser-verified: Complete-mode circles 36 → 16 with anchors off
+> (16 = the Cell's own vertex dots), Place-mode guide-layer circles 7 → 0.
+>
+> (3) **Show neighbours — could not reproduce, awaiting a bug capture.** Ghosts
+> render for every shipping Configuration (Triangle/Square/Hexagon + all eight
+> multi-cell, 119–3411 ghost polygons), for the converted presets, in Place and
+> Construct, before and after drawing a Guide. The one confirmed way to get
+> **zero** ghosts is a Patch whose Cells hold no Tiles: `ghostPolygons` is built
+> from `basePolys` only, and **world-space Tiles — `patch.guideTiles` and
+> `frame.completedTiles` — are deliberately excluded** (they render once and
+> never repeat; see the `0126b83` note below). A scaffold-first session whose
+> Tiles all live in `guideTiles` therefore sees the toggle do nothing, and the
+> fix is **Repeat under Lattice**, not the overlay. Unconfirmed for this report.
+
+> **2026-08-07 — `f1e2f67` + `0126b83`: world-space Guide Tiles can be
 > promoted into the Lattice. CLOSED, user-confirmed.** From a bug capture on a
 > 3.12.12 Patch: 12 quadrangles completed at the dodecagon's diagonal corners
 > never showed on the neighbours. Not a geometry fault — every one of the

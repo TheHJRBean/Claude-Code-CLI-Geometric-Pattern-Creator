@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import type { Action, CurveTarget } from '../../state/actions'
 import type { CurveConfig, FigureLineSet } from '../../types/pattern'
 import { computeSnapPoints, snapToNearest } from '../../pic/snapPoints'
+import { regularVertexStrandRange, type VertexStrandRange } from '../../pic/vertexStrandRange'
 
 /**
  * Generic per-tile-type strand controls. Takes a `dispatch` and an `allFigures`
@@ -49,6 +50,19 @@ interface FigureControlsProps {
   /** Extra line sets for this tile type (ticket #42), edited in-place via the
    *  ADD/UPDATE/REMOVE_FIGURE_SET actions. */
   extraSets?: FigureLineSet[]
+  /** θ band in which this Tile's Vertex strands can draw at all. Omit and the
+   *  regular-n-gon closed form (180/n) is used — right for every Gallery
+   *  tiling, approximate for an irregular Builder Tile. */
+  vertexStrandRange?: VertexStrandRange
+}
+
+/** One decimal only when it earns it — 22.5° on an octagon, 45° on a square.
+ *  Rounds BEFORE the integer test: a threshold derived from a Complete-fill
+ *  Tile's real corner angles arrives as 38.99999999999999, and "39.0°" reads
+ *  like a measurement when it is just a triangle. */
+function fmtDeg(deg: number): string {
+  const rounded = Math.round(deg * 10) / 10
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)
 }
 
 export function FigureControls({
@@ -58,7 +72,7 @@ export function FigureControls({
   vertexCurveEnabled, vertexCurvePoints, vertexCurveAlternating, vertexCurveDirection,
   cpShown, onToggleCpShown,
   tilingType, allFigures, dispatch, onCurvePointActivity,
-  advanced = false, extraSets = [],
+  advanced = false, extraSets = [], vertexStrandRange,
 }: FigureControlsProps) {
   // Which strand type the curve-shape editor is currently editing. Only
   // meaningful when decoupled; coupled always targets the (shared) edge curve.
@@ -88,6 +102,23 @@ export function FigureControls({
     : emittingSets > 0
       ? 'Both off leaves only the line sets below drawing.'
       : undefined
+
+  // Vertex strands only draw while θ clears this Tile's threshold — below it
+  // every ray points outside the Tile and the family emits NOTHING (see
+  // `pic/vertexStrandRange.ts`). That is easy to walk into: switching Edge
+  // strands off turns Vertex strands ON to keep the Tile from going dark, and
+  // at a θ under the threshold the Tile goes dark anyway — the guard's promise
+  // is kept in form and broken in fact. Say so where the toggle is, with the
+  // number, instead of leaving a blank canvas to explain itself.
+  const vtxRange = vertexStrandRange ?? regularVertexStrandRange(sides)
+  const vtxAngleInUse = vertexDecoupled ? vertexAngle : angle
+  const vertexStrandHint = !vertexEnabled
+    ? undefined
+    : vtxAngleInUse <= vtxRange.anyFrom
+      ? `Vertex strands need θ above ${fmtDeg(vtxRange.anyFrom)}° on this Tile — at or below that every ray points outside it, so they draw nothing.${edgeEnabled ? '' : ' Edge strands are off, so this Tile is blank.'}`
+      : vtxAngleInUse <= vtxRange.allFrom
+        ? `Partial — only the wider corners draw until θ passes ${fmtDeg(vtxRange.allFrom)}°.`
+        : undefined
 
   const handleLineLengthChange = (rawPercent: number) => {
     let ll = rawPercent / 100
@@ -215,6 +246,20 @@ export function FigureControls({
           {baseHint && (
             <div style={{ fontSize: 10, lineHeight: 1.45, fontStyle: 'italic', opacity: 0.62, marginTop: 6 }}>
               {baseHint}
+            </div>
+          )}
+          {vertexStrandHint && (
+            <div style={{
+              fontSize: 10,
+              lineHeight: 1.45,
+              fontStyle: 'italic',
+              // Louder than `baseHint`: this one explains a Tile that is
+              // currently drawing less than the toggles claim.
+              color: 'var(--accent)',
+              opacity: 0.85,
+              marginTop: 6,
+            }}>
+              {vertexStrandHint}
             </div>
           )}
         </div>

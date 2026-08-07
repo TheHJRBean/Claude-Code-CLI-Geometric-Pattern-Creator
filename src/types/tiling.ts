@@ -1,4 +1,5 @@
 import type { PatternConfig } from './pattern'
+import type { VertexStrandRange } from '../pic/vertexStrandRange'
 
 export type TilingCategory = 'archimedean' | 'rosette-patch'
 
@@ -9,6 +10,12 @@ export interface TileTypeInfo {
   sides: number
   /** Display label (e.g. "6-gon", "6-gon (bowtie)") */
   label: string
+  /** The θ band in which this Tile's **Vertex strands** can draw at all
+   *  (`pic/vertexStrandRange.ts`). Below `anyFrom` the family emits nothing —
+   *  the Strands panel says so rather than letting the Tile go silently dark.
+   *  Optional: a caller that only knows the side count can leave it off and the
+   *  panel falls back to the regular-n-gon closed form. */
+  vertexStrandRange?: VertexStrandRange
 }
 
 export interface TilingDefinition {

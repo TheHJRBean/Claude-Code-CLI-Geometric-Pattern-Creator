@@ -2,6 +2,7 @@ import type { TileTypeInfo } from '../types/tiling'
 import type { FigureConfig } from '../types/pattern'
 import type { EditorPatch, EditorTile } from '../types/editor'
 import { tileTypeIdFor, tileTypeLabel } from './tileTypeId'
+import { regularVertexStrandRange, vertexStrandRange } from '../pic/vertexStrandRange'
 
 /**
  * Q15 resolution — the default `FigureConfig` lazily seeded for every new
@@ -56,7 +57,13 @@ export function editorTileTypes(patch: EditorPatch): TileTypeInfo[] {
   const out: TileTypeInfo[] = []
   for (const [id, tile] of seen) {
     const sides = tile.kind === 'regular' ? tile.sides : tile.vertices.length
-    out.push({ id, sides, label: tileTypeLabel(id, irregularRank) })
+    // Vertex strands only draw above a per-Tile θ threshold, and an irregular
+    // Complete-fill Tile has a whole BAND of partial emission — so take it from
+    // the real outline here rather than the side count.
+    const range = tile.kind === 'regular'
+      ? regularVertexStrandRange(tile.sides)
+      : vertexStrandRange(tile.vertices)
+    out.push({ id, sides, label: tileTypeLabel(id, irregularRank), vertexStrandRange: range })
   }
   return out
 }

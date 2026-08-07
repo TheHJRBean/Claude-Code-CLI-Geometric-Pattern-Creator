@@ -4,6 +4,47 @@
 
 ## ▶ RESUME HERE
 
+> **2026-08-07, latest — "disappearing lines": Vertex strands have a θ floor
+> and nothing said so. FIXED (surfaced, not changed).**
+>
+> Reported as "when edge strands are selected the strands do not appear at
+> certain angles", on the same 3.12.12 Patch. `Edge strands` / `Vertex strands`
+> are the literal toggle labels in `FigureControls`, and switching **Edge
+> strands off** turns Vertex strands **on** (reducer's never-go-dark guard,
+> `SET_EDGE_LINES_ENABLED`). That guard checks the *flags* only — so it hands
+> the Tile to a family that, below a per-Tile θ, emits **nothing at all**.
+>
+> The floor is exact: a vertex ray leaves at α = 90° − θ either side of the
+> interior bisector, `vertexRayEntersPolygon` suppresses any ray pointing
+> outside the tile's wedge, so a vertex draws only while θ **exceeds**
+> `90° − interior/2` — i.e. `180/n` on a regular n-gon. Measured against
+> `runPIC`: a triangle is blank below 60°, a square below 45°, a dodecagon
+> below 15°. The reporter's figures sit at **θ = 15° with vertex lines on
+> everything**, so every Tile in the Patch was under its floor — browser-checked
+> on their exact Patch: vertex-only at θ ≤ 15 renders **no strand layer at
+> all**, at θ = 20 it comes back.
+>
+> Fix is a shared predicate plus copy, not a geometry change (the suppression
+> is correct — those rays really are outside the tile): `pic/vertexStrandRange.ts`
+> (`anyFrom` / `allFrom`, because an irregular Complete-fill Tile has a partial
+> band between its widest and sharpest corner), carried on `TileTypeInfo` by
+> `editorTileTypes` from the **real outline**, stated beside the toggle in
+> `FigureControls` in accent colour, naming the number and — when Edge strands
+> are also off — saying the Tile is blank. Verified on the reporter's Patch:
+> 11 Tile types, all 11 report. `vertexStrandRange.test.ts` pins the thresholds
+> against what `runPIC` emits, including that the bound is **exclusive** (at it,
+> the rays run along the tile's own edges and clip to nothing).
+>
+> **Two dead ends worth not repeating.** (a) Sweeping θ over the reporter's
+> irregular Tiles with edge lines on shows segment counts dropping in bands
+> (8→6, 6→3) — that is the *known parked* centroid-V regime change
+> ([[project_pic_irregular_polygon_bugs]]), where a corner's pair goes
+> asymmetric and both arms re-route to the centroid, colliding with the
+> neighbouring pair's and deduping away. Real, visible, NOT this report.
+> (b) Segment count and Σlen are poor proxies here: the field-wide totals for
+> edge lines stay 18k–26k across the whole θ range while the picture changes a
+> lot, and the actual blackout showed up only as `#strand-layer` being absent.
+
 > **2026-08-07, latest — `fa752a9`: the Guides overlay toggles didn't govern
 > the Anchor dots. FIXED (2 of the 3 reported symptoms); the third is OPEN and
 > needs a bug capture.**

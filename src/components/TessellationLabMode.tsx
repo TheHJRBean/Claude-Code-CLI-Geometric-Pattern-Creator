@@ -993,6 +993,7 @@ export function TessellationLabMode({
                           snapEnabled={fig.snapLineLength ?? false}
                           edgeEnabled={fig.edgeLinesEnabled !== false}
                           vertexEnabled={fig.vertexLinesEnabled ?? false}
+                          vertexStrandRange={tt.vertexStrandRange}
                           vertexDecoupled={fig.vertexLinesDecoupled ?? false}
                           vertexAngle={fig.vertexContactAngle ?? fig.contactAngle}
                           vertexLineLength={fig.vertexLineLength ?? fig.lineLength}

@@ -59,16 +59,27 @@ export function clampStrandScope(scope: StrandPaintScope, substrate: DecorationS
   return STRAND_SCOPES[substrate].some(([s]) => s === scope) ? scope : 'congruent'
 }
 
-/** The Paint targets, in bar order. Combine sits last: it restructures what
- * the other targets act ON, so it reads as the odd one out, which it is. */
-const PAINT_TARGETS: readonly (readonly [PaintTarget, string])[] = [
-  ['off', 'Off'],
-  ['voids', 'Voids'],
-  ['strands', 'Strands'],
-  ['junctions', 'Junctions'],
-  ['stamp', 'Stamp'],
-  ['gradient', 'Gradient'],
-  ['combine', 'Combine'],
+/** The Paint targets, in bar order, split into the two rows they are DRAWN on.
+ * Combine sits last: it restructures what the other targets act ON, so it reads
+ * as the odd one out, which it is.
+ *
+ * The rows are authored rather than left to `flex-wrap` because wrapping packs
+ * the first line as full as it will go — seven `flex: 1` buttons in a sidebar
+ * came out five cramped and two roomy. A 4 + 3 split keeps both rows legible,
+ * and each row fills the full width on its own, so there is no empty cell of
+ * the sort a fixed-column grid would leave. */
+const PAINT_TARGET_ROWS: readonly (readonly (readonly [PaintTarget, string])[])[] = [
+  [
+    ['off', 'Off'],
+    ['voids', 'Voids'],
+    ['strands', 'Strands'],
+    ['junctions', 'Junctions'],
+  ],
+  [
+    ['stamp', 'Stamp'],
+    ['gradient', 'Gradient'],
+    ['combine', 'Combine'],
+  ],
 ]
 
 /**
@@ -234,11 +245,20 @@ export function DecorationPanel({
         Composition to reshape.
       </div>
       <FieldLabel label="Paint target" tooltip="What clicking on the canvas paints. Off frees panning; Voids fill the gaps between Strands; Strands colour the lines themselves; Stamp selects a Void shape to export as a canvas or fill with an uploaded image; Gradient fills the clicked Void group with a colour gradient; Combine fuses adjacent Voids so they act as one shape." />
-      <div style={{ display: 'flex', gap: 0, marginBottom: 10, flexWrap: 'wrap' }}>
-        {PAINT_TARGETS.map(([t, label]) => (
-          <button key={t} onClick={() => onSetPaintTarget(t)} style={segButtonStyle(paintTarget === t)}>
-            {label}
-          </button>
+      <div style={{ marginBottom: 10 }}>
+        {PAINT_TARGET_ROWS.map((row, i) => (
+          // -1 top margin on the later row so the rows share one border, the
+          // same way neighbouring buttons in a row already do.
+          // `wrap` is only a safety valve: row 1 is at its min-content width on
+          // the 290 px sidebar, so a narrower one would otherwise overflow the
+          // panel rather than break.
+          <div key={i} style={{ display: 'flex', gap: 0, flexWrap: 'wrap', marginTop: i === 0 ? 0 : -1 }}>
+            {row.map(([t, label]) => (
+              <button key={t} onClick={() => onSetPaintTarget(t)} style={segButtonStyle(paintTarget === t)}>
+                {label}
+              </button>
+            ))}
+          </div>
         ))}
       </div>
       {(paintTarget === 'voids' || paintTarget === 'combine' || (paintTarget === 'gradient' && gradientMode !== 'strands')) && (

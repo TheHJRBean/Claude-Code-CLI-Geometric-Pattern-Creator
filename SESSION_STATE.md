@@ -4,13 +4,14 @@
 
 ## ▶ RESUME HERE
 
-> **2026-08-07, latest — `f1e2f67`: world-space Guide Tiles can be promoted
-> into the Lattice.** From a bug capture on a 3.12.12 Patch: 12 quadrangles
-> completed at the dodecagon's diagonal corners never showed on the neighbours.
-> Not a geometry fault — every one of the reporter's Guide circles had
-> `stamp: false` (the default), so `multiPickCompleteAcrossPatch` routed the
-> Completes to `guideCompleteWorldSpace` → `patch.guideTiles`, which by design
-> render once and never repeat.
+> **2026-08-07, latest — `f1e2f67` + `0126b83`: world-space Guide Tiles can be
+> promoted into the Lattice. CLOSED, user-confirmed.** From a bug capture on a
+> 3.12.12 Patch: 12 quadrangles completed at the dodecagon's diagonal corners
+> never showed on the neighbours. Not a geometry fault — every one of the
+> reporter's Guide circles had `stamp: false` (the default), so
+> `multiPickCompleteAcrossPatch` routed the Completes to
+> `guideCompleteWorldSpace` → `patch.guideTiles`, which by design render once
+> and never repeat.
 >
 > The design is self-consistent but the default points the wrong way for spec
 > Decision 4's own scaffold-first workflow, and the fork is **irreversible**:
@@ -18,16 +19,33 @@
 > Stamp toggle cannot reach Tiles already minted.
 >
 > Fix is an escape hatch, not a default change — `editor/promoteGuideTiles.ts`
-> + `EDITOR_PROMOTE_GUIDE_TILES` (undoable) + a **Repeat under Lattice** button
-> in the Design panel, shown whenever world-space Tiles exist. Host by
-> `resolveHostCell` on the Tile **centroid** (an Anchor is a corner and can sit
-> on a shared Boundary); the Cell transform is rigid so the Tile does not move,
-> which is the invariant the 8 tests pin. Browser-verified on a seeded 3.12.12
-> save: label read `World-space Tiles (4)`, the click cleared it, and the
-> promoted Tiles appear on every neighbour stamp.
+> + `EDITOR_PROMOTE_GUIDE_TILES` (undoable) + a **Repeat under Lattice** button.
+> Host by `resolveHostCell` on the Tile **centroid** (an Anchor is a corner and
+> can sit on a shared Boundary); the Cell transform is rigid so the Tile does
+> not move, which is the invariant the 8 tests pin.
 >
-> **Still open, user's call:** whether new Guides should default to
-> `stamp: true` (overturns spec Decision 2 — offered and not taken this round).
+> **`0126b83` is the half that mattered to the user.** The control shipped in
+> the Design panel only, but the symptom it fixes is what **Composition**
+> renders — so the fix read as not working. `WorldSpaceTilesNotice` now lives in
+> `lab/labShared.tsx` and renders in both live Phases (Composition beside the
+> non-tiling warning), same action, per-Phase copy. **The lesson generalises:
+> put the affordance where the symptom appears, not where the cause lives.**
+>
+> Verified by image-diffing the reporter's exact 12-Tile save at fixed zoom/pan:
+> Composition — origin patch pixel-identical, every surrounding stamp changed,
+> `NON-TILING PATCH` cleared, render moved onto the `<use>` fast path (110
+> clones of a 39-polygon fragment vs 2,982 world polygons, since `guideTiles` no
+> longer disqualifies it). Design + all neighbour overlays — polygons 8,172 →
+> 11,424 (= 12 × 271 stamps).
+>
+> **Two things left open, neither blocking:**
+>
+> - **Guide `stamp` still defaults OFF** (spec Decision 2). Flipping it would
+>   stop this recurring; offered twice, not taken. User's call.
+> - **Neighbour ghost contrast.** In Design the promoted Tiles land on every
+>   neighbour but are near-invisible: the before/after diff showed *nothing* on
+>   the ghosts at a normal threshold and only resolved at ~3% contrast. Bare
+>   outlines (no strand work) are the worst case. Not filed — flagged only.
 >
 
 > **2026-08-07, latest — two UI fixes from a user pass, both browser-verified.**

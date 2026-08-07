@@ -5,6 +5,9 @@ import { generateTiling } from '../tilings/archimedean'
 import { TILINGS } from '../tilings/index'
 import { resetIds } from '../tilings/shared'
 import { DEFAULT_CONFIG } from '../state/defaults'
+import { createDefault4612EditorConfig } from '../editor/createDefault'
+import { compositionToPolygons } from '../editor/compositionLattice'
+import { seedFiguresForEditor } from '../editor/tileTypes'
 import { buildStrands } from './buildStrands'
 import { junctionAngle, junctionSignature, strandJunctions } from './junctions'
 import { computeWeave } from './weave'
@@ -208,6 +211,31 @@ describe('arm spans — how far the line work runs each way', () => {
     expect(left).toBeCloseTo(3, 6)
   })
 
+  it('measures the run each way from a chain point where the thread BENDS', () => {
+    // The case every other fixture here misses: a crossing that is a chain
+    // point (source a) rather than a mid-edge transversal. `buildStrands`
+    // merges collinear runs, so a fixture built from straight threads only
+    // ever produces mid-edge crossings — and the backward walk, which starts
+    // on the previous edge only at a chain point, was never exercised. It
+    // returned 0 for every backward arm on every real field, and a zero span
+    // was read as "no end known", which left half of every twinkle uncapped.
+    const strands = buildStrands([
+      seg(-3, 0, 0, 0), seg(0, 0, 4, 2),
+      seg(0, -5, 0, 0), seg(0, 0, 2, 6),
+    ])
+    const [j] = strandJunctions(strands)
+    const spanTowards = (x: number, y: number) => {
+      const u = { x: x / Math.hypot(x, y), y: y / Math.hypot(x, y) }
+      const i = j.arms.findIndex(a => Math.abs(a.x - u.x) < 1e-6 && Math.abs(a.y - u.y) < 1e-6)
+      expect(i).toBeGreaterThanOrEqual(0)
+      return j.armSpans[i]
+    }
+    expect(spanTowards(-1, 0)).toBeCloseTo(3, 6)
+    expect(spanTowards(4, 2)).toBeCloseTo(Math.hypot(4, 2), 6)
+    expect(spanTowards(0, -1)).toBeCloseTo(5, 6)
+    expect(spanTowards(2, 6)).toBeCloseTo(Math.hypot(2, 6), 6)
+  })
+
   it('measures from the crossing, not the chain point, on a transversal', () => {
     // The vertical thread crosses the horizontal one mid-edge at (0,0): the
     // horizontal arms run 2 each way, not 4 and 0.
@@ -217,6 +245,24 @@ describe('arm spans — how far the line work runs each way', () => {
       .map((a, i) => ({ a, span: j.armSpans[i] }))
       .filter(({ a }) => Math.abs(a.y) < 1e-9)
     for (const { span } of horizontal) expect(span).toBeCloseTo(2, 6)
+  })
+
+  it('every arm of a real multi-cell field reports a real run', () => {
+    // A synthetic fixture can only have the crossings you thought to build.
+    // On a real Patch — 4.6.12, mixed θ, chains that bend at their contact
+    // points — HALF the arms are the backward arm of a chain point, and they
+    // all reported zero. Nothing looked wrong: a zero span was read as "no
+    // end known", so those arms silently drew uncapped.
+    const editor = createDefault4612EditorConfig()
+    const figures = seedFiguresForEditor({}, editor)
+    for (const k of Object.keys(figures)) {
+      figures[k] = { ...figures[k], contactAngle: k.startsWith('3') ? 78.5 : 14.5 }
+    }
+    const polys = compositionToPolygons(editor)
+    const segs = runPIC(polys, { ...DEFAULT_CONFIG, figures })
+    const spans = strandJunctions(buildStrands(segs)).flatMap(j => j.armSpans)
+    expect(spans.length).toBeGreaterThan(20)
+    expect(spans.filter(s => !(s > 0)).length).toBe(0)
   })
 })
 

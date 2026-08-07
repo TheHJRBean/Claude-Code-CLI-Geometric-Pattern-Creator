@@ -402,10 +402,12 @@ export function flarePathD(
     const d = incident[i]
     const len = Math.hypot(d.x, d.y)
     if (len < 1e-9) continue
-    // A missing span is "no known end", not "zero" — an ornament that
-    // vanished would be a worse answer than one that overhangs.
+    // A missing span means the line work doesn't run that way, so the fillet
+    // gets its minimum on that side. It deliberately does NOT mean "no limit":
+    // treating an absent span as unbounded is how a span bug hid — half of
+    // every twinkle silently stopped capping instead of visibly shrinking.
     const span = spans[i]
-    arms.push({ u: { x: d.x / len, y: d.y / len }, span: span > 0 ? span : Infinity })
+    arms.push({ u: { x: d.x / len, y: d.y / len }, span: Number.isFinite(span) && span > 0 ? span : 0 })
   }
   if (arms.length < 2) return ''
   // Normalised to [0, 2π) — the same walk `armGapRing` takes, and immune to

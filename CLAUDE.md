@@ -206,6 +206,22 @@ after areas and lines.
   work that is really there. The two sides of a wedge cap independently, which
   is why `a` and `b` can sit at different distances and why the corner is
   measured from both arms (`t` and `tv`) rather than once.
+  - **The backward walk starts on the PREVIOUS edge.** At a chain point the
+    arm pointing back along the thread runs down the edge the thread came in
+    on; basing it on the edge at `floor(s)` measures nothing (`t` = 0) and
+    then compares the previous edge against the wrong reference direction. It
+    returned **zero for every backward arm of every chain-point crossing** —
+    half the arms on a real field — and a zero span was read as "no end
+    known", so those arms silently drew *uncapped*. Measured on 4.6.12 at
+    reach 200: extent 200 before, 96.6 after.
+  - A missing span therefore means **the minimum**, never "unbounded". That
+    substitution is what turned a geometry bug into an invisible one.
+  - Synthetic fixtures could not catch it: `buildStrands` merges collinear
+    runs, so a field built from straight threads yields only *mid-edge*
+    crossings, where `t` > 0 and the backward walk is never taken. The guard
+    is a real 4.6.12 Patch (`every arm of a real multi-cell field reports a
+    real run`) plus a bent-chain-point fixture
+    ([[feedback_symmetric_fixtures_hide_asymmetry]]).
 - **A twinkle measures itself in world units** (`reach`, `twinkleReach`), not in
   Strand widths like a dot or a star — a separate field and a separate slider,
   because they are separate quantities. Strand width is a drawing weight chosen

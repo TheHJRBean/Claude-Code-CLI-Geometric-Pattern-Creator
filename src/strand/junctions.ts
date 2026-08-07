@@ -113,8 +113,23 @@ const RUN_TOL = 1e-3
 function chainSpan(pts: readonly Vec2[], closed: boolean, s: number, forward: boolean): number {
   const edges = pts.length - 1
   if (edges <= 0) return 0
-  const e = Math.max(0, Math.min(Math.floor(s + 1e-9), edges - 1))
-  const t = s - e
+  let e = Math.max(0, Math.min(Math.floor(s + 1e-9), edges - 1))
+  let t = s - e
+  // Travelling BACKWARD from the very start of an edge, the run begins on the
+  // *previous* edge — the one the thread came in along. Basing it on this one
+  // measures nothing (t = 0) and then compares the previous edge against the
+  // wrong reference direction, so every arm pointing back along a chain
+  // reported a span of zero — and a zero span read as "no end known", which
+  // is how half of every twinkle stayed uncapped.
+  if (!forward && t <= 1e-9) {
+    if (e === 0) {
+      if (!closed) return 0
+      e = edges - 1
+    } else {
+      e -= 1
+    }
+    t = 1
+  }
   const dirOf = (i: number) => normalize(sub(pts[i + 1], pts[i]))
   const lenOf = (i: number) => dist(pts[i], pts[i + 1])
   const d0 = dirOf(e)

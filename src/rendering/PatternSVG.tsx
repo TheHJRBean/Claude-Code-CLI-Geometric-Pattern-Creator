@@ -223,9 +223,17 @@ export const PatternSVG = forwardRef<SVGSVGElement, Props>(function PatternSVG(
             </clipPath>
           </defs>
         )}
+        {/* Design-Phase neighbour ghosts. Deliberately NOT gated on
+            `showTileLayer`: these are an authoring overlay with its own switch
+            ("Show neighbours"), not part of the pattern's Tile layer, and the
+            rest of the preview — neighbour Boundary outlines, neighbour
+            Strands — already ignores it. Coupling them let one control silently
+            empty another: a strands-only view (Tiles off) turned the whole
+            preview invisible, so "Show neighbours" looked broken with nothing
+            anywhere saying why. */}
         {ghostPolygons && ghostPolygons.length > 0 && (
           <g opacity={0.18} pointerEvents="none" data-export="exclude">
-            <TileLayer polygons={ghostPolygons} visible={showTileLayer} outlineWidth={outlineWidth} />
+            <TileLayer polygons={ghostPolygons} visible outlineWidth={outlineWidth} />
           </g>
         )}
         {/* Pattern content is clipped to the Shape Frame outline only when

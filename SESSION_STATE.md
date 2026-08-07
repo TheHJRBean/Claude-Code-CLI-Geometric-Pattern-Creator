@@ -28,16 +28,31 @@
 > uneditable. Browser-verified: Complete-mode circles 36 → 16 with anchors off
 > (16 = the Cell's own vertex dots), Place-mode guide-layer circles 7 → 0.
 >
-> (3) **Show neighbours — could not reproduce, awaiting a bug capture.** Ghosts
-> render for every shipping Configuration (Triangle/Square/Hexagon + all eight
-> multi-cell, 119–3411 ghost polygons), for the converted presets, in Place and
-> Construct, before and after drawing a Guide. The one confirmed way to get
-> **zero** ghosts is a Patch whose Cells hold no Tiles: `ghostPolygons` is built
-> from `basePolys` only, and **world-space Tiles — `patch.guideTiles` and
-> `frame.completedTiles` — are deliberately excluded** (they render once and
-> never repeat; see the `0126b83` note below). A scaffold-first session whose
-> Tiles all live in `guideTiles` therefore sees the toggle do nothing, and the
-> fix is **Repeat under Lattice**, not the overlay. Unconfirmed for this report.
+> (1) **Show neighbours — FIXED, `0d1c3b1`. "Show tiles" was silently emptying
+> it.** The ghost layer was `<TileLayer polygons={ghostPolygons}
+> visible={showTileLayer}>` — so with the Display section's **Show tiles** off,
+> the preview rendered an empty group and the toggle did nothing at all, with
+> nothing anywhere saying why. A strands-only view is the normal way to look at
+> a pattern, so this is not an exotic state: the reporter's capture read
+> `Overlays | strands` (tiles off), which is what finally located it. Nothing
+> else in the preview was coupled that way — neighbour Boundary outlines and
+> neighbour Strands both ignore `showTileLayer` — so the ghosts were the odd
+> one out. They are an authoring overlay with their own switch, not part of the
+> pattern's Tile layer; now they render on their own. Verified: tiles off +
+> neighbours on, ghost shapes 0 → 582 on a 3.12.12 Patch.
+>
+> **The capture is what solved it, and only via a fact nobody thought to look
+> at.** Repro attempts had covered every Configuration (119–3411 ghosts), both
+> substrates, Place and Construct, with and without Guides — all green, because
+> the harness leaves Show tiles at its default ON. `describeLabOverlays` lists
+> only what is *on*, so the answer was in the capture as an **absence**.
+>
+> Still true and worth knowing (it was the leading hypothesis, and it is a real
+> gap, just not this one): `ghostPolygons` is built from `basePolys` only, so
+> **world-space Tiles — `patch.guideTiles` and `frame.completedTiles` — never
+> appear in the neighbour ghosts.** They render once and never repeat by
+> definition; the fix for a Patch whose Tiles all live there is **Repeat under
+> Lattice**, not the overlay.
 
 > **2026-08-07 — `f1e2f67` + `0126b83`: world-space Guide Tiles can be
 > promoted into the Lattice. CLOSED, user-confirmed.** From a bug capture on a

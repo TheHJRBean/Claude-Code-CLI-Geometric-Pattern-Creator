@@ -83,8 +83,13 @@ Never collide with: **Ray** (visible line piece), **Strand** (chain),
      distance 0, so distance alone would make them unreachable.
    - **Angle snap** with configurable step: 15° default; presets 36°, 72°,
      n-fold custom (set in the Construct toolbar, not per-Guide). Angle
-     references both the horizontal and any edge the line starts on
-     (perpendicular / continuation come free). Modifier key = freehand.
+     references the horizontal, plus the Tile edges at the start point —
+     those meeting there, or the edges of the Tile it sits inside — and
+     **each of their perpendiculars**, so continuation and 90°-off-an-edge
+     are always available, including from a Tile centre and including at
+     steps that don't divide 90°. Modifier key = freehand. Between the
+     angle ray and an edge slide, whichever moves the cursor less wins; a
+     discrete point beats both.
    - **Typed angle input** in the per-Guide popup (draw-time and
      after-the-fact correction).
    - Circle sizing: presets (√2 ×, tile-edge-relative ×, …) plus fully

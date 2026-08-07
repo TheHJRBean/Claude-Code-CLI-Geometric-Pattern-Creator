@@ -47,6 +47,7 @@ import { PerfHud } from './PerfHud'
 import type { EditorMode } from '../types/appMode'
 import type { EditorGuide, EditorGuidePatch, FrameGradient, StrandGradient } from '../types/editor'
 import {
+  angleReferencesAt,
   collectGuideAnchors,
   collectSnapEdges,
   collectSnapPoints,
@@ -54,8 +55,9 @@ import {
   createGuideLine,
   DEFAULT_ANGLE_STEP,
   type GuideTool,
-  resolveSnap,
-  snapAngle,
+  resolveDrawPoint,
+  type DrawSnapContext,
+  snapPolygons,
   tileCentreAnchors,
   tileCentreGuideAnchors,
   type SnapEdge,
@@ -926,7 +928,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // visibility predicates, above the pick-target overlays that also read them.
   // Draft: the committed first click (plus the edge direction it snapped to,
   // feeding the angle-snap reference set) — then the live snapped cursor.
-  const [guideDraftStart, setGuideDraftStart] = useState<{ p: Vec2; edgeAngle?: number } | null>(null)
+  const [guideDraftStart, setGuideDraftStart] = useState<{ p: Vec2; angleRefs?: number[] } | null>(null)
   const [constructCursor, setConstructCursor] = useState<Vec2 | null>(null)
   const [guideSnapTarget, setGuideSnapTarget] = useState<SnapPoint | null>(null)
   const [selectedGuideId, setSelectedGuideId] = useState<string | null>(null)
@@ -983,6 +985,13 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     return collectSnapEdges(config.editor, patchRot)
   }, [constructActive, config.editor, patchRot])
 
+  // The same geometry kept as closed outlines — the angle-snap references at a
+  // point need to know which Tile it is *inside*, not only which edges it is on.
+  const guideSnapPolygons = useMemo<Vec2[][]>(() => {
+    if (!constructActive || !config.editor) return []
+    return snapPolygons(config.editor, patchRot)
+  }, [constructActive, config.editor, patchRot])
+
   // Visible world rectangle, padded to the view diagonal so rotation never
   // exposes an unclipped corner — extended Guide lines clip to this.
   const guideBounds = useMemo<WorldBounds>(() => {
@@ -1007,21 +1016,34 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     }
   }
 
+  /** The snap context for a cursor position — see `resolveDrawPoint` for the
+   *  precedence. `angleFrom` is the pivot to measure a direction from: the
+   *  draft's first point while drawing, or the fixed end of a dragged handle. */
+  const constructSnapContext = useCallback((angleFrom: Vec2 | null): DrawSnapContext => ({
+    points: guideSnapPoints,
+    edges: guideSnapEdges,
+    tolerance: 14 / viewTransform.zoom,
+    angle: angleFrom
+      ? {
+          from: angleFrom,
+          stepDeg: constructAngleStep,
+          references: angleReferencesAt(angleFrom, guideSnapPolygons),
+        }
+      : undefined,
+  }), [guideSnapPoints, guideSnapEdges, guideSnapPolygons, viewTransform.zoom, constructAngleStep])
+
   /** Resolve a screen-px pointer position into a (possibly snapped) world
-   *  point. Point snap wins, then a slide along the nearest Tile edge; else,
-   *  with a draft in progress, angle snap from the draft start. `freehand`
-   *  (Shift) bypasses all of it. */
+   *  point. `freehand` (Shift) bypasses snapping entirely. */
   const resolveConstructPoint = useCallback((screen: Vec2, freehand: boolean): { p: Vec2; snap: SnapPoint | null } => {
     const w = screenToWorld(screen, viewTransform, size.width, size.height)
     if (!constructSnap || freehand) return { p: w, snap: null }
-    const tol = 14 / viewTransform.zoom
-    const snap = resolveSnap(w, guideSnapPoints, guideSnapEdges, tol)
-    if (snap) return { p: snap.p, snap }
-    if (guideDraftStart) {
-      return { p: snapAngle(guideDraftStart.p, w, constructAngleStep, guideDraftStart.edgeAngle), snap: null }
-    }
-    return { p: w, snap: null }
-  }, [viewTransform, size.width, size.height, constructSnap, guideSnapPoints, guideSnapEdges, guideDraftStart, constructAngleStep])
+    // The draft's own references were resolved when its first point was
+    // committed — reuse them rather than re-deriving on every mouse move.
+    const ctx = constructSnapContext(null)
+    return resolveDrawPoint(w, guideDraftStart
+      ? { ...ctx, angle: { from: guideDraftStart.p, stepDeg: constructAngleStep, references: guideDraftStart.angleRefs ?? [] } }
+      : ctx)
+  }, [viewTransform, size.width, size.height, constructSnap, constructSnapContext, guideDraftStart, constructAngleStep])
 
   /**
    * Does a pointerdown on a Guide's hit stroke select it, or fall through to
@@ -1053,9 +1075,11 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       setSelectedGuideId(null)
       return
     }
-    const { p, snap } = resolveConstructPoint(screen, freehand)
+    const { p } = resolveConstructPoint(screen, freehand)
     if (!guideDraftStart) {
-      setGuideDraftStart({ p, edgeAngle: snap?.edgeAngle })
+      // The Tile frame at the committed point drives angle snap from here on:
+      // the edges meeting there (or the Tile it sits in) plus their perpendiculars.
+      setGuideDraftStart({ p, angleRefs: angleReferencesAt(p, guideSnapPolygons) })
       return
     }
     // Second click: zero-extent is a no-op (double-click on the same point).
@@ -1066,7 +1090,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     onAddGuide?.(guide)
     setGuideDraftStart(null)
     setGuideSnapTarget(null)
-  }, [selectedGuideId, resolveConstructPoint, guideDraftStart, onAddGuide, guides, constructTool])
+  }, [selectedGuideId, resolveConstructPoint, guideDraftStart, onAddGuide, guides, constructTool, guideSnapPolygons])
 
   // Handle drag on the selected Guide: point-snap (own Anchors excluded) or a
   // slide along a Tile edge, else angle-snap. Endpoints pivot about the fixed opposite endpoint;
@@ -1076,28 +1100,28 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     const g = guides.find(g => g.id === id)
     if (!g || !onUpdateGuide) return
     const w = screenToWorld(screen, viewTransform, size.width, size.height)
-    const tol = 14 / viewTransform.zoom
-    const snap = constructSnap ? resolveSnap(w, guideSnapPoints, guideSnapEdges, tol) : null
+    /** Same precedence as drawing, pivoting about the handle's fixed partner. */
+    const resolve = (pivot: Vec2 | null) =>
+      constructSnap ? resolveDrawPoint(w, constructSnapContext(pivot)).p : w
     if (g.kind === 'line' && (handle === 'start' || handle === 'end')) {
-      const p = snap ? snap.p : (constructSnap ? snapAngle(handle === 'start' ? g.end : g.start, w, constructAngleStep) : w)
-      onUpdateGuide(id, { [handle]: p })
+      onUpdateGuide(id, { [handle]: resolve(handle === 'start' ? g.end : g.start) })
       return
     }
     if (g.kind === 'circle' && handle === 'center') {
-      onUpdateGuide(id, { center: snap ? snap.p : w })
+      // A translating centre has nothing to measure an angle from.
+      onUpdateGuide(id, { center: resolve(null) })
       return
     }
     if (g.kind === 'circle' && handle === 'radius') {
-      // Snap the radius endpoint to a point if near one; else angle-snap the
-      // direction about the centre (free radius, snapped phase).
-      const p = snap ? snap.p : (constructSnap ? snapAngle(g.center, w, constructAngleStep) : w)
+      // Free radius, snapped phase — the angle is measured about the centre.
+      const p = resolve(g.center)
       const dx = p.x - g.center.x
       const dy = p.y - g.center.y
       const radius = Math.hypot(dx, dy)
       if (radius < 1e-6) return
       onUpdateGuide(id, { radius, phase: Math.atan2(dy, dx) })
     }
-  }, [guides, onUpdateGuide, viewTransform, size.width, size.height, constructSnap, guideSnapPoints, guideSnapEdges, constructAngleStep])
+  }, [guides, onUpdateGuide, viewTransform, size.width, size.height, constructSnap, constructSnapContext])
 
   // Wrap the pan/zoom handlers with click-slop detection while Construct is
   // live. Guide strokes + endpoint handles stopPropagation on pointerdown, so

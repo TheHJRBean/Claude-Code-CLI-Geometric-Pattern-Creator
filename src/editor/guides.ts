@@ -1,6 +1,6 @@
 import type { EditorGuide, EditorGuideCircle, EditorGuideLine, EditorPatch } from '../types/editor'
 import type { Vec2 } from '../utils/math'
-import { add, sub, scale, dot, cross, len, normalize, midpoint, dist, degToRad, centroid } from '../utils/math'
+import { add, sub, scale, dot, cross, len, normalize, midpoint, dist, degToRad, centroid, pointInPolygon, signedArea } from '../utils/math'
 import { applyCellTransform } from './patchSelectable'
 import { patchTickEdgeLength } from './active'
 import { tileVertices } from './exposedEdges'
@@ -113,19 +113,28 @@ export interface SnapEdge {
  */
 export function collectSnapEdges(patch: EditorPatch, patchRot: number): SnapEdge[] {
   const out: SnapEdge[] = []
-  const push = (vs: Vec2[]) => {
+  for (const vs of snapPolygons(patch, patchRot)) {
     for (let i = 0; i < vs.length; i++) {
       const a = vs[i]
       const b = vs[(i + 1) % vs.length]
       out.push({ a, b, angle: Math.atan2(b.y - a.y, b.x - a.x) })
     }
   }
+  return out
+}
+
+/** The closed outlines behind `collectSnapEdges` — every Tile (Cell, frame and
+ *  Guide completions) plus every Cell-Boundary, in Patch-world coords. Kept
+ *  whole, not just as edges, because `angleReferencesAt` asks which polygon a
+ *  point is *inside*. */
+export function snapPolygons(patch: EditorPatch, patchRot: number): Vec2[][] {
+  const out: Vec2[][] = []
   for (const cell of patch.cells) {
-    for (const tile of cell.tiles) push(tileVertices(tile).map(v => applyCellTransform(v, cell, patchRot)))
-    push(editorBoundaryVertices(cell).map(v => applyCellTransform(v, cell, patchRot)))
+    for (const tile of cell.tiles) out.push(tileVertices(tile).map(v => applyCellTransform(v, cell, patchRot)))
+    out.push(editorBoundaryVertices(cell).map(v => applyCellTransform(v, cell, patchRot)))
   }
-  for (const ft of patch.frame?.completedTiles ?? []) push(tileVertices(ft))
-  for (const gt of patch.guideTiles ?? []) push(tileVertices(gt))
+  for (const ft of patch.frame?.completedTiles ?? []) out.push(tileVertices(ft))
+  for (const gt of patch.guideTiles ?? []) out.push(tileVertices(gt))
   return out
 }
 
@@ -329,37 +338,144 @@ export function resolveSnap(
   return snapToPoint(p, points, tolerance) ?? snapToEdge(p, edges, tolerance)
 }
 
+/** Everything a cursor position is resolved against while drawing or dragging
+ *  a Guide. `angle` is present only when there is something to measure an angle
+ *  FROM — a committed draft point, or the fixed end a handle pivots about. */
+export interface DrawSnapContext {
+  points: SnapPoint[]
+  edges: SnapEdge[]
+  /** Snap radius in world units (the caller divides its px budget by zoom). */
+  tolerance: number
+  angle?: { from: Vec2; stepDeg: number; references: number[] }
+}
+
+/**
+ * The one place the snap precedence lives — shared by drawing and by every
+ * handle drag, so the two cannot drift.
+ *
+ * 1. **A discrete point wins outright.** A vertex, midpoint, Tile centre or
+ *    Guide Anchor is a place the user means; the others are approximations of
+ *    one.
+ * 2. **Otherwise the nearest of the angle ray and the edge**, by how far each
+ *    would move the cursor. Ranking these two by distance rather than by
+ *    priority is what keeps both usable: an edge snap covers a band along
+ *    EVERY edge, so giving it precedence would swallow the angle snap near any
+ *    Tile (a line aimed 3° off perpendicular got dragged onto whatever edge its
+ *    far end drifted near) — while giving the angle snap precedence would make
+ *    an edge unhittable, since an angle snap always returns something.
+ */
+export function resolveDrawPoint(
+  cursor: Vec2,
+  ctx: DrawSnapContext,
+): { p: Vec2; snap: SnapPoint | null } {
+  const point = snapToPoint(cursor, ctx.points, ctx.tolerance)
+  if (point) return { p: point.p, snap: point }
+  const edge = snapToEdge(cursor, ctx.edges, ctx.tolerance)
+  if (!ctx.angle) return edge ? { p: edge.p, snap: edge } : { p: cursor, snap: null }
+  const angled = snapAngle(ctx.angle.from, cursor, ctx.angle.stepDeg, ctx.angle.references)
+  if (edge && dist(cursor, edge.p) < dist(cursor, angled)) return { p: edge.p, snap: edge }
+  return { p: angled, snap: null }
+}
+
 /* ── Angle snap ─────────────────────────────────────────────────────────── */
+
+/**
+ * The angle-snap references a Guide starting at `p` should get, as directions
+ * in [0, π) — the Tile edges that meet there, or, when none does, the edges of
+ * the Tile the point sits inside (a Guide from a Tile centre is still being
+ * drawn *against that Tile*). Each edge contributes its own direction **and its
+ * perpendicular**: "90° off this edge" is the single most-wanted construction
+ * angle, and it is NOT free from the edge direction alone — the step presets
+ * that serve Girih layouts (36° / 72°) don't divide 90°.
+ *
+ * Directions are mod π because an edge is a line, not an arrow; `snapAngle`
+ * grids from both ends of each reference.
+ */
+export function angleReferencesAt(p: Vec2, polygons: Vec2[][], tol = 1e-4): number[] {
+  const modPi = (a: number) => ((a % Math.PI) + Math.PI) % Math.PI
+  const out: number[] = []
+  const pushRef = (a: number) => {
+    const m = modPi(a)
+    // Fold the two ends of the range together, or an edge at ~0 and one at ~π
+    // (the same line) would count as two references.
+    if (!out.some(x => Math.abs(x - m) < 1e-6 || Math.abs(Math.abs(x - m) - Math.PI) < 1e-6)) out.push(m)
+  }
+  const edgeAngles = (vs: Vec2[]): number[] => {
+    const angles: number[] = []
+    for (let i = 0; i < vs.length; i++) {
+      const a = vs[i]
+      const b = vs[(i + 1) % vs.length]
+      angles.push(Math.atan2(b.y - a.y, b.x - a.x))
+    }
+    return angles
+  }
+  // Edges through the point win: at a vertex that is the two edges that meet
+  // there, on an edge it is that edge — either way the local construction frame.
+  for (const vs of polygons) {
+    for (let i = 0; i < vs.length; i++) {
+      const a = vs[i]
+      const b = vs[(i + 1) % vs.length]
+      const ab = sub(b, a)
+      const l2 = dot(ab, ab)
+      if (l2 < 1e-12) continue
+      const t = Math.max(0, Math.min(1, dot(sub(p, a), ab) / l2))
+      if (dist(p, add(a, scale(ab, t))) <= tol) pushRef(Math.atan2(ab.y, ab.x))
+    }
+  }
+  if (out.length === 0) {
+    // The SMALLEST containing polygon, not the first: a Tile and the
+    // Cell-Boundary around it both contain the Tile's centre, and it is the
+    // Tile the user is dividing.
+    let host: Vec2[] | null = null
+    let hostArea = Infinity
+    for (const vs of polygons) {
+      if (!pointInPolygon(p, vs)) continue
+      const a = Math.abs(signedArea(vs))
+      if (a < hostArea) {
+        hostArea = a
+        host = vs
+      }
+    }
+    if (host) for (const a of edgeAngles(host)) pushRef(a)
+  }
+  for (const a of [...out]) pushRef(a + Math.PI / 2)
+  return out
+}
 
 /**
  * Snap the free endpoint of an in-progress Guide line to the nearest allowed
  * direction through `start` (spec Decision 7). Allowed directions are
  * multiples of `stepDeg` measured from each reference angle — always the
- * horizontal, plus the direction of any edge the line starts on
- * (`startEdgeAngle`, set when the start point snapped to an edge midpoint) so
- * continuation and perpendicular come free. The snapped endpoint preserves
- * the cursor's projected distance along the chosen direction.
+ * horizontal, plus whatever `references` the start point earns from the Tile
+ * geometry (`angleReferencesAt`: incident edge directions and their
+ * perpendiculars), so continuation and 90°-off-an-edge come free.
+ *
+ * Each reference is gridded from **both** its ends: a reference is a line, and
+ * `ref + π` is only already on the grid when the step divides 180° — which 72°
+ * does not. The snapped endpoint preserves the cursor's projected distance
+ * along the chosen direction.
  */
 export function snapAngle(
   start: Vec2,
   cursor: Vec2,
   stepDeg: number,
-  startEdgeAngle?: number,
+  references: number[] = [],
 ): Vec2 {
   const v = sub(cursor, start)
   const r = len(v)
   if (r < 1e-9) return cursor
   const raw = Math.atan2(v.y, v.x)
   const step = degToRad(stepDeg)
-  const references = startEdgeAngle === undefined ? [0] : [0, startEdgeAngle]
   let bestAngle = raw
   let bestDelta = Infinity
-  for (const ref of references) {
-    const snapped = ref + Math.round((raw - ref) / step) * step
-    const delta = Math.abs(angleDiff(snapped, raw))
-    if (delta < bestDelta) {
-      bestDelta = delta
-      bestAngle = snapped
+  for (const ref of [0, ...references]) {
+    for (const base of [ref, ref + Math.PI]) {
+      const snapped = base + Math.round((raw - base) / step) * step
+      const delta = Math.abs(angleDiff(snapped, raw))
+      if (delta < bestDelta) {
+        bestDelta = delta
+        bestAngle = snapped
+      }
     }
   }
   // Preserve the cursor's projection onto the snapped direction so the line

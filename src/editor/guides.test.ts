@@ -1,12 +1,17 @@
 import { describe, it, expect } from 'vitest'
 import type { EditorGuideCircle, EditorGuideLine, EditorPatch } from '../types/editor'
+import type { Vec2 } from '../utils/math'
 import {
+  angleReferencesAt,
   collectGuideAnchors,
   collectSnapEdges,
   collectSnapPoints,
+  resolveDrawPoint,
   resolveSnap,
+  snapPolygons,
   snapToEdge,
   type SnapEdge,
+  type SnapPoint,
   tileCentreAnchors,
   tileCentreGuideAnchors,
   createGuideCircle,
@@ -78,7 +83,7 @@ describe('Guides — angle snap', () => {
     // Edge at 20°; cursor at 21° — 20° (edge continuation) beats 15°/30°.
     const edgeAngle = 20 * Math.PI / 180
     const cursor = { x: Math.cos(21 * Math.PI / 180) * 50, y: Math.sin(21 * Math.PI / 180) * 50 }
-    const snapped = snapAngle({ x: 0, y: 0 }, cursor, 15, edgeAngle)
+    const snapped = snapAngle({ x: 0, y: 0 }, cursor, 15, [edgeAngle])
     const angle = Math.atan2(snapped.y, snapped.x) * 180 / Math.PI
     expect(angle).toBeCloseTo(20, 6)
   })
@@ -86,9 +91,32 @@ describe('Guides — angle snap', () => {
   it('gives the perpendicular of the start edge for free', () => {
     const edgeAngle = 20 * Math.PI / 180
     const cursor = { x: Math.cos(111 * Math.PI / 180) * 50, y: Math.sin(111 * Math.PI / 180) * 50 }
-    const snapped = snapAngle({ x: 0, y: 0 }, cursor, 15, edgeAngle)
+    const snapped = snapAngle({ x: 0, y: 0 }, cursor, 15, [edgeAngle])
     const angle = Math.atan2(snapped.y, snapped.x) * 180 / Math.PI
     expect(angle).toBeCloseTo(110, 6) // 20° + 6×15°
+  })
+
+  it('offers 90° off an edge even when the step does not divide 90', () => {
+    // 72° (Girih) grids to 20/92/164/... from a 20° edge — the perpendicular is
+    // NOT on that grid, so it has to be a reference in its own right.
+    const edgeAngle = 20 * Math.PI / 180
+    // 112°: nearest to the perpendicular (110°) and NOT to 108°, which the
+    // horizontal's own 72° grid supplies.
+    const cursor = { x: Math.cos(112 * Math.PI / 180) * 50, y: Math.sin(112 * Math.PI / 180) * 50 }
+    const withRefs = snapAngle({ x: 0, y: 0 }, cursor, 72, [edgeAngle, edgeAngle + Math.PI / 2])
+    expect(Math.atan2(withRefs.y, withRefs.x) * 180 / Math.PI).toBeCloseTo(110, 6)
+    const without = snapAngle({ x: 0, y: 0 }, cursor, 72, [edgeAngle])
+    expect(Math.atan2(without.y, without.x) * 180 / Math.PI).not.toBeCloseTo(110, 6)
+  })
+
+  it('grids a reference from both ends — a 72° step does not reach ref + 180°', () => {
+    const edgeAngle = 20 * Math.PI / 180
+    // 200° is the edge direction reversed: on the grid only because both ends
+    // of the reference are gridded (20 + k·72 never lands on 200).
+    const cursor = { x: Math.cos(201 * Math.PI / 180) * 50, y: Math.sin(201 * Math.PI / 180) * 50 }
+    const snapped = snapAngle({ x: 0, y: 0 }, cursor, 72, [edgeAngle])
+    const deg = (Math.atan2(snapped.y, snapped.x) * 180 / Math.PI + 360) % 360
+    expect(deg).toBeCloseTo(200, 6)
   })
 
   it('returns the cursor unchanged at zero length', () => {
@@ -384,6 +412,112 @@ describe('Guides — edge snap', () => {
     // A Tile minted on it must NOT repeat under the Lattice — the Tile it
     // centres doesn't either.
     expect(centre.stamp).toBe(false)
+  })
+})
+
+describe('Guides — draw-point precedence', () => {
+  const edges: SnapEdge[] = [{ a: { x: -200, y: 0 }, b: { x: 200, y: 0 }, angle: 0 }]
+  const points: SnapPoint[] = [{ p: { x: 100, y: 0 }, kind: 'tile-vertex' }]
+  const from = { x: 0, y: -100 }
+
+  it('a discrete point beats both the edge it lies on and the angle ray', () => {
+    const r = resolveDrawPoint({ x: 103, y: 2 }, {
+      points, edges, tolerance: 14,
+      angle: { from, stepDeg: 15, references: [] },
+    })
+    expect(r.snap?.kind).toBe('tile-vertex')
+    expect(r.p).toEqual({ x: 100, y: 0 })
+  })
+
+  it('with no angle pivot the edge is the fallback (first click of a line)', () => {
+    const r = resolveDrawPoint({ x: -40, y: 5 }, { points, edges, tolerance: 14 })
+    expect(r.snap?.kind).toBe('tile-edge')
+    expect(r.p.y).toBeCloseTo(0, 6)
+  })
+
+  it('the angle ray wins when it moves the cursor less than the edge would', () => {
+    // 3° off vertical from `from`, ending 10 units above the edge: the angle
+    // snap is a ~5-unit correction, the edge a 10-unit one. Before this rule
+    // the edge took every line whose far end drifted near one.
+    const a = (-90 + 3) * Math.PI / 180
+    const cursor = { x: from.x + Math.cos(a) * 90, y: from.y + Math.sin(a) * 90 }
+    const nudged = { x: cursor.x, y: -10 }
+    const r = resolveDrawPoint(nudged, {
+      points: [], edges, tolerance: 14,
+      angle: { from, stepDeg: 15, references: [] },
+    })
+    expect(r.snap).toBeNull()
+    expect(Math.abs(r.p.x - from.x)).toBeLessThan(1e-6) // exactly vertical
+  })
+
+  it('the edge still wins when the cursor is genuinely nearer to it', () => {
+    const r = resolveDrawPoint({ x: -40, y: 1 }, {
+      points: [], edges, tolerance: 14,
+      angle: { from, stepDeg: 15, references: [] },
+    })
+    expect(r.snap?.kind).toBe('tile-edge')
+    expect(r.p.y).toBeCloseTo(0, 6)
+  })
+})
+
+describe('Guides — angle references from Tile geometry', () => {
+  /** A unit square rotated by `deg`, so no reference is accidentally axial. */
+  function square(deg: number): Vec2[] {
+    const a = (deg * Math.PI) / 180
+    return [{ x: -50, y: -50 }, { x: 50, y: -50 }, { x: 50, y: 50 }, { x: -50, y: 50 }].map(p => ({
+      x: p.x * Math.cos(a) - p.y * Math.sin(a),
+      y: p.x * Math.sin(a) + p.y * Math.cos(a),
+    }))
+  }
+  const deg = (r: number) => (((r * 180) / Math.PI) % 180 + 180) % 180
+
+  it('a point ON an edge gets that edge and its perpendicular', () => {
+    const sq = square(20)
+    const mid = { x: (sq[0].x + sq[1].x) / 2, y: (sq[0].y + sq[1].y) / 2 }
+    const refs = angleReferencesAt(mid, [sq]).map(deg).sort((a, b) => a - b)
+    expect(refs).toHaveLength(2)
+    expect(refs[0]).toBeCloseTo(20, 4)
+    expect(refs[1]).toBeCloseTo(110, 4)
+  })
+
+  it('a Tile centre falls back to the containing Tile — this is what makes 90° off an edge reachable from a centre', () => {
+    const sq = square(20)
+    // A square's two edge directions are already perpendicular, so it yields
+    // exactly those two; the point is that the centre gets them at all.
+    const refs = angleReferencesAt({ x: 0, y: 0 }, [sq]).map(deg).sort((a, b) => a - b)
+    expect(refs).toHaveLength(2)
+    expect(refs[0]).toBeCloseTo(20, 4)
+    expect(refs[1]).toBeCloseTo(110, 4)
+  })
+
+  it('a triangle centre gets all three edge directions plus their perpendiculars', () => {
+    const tri = [{ x: 0, y: -60 }, { x: 52, y: 30 }, { x: -52, y: 30 }]
+    const refs = angleReferencesAt({ x: 0, y: 0 }, [tri]).map(deg).sort((a, b) => a - b)
+    expect(refs).toHaveLength(6)
+  })
+
+  it('an incident edge beats containment — a vertex reports its two edges, not the whole Tile', () => {
+    const sq = square(20)
+    const refs = angleReferencesAt(sq[0], [sq]).map(deg).sort((a, b) => a - b)
+    expect(refs).toHaveLength(2)
+    expect(refs[0]).toBeCloseTo(20, 4)
+  })
+
+  it('a point outside every Tile earns no references (horizontal only)', () => {
+    expect(angleReferencesAt({ x: 900, y: 900 }, [square(20)])).toEqual([])
+  })
+
+  it('reads a real Patch through snapPolygons — Tiles and Cell-Boundaries both', () => {
+    // Seed square (edge 100, unrotated) + its 200-unit square Boundary.
+    const polys = snapPolygons(patch(), 0)
+    expect(polys.length).toBe(2)
+    // The Seed square at rotation 0 draws as a diamond, so its edges are at
+    // 45°/135° — and the Tile wins over the axis-aligned Boundary that also
+    // contains the point, because it is the smaller of the two.
+    const refs = angleReferencesAt({ x: 0, y: 0 }, polys).map(deg).sort((a, b) => a - b)
+    expect(refs).toHaveLength(2)
+    expect(refs[0]).toBeCloseTo(45, 4)
+    expect(refs[1]).toBeCloseTo(135, 4)
   })
 })
 

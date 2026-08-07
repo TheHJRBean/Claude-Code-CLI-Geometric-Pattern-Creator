@@ -45,7 +45,28 @@
 > edge lines stay 18k–26k across the whole θ range while the picture changes a
 > lot, and the actual blackout showed up only as `#strand-layer` being absent.
 
-> **2026-08-07, latest — `fa752a9`: the Guides overlay toggles didn't govern
+> **▸ NEXT, for a cold start (2026-08-07 close).** Nothing is mid-flight —
+> three user-reported bugs came in and all three shipped (`fa752a9`, `3e9a34c`,
+> `8c3a97a`), tree clean, pushed, 1834 tests green. Pick from:
+>
+> - **#32 Girih preset reveal** is still the last agreed task on the `guides`
+>   label and is still **not implementable as written** — read the three
+>   blockers in the Guides slices 4–6 note further down before opening an
+>   editor, and note the issue asks for **Fable**.
+> - **Guide `stamp` defaults OFF** — offered twice, not taken. User's call.
+> - **Neighbour ghost contrast** — promoted Tiles are near-invisible on the
+>   Design ghosts (~3% contrast). Flagged, not filed.
+> - **Centroid-V regime change** on irregular Tiles with edge strands
+>   ([[project_pic_irregular_polygon_bugs]], parked): as θ crosses a per-corner
+>   threshold, a pair goes asymmetric, both arms re-route to the centroid and
+>   dedupe against the neighbouring pair's, so that corner's V disappears and
+>   the Figure degenerates towards a hub. Characterised precisely this session
+>   on the reporter's own Tiles — thresholds are per-corner, not per-tile.
+>   Not reported by the user; a fix is a real PIC change, not a copy change.
+> - Older open issues unchanged: **#41** (Morph C1 kinks), **#52**
+>   (archimedes-star 12-gon — needs the user's call), **#54**, **#56**.
+
+> **2026-08-07 — `fa752a9`: the Guides overlay toggles didn't govern
 > the Anchor dots. FIXED (2 of the 3 reported symptoms); the third is OPEN and
 > needs a bug capture.**
 >
@@ -139,7 +160,7 @@
 >   outlines (no strand work) are the worst case. Not filed — flagged only.
 >
 
-> **2026-08-07, latest — two UI fixes from a user pass, both browser-verified.**
+> **2026-08-07 — two UI fixes from a user pass, both browser-verified.**
 > Small, self-contained, nothing owed:
 >
 > - **`b02fd85` — Decoration Paint target bar.** Seven `flex: 1` buttons in one

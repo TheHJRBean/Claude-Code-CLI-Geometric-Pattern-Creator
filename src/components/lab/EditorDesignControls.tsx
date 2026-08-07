@@ -240,6 +240,7 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
       {inStrand && (
         <CompositionPanel
           editor={editor}
+          dispatch={dispatch}
           showBoundaryLattice={showBoundaryLattice}
           onToggleShowBoundaryLattice={onToggleShowBoundaryLattice}
           showGuides={showGuides}

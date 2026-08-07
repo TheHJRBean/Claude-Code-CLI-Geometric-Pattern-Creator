@@ -1,9 +1,11 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import type { PatternConfig } from '../../types/pattern'
+import type { Action } from '../../state/actions'
 import { detectCellTilingStatus } from '../../editor/nonTilingDetection'
 
 // Shared primitive — re-exported so existing `lab/` imports keep working.
-export { FieldLabel } from '../ui/FieldLabel'
+import { FieldLabel } from '../ui/FieldLabel'
+export { FieldLabel }
 
 /**
  * Shared style for the Lab's segmented-control buttons — the accent-when-active
@@ -310,6 +312,62 @@ export function SectionTitle({ children, open, onToggle, tooltip }: {
 }
 
 /* ── Step 17.10 — non-tiling patch warning ─────────────── */
+
+/**
+ * World-space **Guide Tiles** notice + the promotion action.
+ *
+ * A Complete built on a non-stamping Guide's Anchor lands in
+ * `patch.guideTiles`: world coords, drawn once, never repeated under the
+ * Lattice. The fork is settled at Complete time by a Guide flag that defaults
+ * OFF, and flipping that flag afterwards cannot reach Tiles already minted —
+ * so this is the only way back.
+ *
+ * Rendered in **both** live Phases on purpose. The symptom ("my tiles are
+ * missing from the neighbouring patches") is what the Composition Phase shows,
+ * and a fix reachable only from Design is a fix the user never finds. Design
+ * gets the fuller note; Composition states the consequence in its own terms.
+ */
+export function WorldSpaceTilesNotice({ editor, dispatch, phase }: {
+  editor: NonNullable<PatternConfig['editor']>
+  dispatch: (action: Action) => void
+  phase: 'design' | 'composition'
+}) {
+  const count = editor.guideTiles?.length ?? 0
+  if (count === 0) return null
+  return (
+    <div style={{ marginTop: phase === 'design' ? 14 : 8 }}>
+      <FieldLabel
+        label={`World-space Tiles (${count})`}
+        tooltip="Tiles completed on a non-stamping Guide's Anchor. They are drawn once, in world coordinates, and do not repeat under the Lattice or appear on neighbouring patches. Repeat under Lattice moves each one into the Cell that contains it, after which it behaves like any other Tile."
+      />
+      <div style={{ marginBottom: 6, fontSize: 11.5, lineHeight: 1.4 }}>
+        {phase === 'composition'
+          ? `${count === 1 ? 'One Tile is' : `${count} Tiles are`} drawn once in world space, so ${count === 1 ? 'it does' : 'they do'} not appear on the stamped copies around the origin patch.`
+          : "These don't repeat under the Lattice or show on neighbours. Turn a Guide's Stamp on before completing to build repeating Tiles directly."}
+      </div>
+      <button
+        onClick={() => dispatch({ type: 'EDITOR_PROMOTE_GUIDE_TILES' })}
+        title="Move every world-space Guide Tile into the Cell it sits in, so it repeats like any other Tile."
+        style={{
+          width: '100%',
+          padding: '5px 0',
+          fontFamily: "'Cinzel', Georgia, serif",
+          fontSize: 9,
+          fontWeight: 600,
+          letterSpacing: '0.10em',
+          textTransform: 'uppercase',
+          cursor: 'pointer',
+          border: '1px solid var(--border-subtle)',
+          background: 'transparent',
+          color: 'var(--text-muted)',
+          transition: 'all 0.15s',
+        }}
+      >
+        Repeat under Lattice
+      </button>
+    </div>
+  )
+}
 
 export function NonTilingWarning({ editor }: { editor: NonNullable<PatternConfig['editor']> }) {
   // Aggregate across every Cell: if any Cell is non-tiling, surface that as

@@ -6,7 +6,7 @@ import type { EditorMode } from '../../types/appMode'
 import type { Vec2 } from '../../utils/math'
 import { BOUNDARY_SIZE_MAX_BY_SHAPE } from '../../editor/createDefault'
 import { ANGLE_STEP_PRESETS, type GuideTool } from '../../editor/guides'
-import { FieldLabel, SectionTitle, segmentedButtonStyle } from './labShared'
+import { FieldLabel, SectionTitle, WorldSpaceTilesNotice, segmentedButtonStyle } from './labShared'
 
 const GUIDE_TOOLS: { value: GuideTool; label: string; tooltip: string }[] = [
   { value: 'line', label: 'Line', tooltip: 'Straight Guide line — click a start then an end point.' },
@@ -447,45 +447,7 @@ export function DesignPanel({
         </div>
       )}
 
-      {/* Guides slice 3 — world-space Guide Tiles. A Complete built on a
-          non-stamping Guide's Anchor lands in world coords and never repeats
-          under the Lattice, which is right for frame ornament and wrong for a
-          scaffold that was authoring the Patch. The fork is decided at Complete
-          time and a Guide's Stamp toggle can't reach back, so the escape hatch
-          lives here. Shown whenever such Tiles exist — including after the
-          Guides that made them are deleted. */}
-      {(editor.guideTiles?.length ?? 0) > 0 && (
-        <div style={{ marginTop: 14 }}>
-          <FieldLabel
-            label={`World-space Tiles (${editor.guideTiles!.length})`}
-            tooltip="Tiles completed on a non-stamping Guide's Anchor. They are drawn once, in world coordinates, and do not repeat under the Lattice or appear on neighbours. Repeat under Lattice moves each one into the Cell that contains it, after which it behaves like any other Tile."
-          />
-          <button
-            onClick={() => dispatch({ type: 'EDITOR_PROMOTE_GUIDE_TILES' })}
-            title="Move every world-space Guide Tile into the Cell it sits in, so it repeats like any other Tile."
-            style={{
-              width: '100%',
-              padding: '5px 0',
-              fontFamily: "'Cinzel', Georgia, serif",
-              fontSize: 9,
-              fontWeight: 600,
-              letterSpacing: '0.10em',
-              textTransform: 'uppercase',
-              cursor: 'pointer',
-              border: '1px solid var(--border-subtle)',
-              background: 'transparent',
-              color: 'var(--text-muted)',
-              transition: 'all 0.15s',
-            }}
-          >
-            Repeat under Lattice
-          </button>
-          <div style={mutedNoteStyle}>
-            These don't repeat under the Lattice or show on neighbours. Turn a
-            Guide's Stamp on before completing to build repeating Tiles directly.
-          </div>
-        </div>
-      )}
+      <WorldSpaceTilesNotice editor={editor} dispatch={dispatch} phase="design" />
 
       {/* Step 17.5 / Guides — Tool toggle: Place / Complete / Construct. */}
       <div style={{ marginTop: 14 }}>

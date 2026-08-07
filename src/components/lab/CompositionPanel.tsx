@@ -1,5 +1,6 @@
 import type { PatternConfig } from '../../types/pattern'
-import { NonTilingWarning } from './labShared'
+import type { Action } from '../../state/actions'
+import { NonTilingWarning, WorldSpaceTilesNotice } from './labShared'
 
 /**
  * Composition-Phase ("strand") info block in the Builder sidebar: explains the
@@ -8,6 +9,7 @@ import { NonTilingWarning } from './labShared'
  */
 export function CompositionPanel({
   editor,
+  dispatch,
   showBoundaryLattice,
   onToggleShowBoundaryLattice,
   showGuides,
@@ -16,6 +18,9 @@ export function CompositionPanel({
   onToggleShowGuideAnchors,
 }: {
   editor: NonNullable<PatternConfig['editor']>
+  /** Needed for the world-space Guide-Tile promotion — the symptom it fixes
+   *  ("tiles missing from the neighbouring patches") is only visible here. */
+  dispatch: (action: Action) => void
   showBoundaryLattice: boolean
   onToggleShowBoundaryLattice: (next: boolean) => void
   /** Guides overlay show/hide — hidden by default in Composition (spec
@@ -43,6 +48,7 @@ export function CompositionPanel({
         strand controls below; flip back to Design to change tiles.
       </div>
       <NonTilingWarning editor={editor} />
+      <WorldSpaceTilesNotice editor={editor} dispatch={dispatch} phase="composition" />
       <label style={{
         display: 'flex',
         alignItems: 'center',

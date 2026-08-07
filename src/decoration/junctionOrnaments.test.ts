@@ -12,6 +12,7 @@ import {
   splitJunctionLayers,
   resolveJunctionOrnament,
   resolveJunctionPlacements,
+  twinkleReach,
 } from './junctionOrnaments'
 
 /** Every coordinate pair in a path `d`. The number pattern has to allow an
@@ -309,6 +310,22 @@ describe('flarePathD — the twinkle', () => {
       return Math.abs(along - 12) < 1e-6 && Math.abs(off - W / 2) < 1e-6
     })
     expect(onBentArm).toBe(true)
+  })
+})
+
+describe('twinkleReach — the twinkle measures itself in world units', () => {
+  it('takes `reach` as a world length, whatever the Strand weight', () => {
+    // The point of the switch: a thin line on a big Tile still reaches as far
+    // into it as asked. Tied to the strand width, it couldn't.
+    const style = { ...DEFAULT_JUNCTION_ORNAMENT, shape: 'twinkle' as const, reach: 90 }
+    expect(twinkleReach(style, 1)).toBe(90)
+    expect(twinkleReach(style, 40)).toBe(90)
+  })
+
+  it('falls back to the old `size × strand width` for a record saved before', () => {
+    const legacy = { ...DEFAULT_JUNCTION_ORNAMENT, shape: 'twinkle' as const, size: 3 }
+    delete (legacy as { reach?: number }).reach
+    expect(twinkleReach(legacy, 4)).toBe(12)
   })
 })
 

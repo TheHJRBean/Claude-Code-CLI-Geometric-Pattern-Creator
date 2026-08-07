@@ -359,6 +359,11 @@ function migrateJunctionOrnament(raw: unknown): JunctionOrnamentRecord | null {
   if (points !== undefined) out.points = points
   const innerRatio = num(r.innerRatio)
   if (innerRatio !== undefined) out.innerRatio = innerRatio
+  // A twinkle's world-unit length. Absent (or nonsense) falls back to the
+  // legacy `size × strandWidth` reading in `twinkleReach`, so a record saved
+  // before the switch still draws at the length it was drawn at.
+  const reach = num(r.reach)
+  if (reach !== undefined && reach > 0) out.reach = reach
   const angle = num(r.angle)
   if (angle !== undefined) out.angle = angle
   const outlineWidth = num(r.outlineWidth)

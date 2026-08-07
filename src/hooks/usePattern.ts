@@ -1002,9 +1002,13 @@ export function usePattern(
       chains: readonly ReturnType<typeof buildStrands>[number][],
       sigOf: (i: number) => string | null,
       ring: Vec2[],
-    ): ((i: number) => string) | undefined => {
+    ): (i: number) => string => {
       const ctx = strandColourContext(deco?.strandColours, ring, decorationCellFrames ?? undefined, config.strand.color)
-      if (!ctx) return undefined
+      // No per-Strand paint at all is the COMMON case, and the Strands are
+      // still a colour there — the global one. Returning nothing left every
+      // "same colour as strand" ornament falling back to its own colour, so
+      // the option looked broken until you had painted a Strand.
+      if (!ctx) return () => config.strand.color
       const cache = new Map<number, string>()
       return i => {
         let c = cache.get(i)

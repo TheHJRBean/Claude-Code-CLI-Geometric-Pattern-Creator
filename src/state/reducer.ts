@@ -202,6 +202,7 @@ function mergeGuide(g: EditorGuide, patch: EditorGuidePatch): EditorGuide {
 function sameOrnamentStyle(a: JunctionOrnamentStyle, b: JunctionOrnamentStyle): boolean {
   return a.shape === b.shape
     && a.size === b.size
+    && (a.reach ?? null) === (b.reach ?? null)
     && (a.points ?? null) === (b.points ?? null)
     && (a.innerRatio ?? null) === (b.innerRatio ?? null)
     && (a.align ?? 'thread') === (b.align ?? 'thread')

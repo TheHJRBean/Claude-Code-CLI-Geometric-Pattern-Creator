@@ -6,7 +6,7 @@ import type { PaintVoid } from '../../decoration/resolve'
 import { axisAngleDeg, bboxAxisAtAngle, gradientCanonicalBox, rotateAxisTo, seedFrameGradientSpec, seedGradientSpec, DEFAULT_GRADIENT_ANGLE_DEG, type GradientDraft, type GradientSelection, type WorldBBox } from '../../decoration/gradients'
 import type { Vec2 } from '../../utils/math'
 import type { DecorationConfig, FrameConfig, GradientSpec, GroupingScope, JunctionOrnamentStyle, VoidStampRecord } from '../../types/editor'
-import { junctionOrnamentsSupported } from '../../decoration/junctionOrnaments'
+import { DEFAULT_TWINKLE_REACH, MAX_TWINKLE_REACH, junctionOrnamentsSupported } from '../../decoration/junctionOrnaments'
 import { downloadAllVoidShapeCanvases, downloadVoidShapePNG, downloadVoidShapeSVG, importStampImage, voidStampCanvas } from '../../export/stampAssets'
 import { canonicalPose, canonicalSelfMirror } from '../../decoration/stamps'
 import { buildVoidMergeRecord, canCombine } from '../../decoration/voidMerge'
@@ -671,20 +671,39 @@ function JunctionSection({ substrate, decoration, dispatch, draft, onSetDraft, s
           </button>
         ))}
       </div>
-      <FieldLabel
-        label={flare ? 'Reach along the strand' : 'Size'}
-        value={draft.size.toFixed(1)}
-        unit="× strand width"
-        tooltip={flare
-          ? 'How far up each arm of the crossing the rounding runs, as a multiple of the Strand width. Longer reads as the Strands swelling into each other; shorter as a tight fillet on the corner.'
-          : 'Diameter as a multiple of the Strand width, so the ornament keeps its proportion when the line work or the pattern scale changes.'}
-      />
-      <input
-        type="range" className="pattern-slider"
-        min={0.5} max={10} step={0.1}
-        value={draft.size}
-        onChange={e => patch({ size: Number(e.target.value) })}
-      />
+      {/* A twinkle is measured in world units and a dot / star in strand
+          widths — deliberately different quantities, so they get different
+          controls rather than one slider whose label changes meaning. */}
+      {flare ? (
+        <>
+          <FieldLabel
+            label="Reach along the strand"
+            value={String(Math.round(draft.reach ?? DEFAULT_TWINKLE_REACH))}
+            tooltip="How far up each arm of the crossing the rounding runs, measured in the pattern's own units — so it reaches as far into a large Tile as you ask, whatever the Strand weight. Longer reads as the Strands swelling into each other; shorter as a tight fillet on the corner."
+          />
+          <input
+            type="range" className="pattern-slider"
+            min={1} max={MAX_TWINKLE_REACH} step={1}
+            value={draft.reach ?? DEFAULT_TWINKLE_REACH}
+            onChange={e => patch({ reach: Number(e.target.value) })}
+          />
+        </>
+      ) : (
+        <>
+          <FieldLabel
+            label="Size"
+            value={draft.size.toFixed(1)}
+            unit="× strand width"
+            tooltip="Diameter as a multiple of the Strand width, so the ornament keeps its proportion when the line work or the pattern scale changes."
+          />
+          <input
+            type="range" className="pattern-slider"
+            min={0.5} max={10} step={0.1}
+            value={draft.size}
+            onChange={e => patch({ size: Number(e.target.value) })}
+          />
+        </>
+      )}
       {flare && (
         <>
           <FieldLabel

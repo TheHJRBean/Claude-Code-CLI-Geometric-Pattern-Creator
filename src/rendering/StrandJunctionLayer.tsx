@@ -1,6 +1,6 @@
 import { memo, useMemo } from 'react'
 import type { JunctionPlacement } from '../decoration/junctionOrnaments'
-import { flarePathD, ornamentPaint, ornamentPathD } from '../decoration/junctionOrnaments'
+import { flarePathD, ornamentPaint, ornamentPathD, twinkleReach } from '../decoration/junctionOrnaments'
 import type { JunctionOrnamentStyle } from '../types/editor'
 
 /**
@@ -34,16 +34,18 @@ export const StrandJunctionLayer = memo(function StrandJunctionLayer({
   const flares = useMemo(() => placements
     .filter(p => p.style.shape === 'twinkle')
     .map(p => {
-      const r = (p.style.size * strandWidth) / 2
-      const paint = ornamentPaint(p.style, r, p.colour)
+      // A twinkle has no radius — it runs up the arms — so `reach` is a length
+      // in world units, not a diameter. The nominal radius still feeds
+      // `ornamentPaint`, which sizes a hollow ornament's outline off it.
+      const reach = twinkleReach(p.style, strandWidth)
+      const paint = ornamentPaint(p.style, reach / 2, p.colour)
       return {
         point: p.point,
-        // `size` is the reach ALONG the strand here, not a diameter: a twinkle
-        // has no radius, it runs up the arms.
-        d: flarePathD(p.arms, strandWidth, p.style.size * strandWidth, p.style.innerRatio ?? 0.55),
+        d: flarePathD(p.arms, strandWidth, reach, p.style.innerRatio ?? 0.55),
         fill: paint.fill,
         stroke: paint.stroke,
         strokeWidth: paint.strokeWidth,
+        hollow: !!p.style.hollow,
       }
     })
     .filter(f => f.d.length > 0),
@@ -102,8 +104,18 @@ export const StrandJunctionLayer = memo(function StrandJunctionLayer({
           d={f.d}
           transform={`translate(${f.point.x},${f.point.y})`}
           fill={f.fill}
-          stroke={f.stroke}
-          strokeWidth={f.strokeWidth || undefined}
+          // A solid twinkle's straight sides lie EXACTLY on the Strand's edges
+          // — that is what makes it look built from the line work — and two
+          // separately-rasterised shapes sharing an edge each cover about half
+          // of the boundary pixels, compositing to a pale hairline instead of
+          // meeting. Glaring precisely when the twinkle is the Strand's colour
+          // and meant to read as one swelling. A one-pixel stroke in the fill
+          // colour closes it, and `non-scaling-stroke` keeps it one *device*
+          // pixel at every zoom — a world-unit overlap would either be too
+          // small to cover the seam zoomed out or a visible bleed zoomed in.
+          stroke={f.hollow ? f.stroke : f.fill}
+          strokeWidth={f.hollow ? (f.strokeWidth || undefined) : 1}
+          vectorEffect={f.hollow ? undefined : 'non-scaling-stroke'}
           strokeLinejoin="round"
         />
       ))}

@@ -419,8 +419,18 @@ export type JunctionOrnamentShape = 'dot' | 'star' | 'twinkle'
  */
 export interface JunctionOrnamentStyle {
   shape: JunctionOrnamentShape
-  /** Diameter as a multiple of the Strand width (`StrandStyle.width`). */
+  /** Diameter as a multiple of the Strand width (`StrandStyle.width`). Reads a
+   *  dot's / star's size; a **twinkle** measures itself in world units instead
+   *  (`reach`) and only falls back to this for records saved before it did. */
   size: number
+  /** **Twinkle only** — how far the rounding runs along each arm, in **world
+   *  units** (the same space as the tile geometry), not multiples of the Strand
+   *  width. A twinkle is a statement about the *pattern* — how far into a tile
+   *  the crossing swells — and tying it to the line work capped it at a few
+   *  strand widths, which on a large tile is nothing. Absent ⇒ the legacy
+   *  `size × strandWidth` reading (`twinkleReach`), so saved twinkles keep the
+   *  size they were drawn at. */
+  reach?: number
   /** Points on a star / twinkle (3–12). Ignored by `dot`. */
   points?: number
   /** Waist radius ÷ tip radius on a star / twinkle (0.05–0.9). */

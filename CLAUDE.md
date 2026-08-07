@@ -191,8 +191,25 @@ after areas and lines.
   tangent-curved past the corner, out along the next. A thread through a
   crossing continues both ways, so two threads give **four** arms and four
   corners. Consequences: it carries the junction's `arms` on the placement, it
-  is never rotated (its frame is the junction's own), it can't share a `<defs>`
-  path, and `size` means *reach along the arm*, not a diameter.
+  is never rotated (its frame is the junction's own), and it can't share a
+  `<defs>` path.
+- **A twinkle measures itself in world units** (`reach`, `twinkleReach`), not in
+  Strand widths like a dot or a star — a separate field and a separate slider,
+  because they are separate quantities. Strand width is a drawing weight chosen
+  once, so "4 × strand width" on a large Tile is a nub in an empty field, and
+  the ceiling of ten of them was the complaint; what the user aims at is a
+  distance into the Tile. `size` survives as the fallback for records saved
+  before the switch, so they draw at the length they were drawn at.
+- **The solid twinkle carries a 1 px `non-scaling-stroke` in its own fill
+  colour.** Its straight sides lie *exactly* on the Strand's edges — that is
+  what makes it look built from the line work — and two separately-rasterised
+  shapes sharing an edge each cover about half of the boundary pixels,
+  compositing to a pale hairline right where the ornament is meant to read as
+  one swelling with the Strand. Measured: 159/280 samples on the seam were off
+  the fill colour, 38/280 after (the residual is the union's own outer fringe —
+  1.5 px inside the line work there was never a gap, before or after). It is a
+  *device*-pixel stroke deliberately: a world-unit overlap is either too small
+  to cover the seam zoomed out or a visible bleed zoomed in.
 - **`arms`, never `±dirs` — and this is the whole of `StrandJunction.arms`.**
   `StrandVisit.dir` is the *chord* through a crossing, which is what the weave
   wants (how transversal two threads are). A thread only leaves antiparallel
@@ -223,7 +240,11 @@ after areas and lines.
   per junction: the threads can be painted differently and a wedge is bounded
   by two arms that may belong to two of them, so the first thread in
   enumeration order wins. `'none'` — the hidden-Strand sentinel — **removes**
-  the ornament rather than drawing it in nothing.
+  the ornament rather than drawing it in nothing. **`usePattern` must supply a
+  resolver even when no `strandColours` record exists** — the common case, and
+  the Strands are still a colour there (the global one). Passing nothing left
+  every matching ornament falling back to its *own* colour, so the option
+  looked inert until you had painted a Strand.
 - **`layer: 'over' | 'under'`** splits the placements into two layers either
   side of the strand `<g>` (`splitJunctionLayers`); the under layer sits
   outside the Combine seam mask, which exists to erase Rays, not ornaments.

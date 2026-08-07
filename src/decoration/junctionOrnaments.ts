@@ -91,9 +91,19 @@ export interface JunctionPlacement {
   style: JunctionOrnamentStyle
 }
 
+/** A fresh twinkle's reach, in world units — a few strand widths at the
+ *  default line weight, so switching shape doesn't jump the size. */
+export const DEFAULT_TWINKLE_REACH = 12
+
+/** The longest reach the panel offers. Generous on purpose: the point of the
+ *  switch to world units is that a twinkle on a large tile has somewhere to
+ *  go, and the old ceiling of ten strand widths was the complaint. */
+export const MAX_TWINKLE_REACH = 200
+
 export const DEFAULT_JUNCTION_ORNAMENT: JunctionOrnamentStyle = {
   shape: 'dot',
   size: 2.5,
+  reach: DEFAULT_TWINKLE_REACH,
   points: 6,
   innerRatio: 0.45,
   align: 'thread',
@@ -271,6 +281,23 @@ export function ornamentPoints(style: JunctionOrnamentStyle): number {
 export function ornamentInnerRatio(style: JunctionOrnamentStyle): number {
   return Math.max(0.05, Math.min(0.9, style.innerRatio ?? 0.45))
 }
+
+/**
+ * How far a **twinkle** runs along each arm, in world units.
+ *
+ * Absolute, not a multiple of the Strand width. The two are the same quantity
+ * only while the line work and the tiles keep the same proportion, and they
+ * don't: strand width is a drawing weight the user picks once, so on a large
+ * tile a reach of "4 × strand width" is a barely-visible nub in the middle of
+ * an empty field. What the user is aiming at is a distance into the tile.
+ *
+ * `size` is the pre-#57 reading and stays the fallback so a saved twinkle
+ * draws at the length it was drawn at; nothing writes it for twinkles now.
+ */
+export function twinkleReach(style: JunctionOrnamentStyle, strandWidth: number): number {
+  return style.reach ?? style.size * strandWidth
+}
+
 
 /**
  * The ornament outline as an SVG path, centred on the origin at radius `r`.

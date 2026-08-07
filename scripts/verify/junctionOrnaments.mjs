@@ -103,6 +103,27 @@ console.log('ALL              ', all ? `${all.uses} uses, ${all.defs.length} sty
   all && all.uses === crossings ? 'PASS' : `FAIL (expect ${crossings})`)
 console.log('  dot geometry   ', JSON.stringify(all?.defs?.[0]))
 
+// ── Same colour as strand, with NO strand paint ─────────────────────────
+// The common case, and the one that was broken: nothing has been painted, so
+// there are no strand records — but the Strands are still a colour, the
+// global one, and an ornament told to match must take it. It used to fall
+// back to its own colour until you had painted a Strand, which read as the
+// option doing nothing at all.
+await page.click('label:has-text("Same colour as strand") input')
+await page.waitForTimeout(1400)
+const unpainted = await page.evaluate(() => {
+  const orn = document.querySelector('#junction-ornament-world-layer defs path')
+  const strand = document.querySelector('#strand-layer path')
+  const norm = c => (c ?? '').trim().toLowerCase()
+  return { ornament: norm(orn?.getAttribute('fill')), strand: norm(strand?.getAttribute('stroke')) }
+})
+console.log('MATCH UNPAINTED  ', JSON.stringify(unpainted),
+  unpainted.strand && unpainted.ornament === unpainted.strand
+    ? 'PASS — takes the global strand colour'
+    : 'FAIL — ornament ignored the unpainted Strands')
+await page.click('label:has-text("Same colour as strand") input')
+await page.waitForTimeout(800)
+
 // ── Shape + hollow reach the geometry (the '*' group is live-edited) ────
 await page.click('button:has-text("Twinkle")')
 await page.waitForTimeout(1500)
@@ -122,12 +143,14 @@ const firstCorner = () => page.evaluate(() => {
   const m = p.getAttribute('d').match(/^M(-?[\d.e-]+),(-?[\d.e-]+)/)
   return Math.hypot(Number(m[1]), Number(m[2]))
 })
+// Reach is in WORLD units, so the far end of the slider has to be far — a
+// twinkle on a big Tile is the whole reason it stopped being strand widths.
 const nearReach = await firstCorner()
-await setSlider('Reach along the strand', 8)
+await setSlider('Reach along the strand', 80)
 const farReach = await firstCorner()
 console.log('TWINKLE REACH    ', `${nearReach.toFixed(1)} → ${farReach.toFixed(1)}`,
-  farReach > nearReach * 1.5 ? 'PASS — runs further up the arms' : 'FAIL')
-await setSlider('Reach along the strand', 2.5)
+  farReach > nearReach * 1.5 && farReach > 60 ? 'PASS — runs far up the arms' : 'FAIL')
+await setSlider('Reach along the strand', 12)
 
 await page.click('button:has-text("Star")')
 await page.waitForTimeout(300)

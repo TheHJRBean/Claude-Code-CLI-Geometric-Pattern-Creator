@@ -353,5 +353,46 @@ console.log('CAIRO BENT ARMS  ', bent && `${bent.symmetric}/${bent.sampled} poin
     ? 'PASS — the fillets follow the kink, not ±through-direction'
     : 'FAIL — twinkles are still point-symmetric on a bent field')
 
+// ── The panel adopts the ornaments already on screen ────────────────────
+// The records are pattern data, the selection is session state — so after a
+// reload (or opening a saved pattern) there are ornaments on the canvas with
+// nothing bound to the panel, and every control edits a draft that only
+// matters on the NEXT canvas click. That reads exactly as the ornament
+// ignoring the UI. Arriving at the target must re-bind to the last record and
+// load its style, so the sliders show what is actually being drawn.
+const firstFlare = () => page.evaluate(() =>
+  document.querySelector('#junction-ornament-world-layer > path')?.getAttribute('d')?.slice(0, 40) ?? null)
+
+await page.reload({ waitUntil: 'networkidle' })
+await page.waitForTimeout(3000)
+await page.click('button:has-text("Decoration")')
+await page.waitForTimeout(900)
+await page.click('button:has-text("Junctions")')
+await page.waitForTimeout(1800)
+const adopted = await page.evaluate(() => ({
+  editingNote: document.body.innerText.includes('Editing the ornaments you last placed'),
+  shape: [...document.querySelectorAll('button')]
+    .filter(b => ['Dot', 'Star', 'Twinkle'].includes(b.textContent.trim()))
+    .find(b => getComputedStyle(b).backgroundColor !== 'rgba(0, 0, 0, 0)')?.textContent?.trim() ?? null,
+}))
+const beforeAdoptEdit = await firstFlare()
+await setSlider('Reach along the strand', 60)
+const afterAdoptEdit = await firstFlare()
+console.log('ADOPTS ON RELOAD ', JSON.stringify(adopted),
+  adopted.editingNote && adopted.shape === 'Twinkle' ? 'PASS — re-bound to what is drawn' : 'FAIL')
+console.log('  controls live  ', `${beforeAdoptEdit} → ${afterAdoptEdit}`,
+  afterAdoptEdit && afterAdoptEdit !== beforeAdoptEdit ? 'PASS' : 'FAIL — the panel is inert')
+
+// "New ornament" must still detach — the adoption cannot re-bind what the
+// user just asked to be free of.
+await page.click('button:has-text("New ornament")')
+await page.waitForTimeout(600)
+const detached = await page.evaluate(() => ({
+  editingNote: document.body.innerText.includes('Editing the ornaments you last placed'),
+  says: document.body.innerText.includes('these settings apply to the next crossing you click'),
+}))
+console.log('NEW ORNAMENT     ', JSON.stringify(detached),
+  !detached.editingNote && detached.says ? 'PASS — detached, and says so' : 'FAIL')
+
 console.log('ERRORS           ', JSON.stringify(errs.slice(0, 5)))
 await b.close()

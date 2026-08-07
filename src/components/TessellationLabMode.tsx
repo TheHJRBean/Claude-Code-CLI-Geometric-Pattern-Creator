@@ -318,6 +318,34 @@ export function TessellationLabMode({
   // silently waiting for the next click (the gradient draft behaves the same
   // way, and for the same reason).
   const [junctionSelection, setJunctionSelection] = useState<{ scope: GroupingScope; key: string } | null>(null)
+  // Did the user ASK for a clean draft ("New ornament")? Without this, the
+  // adoption below would immediately re-bind the controls to the group they
+  // just detached from, and the button would do nothing.
+  const junctionDetachedRef = useRef(false)
+  const selectJunctionGroup = useCallback((g: { scope: GroupingScope; key: string } | null) => {
+    junctionDetachedRef.current = g === null
+    setJunctionSelection(g)
+  }, [])
+  // **Arriving at the Junctions target adopts the ornaments already placed.**
+  // The records are pattern data and the selection is session state, so a
+  // reload — or opening a saved pattern — leaves ornaments on the canvas with
+  // nothing bound to the panel: every control then edits a draft that only
+  // matters on the *next* canvas click, which reads as the twinkle ignoring
+  // the UI. Adopting the last record (they are appended in paint order, so it
+  // is the one last placed) also loads its style, so the sliders show the
+  // values actually being drawn rather than a fresh draft's.
+  const junctionRecordsForAdopt = patternDecoration(config)?.junctionOrnaments
+  useEffect(() => {
+    if (paintTarget !== 'junctions' || junctionSelection || junctionDetachedRef.current) return
+    const last = junctionRecordsForAdopt?.[junctionRecordsForAdopt.length - 1]
+    if (!last) return
+    const { scope, key, ...style } = last
+    setJunctionSelection({ scope, key })
+    setJunctionDraft(style)
+    // Records are a dep so a pattern that finishes loading AFTER the target is
+    // open still gets adopted; every later run early-returns on the selection
+    // this one sets, so it can't fight an edit in progress.
+  }, [paintTarget, junctionSelection, junctionRecordsForAdopt])
   const updateJunctionDraft = useCallback((next: JunctionOrnamentStyle) => {
     setJunctionDraft(next)
     // No `toggle`: an upsert, never an unpaint. A slider dragged back through
@@ -747,7 +775,7 @@ export function TessellationLabMode({
                 onSetJunctionDraft={updateJunctionDraft}
                 junctionScope={effectiveJunctionScope}
                 onSetJunctionScope={setJunctionScope}
-                onSelectJunctionGroup={setJunctionSelection}
+                onSelectJunctionGroup={selectJunctionGroup}
                 junctionSelected={!!junctionSelection}
                 strandLineStyle={config.strand.lineStyle}
                 onSetEditorPhase={p => {
@@ -821,7 +849,7 @@ export function TessellationLabMode({
                     onSetJunctionDraft={updateJunctionDraft}
                     junctionScope={effectiveJunctionScope}
                     onSetJunctionScope={setJunctionScope}
-                    onSelectJunctionGroup={setJunctionSelection}
+                    onSelectJunctionGroup={selectJunctionGroup}
                     junctionSelected={!!junctionSelection}
                     strandLineStyle={config.strand.lineStyle}
                     onUndo={undo}
@@ -1255,7 +1283,9 @@ export function TessellationLabMode({
         onPaintJunction={p => {
           pushRecentColour(junctionDraft.colour)
           dispatch({ type: 'SET_JUNCTION_ORNAMENT', payload: { ...p, style: junctionDraft, toggle: true } })
-          setJunctionSelection({ scope: p.scope, key: p.key })
+          // Through the detach-aware setter: placing is what ends a "New
+          // ornament" draft, so the panel may adopt again on the next visit.
+          selectJunctionGroup({ scope: p.scope, key: p.key })
         }}
         paintJunctionScope={effectiveJunctionScope}
         onSelectStampVoid={setStampSelection}

@@ -248,6 +248,17 @@ after areas and lines.
 - **`layer: 'over' | 'under'`** splits the placements into two layers either
   side of the strand `<g>` (`splitJunctionLayers`); the under layer sits
   outside the Combine seam mask, which exists to erase Rays, not ornaments.
+- **Arriving at the Junctions target adopts the ornaments already placed.**
+  The records are pattern data; the *selection* they are bound to is session
+  state. So a reload — or opening a saved pattern — leaves ornaments on the
+  canvas with nothing bound, and every panel control then edits a draft that
+  only matters on the next canvas click: the reported symptom was "the twinkle
+  doesn't respond to the UI", with no error and every slider moving freely.
+  `TessellationLabMode` adopts the **last** record (they are appended in paint
+  order) and loads its style, so the sliders show what is actually drawn.
+  `junctionDetachedRef` is what keeps **New ornament** meaningful — without it
+  the adoption re-binds the group the user just asked to be free of — and the
+  panel now *says* when the controls are unbound rather than looking inert.
 - **Canvas click vs panel edit** is the `toggle` flag: a click carries it (an
   identical re-click clears the ornament), a panel edit never does, because the
   draft syncs live onto the group last painted and a slider dragged back

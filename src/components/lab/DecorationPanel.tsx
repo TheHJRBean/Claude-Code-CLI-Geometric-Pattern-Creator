@@ -652,6 +652,15 @@ function JunctionSection({ substrate, decoration, dispatch, draft, onSetDraft, s
           <button onClick={() => onSelectGroup(null)} style={decorationButtonStyle}>New ornament</button>
         </div>
       )}
+      {/* Say so when the controls are NOT bound to anything on screen. Silence
+          here is what makes a detached draft read as the ornaments ignoring
+          the panel — every slider moves and nothing on the canvas changes. */}
+      {!selected && count > 0 && (
+        <div style={{ marginBottom: 8, fontStyle: 'italic' }}>
+          A new ornament: these settings apply to the next crossing you click,
+          not to the ones already placed.
+        </div>
+      )}
       <FieldLabel
         label="Reach"
         tooltip="How far one click spreads. All = every crossing in the pattern. Matching = every crossing where the same threads meet at the same angles, however it is rotated or mirrored. Repeat = that crossing's spot in every Patch repeat. Single = the one crossing you click."

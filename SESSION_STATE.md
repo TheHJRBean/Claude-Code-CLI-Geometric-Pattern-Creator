@@ -28,7 +28,7 @@
 > uneditable. Browser-verified: Complete-mode circles 36 → 16 with anchors off
 > (16 = the Cell's own vertex dots), Place-mode guide-layer circles 7 → 0.
 >
-> (1) **Show neighbours — FIXED, `0d1c3b1`. "Show tiles" was silently emptying
+> (1) **Show neighbours — FIXED, `3e9a34c`. "Show tiles" was silently emptying
 > it.** The ghost layer was `<TileLayer polygons={ghostPolygons}
 > visible={showTileLayer}>` — so with the Display section's **Show tiles** off,
 > the preview rendered an empty group and the toggle did nothing at all, with

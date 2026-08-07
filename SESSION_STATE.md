@@ -4,7 +4,74 @@
 
 ## ▶ RESUME HERE
 
-> **2026-08-07, latest — "disappearing lines": Vertex strands have a θ floor
+> **2026-08-07, latest — Guides: Construct-mode snapping round. Four
+> user-reported gaps, all four shipped (`7e98a18`, `8edc066`, `e8bae9c`,
+> `789b186`). Tree clean, pushed, 1853 tests green.**
+>
+> All four were reported one at a time and each fix exposed the next, so read
+> them in order — the last one repairs a regression the third introduced.
+>
+> **1. `7e98a18` — snap along a Tile edge, not just to its discrete points.**
+> `collectSnapEdges` + `snapToEdge` (perpendicular foot clamped to the
+> segment), carrying the edge angle so a Guide started mid-edge gets the same
+> continuation/perpendicular references a midpoint already gave. Also extended
+> `tileCentreAnchors` to the world-space Tiles (frame + `guideTiles`) with
+> `stamp: false`. The snap marker gains a tangent bar for an edge hit — the
+> bare ring claims a fixed point, which a sliding snap is not.
+>
+> **2. `8edc066` — Tile centres existed nowhere without a Guide.** They had
+> been folded into `collectGuideAnchors`, so they inherited `guideAnchorsVisible`
+> ("an Anchor is only ever shown with its Guide"). In a Patch with no Guides
+> drawn, Place and Complete offered no centre at all — you had to draw an
+> unrelated Guide first. `tileCentreGuideAnchors` splits them out as the
+> Guide-free set and both Design pickers fall back to it. The reducers
+> re-derive from the full set, which always held the centres, so no commit path
+> changed.
+>
+> **3. `e8bae9c` — a radial fan was impossible past two lines.** A Guide's
+> 12 px hit stroke called `stopPropagation()` on pointerdown, and `Canvas` only
+> counts a draw click whose pointerdown reached the svg (that pairing is how it
+> tells a click from a pan). So any click landing on an existing Guide selected
+> it and could never draw — and every spoke of a fan starts at the same hub,
+> which by the third line is buried under the first two. `canSelectAt(screen)`
+> now gates both hit strokes: selection only when no draft is in progress AND
+> the position resolves to no snap point; otherwise the handler declines to
+> swallow the event and the click draws. Read from the pointerdown's own
+> position, not the hover state, so a click with no preceding move decides the
+> same way. Verified: six spokes from one Tile centre, no interruption; a
+> stroke click away from the hub still opens the popup.
+>
+> **4. `789b186` — 90° off an edge is now always available, and the edge snap
+> stopped eating the angle snap.** References were "the horizontal + the edge
+> you started on", set only on an edge-midpoint snap, so perpendicular was
+> missing from a vertex, from a Tile centre, and at any step that doesn't
+> divide 90° (36°/72°, the Girih presets). `angleReferencesAt(p, polygons)`
+> derives them from the geometry at the point: edges meeting there, else the
+> edges of the **smallest** polygon containing it (a Guide from a Tile centre
+> is measured against that Tile, not the Boundary around it), each contributing
+> its direction **and** its perpendicular. `snapAngle` grids every reference
+> from both ends — `ref + π` is only already on the grid when the step divides
+> 180°.
+>
+> **The precedence is the load-bearing part, and fix 1 got it wrong.** An
+> edge-slide band covers *every* edge, so it was outbidding the angle snap on
+> the second click: a line aimed 3° off perpendicular got dragged onto whatever
+> edge its far end drifted near. `resolveDrawPoint` now owns the whole rule for
+> drawing and all three handle drags — a **discrete point always wins**, then
+> whichever of the angle ray and the edge **moves the cursor less**. Strict
+> priority breaks one or the other: edge-first swallows the angle snap near any
+> Tile, angle-first makes an edge unhittable because an angle snap always
+> returns something. Browser-verified at exactly 135.00° from both an edge
+> point and the Tile centre.
+>
+> **Method note:** every one of these was found or confirmed in a real browser
+> against the running dev server, and two of them (the 3° case, the fan) were
+> invisible to the unit tests — the fan because no test drives pointer events,
+> the 3° case because a fixture doesn't drift near a neighbouring edge. See
+> [[feedback_measure_the_rendered_pixels]].
+
+
+> **2026-08-07 — "disappearing lines": Vertex strands have a θ floor
 > and nothing said so. FIXED (surfaced, not changed).**
 >
 > Reported as "when edge strands are selected the strands do not appear at
@@ -45,9 +112,9 @@
 > edge lines stay 18k–26k across the whole θ range while the picture changes a
 > lot, and the actual blackout showed up only as `#strand-layer` being absent.
 
-> **▸ NEXT, for a cold start (2026-08-07 close).** Nothing is mid-flight —
-> three user-reported bugs came in and all three shipped (`fa752a9`, `3e9a34c`,
-> `8c3a97a`), tree clean, pushed, 1834 tests green. Pick from:
+> **▸ NEXT, for a cold start (2026-08-07 close, 2nd session).** Nothing is
+> mid-flight — four user-reported Guides gaps came in and all four shipped,
+> tree clean, pushed, 1853 tests green. Pick from:
 >
 > - **#32 Girih preset reveal** is still the last agreed task on the `guides`
 >   label and is still **not implementable as written** — read the three
@@ -56,13 +123,17 @@
 > - **Guide `stamp` defaults OFF** — offered twice, not taken. User's call.
 > - **Neighbour ghost contrast** — promoted Tiles are near-invisible on the
 >   Design ghosts (~3% contrast). Flagged, not filed.
+> - **Snap tuning, if it comes up.** The 14 px tolerance is now shared by the
+>   point snap and the edge slide. If the edge slide feels grabby in practice
+>   the honest lever is a *smaller* radius for the edge than for points, not a
+>   change to `resolveDrawPoint`'s ordering — the ordering is pinned by tests
+>   and by the two failure modes described above.
 > - **Centroid-V regime change** on irregular Tiles with edge strands
 >   ([[project_pic_irregular_polygon_bugs]], parked): as θ crosses a per-corner
 >   threshold, a pair goes asymmetric, both arms re-route to the centroid and
 >   dedupe against the neighbouring pair's, so that corner's V disappears and
->   the Figure degenerates towards a hub. Characterised precisely this session
->   on the reporter's own Tiles — thresholds are per-corner, not per-tile.
->   Not reported by the user; a fix is a real PIC change, not a copy change.
+>   the Figure degenerates towards a hub. Thresholds are per-corner, not
+>   per-tile. Not reported by the user; a fix is a real PIC change.
 > - Older open issues unchanged: **#41** (Morph C1 kinks), **#52**
 >   (archimedes-star 12-gon — needs the user's call), **#54**, **#56**.
 

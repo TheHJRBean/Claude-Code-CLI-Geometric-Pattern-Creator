@@ -70,6 +70,16 @@ interface Props {
   draftTool: 'line' | 'circle'
   /** The snap candidate the cursor is currently locked to, for the marker. */
   snapTarget: SnapPoint | null
+  /**
+   * Whether a pointerdown at this screen position should select the Guide
+   * under it, rather than fall through to the draw path. False mid-draft, or
+   * when the position locks to a snap point: drawing a radial fan means
+   * clicking the SAME hub over and over, and after two lines that hub is
+   * buried under their hit strokes, so every later line would select an
+   * earlier one instead. Placement beats re-selection — a Guide is still
+   * selected by clicking its stroke anywhere away from an Anchor.
+   */
+  canSelectAt: (screen: Vec2) => boolean
   selectedGuideId: string | null
   /** Click on a Guide's stroke → select (opens the popup). */
   onSelectGuide?: (id: string | null) => void
@@ -92,6 +102,7 @@ export const EditorGuideLayer = memo(function EditorGuideLayer({
   draftCursor,
   draftTool,
   snapTarget,
+  canSelectAt,
   selectedGuideId,
   onSelectGuide,
   onDragHandle,
@@ -200,13 +211,20 @@ export const EditorGuideLayer = memo(function EditorGuideLayer({
           stroke={colour} strokeWidth={lit ? 2.4 : 1.6} strokeOpacity={lit ? 1 : 0.85}
           vectorEffect="non-scaling-stroke" pointerEvents="none"
         />
-        {/* Wide invisible hit stroke over the full span — select/popup. */}
+        {/* Wide invisible hit stroke over the full span — select/popup. Not
+            swallowing the event is what hands the click to the draw path:
+            `Canvas` only registers a draw click whose pointerdown reached the
+            svg (that pairing is how a pan is told from a click). */}
         {interactive && (
           <line
             x1={span.a.x} y1={span.a.y} x2={span.b.x} y2={span.b.y}
             stroke="transparent" strokeWidth={12} vectorEffect="non-scaling-stroke"
             style={{ cursor: 'pointer' }}
-            onPointerDown={e => { e.stopPropagation(); onSelectGuide?.(g.id) }}
+            onPointerDown={e => {
+              if (!canSelectAt(screenPos(e))) return
+              e.stopPropagation()
+              onSelectGuide?.(g.id)
+            }}
           />
         )}
         {/* Passive Anchor dots. */}
@@ -254,7 +272,11 @@ export const EditorGuideLayer = memo(function EditorGuideLayer({
             cx={g.center.x} cy={g.center.y} r={g.radius}
             fill="none" stroke="transparent" strokeWidth={12} vectorEffect="non-scaling-stroke"
             style={{ cursor: 'pointer' }}
-            onPointerDown={e => { e.stopPropagation(); onSelectGuide?.(g.id) }}
+            onPointerDown={e => {
+              if (!canSelectAt(screenPos(e))) return
+              e.stopPropagation()
+              onSelectGuide?.(g.id)
+            }}
           />
         )}
         {/* Division Anchors — the rosette scaffold; drawn as small filled dots

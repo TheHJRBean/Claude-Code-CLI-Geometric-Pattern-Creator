@@ -1023,6 +1023,22 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     return { p: w, snap: null }
   }, [viewTransform, size.width, size.height, constructSnap, guideSnapPoints, guideSnapEdges, guideDraftStart, constructAngleStep])
 
+  /**
+   * Does a pointerdown on a Guide's hit stroke select it, or fall through to
+   * the draw path? Placement beats re-selection: mid-draft every click
+   * completes the Guide, and a position that locks to a snap point is aiming
+   * at the geometry, not at whatever lines happen to run through it.
+   *
+   * Without this a radial fan stalls after two lines — the hub they share is
+   * covered by their hit strokes, so each further line selects an earlier one.
+   * Evaluated at pointerdown from the event's own position rather than off the
+   * hover state, so a click with no pointermove before it decides the same way.
+   */
+  const canSelectGuideAt = useCallback((screen: Vec2): boolean => {
+    if (guideDraftStart) return false
+    return resolveConstructPoint(screen, false).snap === null
+  }, [guideDraftStart, resolveConstructPoint])
+
   const handleConstructMove = useCallback((screen: Vec2, freehand: boolean) => {
     const { p, snap } = resolveConstructPoint(screen, freehand)
     setConstructCursor(p)
@@ -1148,6 +1164,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       draftCursor={constructCursor}
       draftTool={constructTool === 'line' ? 'line' : 'circle'}
       snapTarget={guideSnapTarget}
+      canSelectAt={canSelectGuideAt}
       selectedGuideId={selectedGuideId}
       onSelectGuide={setSelectedGuideId}
       onDragHandle={handleDragHandle}

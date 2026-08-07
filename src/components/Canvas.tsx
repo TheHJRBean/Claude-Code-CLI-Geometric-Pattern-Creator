@@ -825,31 +825,37 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     }
   }, [vertexOrientations, vertexOrientationIdx])
 
-  // Live preview of the candidate Tile, rendered as a translucent polygon in
-  // the editor overlay. Built in Cell-local coords then transformed into
-  // Patch-local for rendering via the host Cell's transform — keeps centring +
-  // rotation consistent with the Cell the vertex belongs to.
-  const vertexPreviewPoints = useMemo<string | null>(() => {
+  // Candidate Tile outlines in world coords — one per orientation of the
+  // picked shape. Built in Cell-local coords then transformed into Patch-local
+  // via the host Cell's transform, which keeps centring + rotation consistent
+  // with the Cell the vertex belongs to. EVERY orientation, not just the shown
+  // one, because the picker's keep-clear rect is their union: it must not jump
+  // about as the user cycles ‹ › through them.
+  const vertexPreviewOutlines = useMemo<Vec2[][]>(() => {
     if (!selectedVertexData || vertexPickedSides === null || !effectiveVertexCell || !config.editor) {
-      return null
+      return []
     }
-    const orientation = vertexOrientations[vertexOrientationIdx]
-    if (!orientation) return null
-    const tile = placeRegularNGonOnVertex(
-      vertexPickedSides,
-      effectiveEdgeLength,
-      selectedVertexData,
-      orientation.rotation,
-      '__preview__',
-    )
-    const verts = regularPolygonVertices(tile.sides, tile.center, tile.edgeLength, tile.rotation)
-    return verts.map(v => {
+    return vertexOrientations.map(orientation => {
+      const tile = placeRegularNGonOnVertex(
+        vertexPickedSides,
+        effectiveEdgeLength,
+        selectedVertexData,
+        orientation.rotation,
+        '__preview__',
+      )
+      const verts = regularPolygonVertices(tile.sides, tile.center, tile.edgeLength, tile.rotation)
       // Guide Anchor tiles are already in Patch-world coords (anchor `p` was
       // world); real-vertex tiles are Cell-local and lift via the host Cell.
-      const w = selectedIsGuideAnchor ? v : applyCellTransform(v, effectiveVertexCell, patchRot)
-      return `${w.x},${w.y}`
-    }).join(' ')
-  }, [selectedVertexData, vertexPickedSides, vertexOrientations, vertexOrientationIdx, effectiveVertexCell, selectedIsGuideAnchor, config.editor, patchRot, effectiveEdgeLength])
+      return verts.map(v => selectedIsGuideAnchor ? v : applyCellTransform(v, effectiveVertexCell, patchRot))
+    })
+  }, [selectedVertexData, vertexPickedSides, vertexOrientations, effectiveVertexCell, selectedIsGuideAnchor, config.editor, patchRot, effectiveEdgeLength])
+
+  // Live preview of the candidate Tile, rendered as a translucent polygon in
+  // the editor overlay.
+  const vertexPreviewPoints = useMemo<string | null>(() => {
+    const outline = vertexPreviewOutlines[vertexOrientationIdx]
+    return outline ? outline.map(v => `${v.x},${v.y}`).join(' ') : null
+  }, [vertexPreviewOutlines, vertexOrientationIdx])
 
   // Closing the picker without committing — also clears the page-2 state.
   // useCallback so the memoised EditorVertexPlacementLayer (whose onSelect
@@ -1445,6 +1451,26 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   const vertexPickerScreenPos = vertexPickerWorldPos && vertexPlacementActive
     ? worldToScreen(vertexPickerWorldPos, viewTransform, size.width, size.height)
     : null
+  // Keep-clear rect for the picker: the screen bbox of the candidate Tile, so
+  // the popup doesn't cover the thing you picked an orientation to look at.
+  // Spans every orientation (see `vertexPreviewOutlines`) and so is unchanged
+  // by cycling — the popup settles once per shape rather than hopping.
+  const vertexPreviewScreenRect = useMemo(() => {
+    if (vertexPreviewOutlines.length === 0) return null
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    for (const outline of vertexPreviewOutlines) {
+      for (const v of outline) {
+        const s = worldToScreen(v, viewTransform, size.width, size.height)
+        minX = Math.min(minX, s.x); maxX = Math.max(maxX, s.x)
+        minY = Math.min(minY, s.y); maxY = Math.max(maxY, s.y)
+      }
+    }
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
+  }, [vertexPreviewOutlines, viewTransform, size.width, size.height])
+  const canvasBounds = useMemo(
+    () => ({ width: size.width, height: size.height }),
+    [size.width, size.height],
+  )
 
   return (
     <div ref={containerRef} className="canvas-container">
@@ -1503,6 +1529,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       {pickerScreenPos && onPlaceTile && onSelectEdge && selectedEdgeData && (
         <EditorPickerOverlay
           position={pickerScreenPos}
+          bounds={canvasBounds}
           viableSides={pickerViable}
           forceableSides={pickerForceable}
           onPick={n => {
@@ -1527,6 +1554,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       {sectionPickerScreenPos && onPlaceTileOnBoundarySection && onSelectSection && selectedSectionData && (
         <EditorPickerOverlay
           position={sectionPickerScreenPos}
+          bounds={canvasBounds}
           viableSides={sectionPickerViable}
           forceableSides={sectionPickerForceable}
           onPick={n => {
@@ -1547,6 +1575,8 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         <EditorPickerOverlay
           mode="vertex"
           position={vertexPickerScreenPos}
+          bounds={canvasBounds}
+          avoid={vertexPreviewScreenRect}
           viableSides={vertexPickerViableSides}
           forceableSides={vertexPickerForceableSides}
           pickedSides={vertexPickedSides}

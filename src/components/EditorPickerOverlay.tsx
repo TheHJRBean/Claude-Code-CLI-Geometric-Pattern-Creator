@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { regularPolygonVertices } from '../editor/regularPolygon'
 import { PICKER_SIDES } from '../editor/placement'
 import type { VertexOrientation } from '../editor/vertexPlacement'
+import { choosePickerPlacement, type PickerSide, type Rect } from './pickerPlacement'
 
 /**
  * Step 17.3 / 17.12c / 17.13c — viable-polygon picker.
@@ -19,6 +20,11 @@ import type { VertexOrientation } from '../editor/vertexPlacement'
  * Floating popover anchored at the screen-space position the parent computes
  * from the selected target's world midpoint / vertex position. Closes on
  * Escape or outside-click.
+ *
+ * It sits above the anchor by default, but steps aside when the parent passes
+ * an `avoid` rect — the orientation page draws the candidate Tile AROUND the
+ * anchor, and a popup covering it hides the one thing that page is for
+ * (`pickerPlacement.ts` owns the choice).
  *
  * Sizing matches the rest of Lab — Cinzel uppercase header, accent-bordered
  * chips, large-enough icons + numerals to read at small viewport sizes.
@@ -40,11 +46,21 @@ const ORIENTATION_LABEL: Record<VertexOrientation['kind'], string> = {
  *  clean choice. */
 const WARN_COLOR = '#d99a4a'
 
+/** Positioning inputs both variants share. The popup keeps its historical spot
+ *  when they are absent, so a caller with nothing to keep visible — and the
+ *  first paint, before the popup has been measured — is unaffected. */
+interface PickerPositionProps {
+  position: { x: number; y: number }
+  /** Canvas size in screen px; the popup stays inside it. */
+  bounds?: { width: number; height: number }
+  /** Screen bbox of what must stay visible — the live Tile preview. */
+  avoid?: Rect | null
+}
+
 /* ── Edge / section variant (single-page) ──────────────────────────────── */
 
-interface EdgePickerProps {
+interface EdgePickerProps extends PickerPositionProps {
   mode?: 'edge'
-  position: { x: number; y: number }
   viableSides: number[]
   /** Sizes that don't fit cleanly but can still be placed through a skippable
    *  overlap warning (flexible-placement, 2026-06-01). Shown with a ⚠ badge;
@@ -57,9 +73,8 @@ interface EdgePickerProps {
 
 /* ── Vertex variant (two-page) ─────────────────────────────────────────── */
 
-interface VertexPickerProps {
+interface VertexPickerProps extends PickerPositionProps {
   mode: 'vertex'
-  position: { x: number; y: number }
   /** Shapes that produce at least one overlap-free orientation. */
   viableSides: number[]
   /** Shapes that only produce overlapping orientations — placeable through a
@@ -105,6 +120,32 @@ export function EditorPickerOverlay(props: Props) {
     }
   }, [props])
 
+  // Placement needs the popup's own size, which only the DOM knows — and it
+  // changes with the page (the orientation page is shorter than the shape
+  // grid). Measured on every render, written back only when it actually moved,
+  // so this can't loop; in a layout effect, so the reposition lands before the
+  // browser paints and the popup is never seen in the wrong place.
+  const [popupSize, setPopupSize] = useState<{ width: number; height: number } | null>(null)
+  useLayoutEffect(() => {
+    const el = dialogRef.current
+    if (!el) return
+    const { width, height } = el.getBoundingClientRect()
+    setPopupSize(prev => (
+      prev && Math.abs(prev.width - width) < 0.5 && Math.abs(prev.height - height) < 0.5
+        ? prev
+        : { width, height }
+    ))
+  })
+
+  const placement = popupSize && props.bounds
+    ? choosePickerPlacement({
+        anchor: props.position,
+        popup: popupSize,
+        bounds: props.bounds,
+        avoid: props.avoid,
+      })
+    : null
+
   return (
     <div
       ref={dialogRef}
@@ -113,9 +154,9 @@ export function EditorPickerOverlay(props: Props) {
       onPointerDown={e => e.stopPropagation()}
       style={{
         position: 'absolute',
-        left: props.position.x,
-        top: props.position.y,
-        transform: 'translate(-50%, calc(-100% - 18px))',
+        left: placement ? placement.left : props.position.x,
+        top: placement ? placement.top : props.position.y,
+        transform: placement ? undefined : 'translate(-50%, calc(-100% - 18px))',
         minWidth: 296,
         maxWidth: 'calc(100vw - 32px)',
         background: 'var(--surface, var(--bg, #1a1a1a))',
@@ -131,21 +172,42 @@ export function EditorPickerOverlay(props: Props) {
         ? <VertexPickerBody {...props} />
         : <EdgePickerBody {...props} />}
 
-      <div
-        aria-hidden
-        style={{
-          position: 'absolute',
-          left: '50%',
-          bottom: -7,
-          transform: 'translateX(-50%) rotate(45deg)',
-          width: 12,
-          height: 12,
-          background: 'var(--surface, var(--bg, #1a1a1a))',
-          borderRight: '1px solid var(--border-accent, var(--accent))',
-          borderBottom: '1px solid var(--border-accent, var(--accent))',
-        }}
-      />
+      {(!placement || placement.arrowSide) && (
+        <PointerDiamond
+          side={placement?.arrowSide ?? 'bottom'}
+          offset={placement ? placement.arrowOffset : '50%'}
+        />
+      )}
     </div>
+  )
+}
+
+/** The little rotated square joining the popup to its anchor. It rides the
+ *  edge that faces the anchor, so it keeps pointing at what was clicked
+ *  wherever the popup had to move to. */
+function PointerDiamond({ side, offset }: { side: PickerSide; offset: number | string }) {
+  const vertical = side === 'top' || side === 'bottom'
+  const edge = '1px solid var(--border-accent, var(--accent))'
+  return (
+    <div
+      aria-hidden
+      style={{
+        position: 'absolute',
+        ...(vertical
+          ? { left: offset, [side === 'top' ? 'top' : 'bottom']: -7 }
+          : { top: offset, [side === 'left' ? 'left' : 'right']: -7 }),
+        transform: `${vertical ? 'translateX(-50%)' : 'translateY(-50%)'} rotate(45deg)`,
+        width: 12,
+        height: 12,
+        background: 'var(--surface, var(--bg, #1a1a1a))',
+        // Only the two outward-facing sides are drawn, so the diamond reads as
+        // a spur off the popup border rather than a floating square.
+        ...(side === 'bottom' ? { borderRight: edge, borderBottom: edge }
+          : side === 'top' ? { borderLeft: edge, borderTop: edge }
+            : side === 'left' ? { borderLeft: edge, borderBottom: edge }
+              : { borderRight: edge, borderTop: edge }),
+      }}
+    />
   )
 }
 

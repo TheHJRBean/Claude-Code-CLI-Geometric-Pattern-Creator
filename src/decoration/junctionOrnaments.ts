@@ -56,6 +56,9 @@ export interface KeyedJunction {
    *  is built FROM the line work rather than stamped on it (`flarePathD`) —
    *  a dot or a star only needs `threadAngle`. */
   arms: Vec2[]
+  /** Each arm's straight run (`StrandJunction.armSpans`) — what caps the
+   *  twinkle's reach so it can't outrun the line work it is drawn along. */
+  armSpans: number[]
   /**
    * The colour of the Strands meeting here, for an ornament set to match them
    * (`decoration/strandColour.ts`). `'none'` — the sentinel a removed strand
@@ -85,6 +88,8 @@ export interface JunctionPlacement {
   angle: number
   /** The arms meeting here — the twinkle's geometry is derived from them. */
   arms: Vec2[]
+  /** Each arm's straight run, aligned with `arms` — the twinkle's per-arm cap. */
+  armSpans: number[]
   /** The colour to draw in: the style's own, or the Strands' where the style
    *  matches them. Resolved here so the renderer never has to ask again. */
   colour: string
@@ -132,6 +137,7 @@ export function keyJunctions(
       point: j.point,
       threadAngle: junctionAngle(j.arms),
       arms: j.arms,
+      armSpans: j.armSpans,
       ...(colourOfStrand && j.strands.length > 0
         ? { strandColour: colourOfStrand(j.strands[0]) }
         : null),
@@ -263,7 +269,7 @@ export function resolveJunctionPlacements(
     const base = style.shape === 'twinkle' ? 0
       : (style.align ?? 'thread') === 'thread' ? j.threadAngle : 0
     const angle = style.shape === 'twinkle' ? 0 : base + ((style.angle ?? 0) * Math.PI) / 180
-    out.push({ point: j.point, angle, arms: j.arms, colour, style })
+    out.push({ point: j.point, angle, arms: j.arms, armSpans: j.armSpans, colour, style })
   }
   return out
 }
@@ -362,28 +368,44 @@ export function ornamentPathD(style: JunctionOrnamentStyle, r: number): string {
  *   arm: "further up this thread than that one" would need a per-thread
  *   control with no stable way to say *which* thread across a whole congruent
  *   class.
- * - `roundness` — the tangent-handle fraction. The curve leaves each arm
- *   along the arm, so at any roundness the fillet meets the Strand smoothly
- *   instead of at a visible kink.
+ * - `spans` — how far the line work actually runs in each arm's direction
+ *   (`StrandJunction.armSpans`). **The reach is capped per arm on this.** An
+ *   arm is a unit direction, so without the span the fillet's straight side
+ *   follows a ray that goes on for ever: wind the reach up and it sails
+ *   straight past the point where the thread turned, hanging out over empty
+ *   ground. Capping cuts each side off where its Strand stops going that way,
+ *   so a long reach fills the crossing further and further up the line work
+ *   and stops when it runs out of line work — the two sides cap
+ *   independently, which is why `a` and `b` can sit at different distances.
+ * - `depth` — how far the curve dips toward the corner. 1 puts both tangent
+ *   handles on the corner itself, so the curve comes right down to the tip of
+ *   the crossing; 0 leaves them at the ends, making the fillet a flat chord
+ *   with no dip at all. The curve leaves each arm ALONG the arm at every
+ *   setting, so it always meets the Strand smoothly rather than at a kink.
  *
  * Wedges with no corner to round (two collinear arms — a thread crossed by
  * nothing on that side) are skipped rather than drawn degenerate.
  */
 export function flarePathD(
   incident: readonly Vec2[],
+  spans: readonly number[],
   strandWidth: number,
   reach: number,
-  roundness: number,
+  depth: number,
 ): string {
   const half = strandWidth / 2
   // The arms come in already — two per thread pass, and NOT antiparallel
   // where the thread bends through the crossing. Synthesising them here as
   // ±dir is what put the fillets off the line work on every asymmetric field.
-  const arms: Vec2[] = []
-  for (const d of incident) {
+  const arms: { u: Vec2; span: number }[] = []
+  for (let i = 0; i < incident.length; i++) {
+    const d = incident[i]
     const len = Math.hypot(d.x, d.y)
     if (len < 1e-9) continue
-    arms.push({ x: d.x / len, y: d.y / len })
+    // A missing span is "no known end", not "zero" — an ornament that
+    // vanished would be a worse answer than one that overhangs.
+    const span = spans[i]
+    arms.push({ u: { x: d.x / len, y: d.y / len }, span: span > 0 ? span : Infinity })
   }
   if (arms.length < 2) return ''
   // Normalised to [0, 2π) — the same walk `armGapRing` takes, and immune to
@@ -393,13 +415,13 @@ export function flarePathD(
     const a = Math.atan2(v.y, v.x)
     return a < 0 ? a + 2 * Math.PI : a
   }
-  arms.sort((a, b) => turn(a) - turn(b))
+  arms.sort((a, b) => turn(a.u) - turn(b.u))
 
-  const k = Math.max(0.05, Math.min(1, roundness))
+  const k = Math.max(0, Math.min(1, depth))
   let d = ''
   for (let i = 0; i < arms.length; i++) {
-    const u = arms[i]
-    const v = arms[(i + 1) % arms.length]
+    const { u, span: spanU } = arms[i]
+    const { u: v, span: spanV } = arms[(i + 1) % arms.length]
     // `v` is the next arm counter-clockwise, so the wedge's inward normals are
     // fixed: CCW off `u`, CW off `v`. `sin` is the wedge angle's sine — zero
     // when the arms are collinear, i.e. no corner exists to round.
@@ -413,15 +435,23 @@ export function flarePathD(
     const t = ((b0.x - a0.x) * v.y - (b0.y - a0.y) * v.x) / sin
     if (!isFinite(t) || t < 0) continue
     const corner = { x: a0.x + u.x * t, y: a0.y + u.y * t }
-    // The fillet must start beyond the corner or it would cut INTO the
-    // crossing; a short reach is lifted to just past it rather than dropped,
-    // so the control still does something at every setting.
-    const len = Math.max(reach, t + strandWidth * 0.15)
-    const a = { x: a0.x + u.x * len, y: a0.y + u.y * len }
-    const b = { x: b0.x + v.x * len, y: b0.y + v.y * len }
-    const h = (len - t) * k
-    const c1 = { x: a.x - u.x * h, y: a.y - u.y * h }
-    const c2 = { x: b.x - v.x * h, y: b.y - v.y * h }
+    // The same corner seen from the other arm. Not `t`: the two arms only
+    // reach it at the same distance when the wedge is symmetric, and once the
+    // sides can be capped independently the difference is visible.
+    const tv = (corner.x - b0.x) * v.x + (corner.y - b0.y) * v.y
+    // Each side runs to the reach, cut off where its own Strand stops going
+    // that way, and never short of the corner — a fillet that started inside
+    // the crossing would cut into the line work instead of rounding it.
+    const lenU = Math.max(Math.min(reach, spanU), t + strandWidth * 0.15)
+    const lenV = Math.max(Math.min(reach, spanV), tv + strandWidth * 0.15)
+    const a = { x: a0.x + u.x * lenU, y: a0.y + u.y * lenU }
+    const b = { x: b0.x + v.x * lenV, y: b0.y + v.y * lenV }
+    // Depth 1 puts both handles on the corner (the curve dips to the tip of
+    // the crossing); depth 0 leaves them at the ends, i.e. a flat chord.
+    const hu = (lenU - t) * k
+    const hv = (lenV - tv) * k
+    const c1 = { x: a.x - u.x * hu, y: a.y - u.y * hu }
+    const c2 = { x: b.x - v.x * hv, y: b.y - v.y * hv }
     d += `M${a.x},${a.y}C${c1.x},${c1.y} ${c2.x},${c2.y} ${b.x},${b.y}L${corner.x},${corner.y}Z`
   }
   return d

@@ -41,7 +41,10 @@ export const StrandJunctionLayer = memo(function StrandJunctionLayer({
       const paint = ornamentPaint(p.style, reach / 2, p.colour)
       return {
         point: p.point,
-        d: flarePathD(p.arms, strandWidth, reach, p.style.innerRatio ?? 0.55),
+        // The spans cap each side where its own Strand stops running that way,
+        // so winding the reach up fills the crossing further along the line
+        // work instead of sailing off the end of it.
+        d: flarePathD(p.arms, p.armSpans, strandWidth, reach, p.style.innerRatio ?? 0.55),
         fill: paint.fill,
         stroke: paint.stroke,
         strokeWidth: paint.strokeWidth,

@@ -145,11 +145,48 @@ const firstCorner = () => page.evaluate(() => {
 })
 // Reach is in WORLD units, so the far end of the slider has to be far — a
 // twinkle on a big Tile is the whole reason it stopped being strand widths.
+// The absolute figure is bounded by the arm's own straight run (this one caps
+// at ~38), so assert the growth, not a number — the cap has its own check.
 const nearReach = await firstCorner()
 await setSlider('Reach along the strand', 80)
 const farReach = await firstCorner()
 console.log('TWINKLE REACH    ', `${nearReach.toFixed(1)} → ${farReach.toFixed(1)}`,
-  farReach > nearReach * 1.5 && farReach > 60 ? 'PASS — runs far up the arms' : 'FAIL')
+  farReach > nearReach * 1.5 ? 'PASS — runs further up the arms' : 'FAIL')
+
+// …but only as far as the line work goes. Each side is cut off at its own
+// arm's straight run, so winding the reach to the maximum saturates at the
+// Strands' own extent instead of flooding the field with overhang.
+const twinkleExtent = () => page.evaluate(() => {
+  const num = '-?\\d+(?:\\.\\d+)?(?:e[-+]?\\d+)?'
+  const re = new RegExp(`(${num}),(${num})`, 'g')
+  let max = 0, n = 0
+  for (const p of document.querySelectorAll('#junction-ornament-world-layer > path')) {
+    for (const m of p.getAttribute('d').matchAll(re)) max = Math.max(max, Math.hypot(Number(m[1]), Number(m[2])))
+    if (++n >= 300) break
+  }
+  return max
+})
+await setSlider('Reach along the strand', 120)
+const cap120 = await twinkleExtent()
+await setSlider('Reach along the strand', 200)
+const cap200 = await twinkleExtent()
+console.log('TWINKLE CAP      ', `reach 120 → ${cap120.toFixed(1)}, reach 200 → ${cap200.toFixed(1)}`,
+  cap200 < 120 && Math.abs(cap200 - cap120) < 1
+    ? 'PASS — saturates at the line work, no overhang'
+    : 'FAIL — the fillets run past the end of the Strands')
+
+// Depth: 0 is a flat chord across the corner, 1 dips to the tip of the
+// crossing. (The geometry itself is pinned in junctionOrnaments.test.ts.)
+await setSlider('Reach along the strand', 12)
+const depthD = async v => {
+  await setSlider('Depth', v)
+  return page.evaluate(() => document.querySelector('#junction-ornament-world-layer > path')?.getAttribute('d')?.slice(0, 60) ?? null)
+}
+const flat = await depthD(0)
+const deep = await depthD(1)
+console.log('TWINKLE DEPTH    ', `${flat} | ${deep}`,
+  flat && deep && flat !== deep ? 'PASS — the control exists and moves the curve' : 'FAIL')
+await setSlider('Depth', 0.55)
 await setSlider('Reach along the strand', 12)
 
 await page.click('button:has-text("Star")')

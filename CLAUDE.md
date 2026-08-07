@@ -192,7 +192,20 @@ after areas and lines.
   crossing continues both ways, so two threads give **four** arms and four
   corners. Consequences: it carries the junction's `arms` on the placement, it
   is never rotated (its frame is the junction's own), and it can't share a
-  `<defs>` path.
+  `<defs>` path. Its second control is **Depth** (stored in `innerRatio`, which
+  the star reads as its waist): 1 puts both tangent handles on the corner so
+  the curve dips to the tip of the crossing, 0 leaves them at the ends so the
+  fillet is a flat chord with no dip.
+- **The reach is capped per arm at `StrandJunction.armSpans`.** An arm is a
+  unit direction, so on its own it describes a ray with no end: wind the reach
+  up and the fillet's straight side sails past the point where the thread
+  turned, hanging over empty ground (at reach 200 on 4.8.8 the twinkles flooded
+  the whole field). `armSpans` is how far the chain actually runs that way —
+  walking THROUGH collinear chain points, since a crossing a thread runs
+  straight through is not a bend and capping there would stop short of line
+  work that is really there. The two sides of a wedge cap independently, which
+  is why `a` and `b` can sit at different distances and why the corner is
+  measured from both arms (`t` and `tv`) rather than once.
 - **A twinkle measures itself in world units** (`reach`, `twinkleReach`), not in
   Strand widths like a dot or a star — a separate field and a separate slider,
   because they are separate quantities. Strand width is a drawing weight chosen

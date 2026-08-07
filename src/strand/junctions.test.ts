@@ -156,6 +156,68 @@ describe('over a real PIC field', () => {
     const b = new Set(shifted.map(j => j.signature))
     for (const sig of b) expect(a.has(sig)).toBe(true)
   })
+
+  it('every arm reports a finite run, and it matches the line work', () => {
+    // The span is what stops an ornament drawn along an arm from outrunning
+    // the Strand. An infinite or zero one is the failure that shows up as a
+    // twinkle hanging over open ground (or vanishing).
+    const junctions = field({ x: -200, y: -200, width: 400, height: 400 })
+    for (const j of junctions) {
+      expect(j.armSpans).toHaveLength(j.arms.length)
+      for (const s of j.armSpans) {
+        expect(Number.isFinite(s)).toBe(true)
+        expect(s).toBeGreaterThan(0)
+      }
+    }
+    // …and no arm claims a run longer than the whole field it came from.
+    const extent = 400 * Math.SQRT2
+    expect(Math.max(...junctions.flatMap(j => j.armSpans))).toBeLessThan(extent)
+  })
+})
+
+describe('arm spans — how far the line work runs each way', () => {
+  it('walks through a chain point the thread runs straight through', () => {
+    // Three collinear segments each side: the middle chain points are not
+    // bends, and capping an ornament at one would stop it short of line work
+    // that really is there.
+    const strands = buildStrands([
+      seg(-3, 0, -2, 0), seg(-2, 0, -1, 0), seg(-1, 0, 0, 0),
+      seg(0, 0, 1, 0), seg(1, 0, 2, 0), seg(2, 0, 3, 0),
+      seg(0, -1, 0, 0), seg(0, 0, 0, 1),
+    ])
+    const [j] = strandJunctions(strands)
+    const horizontal = j.arms
+      .map((a, i) => ({ a, span: j.armSpans[i] }))
+      .filter(({ a }) => Math.abs(a.y) < 1e-9)
+    expect(horizontal).toHaveLength(2)
+    for (const { span } of horizontal) expect(span).toBeCloseTo(3, 6)
+  })
+
+  it('stops at a bend', () => {
+    // The horizontal thread turns 45° one unit out to the right; that arm's
+    // run is 1, while the straight side keeps its full 3.
+    const strands = buildStrands([
+      seg(-3, 0, 0, 0),
+      seg(0, 0, 1, 0), seg(1, 0, 2, 1),
+      seg(0, -1, 0, 0), seg(0, 0, 0, 1),
+    ])
+    const [j] = strandJunctions(strands)
+    const right = j.armSpans[j.arms.findIndex(a => a.x > 0.9)]
+    const left = j.armSpans[j.arms.findIndex(a => a.x < -0.9)]
+    expect(right).toBeCloseTo(1, 6)
+    expect(left).toBeCloseTo(3, 6)
+  })
+
+  it('measures from the crossing, not the chain point, on a transversal', () => {
+    // The vertical thread crosses the horizontal one mid-edge at (0,0): the
+    // horizontal arms run 2 each way, not 4 and 0.
+    const strands = buildStrands([seg(-2, 0, 2, 0), seg(0, -1, 0, 1)])
+    const [j] = strandJunctions(strands)
+    const horizontal = j.arms
+      .map((a, i) => ({ a, span: j.armSpans[i] }))
+      .filter(({ a }) => Math.abs(a.y) < 1e-9)
+    for (const { span } of horizontal) expect(span).toBeCloseTo(2, 6)
+  })
 })
 
 describe('the weave and the ornaments see the same crossings', () => {

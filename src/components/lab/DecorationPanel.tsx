@@ -688,7 +688,7 @@ function JunctionSection({ substrate, decoration, dispatch, draft, onSetDraft, s
           <FieldLabel
             label="Reach along the strand"
             value={String(Math.round(draft.reach ?? DEFAULT_TWINKLE_REACH))}
-            tooltip="How far up each arm of the crossing the rounding runs, measured in the pattern's own units — so it reaches as far into a large Tile as you ask, whatever the Strand weight. Longer reads as the Strands swelling into each other; shorter as a tight fillet on the corner."
+            tooltip="How far up each arm of the crossing the rounding runs, measured in the pattern's own units — so it reaches as far into a large Tile as you ask, whatever the Strand weight. Each side is cut off where its own Strand bends away, so a long reach fills the crossing further along the line work rather than overhanging it. Longer reads as the Strands swelling into each other; shorter as a tight fillet on the corner."
           />
           <input
             type="range" className="pattern-slider"
@@ -716,13 +716,13 @@ function JunctionSection({ substrate, decoration, dispatch, draft, onSetDraft, s
       {flare && (
         <>
           <FieldLabel
-            label="Roundness"
+            label="Depth"
             value={(draft.innerRatio ?? 0.55).toFixed(2)}
-            tooltip="How much the fillet bows. The curve always leaves each arm ALONG the arm, so it meets the Strand smoothly at any setting — this only says how quickly it turns."
+            tooltip="How far the curve dips toward the crossing. At 1 it comes right down to the tip of the vertex; at 0 there is no dip at all and the fillet is flat across the corner. The curve leaves each arm ALONG the arm at every setting, so it always meets the Strand smoothly."
           />
           <input
             type="range" className="pattern-slider"
-            min={0.05} max={1} step={0.01}
+            min={0} max={1} step={0.01}
             value={draft.innerRatio ?? 0.55}
             onChange={e => patch({ innerRatio: Number(e.target.value) })}
           />

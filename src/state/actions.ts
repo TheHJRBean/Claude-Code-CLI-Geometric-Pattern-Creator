@@ -79,6 +79,12 @@ export type Action =
   // `patch.guideTiles` (never repeats under the Lattice); stamping → an
   // ordinary Cell Tile in the active Cell. Overlap rides the flexible `force`.
   | { type: 'EDITOR_PLACE_TILE_ON_ANCHOR'; payload: { anchor: Vec2; sides: number; rotation: number; force?: boolean } }
+  // Guides slice 3 — move every world-space `patch.guideTiles` entry into the
+  // Cell that geometrically contains it, so it repeats under the Lattice like
+  // any other Cell Tile. The escape hatch for a scaffold drawn with the
+  // default (non-stamping) Guides: the world-space/Cell fork is decided at
+  // Complete time and flipping a Guide's Stamp afterwards can't undo it.
+  | { type: 'EDITOR_PROMOTE_GUIDE_TILES' }
   // Toggle the auto-placed Seed Tile on/off for the active Cell. When on
   // (default), the Cell carries a Seed Tile at the centre. When off, the
   // Cell starts empty and the user builds from the boundary inward (or via

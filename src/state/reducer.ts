@@ -61,6 +61,7 @@ import { centroid, pointsEqual } from '../utils/math'
 import { EDITOR_EPS } from '../editor/exposedEdges'
 import { collectGuideAnchors, type GuideAnchor } from '../editor/guides'
 import { isNeighbourGuideAnchor } from '../editor/guideStamps'
+import { promoteGuideTiles } from '../editor/promoteGuideTiles'
 import { expandGuideOrbit, guideGroupIds, regenerateGuideGroup } from '../editor/guideOrbit'
 
 const FALLBACK_FIGURE: FigureConfig = { type: 'star', contactAngle: 60, lineLength: 1.0, autoLineLength: true }
@@ -602,6 +603,17 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
       if (!state.editor) return state
       const { anchor, sides, rotation, force } = action.payload
       return placeTileOnGuideAnchor(state, anchor, sides, rotation, force ?? false)
+    }
+    case 'EDITOR_PROMOTE_GUIDE_TILES': {
+      // Guides slice 3 — world-space Guide Tiles → ordinary Cell Tiles, so a
+      // scaffold drawn with the default non-stamping Guides can still author a
+      // repeating Patch. `seedFigures` re-runs because a promoted Tile keeps
+      // its `tileTypeId` (the Cell transform is rigid) but leaves the
+      // `guideTiles` walk that `tileTypes.ts` does separately.
+      if (!state.editor) return state
+      const promoted = promoteGuideTiles(state.editor, patchRotation(state.editor))
+      if (promoted === state.editor) return state
+      return applyWrap(seedFigures({ ...state, editor: promoted }))
     }
     case 'SET_CELL_NO_SEED': {
       // Toggle the Seed Tile on/off for the target Cell. Always allowed (user

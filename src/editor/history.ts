@@ -121,6 +121,9 @@ export const DESIGN_MODE_ACTIONS: ReadonlySet<string> = new Set([
   'EDITOR_PLACE_TILE_ON_VERTEX',
   // Guides slice 3 / #33 — Anchor placement (world-space guideTile or Cell Tile).
   'EDITOR_PLACE_TILE_ON_ANCHOR',
+  // Guides slice 3 — promoting world-space Guide Tiles into Cells rewrites
+  // every one of them at once, so it must be one undoable step.
+  'EDITOR_PROMOTE_GUIDE_TILES',
   'SET_CELL_NO_SEED',
   'EDITOR_DELETE_TILE',
   'EDITOR_COMPLETE_GAP',

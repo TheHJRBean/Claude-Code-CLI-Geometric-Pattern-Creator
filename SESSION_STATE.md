@@ -4,6 +4,32 @@
 
 ## ▶ RESUME HERE
 
+> **2026-08-07, latest — `f1e2f67`: world-space Guide Tiles can be promoted
+> into the Lattice.** From a bug capture on a 3.12.12 Patch: 12 quadrangles
+> completed at the dodecagon's diagonal corners never showed on the neighbours.
+> Not a geometry fault — every one of the reporter's Guide circles had
+> `stamp: false` (the default), so `multiPickCompleteAcrossPatch` routed the
+> Completes to `guideCompleteWorldSpace` → `patch.guideTiles`, which by design
+> render once and never repeat.
+>
+> The design is self-consistent but the default points the wrong way for spec
+> Decision 4's own scaffold-first workflow, and the fork is **irreversible**:
+> settled at Complete time, signalled only by Anchor dot colour, and a Guide's
+> Stamp toggle cannot reach Tiles already minted.
+>
+> Fix is an escape hatch, not a default change — `editor/promoteGuideTiles.ts`
+> + `EDITOR_PROMOTE_GUIDE_TILES` (undoable) + a **Repeat under Lattice** button
+> in the Design panel, shown whenever world-space Tiles exist. Host by
+> `resolveHostCell` on the Tile **centroid** (an Anchor is a corner and can sit
+> on a shared Boundary); the Cell transform is rigid so the Tile does not move,
+> which is the invariant the 8 tests pin. Browser-verified on a seeded 3.12.12
+> save: label read `World-space Tiles (4)`, the click cleared it, and the
+> promoted Tiles appear on every neighbour stamp.
+>
+> **Still open, user's call:** whether new Guides should default to
+> `stamp: true` (overturns spec Decision 2 — offered and not taken this round).
+>
+
 > **2026-08-07, latest — two UI fixes from a user pass, both browser-verified.**
 > Small, self-contained, nothing owed:
 >

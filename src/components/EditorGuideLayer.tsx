@@ -310,8 +310,8 @@ export const EditorGuideLayer = memo(function EditorGuideLayer({
           Complete/Place come from the vertex/placement layers. */}
       {interactive && tileCentres.map((c, i) => (
         <g key={`tc${i}`} pointerEvents="none">
-          <circle cx={c.x} cy={c.y} r={r(3.4)} fill="none" stroke="var(--text-muted)" strokeWidth={1.2} strokeOpacity={0.65} vectorEffect="non-scaling-stroke" />
-          <circle cx={c.x} cy={c.y} r={r(1)} fill="var(--text-muted)" fillOpacity={0.85} />
+          <circle cx={c.x} cy={c.y} r={r(4)} fill="none" stroke="var(--text-muted)" strokeWidth={1.3} strokeOpacity={0.95} vectorEffect="non-scaling-stroke" />
+          <circle cx={c.x} cy={c.y} r={r(1.4)} fill="var(--text-muted)" />
         </g>
       ))}
 

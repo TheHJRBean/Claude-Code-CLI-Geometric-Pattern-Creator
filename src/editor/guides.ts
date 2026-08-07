@@ -197,6 +197,23 @@ export function tileCentreAnchors(
 }
 
 /**
+ * The Tile-centre Anchors on their own, as `GuideAnchor`s.
+ *
+ * Split out because they are the one part of the Anchor set that owes nothing
+ * to a Guide: every other Anchor is a Guide's own point or a crossing, so it
+ * may only be picked while its Guide is on screen ("an Anchor is only ever
+ * shown with its Guide"). A Tile centre is a fact about the Tile, and the
+ * Design-Phase pickers show it whether or not a single Guide has been drawn.
+ */
+export function tileCentreGuideAnchors(patch: EditorPatch, patchRot: number): GuideAnchor[] {
+  return tileCentreAnchors(patch, patchRot).map(({ p, tileId, stamp }) => ({
+    p,
+    guideId: `tile-centre/${tileId}`,
+    stamp,
+  }))
+}
+
+/**
  * Every **Anchor** the Patch exposes (spec Decision 5), in Patch-world coords:
  * the centre of every Tile (always on — see `tileCentreAnchors`), plus,
  * when Guides exist, each Guide's own anchors (endpoints/centre/ticks/
@@ -217,12 +234,7 @@ export function collectGuideAnchors(
 ): GuideAnchor[] {
   const guides = patch.guides ?? []
   const out: GuideAnchor[] = []
-  // Tile-centre Anchors — Patch-relative (stamp true), independent of Guides.
-  if (options?.includeTileCentres !== false) {
-    for (const { p, tileId, stamp } of tileCentreAnchors(patch, patchRot)) {
-      out.push({ p, guideId: `tile-centre/${tileId}`, stamp })
-    }
-  }
+  if (options?.includeTileCentres !== false) out.push(...tileCentreGuideAnchors(patch, patchRot))
   if (guides.length > 0) {
     // Tick / arc spacing is anchored to the Seed-Tile edge, not the (possibly
     // drifted, multi-cell) lattice constant, so Anchors land on the grid.

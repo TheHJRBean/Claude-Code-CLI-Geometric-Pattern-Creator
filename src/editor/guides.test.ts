@@ -8,6 +8,7 @@ import {
   snapToEdge,
   type SnapEdge,
   tileCentreAnchors,
+  tileCentreGuideAnchors,
   createGuideCircle,
   guideEdgeIntersections,
   type GuideAnchor,
@@ -274,6 +275,21 @@ describe('Guides — tile-centre anchors', () => {
     expect(centre).toBeDefined()
     expect(centre!.stamp).toBe(true)
     expect(centre!.guideId).toBe('tile-centre/seed')
+  })
+
+  it('tileCentreGuideAnchors is the Guide-free Anchor set the Design pickers use', () => {
+    // Place / Complete gate Guide Anchors on the Guide being on screen. A Tile
+    // centre belongs to the Tile, so it must survive that gate — a Patch with
+    // no Guides at all still offers every centre.
+    const p = patch()
+    expect(p.guides).toBeUndefined()
+    const centres = tileCentreGuideAnchors(p, 0)
+    expect(centres).toHaveLength(1)
+    expect(centres[0].guideId).toBe('tile-centre/seed')
+    expect(centres[0].stamp).toBe(true)
+    // Identical to what the full Anchor set contributes, so the reducer's
+    // re-derive (which always uses the full set) resolves a picked centre.
+    expect(collectGuideAnchors(p, 0)).toEqual(centres)
   })
 
   it('Tile centres are snappable while drawing', () => {

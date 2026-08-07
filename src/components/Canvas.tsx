@@ -57,6 +57,7 @@ import {
   resolveSnap,
   snapAngle,
   tileCentreAnchors,
+  tileCentreGuideAnchors,
   type SnapEdge,
   type SnapPoint,
   type WorldBounds,
@@ -612,9 +613,12 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   const guideAnchorVertices = useMemo<Array<BoundaryVertex & { stamp: boolean }>>(() => {
     if (!editorActive || !config.editor || editorMode !== 'complete' || editorStrandMode) return []
     // Hidden Guides expose no Anchors: the dots ARE the Guide's pick surface,
-    // so "Show guides" / "Show anchors" put them away, clicks and all.
-    if (!guideAnchorsVisible) return []
-    const anchors = collectGuideAnchors(config.editor, patchRot)
+    // so "Show guides" / "Show anchors" put them away, clicks and all. Tile
+    // centres are the exception — they belong to the Tile, not to a Guide, so
+    // they stay pickable in a Patch with no Guides at all.
+    const anchors = guideAnchorsVisible
+      ? collectGuideAnchors(config.editor, patchRot)
+      : tileCentreGuideAnchors(config.editor, patchRot)
     const neighbours = (showNeighbourGuides && editorNeighbourPreview)
       ? neighbourGuideAnchors(config.editor, patchRot, ghostStampsOnly(neighbourStamps ?? []))
       : []
@@ -720,9 +724,12 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     }
     // Same gate as the Complete-mode Anchor dots: a hidden Guide contributes
     // no Place targets either, so the two Tools agree on what "put the
-    // scaffolding away" means.
-    if (onPlaceTileOnAnchor && guideAnchorsVisible) {
-      for (const a of collectGuideAnchors(patch, patchRot)) {
+    // scaffolding away" means — and Tile centres are exempt there too.
+    if (onPlaceTileOnAnchor) {
+      const anchors = guideAnchorsVisible
+        ? collectGuideAnchors(patch, patchRot)
+        : tileCentreGuideAnchors(patch, patchRot)
+      for (const a of anchors) {
         if (worldKeys.has(vertexKeyOf(a.p))) continue
         const anchorVertex: ExposedVertex = {
           ...makeAnchorVertex(a.p),

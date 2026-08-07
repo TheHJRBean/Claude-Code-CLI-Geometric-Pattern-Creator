@@ -44,8 +44,10 @@ export const DEFAULT_CIRCLE_DIVISIONS = 6
 
 /* ── Snap points ────────────────────────────────────────────────────────── */
 
-/** Where a snap candidate came from — drives the snap-marker glyph. */
-export type SnapKind = 'tile-vertex' | 'edge-midpoint' | 'boundary-corner' | 'guide-anchor'
+/** Where a snap candidate came from — drives the snap-marker glyph.
+ *  `'tile-edge'` is the only *sliding* kind: it names a point anywhere along an
+ *  edge rather than one of the discrete points the others enumerate. */
+export type SnapKind = 'tile-vertex' | 'edge-midpoint' | 'boundary-corner' | 'guide-anchor' | 'tile-edge'
 
 export interface SnapPoint {
   p: Vec2
@@ -89,6 +91,44 @@ export function collectSnapPoints(patch: EditorPatch, patchRot: number): SnapPoi
   return out
 }
 
+/** A snap *line*: an edge a Guide point may slide along, in Patch-world coords. */
+export interface SnapEdge {
+  a: Vec2
+  b: Vec2
+  /** Direction (radians) of the edge — carried onto the resulting `SnapPoint`
+   *  so a Guide started on an edge gets continuation + perpendicular free from
+   *  `snapAngle`, exactly as an edge midpoint does. */
+  angle: number
+}
+
+/**
+ * Every edge a Guide point may snap *along* (spec Decision 7 — "snap to Tile
+ * edges", as distinct from the discrete points `collectSnapPoints` returns):
+ * every Tile edge and every Cell-Boundary edge, in Patch-world coords.
+ *
+ * Unlike `patchWorldEdges` (the Anchor-engine intersection target set) this
+ * also covers the world-space Tiles — frame completions and `guideTiles`. They
+ * are indistinguishable from Cell Tiles on the canvas, and a snap target has no
+ * storage semantics to get wrong, so there is no reason to exclude them.
+ */
+export function collectSnapEdges(patch: EditorPatch, patchRot: number): SnapEdge[] {
+  const out: SnapEdge[] = []
+  const push = (vs: Vec2[]) => {
+    for (let i = 0; i < vs.length; i++) {
+      const a = vs[i]
+      const b = vs[(i + 1) % vs.length]
+      out.push({ a, b, angle: Math.atan2(b.y - a.y, b.x - a.x) })
+    }
+  }
+  for (const cell of patch.cells) {
+    for (const tile of cell.tiles) push(tileVertices(tile).map(v => applyCellTransform(v, cell, patchRot)))
+    push(editorBoundaryVertices(cell).map(v => applyCellTransform(v, cell, patchRot)))
+  }
+  for (const ft of patch.frame?.completedTiles ?? []) push(tileVertices(ft))
+  for (const gt of patch.guideTiles ?? []) push(tileVertices(gt))
+  return out
+}
+
 /* ── Anchor engine (slice 3) ────────────────────────────────────────────────
  * A **GuideAnchor** is any single point a Guide exposes, in Patch-world coords,
  * carried with its provenance so the Complete / Place flows can route the
@@ -128,27 +168,37 @@ function patchWorldEdges(patch: EditorPatch, patchRot: number): Array<[Vec2, Vec
 }
 
 /**
- * The centre **Anchor** of every Cell Tile in the Patch — the Tile's centroid
- * in Patch-world coords, carried with its Tile id. Always available (no Guide
+ * The centre **Anchor** of every Tile in the Patch — the Tile's centroid in
+ * Patch-world coords, carried with its Tile id. Always available (no Guide
  * needed): lets a Guide circle / line be centred on a Tile and enables
- * dual-tiling Completes that connect Tile centres. Tile centres are
- * Patch-relative (part of a Cell's Tiles), so a Tile minted on one repeats
- * under the Lattice.
+ * dual-tiling Completes that connect Tile centres.
+ *
+ * `stamp` follows where the Tile lives, so a Tile minted on the centre is
+ * routed like anything else: a Cell Tile's centre is Patch-relative and
+ * repeats under the Lattice, while a world-space Tile's (a frame or Guide
+ * completion) is a one-off. Those world Tiles look identical on the canvas —
+ * omitting their centres would read as "some tiles have no centre".
  */
-export function tileCentreAnchors(patch: EditorPatch, patchRot: number): Array<{ p: Vec2; tileId: string }> {
-  const out: Array<{ p: Vec2; tileId: string }> = []
+export function tileCentreAnchors(
+  patch: EditorPatch,
+  patchRot: number,
+): Array<{ p: Vec2; tileId: string; stamp: boolean }> {
+  const out: Array<{ p: Vec2; tileId: string; stamp: boolean }> = []
   for (const cell of patch.cells) {
     for (const tile of cell.tiles) {
       const p = centroid(tileVertices(tile).map(v => applyCellTransform(v, cell, patchRot)))
-      out.push({ p, tileId: tile.id })
+      out.push({ p, tileId: tile.id, stamp: true })
     }
+  }
+  for (const tile of [...(patch.frame?.completedTiles ?? []), ...(patch.guideTiles ?? [])]) {
+    out.push({ p: centroid(tileVertices(tile)), tileId: tile.id, stamp: false })
   }
   return out
 }
 
 /**
  * Every **Anchor** the Patch exposes (spec Decision 5), in Patch-world coords:
- * the centre of every Cell Tile (always on — see `tileCentreAnchors`), plus,
+ * the centre of every Tile (always on — see `tileCentreAnchors`), plus,
  * when Guides exist, each Guide's own anchors (endpoints/centre/ticks/
  * divisions/manual), Guide×Guide intersections, and Guide×Tile-edge /
  * Guide×Cell-Boundary crossings. Deduplicated to a rounded grid so coincident
@@ -169,8 +219,8 @@ export function collectGuideAnchors(
   const out: GuideAnchor[] = []
   // Tile-centre Anchors — Patch-relative (stamp true), independent of Guides.
   if (options?.includeTileCentres !== false) {
-    for (const { p, tileId } of tileCentreAnchors(patch, patchRot)) {
-      out.push({ p, guideId: `tile-centre/${tileId}`, stamp: true })
+    for (const { p, tileId, stamp } of tileCentreAnchors(patch, patchRot)) {
+      out.push({ p, guideId: `tile-centre/${tileId}`, stamp })
     }
   }
   if (guides.length > 0) {
@@ -224,6 +274,47 @@ export function snapToPoint(p: Vec2, candidates: SnapPoint[], tolerance: number)
     }
   }
   return best
+}
+
+/**
+ * Nearest point ON an edge within `tolerance`, or null — the perpendicular foot
+ * clamped to the segment, so an edge snaps along its whole length. The returned
+ * `SnapPoint` carries the edge direction, so starting a Guide on an edge gives
+ * the same continuation / perpendicular angle references an edge midpoint does.
+ */
+export function snapToEdge(p: Vec2, edges: SnapEdge[], tolerance: number): SnapPoint | null {
+  let best: SnapPoint | null = null
+  let bestD = tolerance
+  for (const e of edges) {
+    const ab = sub(e.b, e.a)
+    const l2 = dot(ab, ab)
+    if (l2 < 1e-12) continue
+    const t = Math.max(0, Math.min(1, dot(sub(p, e.a), ab) / l2))
+    const foot = add(e.a, scale(ab, t))
+    const d = dist(p, foot)
+    if (d <= bestD) {
+      best = { p: foot, kind: 'tile-edge', edgeAngle: e.angle }
+      bestD = d
+    }
+  }
+  return best
+}
+
+/**
+ * The full snap resolution for one cursor position: **a point beats an edge**,
+ * however much closer the edge is. An edge snap is available continuously along
+ * its length, so ranking the two by distance alone would swallow every vertex,
+ * midpoint and Tile centre — all of which lie exactly on an edge, at distance 0
+ * from it. Points first, edges as the fallback, keeps the discrete targets
+ * reachable and lets the edge catch everything between them.
+ */
+export function resolveSnap(
+  p: Vec2,
+  points: SnapPoint[],
+  edges: SnapEdge[],
+  tolerance: number,
+): SnapPoint | null {
+  return snapToPoint(p, points, tolerance) ?? snapToEdge(p, edges, tolerance)
 }
 
 /* ── Angle snap ─────────────────────────────────────────────────────────── */

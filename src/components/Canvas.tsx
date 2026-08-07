@@ -48,14 +48,16 @@ import type { EditorMode } from '../types/appMode'
 import type { EditorGuide, EditorGuidePatch, FrameGradient, StrandGradient } from '../types/editor'
 import {
   collectGuideAnchors,
+  collectSnapEdges,
   collectSnapPoints,
   createGuideCircle,
   createGuideLine,
   DEFAULT_ANGLE_STEP,
   type GuideTool,
+  resolveSnap,
   snapAngle,
-  snapToPoint,
   tileCentreAnchors,
+  type SnapEdge,
   type SnapPoint,
   type WorldBounds,
 } from '../editor/guides'
@@ -966,6 +968,14 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     return collectSnapPoints(patch, patchRot)
   }, [constructActive, config.editor, guides, selectedGuideId, patchRot])
 
+  // Edge snap candidates — Tile + Cell-Boundary edges, the sliding fallback
+  // when the cursor is near no discrete point. Guide-independent, so unlike
+  // `guideSnapPoints` this doesn't rebuild on every Guide edit.
+  const guideSnapEdges = useMemo<SnapEdge[]>(() => {
+    if (!constructActive || !config.editor) return []
+    return collectSnapEdges(config.editor, patchRot)
+  }, [constructActive, config.editor, patchRot])
+
   // Visible world rectangle, padded to the view diagonal so rotation never
   // exposes an unclipped corner — extended Guide lines clip to this.
   const guideBounds = useMemo<WorldBounds>(() => {
@@ -991,19 +1001,20 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   }
 
   /** Resolve a screen-px pointer position into a (possibly snapped) world
-   *  point. Point snap wins; else, with a draft in progress, angle snap from
-   *  the draft start. `freehand` (Shift) bypasses both. */
+   *  point. Point snap wins, then a slide along the nearest Tile edge; else,
+   *  with a draft in progress, angle snap from the draft start. `freehand`
+   *  (Shift) bypasses all of it. */
   const resolveConstructPoint = useCallback((screen: Vec2, freehand: boolean): { p: Vec2; snap: SnapPoint | null } => {
     const w = screenToWorld(screen, viewTransform, size.width, size.height)
     if (!constructSnap || freehand) return { p: w, snap: null }
     const tol = 14 / viewTransform.zoom
-    const snap = snapToPoint(w, guideSnapPoints, tol)
+    const snap = resolveSnap(w, guideSnapPoints, guideSnapEdges, tol)
     if (snap) return { p: snap.p, snap }
     if (guideDraftStart) {
       return { p: snapAngle(guideDraftStart.p, w, constructAngleStep, guideDraftStart.edgeAngle), snap: null }
     }
     return { p: w, snap: null }
-  }, [viewTransform, size.width, size.height, constructSnap, guideSnapPoints, guideDraftStart, constructAngleStep])
+  }, [viewTransform, size.width, size.height, constructSnap, guideSnapPoints, guideSnapEdges, guideDraftStart, constructAngleStep])
 
   const handleConstructMove = useCallback((screen: Vec2, freehand: boolean) => {
     const { p, snap } = resolveConstructPoint(screen, freehand)
@@ -1034,8 +1045,8 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     setGuideSnapTarget(null)
   }, [selectedGuideId, resolveConstructPoint, guideDraftStart, onAddGuide, guides, constructTool])
 
-  // Handle drag on the selected Guide: point-snap (own Anchors excluded),
-  // else angle-snap. Line endpoints pivot about the fixed opposite endpoint;
+  // Handle drag on the selected Guide: point-snap (own Anchors excluded) or a
+  // slide along a Tile edge, else angle-snap. Endpoints pivot about the fixed opposite endpoint;
   // a circle's centre translates, its radius handle resizes + rotates about
   // the centre.
   const handleDragHandle = useCallback((id: string, handle: GuideHandle, screen: Vec2) => {
@@ -1043,7 +1054,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     if (!g || !onUpdateGuide) return
     const w = screenToWorld(screen, viewTransform, size.width, size.height)
     const tol = 14 / viewTransform.zoom
-    const snap = constructSnap ? snapToPoint(w, guideSnapPoints, tol) : null
+    const snap = constructSnap ? resolveSnap(w, guideSnapPoints, guideSnapEdges, tol) : null
     if (g.kind === 'line' && (handle === 'start' || handle === 'end')) {
       const p = snap ? snap.p : (constructSnap ? snapAngle(handle === 'start' ? g.end : g.start, w, constructAngleStep) : w)
       onUpdateGuide(id, { [handle]: p })
@@ -1063,7 +1074,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       if (radius < 1e-6) return
       onUpdateGuide(id, { radius, phase: Math.atan2(dy, dx) })
     }
-  }, [guides, onUpdateGuide, viewTransform, size.width, size.height, constructSnap, guideSnapPoints, constructAngleStep])
+  }, [guides, onUpdateGuide, viewTransform, size.width, size.height, constructSnap, guideSnapPoints, guideSnapEdges, constructAngleStep])
 
   // Wrap the pan/zoom handlers with click-slop detection while Construct is
   // live. Guide strokes + endpoint handles stopPropagation on pointerdown, so

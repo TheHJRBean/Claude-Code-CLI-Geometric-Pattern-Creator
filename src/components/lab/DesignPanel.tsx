@@ -462,7 +462,7 @@ export function DesignPanel({
               ? 'Click a Cell edge to place a single Tile on that side.'
               : m === 'complete'
                 ? 'Fill the gaps around your placed Tiles with regular polygons (or irregular fallbacks). Fills with Tiles, not colour — colour-fill arrives later under the Decoration Phase.'
-                : 'Draw Guide lines — two clicks per line, snapping to Tile vertices, edge midpoints, Boundary corners, and existing Guide anchors. Click a Guide to edit or delete it.'
+                : 'Draw Guide lines — two clicks per line, snapping to Tile vertices, centres, edge midpoints, Boundary corners and existing Guide anchors, or sliding along the nearest Tile edge in between. Click a Guide to edit or delete it.'
             const label = m === 'place' ? 'Place' : m === 'complete' ? 'Complete' : 'Construct'
             return (
               <button
@@ -513,7 +513,10 @@ export function DesignPanel({
                 <option key={deg} value={String(deg)}>{deg}°</option>
               ))}
             </select>
-            <label style={checkboxLabelStyle(constructSnap, { marginTop: 8 })}>
+            <label
+              style={checkboxLabelStyle(constructSnap, { marginTop: 8 })}
+              title="Pulls each click to the nearest Tile vertex, Tile centre, edge midpoint, Boundary corner or Guide anchor. Between those, it slides along the nearest Tile or Boundary edge (marked with a bar along the edge). Hold Shift to draw freehand."
+            >
               <input
                 type="checkbox"
                 checked={constructSnap}

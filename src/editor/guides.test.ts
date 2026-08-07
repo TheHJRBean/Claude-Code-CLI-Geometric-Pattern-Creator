@@ -2,7 +2,11 @@ import { describe, it, expect } from 'vitest'
 import type { EditorGuideCircle, EditorGuideLine, EditorPatch } from '../types/editor'
 import {
   collectGuideAnchors,
+  collectSnapEdges,
   collectSnapPoints,
+  resolveSnap,
+  snapToEdge,
+  type SnapEdge,
   tileCentreAnchors,
   createGuideCircle,
   guideEdgeIntersections,
@@ -295,6 +299,75 @@ describe('Guides — snap points', () => {
     const near = { x: vertex.p.x + 3, y: vertex.p.y - 2 }
     expect(snapToPoint(near, pts, 10)?.p).toEqual(vertex.p)
     expect(snapToPoint({ x: 9999, y: 9999 }, pts, 10)).toBeNull()
+  })
+})
+
+describe('Guides — edge snap', () => {
+  /** A point `off` world units to the side of `t` along an edge. */
+  function beside(e: SnapEdge, t: number, off: number) {
+    const on = { x: e.a.x + (e.b.x - e.a.x) * t, y: e.a.y + (e.b.y - e.a.y) * t }
+    return { on, p: { x: on.x - Math.sin(e.angle) * off, y: on.y + Math.cos(e.angle) * off } }
+  }
+
+  it('collectSnapEdges covers every Tile edge and Cell-Boundary edge', () => {
+    // Seed square (4) + square Cell-Boundary (4).
+    expect(collectSnapEdges(patch(), 0)).toHaveLength(8)
+  })
+
+  it('snapToEdge slides to the perpendicular foot anywhere along an edge', () => {
+    const edges = collectSnapEdges(patch(), 0)
+    // t = 0.3 is neither a vertex nor the midpoint, so only an edge snap reaches it.
+    const { on, p } = beside(edges[0], 0.3, 3)
+    const snap = snapToEdge(p, edges, 10)!
+    expect(snap.kind).toBe('tile-edge')
+    expect(snap.p.x).toBeCloseTo(on.x, 6)
+    expect(snap.p.y).toBeCloseTo(on.y, 6)
+    // ...and carries the edge direction, so angle snap gets continuation +
+    // perpendicular from a Guide started here.
+    expect(snap.edgeAngle).toBeCloseTo(edges[0].angle, 6)
+  })
+
+  it('snapToEdge clamps to the segment rather than its infinite line', () => {
+    const edges: SnapEdge[] = [{ a: { x: 0, y: 0 }, b: { x: 100, y: 0 }, angle: 0 }]
+    expect(snapToEdge({ x: 160, y: 0 }, edges, 10)).toBeNull()
+    expect(snapToEdge({ x: 104, y: 3 }, edges, 10)!.p).toEqual({ x: 100, y: 0 })
+  })
+
+  it('resolveSnap prefers a point to the edge it lies on', () => {
+    const pts = collectSnapPoints(patch(), 0)
+    const edges = collectSnapEdges(patch(), 0)
+    // A Tile vertex sits at distance 0 from two edges — distance alone would
+    // never let it win, and the same is true of every midpoint and centre.
+    const vertex = pts.find(s => s.kind === 'tile-vertex')!
+    const snap = resolveSnap({ x: vertex.p.x + 3, y: vertex.p.y - 2 }, pts, edges, 10)!
+    expect(snap.kind).toBe('tile-vertex')
+    expect(snap.p).toEqual(vertex.p)
+  })
+
+  it('resolveSnap falls through to the edge between the discrete points', () => {
+    const pts = collectSnapPoints(patch(), 0)
+    const edges = collectSnapEdges(patch(), 0)
+    const { on, p } = beside(edges[0], 0.3, 3)
+    const snap = resolveSnap(p, pts, edges, 10)!
+    expect(snap.kind).toBe('tile-edge')
+    expect(snap.p.x).toBeCloseTo(on.x, 6)
+  })
+
+  it('world-space Guide-completed Tiles expose edges and a non-stamping centre', () => {
+    const p = patch({
+      guideTiles: [{
+        id: 'gt',
+        kind: 'irregular',
+        vertices: [{ x: 500, y: 500 }, { x: 600, y: 500 }, { x: 600, y: 600 }, { x: 500, y: 600 }],
+        source: 'completed',
+      }],
+    })
+    expect(collectSnapEdges(p, 0)).toHaveLength(12)
+    const centre = tileCentreAnchors(p, 0).find(c => c.tileId === 'gt')!
+    expect(centre.p).toEqual({ x: 550, y: 550 })
+    // A Tile minted on it must NOT repeat under the Lattice — the Tile it
+    // centres doesn't either.
+    expect(centre.stamp).toBe(false)
   })
 })
 

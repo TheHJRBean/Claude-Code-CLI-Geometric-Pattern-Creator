@@ -336,13 +336,27 @@ export const EditorGuideLayer = memo(function EditorGuideLayer({
           <line x1={draftStart.x} y1={draftStart.y} x2={draftCursor.x} y2={draftCursor.y} strokeWidth={1} strokeOpacity={0.6} vectorEffect="non-scaling-stroke" />
         </g>
       )}
-      {/* Snap-target marker — ring over the candidate the cursor locked to. */}
+      {/* Snap-target marker — ring over the candidate the cursor locked to.
+          An edge snap slides, so it also gets a tangent bar along the edge:
+          the ring alone would claim the cursor had locked to a fixed point. */}
       {interactive && snapTarget && (
-        <circle
-          cx={snapTarget.p.x} cy={snapTarget.p.y} r={r(7)}
-          fill="none" stroke="var(--accent)" strokeWidth={1.6} strokeOpacity={0.9}
-          vectorEffect="non-scaling-stroke" pointerEvents="none"
-        />
+        <g pointerEvents="none">
+          <circle
+            cx={snapTarget.p.x} cy={snapTarget.p.y} r={r(7)}
+            fill="none" stroke="var(--accent)" strokeWidth={1.6} strokeOpacity={0.9}
+            vectorEffect="non-scaling-stroke"
+          />
+          {snapTarget.kind === 'tile-edge' && snapTarget.edgeAngle !== undefined && (
+            <line
+              x1={snapTarget.p.x - Math.cos(snapTarget.edgeAngle) * r(12)}
+              y1={snapTarget.p.y - Math.sin(snapTarget.edgeAngle) * r(12)}
+              x2={snapTarget.p.x + Math.cos(snapTarget.edgeAngle) * r(12)}
+              y2={snapTarget.p.y + Math.sin(snapTarget.edgeAngle) * r(12)}
+              stroke="var(--accent)" strokeWidth={1.6} strokeOpacity={0.9}
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
+        </g>
       )}
     </g>
   )

@@ -75,8 +75,12 @@ Never collide with: **Ray** (visible line piece), **Strand** (chain),
 7. **Drawing model**:
    - Guide line = two-click segment (start, end).
    - Per-Guide **extend** toggle: none / one direction / both (infinite).
-   - Snap-while-drawing to: Tile vertices, Tile edge midpoints,
-     Cell-Boundary corners, existing Anchors/intersections.
+   - Snap-while-drawing to: Tile vertices, Tile **centres**, Tile edge
+     midpoints, Cell-Boundary corners, existing Anchors/intersections —
+     and, between those, a **slide along the nearest Tile or Cell-Boundary
+     edge** (perpendicular foot, clamped to the segment). A discrete point
+     always wins over an edge: every one of them lies on an edge at
+     distance 0, so distance alone would make them unreachable.
    - **Angle snap** with configurable step: 15° default; presets 36°, 72°,
      n-fold custom (set in the Construct toolbar, not per-Guide). Angle
      references both the horizontal and any edge the line starts on

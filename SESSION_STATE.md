@@ -4,7 +4,26 @@
 
 ## ▶ RESUME HERE
 
-> **2026-08-05, latest — junction ornaments are CLOSED** (`87c16a7`). The
+> **2026-08-07, latest — two UI fixes from a user pass, both browser-verified.**
+> Small, self-contained, nothing owed:
+>
+> - **`b02fd85` — Decoration Paint target bar.** Seven `flex: 1` buttons in one
+>   wrapping row came out five cramped + two roomy. Split into two authored
+>   rows (4 + 3) in `DecorationPanel.tsx`; wrap is kept only as an overflow
+>   valve, because row 1 sits at its min-content width on the 290 px sidebar.
+> - **`aac41ba` — the Builder placement picker covered its own preview.** It
+>   was pinned above the clicked Anchor, so the orientation page hid the
+>   candidate Tile drawn around that Anchor. New pure `pickerPlacement.ts`
+>   picks the nearest side clearing a caller-supplied keep-clear rect (Canvas
+>   passes the screen bbox of **every** orientation, so the popup settles once
+>   per shape instead of hopping as you cycle ‹ ›), ranked least-overlap →
+>   not covering the Anchor → preference order. Edge/section pickers now get
+>   the canvas bounds too and flip below an edge near the top instead of
+>   clamping over it. The pointer diamond rides the edge facing the Anchor.
+>
+> **#32 remains the agreed next task**; the entry below is still the live one.
+
+> **2026-08-05 — junction ornaments are CLOSED** (`87c16a7`). The
 > user's browser pass found one real defect and it is fixed: the twinkle's
 > fillets sat ~8° off the line work on any **asymmetric** field (Cairo
 > pentagonal), because a junction's arms were rebuilt as ±through-direction.

@@ -216,10 +216,15 @@ export const EditorGuideLayer = memo(function EditorGuideLayer({
         {manual.map((m, i) => (
           <circle key={`m${i}`} cx={m.x} cy={m.y} r={r(3.5)} fill="none" stroke={colour} strokeWidth={1.4} vectorEffect="non-scaling-stroke" pointerEvents="none" />
         ))}
+        {/* Endpoints are Anchors (`guideAnchorPoints` emits them), so they go
+            with "Show anchors" — the drag handles don't, or a selected Guide
+            would become uneditable. */}
         {([['start', g.start], ['end', g.end]] as const).map(([which, p]) =>
           interactive && selected
             ? dragHandle(g.id, which, p, colour)
-            : <circle key={which} cx={p.x} cy={p.y} r={r(2.8)} fill={colour} pointerEvents="none" />,
+            : showAnchors
+              ? <circle key={which} cx={p.x} cy={p.y} r={r(2.8)} fill={colour} pointerEvents="none" />
+              : null,
         )}
       </g>
     )
@@ -267,14 +272,18 @@ export const EditorGuideLayer = memo(function EditorGuideLayer({
         {manual.map((m, i) => (
           <circle key={`m${i}`} cx={m.x} cy={m.y} r={r(3.5)} fill="none" stroke={colour} strokeWidth={1.4} vectorEffect="non-scaling-stroke" pointerEvents="none" />
         ))}
-        {/* Centre Anchor (drag handle when selected). */}
+        {/* Centre + radius point are Anchors too (`guideAnchorPoints`), so the
+            passive dots follow "Show anchors"; the drag handles stay. */}
         {interactive && selected
           ? dragHandle(g.id, 'center', g.center, colour)
-          : <circle cx={g.center.x} cy={g.center.y} r={r(2.8)} fill={colour} pointerEvents="none" />}
-        {/* Radius handle (drag = resize + rotate). Passive dot otherwise. */}
+          : showAnchors
+            ? <circle cx={g.center.x} cy={g.center.y} r={r(2.8)} fill={colour} pointerEvents="none" />
+            : null}
         {interactive && selected
           ? dragHandle(g.id, 'radius', radiusPoint, colour)
-          : <circle cx={radiusPoint.x} cy={radiusPoint.y} r={r(2.8)} fill="none" stroke={colour} strokeWidth={1.4} vectorEffect="non-scaling-stroke" pointerEvents="none" />}
+          : showAnchors
+            ? <circle cx={radiusPoint.x} cy={radiusPoint.y} r={r(2.8)} fill="none" stroke={colour} strokeWidth={1.4} vectorEffect="non-scaling-stroke" pointerEvents="none" />
+            : null}
       </g>
     )
   }

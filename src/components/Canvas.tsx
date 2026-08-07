@@ -415,6 +415,28 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // picker overlays must turn with the tiles, so fold the Patch rotation into
   // every Cell transform (0 for single-cell + non-alternate Patches).
   const patchRot = editorActive && config.editor ? patchRotation(config.editor) : 0
+
+  // ── Guides visibility (#30) ──────────────────────────
+  // Hoisted above the pick-target overlays because BOTH the Guide strokes and
+  // every Guide-derived Anchor read it. Guides render across Design modes
+  // (they're scaffolding for Place / Complete too); in Composition only behind
+  // the overlay toggle; never in Decoration (v1). Interactive only in Construct
+  // mode. Construct overrides the Design toggle — you cannot draw what you
+  // cannot see.
+  const constructActive = editorActive && !editorStrandMode && !decorationActive
+    && editorMode === 'construct' && !!onAddGuide
+  const guides = useMemo(() => config.editor?.guides ?? [], [config.editor])
+  const guideLayerVisible = editorActive && !decorationActive
+    && (guides.length > 0 || constructActive)
+    && (editorStrandMode ? showGuides : (showDesignGuides || constructActive))
+  // An Anchor is only ever *shown* with its Guide, so it must only ever be
+  // *pickable* with its Guide: the Complete pick dots and the Place-mode
+  // synthetic vertices both gate on this. Hiding the strokes while leaving the
+  // dots clickable was the bug — "Show guides" looked like it only removed
+  // half the scaffolding, and "Show anchors" looked inert because the dots it
+  // governs are the small tick markers, not these.
+  const guideAnchorsVisible = guideLayerVisible && showGuideAnchors
+
   // Per-Cell picker geometry: edges/vertices are computed per Cell in Cell-local
   // coords; the canvas renders Cells at Patch-local coords. We keep the raw
   // (Cell-local) edges as the source of truth for validation + dispatch, and
@@ -587,6 +609,9 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // Patch-relative, so completing on one produces an ordinary repeating Tile.
   const guideAnchorVertices = useMemo<Array<BoundaryVertex & { stamp: boolean }>>(() => {
     if (!editorActive || !config.editor || editorMode !== 'complete' || editorStrandMode) return []
+    // Hidden Guides expose no Anchors: the dots ARE the Guide's pick surface,
+    // so "Show guides" / "Show anchors" put them away, clicks and all.
+    if (!guideAnchorsVisible) return []
     const anchors = collectGuideAnchors(config.editor, patchRot)
     const neighbours = (showNeighbourGuides && editorNeighbourPreview)
       ? neighbourGuideAnchors(config.editor, patchRot, ghostStampsOnly(neighbourStamps ?? []))
@@ -597,7 +622,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       vertexIndex: i,
       stamp: a.stamp,
     }))
-  }, [editorActive, config.editor, editorMode, editorStrandMode, patchRot, showNeighbourGuides, editorNeighbourPreview, neighbourStamps])
+  }, [editorActive, config.editor, editorMode, editorStrandMode, patchRot, guideAnchorsVisible, showNeighbourGuides, editorNeighbourPreview, neighbourStamps])
 
   // Lookup of Cell by id — shared by the section + vertex overlays to
   // transform each Cell's Cell-local geometry into Patch-local coords.
@@ -691,7 +716,10 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
         worldKeys.add(vertexKeyOf(w))
       }
     }
-    if (onPlaceTileOnAnchor) {
+    // Same gate as the Complete-mode Anchor dots: a hidden Guide contributes
+    // no Place targets either, so the two Tools agree on what "put the
+    // scaffolding away" means.
+    if (onPlaceTileOnAnchor && guideAnchorsVisible) {
       for (const a of collectGuideAnchors(patch, patchRot)) {
         if (worldKeys.has(vertexKeyOf(a.p))) continue
         const anchorVertex: ExposedVertex = {
@@ -703,7 +731,7 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       }
     }
     return { cellLocalVertices: cellLocal, renderedVertices: rendered }
-  }, [vertexPlacementActive, config.editor, patchRot, onPlaceTileOnAnchor])
+  }, [vertexPlacementActive, config.editor, patchRot, onPlaceTileOnAnchor, guideAnchorsVisible])
   // Selection / hover tracked by composite uid (host Cell + Cell-local key)
   // since keys can collide between Cells.
   const [selectedVertex, setSelectedVertex] = useState<{ key: VertexKey; hostCellId?: string } | null>(null)
@@ -885,9 +913,8 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // detected by wrapping the svg-level pan handlers (pointerdown→up within a
   // slop radius), because usePanZoom pointer-captures the svg on pointerdown —
   // an in-layer capture rect would never receive the retargeted pointerup.
-  const constructActive = editorActive && !editorStrandMode && !decorationActive
-    && editorMode === 'construct' && !!onAddGuide
-  const guides = useMemo(() => config.editor?.guides ?? [], [config.editor])
+  // `constructActive` + `guides` are declared with the rest of the Guides
+  // visibility predicates, above the pick-target overlays that also read them.
   // Draft: the committed first click (plus the edge direction it snapped to,
   // feeding the angle-snap reference set) — then the live snapped cursor.
   const [guideDraftStart, setGuideDraftStart] = useState<{ p: Vec2; edgeAngle?: number } | null>(null)
@@ -1067,14 +1094,6 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       },
     }
   }, [constructActive, handlers, handleConstructMove, handleConstructPoint, svgScreenPos])
-
-  // Guides render across Design modes (they're scaffolding for Place /
-  // Complete too); in Composition only behind the overlay toggle; never in
-  // Decoration (v1). Interactive only in Construct mode. Construct overrides
-  // the Design toggle — you cannot draw what you cannot see.
-  const guideLayerVisible = editorActive && !decorationActive
-    && (guides.length > 0 || constructActive)
-    && (editorStrandMode ? showGuides : (showDesignGuides || constructActive))
 
   // Slice 5 (#30) — the stamping Guides repeated onto the Lattice. In Design
   // this rides the "Show neighbours" preview (the same stamp set the ghost

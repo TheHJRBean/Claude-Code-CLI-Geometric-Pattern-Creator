@@ -4,7 +4,78 @@
 
 ## ▶ RESUME HERE
 
-> **2026-08-07, latest — Guides: Construct-mode snapping round. Four
+> **2026-08-08, latest — Decoration: the twinkle round. Five user reports, all
+> five shipped (`7af4baa`, `6c02526`, `f2f911f`, `a6df72c`, `bd27009`). Tree
+> clean, pushed, 1871 tests green, `scripts/verify/junctionOrnaments.mjs`
+> all-PASS.**
+>
+> Reported one at a time; each fix exposed the next, so read them in order.
+> Two of the five were bugs my own earlier fix introduced or failed to finish.
+>
+> **1. `7af4baa` — reach in world units; match-strand-colour worked at all.**
+> A twinkle's length was `size × strandWidth`, ceiling ten strand widths, so on
+> a large Tile it was a nub. New `reach` field, world units, slider 1–200, its
+> own control (a dot/star keeps `size` in strand widths — different quantities,
+> different sliders). `size` stays the fallback so saved twinkles keep their
+> length. Separately, `usePattern` only built a strand-colour resolver when a
+> `strandColours` record existed — the common case has none, so every "same
+> colour as strand" ornament fell back to its own gold and the option looked
+> inert. Also closed the AA hairline where the twinkle meets the Strand with a
+> 1 px `non-scaling-stroke` in the fill colour (seam samples off-colour:
+> 159/280 → 38/280, the rest being the union's own outer fringe).
+>
+> **2. `6c02526` — the panel was inert after a reload.** Ornament records are
+> pattern data; the selection binding them to the panel is session state. After
+> a reload the canvas is full of ornaments with nothing bound, so every slider
+> moved and nothing changed. Arriving at the Junctions target now adopts the
+> last record and loads its style; `junctionDetachedRef` keeps "New ornament"
+> meaningful, and the panel says when the controls are unbound.
+> See [[feedback_session_state_vs_pattern_data]].
+>
+> **3. `f2f911f` — cap the reach at the line work; Roundness → Depth.** An arm
+> is a unit direction, so the fillet's side followed a ray with no end: at reach
+> 200 on 4.8.8 the twinkles flooded the field. `StrandJunction.armSpans` is how
+> far the chain runs each way, walking THROUGH collinear chain points. Depth is
+> the old roundness renamed to what it does, range opened to 0 (1 = the curve
+> dips to the tip of the crossing, 0 = a flat chord).
+>
+> **4. `a6df72c` — the cap only bound half the arms.** `chainSpan` walked
+> backward from the edge at `floor(s)`, but at a chain point the backward arm
+> runs down the PREVIOUS edge: t = 0, wrong reference, break, **zero**. Every
+> backward arm of every chain-point crossing reported 0 — and `flarePathD` read
+> a zero span as "no end known" and treated it as unbounded, so the bug rendered
+> as a silently over-long shape rather than a visibly stunted one. 4.6.12 at
+> reach 200: extent 200 → 96.6; span p50 0.0 → 41.0.
+>
+> **5. `bd27009` — the bump at the end of a long twinkle.** The span is a
+> **centre-line** length; a fillet's side is an **offset** line, and on the
+> inside of a bend the offsets meet `half·tan(turn/2)` before the vertex. Run
+> to the full span, the side crossed the Strand and was cut off square.
+> `armTurns` + `insetForTurn` shorten the side the thread bends toward; the
+> side it bends away from is left alone (the Strand's own join carries its edge
+> past the vertex there). 4.6.12 at reach 200, 1600 fillet ends: median
+> deviation from the Strand's edge 0.586 (29% of the stroke width) → 0.
+>
+> **Method note — synthetic fixtures could not catch #4 or #5.**
+> `buildStrands` **merges collinear runs**, so a field built from straight
+> segments only ever yields *mid-edge* crossings and the chain-point branch is
+> never entered: all four span tests written the day before passed against the
+> bug. The guards now are a fixture that genuinely bends at the crossing
+> (verified failing against the old code) and a real 4.6.12 Patch asserting no
+> arm reports a zero run. #5 was found by rendering the twinkle in a
+> **contrasting colour** and zooming in — in the strand's own colour the defect
+> is invisible by construction. See
+> [[feedback_symmetric_fixtures_hide_asymmetry]].
+>
+> **Next, if anything:** nothing outstanding on twinkles. Two judgement calls
+> left with the user and neither was pushed back on — the 200 reach ceiling
+> floods small-tile presets at the top of its range, and the cap is at the next
+> *bend*, not the next *junction* (on fields with long straight threads, e.g.
+> Cairo, it barely binds). Both are one-line changes if they turn out to annoy.
+> Open Decoration scope is unchanged: #54, #56 (gradients in gaps).
+
+
+> **2026-08-07 — Guides: Construct-mode snapping round. Four
 > user-reported gaps, all four shipped (`7e98a18`, `8edc066`, `e8bae9c`,
 > `789b186`). Tree clean, pushed, 1853 tests green.**
 >

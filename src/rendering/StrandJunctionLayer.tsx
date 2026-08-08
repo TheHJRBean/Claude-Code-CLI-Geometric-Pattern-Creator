@@ -44,7 +44,7 @@ export const StrandJunctionLayer = memo(function StrandJunctionLayer({
         // The spans cap each side where its own Strand stops running that way,
         // so winding the reach up fills the crossing further along the line
         // work instead of sailing off the end of it.
-        d: flarePathD(p.arms, p.armSpans, strandWidth, reach, p.style.innerRatio ?? 0.55),
+        d: flarePathD(p.arms, p.armSpans, p.armTurns, strandWidth, reach, p.style.innerRatio ?? 0.55),
         fill: paint.fill,
         stroke: paint.stroke,
         strokeWidth: paint.strokeWidth,

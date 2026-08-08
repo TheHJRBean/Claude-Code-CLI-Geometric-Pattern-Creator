@@ -216,6 +216,16 @@ after areas and lines.
     reach 200: extent 200 before, 96.6 after.
   - A missing span therefore means **the minimum**, never "unbounded". That
     substitution is what turned a geometry bug into an invisible one.
+  - **The span is a centre-line length; a fillet's side is an OFFSET line.** On
+    the inside of a bend the two segments' offsets meet `half·tan(turn/2)`
+    *before* the vertex, so a side run to the full span crosses the line work
+    and is then cut off square — the visible bump where a long twinkle
+    finishes. `StrandJunction.armTurns` carries the signed turn ending each
+    run and `insetForTurn` shortens the side the thread bends **toward**; the
+    side it bends away from is left alone, because there the Strand's own join
+    carries its edge past the vertex and stopping at it is already flush.
+    Measured on 4.6.12 at reach 200: the median fillet end sat 0.586 off the
+    Strand's edge (29% of the stroke width), now 0.
   - Synthetic fixtures could not catch it: `buildStrands` merges collinear
     runs, so a field built from straight threads yields only *mid-edge*
     crossings, where `t` > 0 and the backward walk is never taken. The guard

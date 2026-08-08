@@ -59,6 +59,9 @@ export interface KeyedJunction {
   /** Each arm's straight run (`StrandJunction.armSpans`) — what caps the
    *  twinkle's reach so it can't outrun the line work it is drawn along. */
   armSpans: number[]
+  /** The turn at the end of each run (`StrandJunction.armTurns`) — how much of
+   *  that run one SIDE of the arm can use (`insetForTurn`). */
+  armTurns: number[]
   /**
    * The colour of the Strands meeting here, for an ornament set to match them
    * (`decoration/strandColour.ts`). `'none'` — the sentinel a removed strand
@@ -90,6 +93,8 @@ export interface JunctionPlacement {
   arms: Vec2[]
   /** Each arm's straight run, aligned with `arms` — the twinkle's per-arm cap. */
   armSpans: number[]
+  /** The turn ending each run, aligned with `arms` — see `insetForTurn`. */
+  armTurns: number[]
   /** The colour to draw in: the style's own, or the Strands' where the style
    *  matches them. Resolved here so the renderer never has to ask again. */
   colour: string
@@ -138,6 +143,7 @@ export function keyJunctions(
       threadAngle: junctionAngle(j.arms),
       arms: j.arms,
       armSpans: j.armSpans,
+      armTurns: j.armTurns,
       ...(colourOfStrand && j.strands.length > 0
         ? { strandColour: colourOfStrand(j.strands[0]) }
         : null),
@@ -269,7 +275,7 @@ export function resolveJunctionPlacements(
     const base = style.shape === 'twinkle' ? 0
       : (style.align ?? 'thread') === 'thread' ? j.threadAngle : 0
     const angle = style.shape === 'twinkle' ? 0 : base + ((style.angle ?? 0) * Math.PI) / 180
-    out.push({ point: j.point, angle, arms: j.arms, armSpans: j.armSpans, colour, style })
+    out.push({ point: j.point, angle, arms: j.arms, armSpans: j.armSpans, armTurns: j.armTurns, colour, style })
   }
   return out
 }
@@ -368,6 +374,16 @@ export function ornamentPathD(style: JunctionOrnamentStyle, r: number): string {
  *   arm: "further up this thread than that one" would need a per-thread
  *   control with no stable way to say *which* thread across a whole congruent
  *   class.
+ * - `turns` — the signed turn the thread takes at the end of each arm's run
+ *   (`StrandJunction.armTurns`). The span is measured down the **centre
+ *   line**, but a fillet's side is an **offset** line, and on the inside of a
+ *   bend an offset line leaves the Strand *before* the bend: the two segments'
+ *   inner offsets meet `half·tan(turn/2)` short of the vertex. Running to the
+ *   full span therefore pokes the fillet out past the line work and then cuts
+ *   it off square — the visible bump at the end of a long twinkle. Each side
+ *   is shortened by that much when the thread turns **toward** it, and left
+ *   alone when it turns away (there the Strand's own join carries on past the
+ *   vertex, so ending at it is already flush).
  * - `spans` — how far the line work actually runs in each arm's direction
  *   (`StrandJunction.armSpans`). **The reach is capped per arm on this.** An
  *   arm is a unit direction, so without the span the fillet's straight side
@@ -389,6 +405,7 @@ export function ornamentPathD(style: JunctionOrnamentStyle, r: number): string {
 export function flarePathD(
   incident: readonly Vec2[],
   spans: readonly number[],
+  turns: readonly number[],
   strandWidth: number,
   reach: number,
   depth: number,
@@ -397,7 +414,7 @@ export function flarePathD(
   // The arms come in already — two per thread pass, and NOT antiparallel
   // where the thread bends through the crossing. Synthesising them here as
   // ±dir is what put the fillets off the line work on every asymmetric field.
-  const arms: { u: Vec2; span: number }[] = []
+  const arms: { u: Vec2; span: number; turn: number }[] = []
   for (let i = 0; i < incident.length; i++) {
     const d = incident[i]
     const len = Math.hypot(d.x, d.y)
@@ -407,7 +424,12 @@ export function flarePathD(
     // treating an absent span as unbounded is how a span bug hid — half of
     // every twinkle silently stopped capping instead of visibly shrinking.
     const span = spans[i]
-    arms.push({ u: { x: d.x / len, y: d.y / len }, span: Number.isFinite(span) && span > 0 ? span : 0 })
+    const t = turns[i]
+    arms.push({
+      u: { x: d.x / len, y: d.y / len },
+      span: Number.isFinite(span) && span > 0 ? span : 0,
+      turn: Number.isFinite(t) ? t : 0,
+    })
   }
   if (arms.length < 2) return ''
   // Normalised to [0, 2π) — the same walk `armGapRing` takes, and immune to
@@ -422,8 +444,8 @@ export function flarePathD(
   const k = Math.max(0, Math.min(1, depth))
   let d = ''
   for (let i = 0; i < arms.length; i++) {
-    const { u, span: spanU } = arms[i]
-    const { u: v, span: spanV } = arms[(i + 1) % arms.length]
+    const { u, span: spanU, turn: turnU } = arms[i]
+    const { u: v, span: spanV, turn: turnV } = arms[(i + 1) % arms.length]
     // `v` is the next arm counter-clockwise, so the wedge's inward normals are
     // fixed: CCW off `u`, CW off `v`. `sin` is the wedge angle's sine — zero
     // when the arms are collinear, i.e. no corner exists to round.
@@ -441,11 +463,17 @@ export function flarePathD(
     // reach it at the same distance when the wedge is symmetric, and once the
     // sides can be capped independently the difference is visible.
     const tv = (corner.x - b0.x) * v.x + (corner.y - b0.y) * v.y
+    // How much of each run this SIDE can use. `u`'s side of the wedge is its
+    // CCW normal, so the thread turning CCW (turn > 0) at the end of the run
+    // bends *toward* it and the offset line leaves the Strand early; `v`'s
+    // side is its CW normal, so it is the CW turn that shortens it.
+    const usableU = spanU - insetForTurn(turnU, half)
+    const usableV = spanV - insetForTurn(-turnV, half)
     // Each side runs to the reach, cut off where its own Strand stops going
     // that way, and never short of the corner — a fillet that started inside
     // the crossing would cut into the line work instead of rounding it.
-    const lenU = Math.max(Math.min(reach, spanU), t + strandWidth * 0.15)
-    const lenV = Math.max(Math.min(reach, spanV), tv + strandWidth * 0.15)
+    const lenU = Math.max(Math.min(reach, usableU), t + strandWidth * 0.15)
+    const lenV = Math.max(Math.min(reach, usableV), tv + strandWidth * 0.15)
     const a = { x: a0.x + u.x * lenU, y: a0.y + u.y * lenU }
     const b = { x: b0.x + v.x * lenV, y: b0.y + v.y * lenV }
     // Depth 1 puts both handles on the corner (the curve dips to the tip of
@@ -457,6 +485,26 @@ export function flarePathD(
     d += `M${a.x},${a.y}C${c1.x},${c1.y} ${c2.x},${c2.y} ${b.x},${b.y}L${corner.x},${corner.y}Z`
   }
   return d
+}
+
+/**
+ * How far short of a bend an **offset** line stops being the Strand's edge.
+ *
+ * The run is measured down the centre line, but a fillet's side is offset by
+ * half the stroke width, and on the inside of a turn the two segments' offsets
+ * meet `half · tan(turn/2)` before the vertex. A shape run to the full span
+ * therefore overhangs the line work there and gets cut off square — which is
+ * exactly what the bump at the end of a long twinkle was.
+ *
+ * Zero when the thread turns the other way: on the outside of a bend the
+ * Strand's own join carries the edge past the vertex, so stopping at it is
+ * already flush. Clamped well short of a half turn, where the tangent runs
+ * away and a doubled-back thread would eat the whole run.
+ */
+function insetForTurn(turn: number, half: number): number {
+  if (!(turn > 1e-6)) return 0
+  const a = Math.min(turn, (150 * Math.PI) / 180)
+  return half * Math.tan(a / 2)
 }
 
 /**

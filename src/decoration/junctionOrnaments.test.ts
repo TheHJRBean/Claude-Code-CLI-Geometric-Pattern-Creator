@@ -36,6 +36,7 @@ const j = (x: number, y: number, sig = 'jA', strands = [0, 1]): StrandJunction =
   // Long straight runs: these tests are about identity and resolution, not
   // about where the line work ends (`flarePathD` capping has its own).
   armSpans: [1e3, 1e3, 1e3, 1e3],
+  armTurns: [0, 0, 0, 0],
   strands,
   degree: 2,
   signature: sig,
@@ -244,18 +245,21 @@ describe('flarePathD — the twinkle', () => {
   /** Spans long enough never to bind — capping is exercised on its own below. */
   const FAR4 = [1e3, 1e3, 1e3, 1e3]
   const FAR6 = [1e3, 1e3, 1e3, 1e3, 1e3, 1e3]
+  /** Runs that end at a terminus, not a bend — no side inset. */
+  const NOTURN4 = [0, 0, 0, 0]
+  const NOTURN6 = [0, 0, 0, 0, 0, 0]
 
   it('rounds every corner of the crossing — two threads make FOUR', () => {
     // A thread passing through continues both ways, so 2 threads = 4 arms =
     // 4 wedges. Treating a thread as one arm would round only half of them.
-    const d = flarePathD(cross, FAR4, W, 12, 0.55)
+    const d = flarePathD(cross, FAR4, NOTURN4, W, 12, 0.55)
     expect((d.match(/M/g) ?? []).length).toBe(4)
     expect((d.match(/C/g) ?? []).length).toBe(4)
   })
 
   it('lands each fillet on the arm’s edge at the requested reach', () => {
     const reach = 12
-    const d = flarePathD(cross, FAR4, W, reach, 0.55)
+    const d = flarePathD(cross, FAR4, NOTURN4, W, reach, 0.55)
     // First subpath's start: up the +x arm at half-width off its centreline.
     const start = pathPoints(d)[0]
     expect(Math.abs(start.x)).toBeCloseTo(reach, 6)
@@ -265,35 +269,35 @@ describe('flarePathD — the twinkle', () => {
   it('leaves each arm ALONG the arm, so the fillet meets the Strand smoothly', () => {
     // The first control point must sit on the same edge line as the start —
     // i.e. differ only along the arm. A kink there is what "rounding" is for.
-    const pts = pathPoints(flarePathD(cross, FAR4, W, 12, 0.55))
+    const pts = pathPoints(flarePathD(cross, FAR4, NOTURN4, W, 12, 0.55))
     const [start, c1] = pts
     expect(c1.y).toBeCloseTo(start.y, 6)
     expect(Math.abs(c1.x)).toBeLessThan(Math.abs(start.x))
   })
 
   it('grows with the reach', () => {
-    const near = pathPoints(flarePathD(cross, FAR4, W, 6, 0.55))[0]
-    const far = pathPoints(flarePathD(cross, FAR4, W, 20, 0.55))[0]
+    const near = pathPoints(flarePathD(cross, FAR4, NOTURN4, W, 6, 0.55))[0]
+    const far = pathPoints(flarePathD(cross, FAR4, NOTURN4, W, 20, 0.55))[0]
     expect(Math.abs(far.x)).toBeGreaterThan(Math.abs(near.x))
   })
 
   it('never cuts INTO the crossing — a tiny reach is lifted past the corner', () => {
     // The corner of a right-angle crossing sits at half-width along each arm;
     // a reach shorter than that would put the fillet inside the line work.
-    const start = pathPoints(flarePathD(cross, FAR4, W, 0.1, 0.55))[0]
+    const start = pathPoints(flarePathD(cross, FAR4, NOTURN4, W, 0.1, 0.55))[0]
     expect(Math.abs(start.x)).toBeGreaterThan(W / 2)
   })
 
   it('skips a wedge with no corner to round', () => {
     // One thread alone: its two arms are collinear, so there is no corner.
-    expect(flarePathD([{ x: 1, y: 0 }, { x: -1, y: 0 }], [1e3, 1e3], W, 12, 0.55)).toBe('')
+    expect(flarePathD([{ x: 1, y: 0 }, { x: -1, y: 0 }], [1e3, 1e3], [0, 0], W, 12, 0.55)).toBe('')
   })
 
   it('rounds all six corners where three threads meet', () => {
     const three = [0, 60, 120].flatMap(d => [d, d + 180]).map(d => ({
       x: Math.cos((d * Math.PI) / 180), y: Math.sin((d * Math.PI) / 180),
     }))
-    expect((flarePathD(three, FAR6, W, 12, 0.55).match(/M/g) ?? []).length).toBe(6)
+    expect((flarePathD(three, FAR6, NOTURN6, W, 12, 0.55).match(/M/g) ?? []).length).toBe(6)
   })
 
   it('rounds the corners a BENT thread actually makes, not the ones it would if straight', () => {
@@ -304,7 +308,7 @@ describe('flarePathD — the twinkle', () => {
     const arms = [0, 180 - bend, 90, 270].map(d => ({
       x: Math.cos((d * Math.PI) / 180), y: Math.sin((d * Math.PI) / 180),
     }))
-    const d = flarePathD(arms, FAR4, W, 12, 0.55)
+    const d = flarePathD(arms, FAR4, NOTURN4, W, 12, 0.55)
     expect((d.match(/M/g) ?? []).length).toBe(4)
     // The fillet on the bent arm must start ALONG that arm: at reach 12 and
     // half-width 2 off its centreline, i.e. 12 along a direction 164°, not 180°.
@@ -322,6 +326,7 @@ describe('flarePathD — the twinkle', () => {
 describe('flarePathD — capping at the end of the line work', () => {
   const cross = [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 0, y: -1 }]
   const W = 4
+  const NOTURN = [0, 0, 0, 0]
   /** How far up arm `u` a point sits. */
   const along = (p: { x: number; y: number }, u: { x: number; y: number }) => p.x * u.x + p.y * u.y
 
@@ -329,7 +334,7 @@ describe('flarePathD — capping at the end of the line work', () => {
     // +x runs only 9 before it bends away; the other three run on. A reach of
     // 50 must therefore stop at 9 on that side and at 50 on the rest, instead
     // of hanging 41 units out over open ground.
-    const d = flarePathD(cross, [9, 1e3, 1e3, 1e3], W, 50, 0.55)
+    const d = flarePathD(cross, [9, 1e3, 1e3, 1e3], NOTURN, W, 50, 0.55)
     const pts = pathPoints(d)
     const onPlusX = pts.filter(p => Math.abs(p.y) - W / 2 < 1e-6 && p.x > 0)
     expect(onPlusX.length).toBeGreaterThan(0)
@@ -340,7 +345,7 @@ describe('flarePathD — capping at the end of the line work', () => {
 
   it('a reach past every span fills the line work and no further', () => {
     const spans = [30, 18, 30, 18]
-    const pts = pathPoints(flarePathD(cross, spans, W, 1e4, 0.55))
+    const pts = pathPoints(flarePathD(cross, spans, NOTURN, W, 1e4, 0.55))
     for (const [i, u] of cross.entries()) {
       expect(Math.max(...pts.map(p => along(p, u)))).toBeCloseTo(spans[i], 6)
     }
@@ -349,23 +354,59 @@ describe('flarePathD — capping at the end of the line work', () => {
   it('still clears the corner when the span is shorter than the crossing', () => {
     // A span under the corner distance would put the fillet inside the
     // crossing, cutting into the line work rather than rounding it.
-    const pts = pathPoints(flarePathD(cross, [0.1, 0.1, 0.1, 0.1], W, 50, 0.55))
+    const pts = pathPoints(flarePathD(cross, [0.1, 0.1, 0.1, 0.1], NOTURN, W, 50, 0.55))
     expect(Math.min(...pts.map(p => Math.hypot(p.x, p.y)))).toBeGreaterThan(0)
     expect(Math.max(...pts.map(p => along(p, { x: 1, y: 0 })))).toBeGreaterThan(W / 2)
   })
 
+  it('stops each side short of a bend it turns INTO, so it never overhangs', () => {
+    // The run is measured down the centre line; a fillet's side is an offset
+    // line, and on the inside of a turn the two segments' offsets meet
+    // `half·tan(turn/2)` before the vertex. Running to the full span put the
+    // fillet out past the line work and then cut it off square — the bump.
+    //
+    // Wedge 0 is between +x and +y, so it uses +x's CCW (left) side. A CCW
+    // turn at the end of that run bends toward it.
+    const span = 40
+    const turn = Math.PI / 2 // a right-angle bend
+    const d = flarePathD(cross, [span, span, span, span], [turn, 0, 0, 0], W, 1e4, 0.55)
+    // The +x arm's CCW side only: its other side belongs to the wedge below,
+    // whose own turn is 0, and averaging the two would hide the inset.
+    const ccwSide = pathPoints(d).filter(p => p.x > 0 && Math.abs(p.y - W / 2) < 1e-6)
+    // half·tan(45°) = half = 2 short of the bend.
+    expect(Math.max(...ccwSide.map(p => along(p, { x: 1, y: 0 })))).toBeCloseTo(span - W / 2, 6)
+  })
+
+  it('leaves a side alone where the thread turns AWAY from it', () => {
+    // On the outside of a bend the Strand's own join carries its edge past the
+    // vertex, so ending at the vertex is already flush — shortening there
+    // would open a notch instead of closing one.
+    const span = 40
+    const away = flarePathD(cross, [span, span, span, span], [-Math.PI / 2, 0, 0, 0], W, 1e4, 0.55)
+    const ccwSide = pathPoints(away).filter(p => p.x > 0 && Math.abs(p.y - W / 2) < 1e-6)
+    expect(Math.max(...ccwSide.map(p => along(p, { x: 1, y: 0 })))).toBeCloseTo(span, 6)
+  })
+
+  it('a doubling-back thread cannot eat the whole run', () => {
+    // tan runs away at a half turn; the inset is clamped well before it.
+    const d = flarePathD(cross, [40, 40, 40, 40], [Math.PI - 1e-6, 0, 0, 0], W, 1e4, 0.55)
+    expect(d.length).toBeGreaterThan(0)
+    expect(pathPoints(d).every(p => Number.isFinite(p.x) && Number.isFinite(p.y))).toBe(true)
+  })
+
   it('leaves a short reach alone — the cap only ever shortens', () => {
-    const capped = flarePathD(cross, [9, 9, 9, 9], W, 6, 0.55)
-    expect(capped).toBe(flarePathD(cross, [1e3, 1e3, 1e3, 1e3], W, 6, 0.55))
+    const capped = flarePathD(cross, [9, 9, 9, 9], NOTURN, W, 6, 0.55)
+    expect(capped).toBe(flarePathD(cross, [1e3, 1e3, 1e3, 1e3], NOTURN, W, 6, 0.55))
   })
 })
 
 describe('flarePathD — depth', () => {
   const cross = [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 0, y: -1 }]
   const FAR = [1e3, 1e3, 1e3, 1e3]
+  const NOTURN = [0, 0, 0, 0]
   const W = 4
   // Each subpath is `M a C c1 c2 b L corner Z` — five points in path order.
-  const first = (depth: number) => pathPoints(flarePathD(cross, FAR, W, 12, depth)).slice(0, 5)
+  const first = (depth: number) => pathPoints(flarePathD(cross, FAR, NOTURN, W, 12, depth)).slice(0, 5)
 
   it('0 is flat: the handles sit on the ends, so the fillet is a straight chord', () => {
     const [a, c1, c2, bp] = first(0)

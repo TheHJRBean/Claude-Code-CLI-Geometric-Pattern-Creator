@@ -63,6 +63,12 @@ export interface StrandVisit {
    * thread has turned (`flarePathD` caps each fillet on this).
    */
   armSpans: [number, number]
+  /** The signed turn the thread takes at the end of each arm's run, aligned
+   *  with `arms` (see `chainRun`). Positive = counter-clockwise, 0 = the run
+   *  ends at a terminus. A caller drawing along one *side* of an arm needs it:
+   *  on the inside of the turn the offset line leaves the Strand before the
+   *  bend, so a shape run to the full span pokes out past the line work. */
+  armTurns: [number, number]
 }
 
 /** A world point with every thread pass through it, in insertion order. */
@@ -103,16 +109,24 @@ const RUN_TOL = 1e-3
 
 /**
  * How far the drawn line work runs from position `s` in one direction before
- * it bends away or the thread ends — an arm's **span**.
+ * it bends away or the thread ends — an arm's **run**.
  *
  * Collinear segments are walked through: a chain point where the thread
  * carries straight on is not a bend, and stopping there would cap an ornament
  * short of line work that really is there. `s` is `edgeIndex + t`, the same
  * parameterisation `StrandVisit.s` uses.
+ *
+ * `turn` is the signed angle the thread takes at the far end, measured from
+ * the arm's own direction to the next segment's, both travelling **outward**
+ * from the crossing (positive = counter-clockwise); 0 where the run ends at a
+ * terminus rather than a bend. It is what tells a caller drawing along one
+ * SIDE of the arm how far that side is usable: the run is measured down the
+ * centre line, but an offset line stops being the Strand's boundary before the
+ * bend on the inside of the turn, and continues past it on the outside.
  */
-function chainSpan(pts: readonly Vec2[], closed: boolean, s: number, forward: boolean): number {
+function chainRun(pts: readonly Vec2[], closed: boolean, s: number, forward: boolean): { span: number; turn: number } {
   const edges = pts.length - 1
-  if (edges <= 0) return 0
+  if (edges <= 0) return { span: 0, turn: 0 }
   let e = Math.max(0, Math.min(Math.floor(s + 1e-9), edges - 1))
   let t = s - e
   // Travelling BACKWARD from the very start of an edge, the run begins on the
@@ -123,7 +137,7 @@ function chainSpan(pts: readonly Vec2[], closed: boolean, s: number, forward: bo
   // is how half of every twinkle stayed uncapped.
   if (!forward && t <= 1e-9) {
     if (e === 0) {
-      if (!closed) return 0
+      if (!closed) return { span: 0, turn: 0 }
       e = edges - 1
     } else {
       e -= 1
@@ -135,6 +149,7 @@ function chainSpan(pts: readonly Vec2[], closed: boolean, s: number, forward: bo
   const d0 = dirOf(e)
   let total = forward ? (1 - t) * lenOf(e) : t * lenOf(e)
   let i = e
+  let turn = 0
   // At most one lap: a closed chain that never bends would otherwise spin.
   for (let guard = 0; guard < edges; guard++) {
     let next = forward ? i + 1 : i - 1
@@ -148,11 +163,17 @@ function chainSpan(pts: readonly Vec2[], closed: boolean, s: number, forward: bo
     const d = dirOf(next)
     // Same line AND same way along it — an antiparallel neighbour would be the
     // chain doubling back, which is a stop, not a continuation.
-    if (Math.abs(cross(d, d0)) > RUN_TOL || d.x * d0.x + d.y * d0.y < 0) break
+    if (Math.abs(cross(d, d0)) > RUN_TOL || d.x * d0.x + d.y * d0.y < 0) {
+      // Negating both vectors (which is what travelling backward does) leaves
+      // cross and dot unchanged, so this one expression is the outward turn
+      // either way round.
+      turn = Math.atan2(cross(d0, d), d0.x * d.x + d0.y * d.y)
+      break
+    }
     total += lenOf(next)
     i = next
   }
-  return total
+  return { span: total, turn }
 }
 
 /**
@@ -185,19 +206,20 @@ export function collectStrandVisits(strands: readonly StrandData[]): VisitField 
 
   /** Both arms' spans at position `s` of strand `st`, in `arms` order
    *  (backward along the chain first, then forward). */
-  const spansAt = (st: number, s: number): [number, number] => [
-    chainSpan(strands[st].points, closedFlags[st], s, false),
-    chainSpan(strands[st].points, closedFlags[st], s, true),
-  ]
+  const runsAt = (st: number, s: number): { spans: [number, number]; turns: [number, number] } => {
+    const back = chainRun(strands[st].points, closedFlags[st], s, false)
+    const fwd = chainRun(strands[st].points, closedFlags[st], s, true)
+    return { spans: [back.span, fwd.span], turns: [back.turn, fwd.turn] }
+  }
 
   const addVisit = (
     strand: number, s: number, dir: Vec2, worldKey: string, point: Vec2, arms: [Vec2, Vec2],
-    armSpans: [number, number],
+    run: { spans: [number, number]; turns: [number, number] },
   ) => {
     const vk = `${strand}|${worldKey}|${s.toFixed(6)}`
     if (seen.has(vk)) return
     seen.add(vk)
-    const v: StrandVisit = { strand, s, dir, arms, armSpans }
+    const v: StrandVisit = { strand, s, dir, arms, armSpans: run.spans, armTurns: run.turns }
     byStrand[strand].push(v)
     let c = byPoint.get(worldKey)
     if (!c) byPoint.set(worldKey, (c = { point, visits: [] }))
@@ -212,10 +234,10 @@ export function collectStrandVisits(strands: readonly StrandData[]): VisitField 
     const pts = strands[s].points
     const n = pts.length
     if (closedFlags[s]) {
-      addVisit(s, 0, normalize(sub(pts[1], pts[n - 2])), ptKey(pts[0]), pts[0], armsAtChainPoint(s, 0), spansAt(s, 0))
+      addVisit(s, 0, normalize(sub(pts[1], pts[n - 2])), ptKey(pts[0]), pts[0], armsAtChainPoint(s, 0), runsAt(s, 0))
     }
     for (let i = 1; i < n - 1; i++) {
-      addVisit(s, i, normalize(sub(pts[i + 1], pts[i - 1])), ptKey(pts[i]), pts[i], armsAtChainPoint(s, i), spansAt(s, i))
+      addVisit(s, i, normalize(sub(pts[i + 1], pts[i - 1])), ptKey(pts[i]), pts[i], armsAtChainPoint(s, i), runsAt(s, i))
     }
   }
 
@@ -312,8 +334,8 @@ export function collectStrandVisits(strands: readonly StrandData[]): VisitField 
     if (pa.point && pb.point) return // both at chain points ⇒ source a covers it
     const worldPt = pa.point ?? pb.point ?? lerp(ea.a, ea.b, t)
     const key = ptKey(worldPt)
-    addVisit(ea.strand, pa.s, pa.dir, key, worldPt, pa.arms, spansAt(ea.strand, pa.s))
-    addVisit(eb.strand, pb.s, pb.dir, key, worldPt, pb.arms, spansAt(eb.strand, pb.s))
+    addVisit(ea.strand, pa.s, pa.dir, key, worldPt, pa.arms, runsAt(ea.strand, pa.s))
+    addVisit(eb.strand, pb.s, pb.dir, key, worldPt, pb.arms, runsAt(eb.strand, pb.s))
   }
 
   const tested = new Set<number>()
@@ -354,6 +376,10 @@ export interface StrandJunction {
   /** Each arm's straight run before the line work bends away or ends, aligned
    *  with `arms` — what caps an ornament drawn along them. */
   armSpans: number[]
+  /** The signed turn at the end of each run, aligned with `arms`
+   *  (`StrandVisit.armTurns`) — how much of the run one SIDE of the arm can
+   *  actually use. */
+  armTurns: number[]
   /** Which chains pass through, aligned with `dirs` (indices into the input
    *  `strands`). Lets a caller ask what the threads meeting here look like —
    *  e.g. an ornament matching their colour. A self-crossing thread appears
@@ -457,6 +483,7 @@ export function strandJunctions(strands: readonly StrandData[]): StrandJunction[
       dirs,
       arms,
       armSpans: c.visits.flatMap(v => v.armSpans),
+      armTurns: c.visits.flatMap(v => v.armTurns),
       strands: c.visits.map(v => v.strand),
       degree: c.visits.length,
       signature: junctionSignature(arms),

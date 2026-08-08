@@ -175,6 +175,61 @@ console.log('TWINKLE CAP      ', `reach 120 → ${cap120.toFixed(1)}, reach 200 
     ? 'PASS — saturates at the line work, no overhang'
     : 'FAIL — the fillets run past the end of the Strands')
 
+// …and each end must land ON the Strand's edge, not across it. The run is
+// measured down the centre line but a fillet's side is an OFFSET line, which
+// on the inside of a bend leaves the Strand before the vertex — so a fillet
+// run to the full span crosses the line work and is cut off square. That is
+// the bump at the end of a long twinkle. Still at reach 200, where it binds.
+const endsOnEdge = await page.evaluate(() => {
+  const num = '-?\\d+(?:\\.\\d+)?(?:e[-+]?\\d+)?'
+  const segs = []
+  let half = 0
+  for (const p of document.querySelectorAll('#strand-layer path')) {
+    const d = p.getAttribute('d') ?? ''
+    if (d.includes('C') || d.includes('Q')) continue // curved: not a polyline
+    half = Number(p.getAttribute('stroke-width') ?? 0) / 2
+    // Strand polylines separate coordinates with SPACES, not commas.
+    for (const sub of d.split(/(?=M)/)) {
+      const ns = (sub.match(new RegExp(num, 'g')) ?? []).map(Number)
+      for (let i = 0; i + 3 < ns.length; i += 2) {
+        segs.push([{ x: ns[i], y: ns[i + 1] }, { x: ns[i + 2], y: ns[i + 3] }])
+      }
+    }
+  }
+  if (!segs.length || !half) return null
+  const distTo = p => {
+    let best = Infinity
+    for (const [a, c] of segs) {
+      const vx = c.x - a.x, vy = c.y - a.y
+      const L = vx * vx + vy * vy
+      const t = Math.max(0, Math.min(1, L > 0 ? ((p.x - a.x) * vx + (p.y - a.y) * vy) / L : 0))
+      best = Math.min(best, Math.hypot(p.x - (a.x + vx * t), p.y - (a.y + vy * t)))
+    }
+    return best
+  }
+  const dev = []
+  let n = 0
+  for (const p of document.querySelectorAll('#junction-ornament-world-layer > path')) {
+    const t = p.getAttribute('transform').match(new RegExp(`translate\\((${num}),(${num})\\)`))
+    for (const sub of p.getAttribute('d').split(/(?=M)/)) {
+      // `M a C .. .. b L corner Z` — `a` and `b` are the ends that must land
+      // on the line work.
+      const m = sub.match(new RegExp(`^M(${num}),(${num})C${num},${num} ${num},${num} (${num}),(${num})`))
+      if (!m) continue
+      for (const [x, y] of [[m[1], m[2]], [m[3], m[4]]]) {
+        dev.push(Math.abs(distTo({ x: Number(t[1]) + Number(x), y: Number(t[2]) + Number(y) }) - half))
+      }
+    }
+    if (++n >= 200) break
+  }
+  dev.sort((a, b) => a - b)
+  return { half, ends: dev.length, median: dev[dev.length >> 1], max: dev[dev.length - 1] }
+})
+console.log('TWINKLE ENDS     ', JSON.stringify(endsOnEdge),
+  endsOnEdge && endsOnEdge.ends > 100 && endsOnEdge.max < endsOnEdge.half * 0.02
+    ? 'PASS — every end sits on the Strand’s edge'
+    : 'FAIL — fillet ends cross the line work (the bump)')
+
 // Depth: 0 is a flat chord across the corner, 1 dips to the tip of the
 // crossing. (The geometry itself is pinned in junctionOrnaments.test.ts.)
 await setSlider('Reach along the strand', 12)

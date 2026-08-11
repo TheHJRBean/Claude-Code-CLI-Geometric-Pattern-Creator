@@ -8,11 +8,10 @@ import type { TilingCategory } from '../types/tiling'
 import { generateTiling } from '../tilings/archimedean'
 import { generateRosettePatch } from '../tilings/rosettePatch'
 import { editorBoundaryVertices, editorTilesToPolygons, tilesToPolygons } from '../editor/buildEditorPolygons'
-import { editorLatticeStamps, editorNeighbourStamps, type LatticeStamp } from '../editor/lattice'
+import { type LatticeStamp } from '../editor/lattice'
+import { patchLatticeStamps, patchNeighbourStamps } from '../editor/patchLattice'
 import {
   compositionBoundaryOutlines,
-  compositionLatticeStamps,
-  compositionNeighbourStamps,
   compositionToPolygons,
 } from '../editor/compositionLattice'
 import { activeCell } from '../editor/active'
@@ -236,6 +235,11 @@ export function periodicFastPathEligible(
   return periodicityEnabled()
     && !editorFrame
     && !showBoundaryLattice
+    // Freeform draws the Patch once — there is no Lattice to <use>-tile, and
+    // the machinery downstream assumes one: `decorationReps` sizes its
+    // extraction off the nearest neighbouring stamp, which under Freeform is
+    // infinitely far away, so every Void fill would resolve to nothing.
+    && !(config.editor?.freeform)
     // Step 20 Morph: θ varies with world position, so every stamped Patch
     // copy has genuinely different Figures — <use>-stamping one base domain
     // would repeat the origin copy everywhere.
@@ -433,7 +437,13 @@ export function usePattern(
     // swap removed it only ever changes alongside `cells` (updateCell re-aims
     // it as it mutates), and re-keying on it made every selection click re-run
     // the full PIC.
-  }, [ed?.cells, ed?.edgeLength, ed?.configuration, ed?.alternateOrientation, config.figures, config.morph])
+    // `freeform` doesn't change anything returned here — the base Patch is the
+    // same either way — but it IS read off `patch` by every memo below (stamps,
+    // fast-path eligibility, boundary outlines), and `patch` is this snapshot.
+    // Without the dep the flag would flip in `config.editor` and the snapshot
+    // would keep reporting the old value, so switching tiling off would leave
+    // the Lattice on screen ([[feedback_predicate_inputs_are_memo_deps]]).
+  }, [ed?.cells, ed?.edgeLength, ed?.configuration, ed?.alternateOrientation, ed?.freeform, config.figures, config.morph])
 
   // A representative Void in the fundamental domain, enriched with its
   // centroid (= Lattice-orbit offset, since reps live in the origin stamp's
@@ -462,9 +472,7 @@ export function usePattern(
     const cell = editorBase.cell
     const H = 12 * Math.max(patch.edgeLength, cell.boundarySize)
     const box = { x: -H, y: -H, width: 2 * H, height: 2 * H }
-    const allStamps = editorBase.multiCell
-      ? compositionLatticeStamps(patch, box)
-      : editorLatticeStamps(cell, box)
+    const allStamps = patchLatticeStamps(patch, box, cell)
     // Only when the periodic fast-path will actually render (otherwise the
     // non-fast-path branch computes fills via buildDecorationData and this
     // extraction would be wasted — and expensive with curves on). Shared
@@ -570,9 +578,7 @@ export function usePattern(
     const cell = editorBase.cell
     const H = 4 * Math.max(patch.edgeLength, cell.boundarySize)
     const box = { x: -H, y: -H, width: 2 * H, height: 2 * H }
-    const allStamps = editorBase.multiCell
-      ? compositionLatticeStamps(patch, box)
-      : editorLatticeStamps(cell, box)
+    const allStamps = patchLatticeStamps(patch, box, cell)
     return allStamps.map(s => s.translation)
   }, [editorBase, decorationActive])
 
@@ -645,10 +651,8 @@ export function usePattern(
   const stampedField = useMemo(() => {
     if (!ed || !editorBase || !editorStrandMode) return null
     const patch = ed
-    const { multiCell, cell, basePolys } = editorBase
-    const stamps = multiCell
-      ? compositionLatticeStamps(patch, { x: fbX, y: fbY, width: fbW, height: fbH })
-      : editorLatticeStamps(cell, { x: fbX, y: fbY, width: fbW, height: fbH })
+    const { cell, basePolys } = editorBase
+    const stamps = patchLatticeStamps(patch, { x: fbX, y: fbY, width: fbW, height: fbH }, cell)
     if (periodicFastPathEligible(config, editorFrame, showBoundaryLattice, stamps, junctionPaintActive)) {
       return { fastPath: true as const, stamps }
     }
@@ -711,7 +715,10 @@ export function usePattern(
     // Multi-cell emits one outline per Cell per stamp (octagon + square × N
     // stamps); single-cell emits one outline per stamp.
     let boundaryOutlines: Vec2[][] | undefined
-    if (showBoundaryLattice) {
+    // Freeform has no Boundary to show and no Lattice to show it on. The
+    // toggle is hidden in the panel, but it is session state that survives the
+    // flag flip, so refuse it here rather than trusting the panel.
+    if (showBoundaryLattice && !patch.freeform) {
       const baseOutlines = editorBase.baseOutlines
       boundaryOutlines = []
       for (const stamp of stamps) {
@@ -1062,11 +1069,15 @@ export function usePattern(
       // geometry-time snapshot whose `frame` / `decoration` go stale across
       // paints and frame edits (editorBase deliberately doesn't re-key on them).
       const patch = config.editor
-      const { multiCell, cell, basePolys } = editorBase
+      const { cell, basePolys } = editorBase
       if (!editorStrandMode) {
         const baseOutlines = editorBase.baseOutlines
         let ghostPolygons: typeof basePolys | undefined
-        let boundaryOutlines: Vec2[][] = [...baseOutlines]
+        // Freeform: the Cell Boundary is not an authoring surface, so it isn't
+        // drawn. The geometry still exists (symmetry frames, Cell containment,
+        // the Decoration `cell` rung all read it) — it just has nothing to say
+        // to the user about where the Patch may go.
+        let boundaryOutlines: Vec2[][] = patch.freeform ? [] : [...baseOutlines]
         // Neighbour preview: the full visible lattice of neighbour stamps minus
         // the centre copy (single-cell uses the per-Cell lattice — triangle has
         // a 2-orientation cell; multi-cell uses the Configuration lattice, each
@@ -1076,9 +1087,7 @@ export function usePattern(
         let ringStamps: LatticeStamp[] | undefined
         if (editorNeighbourPreview) {
           const viewport = { x: genX, y: genY, width: genW, height: genH }
-          ringStamps = multiCell
-            ? compositionNeighbourStamps(patch, viewport)
-            : editorNeighbourStamps(cell, viewport)
+          ringStamps = patchNeighbourStamps(patch, viewport, cell)
           if (ringStamps.length > 0) {
             ghostPolygons = []
             for (let s = 0; s < ringStamps.length; s++) {
@@ -1151,7 +1160,7 @@ export function usePattern(
           boundaryOutlines,
           ghostPolygons,
           neighbourStamps: ringStamps,
-          seedOutlineCount: baseOutlines.length,
+          seedOutlineCount: boundaryOutlines.length === 0 ? 0 : baseOutlines.length,
           ghostPolygonIds,
         }
       }

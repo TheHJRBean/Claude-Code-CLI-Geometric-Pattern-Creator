@@ -94,6 +94,7 @@ function configSection(summary: ConfigSummary): string[] {
     ['Scale', String(summary.scale)],
   ]
   if (summary.configuration) rows.push(['Configuration', summary.configuration])
+  if (summary.freeform) rows.push(['Freeform', 'on — no lattice, no boundary'])
   if (summary.edgeLength !== null) rows.push(['Edge length', String(summary.edgeLength)])
   if (summary.cells.length) rows.push(['Cells / Tiles', `${summary.cells.length} / ${summary.totalTiles}`])
   if (summary.guides) rows.push(['Guides', String(summary.guides)])

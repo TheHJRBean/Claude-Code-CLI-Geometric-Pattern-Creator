@@ -68,10 +68,14 @@ function CellControls({
   cell,
   dispatch,
   multiCell,
+  freeform,
 }: {
   cell: EditorCell
   dispatch: React.Dispatch<Action>
   multiCell: boolean
+  /** Freeform — the Boundary is switched off, so the controls that only move
+   *  it (size, wrap) are withheld rather than left to do nothing visible. */
+  freeform: boolean
 }) {
   const cellId = cell.id
   // Once the Cell holds any non-Seed Tile, changing Seed sides / toggling
@@ -81,7 +85,7 @@ function CellControls({
     <>
       {/* Boundary size is per-Cell only in a single-cell Patch; multi-cell
           uses the shared patch-level Lattice edge slider instead. */}
-      {!multiCell && (
+      {!multiCell && !freeform && (
         <>
           <FieldLabel
             label="Boundary size"
@@ -148,16 +152,18 @@ function CellControls({
           the lattice cell to this Cell's Tiles. In a multi-cell Patch the
           reducer's applyWrap propagates the fit to sibling Cells so the
           invariant — every Cell's Boundary edge = lattice edge — holds. */}
-      <div style={{ marginTop: 14 }}>
-        <label style={checkboxLabelStyle(!!cell.wrapBoundary, { cursor: 'pointer' })}>
-          <input
-            type="checkbox"
-            checked={!!cell.wrapBoundary}
-            onChange={e => dispatch({ type: 'SET_EDITOR_WRAP_BOUNDARY', payload: { value: e.target.checked, cellId } })}
-          />
-          Wrap boundary
-        </label>
-      </div>
+      {!freeform && (
+        <div style={{ marginTop: 14 }}>
+          <label style={checkboxLabelStyle(!!cell.wrapBoundary, { cursor: 'pointer' })}>
+            <input
+              type="checkbox"
+              checked={!!cell.wrapBoundary}
+              onChange={e => dispatch({ type: 'SET_EDITOR_WRAP_BOUNDARY', payload: { value: e.target.checked, cellId } })}
+            />
+            Wrap boundary
+          </label>
+        </div>
+      )}
 
       {/* Step 17.12 — No Seed Tile. Per-Cell: when on, the Cell starts empty
           (no auto-placed Seed) — useful when authoring from the boundary inward
@@ -251,7 +257,8 @@ export function DesignPanel({
 }: DesignPanelProps) {
   const multiCell = editor.cells.length > 1
   const primaryCell = editor.cells[0]
-  const anyWrap = editor.cells.some(c => c.wrapBoundary)
+  const freeform = !!editor.freeform
+  const anyWrap = !freeform && editor.cells.some(c => c.wrapBoundary)
   // Per-Cell collapse state (multi-cell only) — keeps the panel manageable when
   // a Configuration has several Cells. Default open; collapsing is opt-in.
   const [collapsedCells, setCollapsedCells] = useState<Record<string, boolean>>({})
@@ -298,6 +305,25 @@ export function DesignPanel({
         })}
       </select>
 
+      {/* Freeform — Patch-level. Switches the Lattice off (nothing repeats) and
+          takes the Boundary out of the authoring surface, so the Patch can grow
+          as far as the user wants. Sits directly under the Boundary picker
+          because it is the answer to "what is this Boundary for?". */}
+      <label style={checkboxLabelStyle(freeform, { marginTop: 10 })}>
+        <input
+          type="checkbox"
+          checked={freeform}
+          onChange={e => dispatch({ type: 'SET_EDITOR_FREEFORM', payload: e.target.checked })}
+        />
+        Freeform — no tiling
+      </label>
+      <div style={mutedNoteStyle}>
+        {freeform
+          ? 'Nothing repeats and the Boundary is off — build outward as far as you like. Symmetry still works; switching this off restores the tiled Patch.'
+          : 'Turn off the Lattice and the Boundary to build one unbounded Patch.'}
+      </div>
+
+      {!freeform && (
       <label style={checkboxLabelStyle(multiCell ? !!editor.alternateOrientation : !!primaryCell.alternateBoundary, { marginTop: 10 })}>
         <input
           type="checkbox"
@@ -306,8 +332,9 @@ export function DesignPanel({
         />
         Alternate orientation
       </label>
+      )}
 
-      {multiCell && (
+      {multiCell && !freeform && (
         <>
           <FieldLabel
             label="Lattice edge"
@@ -349,17 +376,18 @@ export function DesignPanel({
               <SectionTitle open={open} onToggle={() => toggleCell(cell.id)}>
                 {cell.id.charAt(0).toUpperCase() + cell.id.slice(1)} Cell
               </SectionTitle>
-              {open && <CellControls cell={cell} dispatch={dispatch} multiCell />}
+              {open && <CellControls cell={cell} dispatch={dispatch} multiCell freeform={freeform} />}
             </div>
           )
         })
       ) : (
-        <CellControls cell={primaryCell} dispatch={dispatch} multiCell={false} />
+        <CellControls cell={primaryCell} dispatch={dispatch} multiCell={false} freeform={freeform} />
       )}
 
       {/* Step 17.6d — Show neighbours. Disabled while any Cell has wrap on
-          (boundary edge moves under the user's feet). */}
-      {(() => {
+          (boundary edge moves under the user's feet), and withheld entirely
+          under Freeform — there are no neighbour stamps to preview. */}
+      {!freeform && (() => {
         const disabled = anyWrap
         const active = showNeighbours && !disabled
         return (

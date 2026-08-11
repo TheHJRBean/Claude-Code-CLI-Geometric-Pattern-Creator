@@ -373,6 +373,10 @@ export function NonTilingWarning({ editor }: { editor: NonNullable<PatternConfig
   // Aggregate across every Cell: if any Cell is non-tiling, surface that as
   // the Patch-level warning. Multi-cell Configurations are non-tiling as soon
   // as a single Cell is — the lattice stamps depend on all Cells fitting.
+  // Freeform: the Patch is not a repeat unit, so overflowing the Boundary — or
+  // not filling it — is the point, not a defect. Every sentence this warning
+  // can say is about stamped copies that no longer exist.
+  if (editor.freeform) return null
   let status: ReturnType<typeof detectCellTilingStatus> | null = null
   for (const cell of editor.cells) {
     const s = detectCellTilingStatus(cell)

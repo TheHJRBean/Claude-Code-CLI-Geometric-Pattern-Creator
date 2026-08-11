@@ -141,6 +141,7 @@ export function summarisePatternConfig(config: PatternConfig | null | undefined)
     tiling: config.tiling?.type || '(none selected)',
     scale: num(config.tiling?.scale),
     configuration: patch?.configuration ?? null,
+    freeform: patch?.freeform === true,
     edgeLength: patch ? num(patch.edgeLength) : null,
     cells,
     totalTiles: cells.reduce((sum, c) => sum + c.tiles, 0),

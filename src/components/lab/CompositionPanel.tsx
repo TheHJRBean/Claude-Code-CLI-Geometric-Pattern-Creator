@@ -44,26 +44,30 @@ export function CompositionPanel({
       border: '1px solid var(--border-subtle)',
     }}>
       <div>
-        Patch is stamped on the boundary's translation lattice. Edit
-        strand controls below; flip back to Design to change tiles.
+        {editor.freeform
+          ? "Freeform: the Patch is drawn once — no lattice, no boundary. Edit strand controls below; flip back to Design to change tiles."
+          : "Patch is stamped on the boundary's translation lattice. Edit strand controls below; flip back to Design to change tiles."}
       </div>
       <NonTilingWarning editor={editor} />
       <WorldSpaceTilesNotice editor={editor} dispatch={dispatch} phase="composition" />
-      <label style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        marginTop: 8,
-        cursor: 'pointer',
-        color: showBoundaryLattice ? 'var(--text)' : 'var(--text-muted)',
-      }}>
-        <input
-          type="checkbox"
-          checked={showBoundaryLattice}
-          onChange={e => onToggleShowBoundaryLattice(e.target.checked)}
-        />
-        Show boundary tessellation
-      </label>
+      {/* Freeform has neither a tessellation nor a boundary to show. */}
+      {!editor.freeform && (
+        <label style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginTop: 8,
+          cursor: 'pointer',
+          color: showBoundaryLattice ? 'var(--text)' : 'var(--text-muted)',
+        }}>
+          <input
+            type="checkbox"
+            checked={showBoundaryLattice}
+            onChange={e => onToggleShowBoundaryLattice(e.target.checked)}
+          />
+          Show boundary tessellation
+        </label>
+      )}
       {(editor.guides?.length ?? 0) > 0 && (
         <label style={{
           display: 'flex',

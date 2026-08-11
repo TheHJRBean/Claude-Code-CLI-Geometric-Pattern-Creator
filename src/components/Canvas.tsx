@@ -325,6 +325,12 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
       if (!frame || !config.editor) return null
       if (frame.type === 'n-ring') {
         const patch = config.editor
+        // An n-ring Frame is defined as N shells of Lattice neighbours, and
+        // Freeform has none. Rather than clip the drawing to a shell of one
+        // Cell's Boundary — a hard crop the user never asked for — the Frame
+        // goes quiet until Freeform is switched off (`nRingFrameSupported`
+        // stops a new one being made in the first place).
+        if (patch.freeform) return null
         // Multi-cell Configurations stamp the whole Patch (every Cell's
         // Boundary) across the ring; single-cell Patches stamp the one Cell.
         if (patch.cells.length > 1) {
@@ -524,7 +530,10 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
   // that coincide with Cell outer-cycle vertices (would render twice).
   // Aggregate corners from every Cell, same as cycles.
   const boundaryCorners = useMemo(() => {
+    // Freeform hides the Boundary, so its corners stop being pick targets: a
+    // dot floating on an outline that isn't drawn has nothing to explain it.
     if (!editorActive || !config.editor || editorMode !== 'complete') return []
+    if (config.editor.freeform) return []
     const collected: BoundaryVertex[] = []
     for (const cell of config.editor.cells) {
       const raw = computeBoundaryCycle(cell)
@@ -651,6 +660,9 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     editorActive && config.editor
     && editorMode === 'place'
     && !editorStrandMode
+    // Freeform — boundary-inward placement authors against the Boundary, which
+    // is exactly what this mode switches off.
+    && !config.editor.freeform
   )
   const cellLocalSections = useMemo(() => {
     if (!sectionsActive || !config.editor) return [] as Array<BoundarySection & { hostCellId: string }>
@@ -715,8 +727,9 @@ export function Canvas({ config, showTileLayer, showLines, svgRef, segmentsRef, 
     const cellLocal: ExposedVertex[] = []
     const rendered: ExposedVertex[] = []
     const worldKeys = new Set<string>()
+    const ignoreBoundary = !!patch.freeform
     for (const cell of patch.cells) {
-      for (const v of computeExposedVertices(cell)) {
+      for (const v of computeExposedVertices(cell, { ignoreBoundary })) {
         const local = { ...v, hostCellId: cell.id }
         cellLocal.push(local)
         const w = applyCellTransform(v.p, cell, patchRot)

@@ -109,6 +109,9 @@ export interface ConfigSummary {
   tiling: string
   scale: number
   configuration: string | null
+  /** **Freeform** — Lattice + Boundary switched off. A report about missing
+   *  repeats or vanished pick targets is usually just this flag. */
+  freeform: boolean
   edgeLength: number | null
   cells: CellSummary[]
   totalTiles: number

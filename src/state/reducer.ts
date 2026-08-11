@@ -452,6 +452,20 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         wrapBoundary: false,
       }))
     }
+    case 'SET_EDITOR_FREEFORM': {
+      // Flag only — no geometry is rewritten either way. The Boundary and the
+      // lattice basis stay exactly as authored, so turning Freeform off returns
+      // the user to the tiled Patch they had (and turning it on can't lose it).
+      if (!state.editor) return state
+      const on = action.payload
+      if (!!state.editor.freeform === on) return state
+      const editor = { ...state.editor }
+      if (on) editor.freeform = true
+      else delete editor.freeform
+      // Wrap was suspended while Freeform was on; catch the Boundary up to the
+      // Tiles the user drew in the meantime rather than leaving it stale.
+      return applyWrap({ ...state, editor })
+    }
     case 'SET_EDITOR_ALTERNATE_BOUNDARY': {
       // Single-cell: flip the sole Cell's Boundary by π/n (`alternateBoundary`)
       // — the Cell + its lattice rotate together (see `lattice.ts`).
@@ -580,7 +594,11 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
         // multi-cell Patch the latter is the lattice constant after the
         // boundary-size slider, which would make placements far too large.
         const placeEdge = cellPlacementEdgeLength(cell, patchEdgeLength, state.editor!.cells)
-        const vertices = computeExposedVertices(cell)
+        // Freeform withdraws the Boundary from the picker (no corners, no
+        // inward clipping); the validator has to see the same set the user
+        // clicked, or every placement near the outline is refused.
+        const ignoreBoundary = !!state.editor!.freeform
+        const vertices = computeExposedVertices(cell, { ignoreBoundary })
         const vertex = vertices.find(v => v.key === vertexKey)
         if (!vertex) return cell
         const mode = cell.symmetryMode ?? 'none'
@@ -591,7 +609,7 @@ export function reducer(state: PatternConfig, action: Action): PatternConfig {
           const tile = placeRegularNGonOnVertex(sides, placeEdge, vertex, rotation, `${idPrefix}-0`)
           return { ...cell, tiles: [...cell.tiles, tile] }
         }
-        const placements = placeTilesOnVertexOrbit(cell, placeEdge, vertex, sides, rotation, idPrefix, force)
+        const placements = placeTilesOnVertexOrbit(cell, placeEdge, vertex, sides, rotation, idPrefix, force, ignoreBoundary)
         if (!placements) return cell
         return { ...cell, tiles: [...cell.tiles, ...placements] }
       })))
@@ -1548,6 +1566,11 @@ function seedFigures(state: PatternConfig): PatternConfig {
  */
 function applyWrap(state: PatternConfig): PatternConfig {
   if (!state.editor) return state
+  // Freeform: wrap fits the Boundary (and, multi-cell, the whole Lattice) to
+  // the Tiles — both of which are switched off. Skipping rather than clearing
+  // the per-Cell flag means turning Freeform back off resumes wrapping with
+  // the user's setting intact.
+  if (state.editor.freeform) return state
   const cell = activeCell(state.editor)
   if (!cell.wrapBoundary) return state
   // With no Tiles to hug, wrap has nothing to compute — skip rather than

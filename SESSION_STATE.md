@@ -4,6 +4,52 @@
 
 ## ▶ RESUME HERE
 
+> **2026-08-11 — Freeform: a Patch with no tiling and no boundaries.**
+> **Shipped, browser-verified. 1883 tests green.**
+>
+> User asked for "a toggle that disables tiling and allows the user to build an
+> unlimited size of patch with no boundaries". `EditorPatch.freeform` (optional,
+> additive), Design-panel toggle **"Freeform — no tiling"** under the Boundary
+> picker. See CONTEXT: **Freeform** and the CLAUDE.md Builder section.
+>
+> **The seam is `editor/patchLattice.ts`.** Every consumer used to spell out
+> its own single-cell/multi-cell stamp dispatch (usePattern ×4,
+> `patchSelectable` ×1), so a third case would have had to be added at each and
+> a missed site keeps stamping the Lattice the user just switched off — with no
+> symptom but a canvas that looks unchanged. `patchLatticeStamps` /
+> `patchNeighbourStamps` own the dispatch; Freeform returns the identity stamp /
+> the empty set, and Composition repeats, Design ghosts, neighbour pick targets,
+> stamped Guide copies and the Decoration orbit ring all follow from that.
+>
+> **The Boundary half needed more than hiding the dots.** Withdrawing the
+> sections and corners still left `computeExposedVertices` clipping a corner's
+> open sector to the (now invisible) inward wedge, so the picker would refuse
+> placements for a reason nothing on screen explains — hence the
+> `{ ignoreBoundary }` option, threaded identically through Canvas, the
+> `EDITOR_PLACE_TILE_ON_VERTEX` validator and `placeTilesOnVertexOrbit` (canvas
+> and reducer must agree or the commit silently drops).
+>
+> **Nothing is rewritten either way.** The Boundary geometry stays and still
+> frames the symmetry orbit, resolves Cell containment and feeds the Decoration
+> Twins rung — so Symmetry keeps working under Freeform and toggling off returns
+> the tiled Patch unchanged. `applyWrap` suspends rather than clears. Freeform
+> also disqualifies the periodic fast path (`decorationReps` sizes its
+> extraction off the nearest neighbouring stamp — infinitely far away here, so
+> every Void fill would resolve to nothing) and withholds the n-Ring Frame.
+>
+> **Verified in the browser** (headless Chromium, `scratchpad/freeform.mjs` +
+> `probe3.mjs`): Design 1 boundary outline → 0; neighbours 91 ghost tiles → 0;
+> Composition 90 `<use>` stamps → 0 with one figure drawn; boundary-size / wrap /
+> neighbours / alternate controls withdrawn, Symmetry retained; placing hexagons
+> outward grew the Patch to radius 71 → 243 → 413 → 584 world units, well past
+> the square Cell's ~283 circumradius. Toggling back restored everything.
+>
+> **Next, if anything:** untested combinations, none expected to be wrong —
+> Freeform + a Shape Frame, Freeform + Guides, Freeform on a converted preset.
+> The multi-cell "Lattice edge" slider is hidden under Freeform (it scales cell
+> centres, i.e. the lattice); if authoring a multi-cell Freeform Patch turns out
+> to want it, that is the one control to reconsider.
+
 > **2026-08-08, latest — Decoration: the twinkle round. Five user reports, all
 > five shipped (`7af4baa`, `6c02526`, `f2f911f`, `a6df72c`, `bd27009`). Tree
 > clean, pushed, 1871 tests green, `scripts/verify/junctionOrnaments.mjs`

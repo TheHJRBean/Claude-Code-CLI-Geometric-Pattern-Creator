@@ -259,13 +259,17 @@ export function placeTilesOnVertexOrbit(
   rotation: number,
   idPrefix: string,
   force = false,
+  /** **Freeform** — the Boundary contributes no corners and clips no wedge, so
+   *  the orbit must re-derive the exposed set the same way the picker did, or
+   *  an image lands on a vertex the snapshot doesn't contain and is dropped. */
+  ignoreBoundary = false,
 ): EditorTile[] | null {
   const syms = boundarySymmetries(cell.shape, cell.symmetryMode ?? 'none')
   // Snapshot the exposed vertex set against the initial Cell — positions
   // are stable across the loop because new Tiles never move existing
   // vertices. Asymmetric layouts may have orbit images that don't match a
   // real exposed vertex; those are silently dropped.
-  const exposed = computeExposedVertices(cell)
+  const exposed = computeExposedVertices(cell, { ignoreBoundary })
 
   const placements: EditorTile[] = []
   const seenCenters: Vec2[] = []

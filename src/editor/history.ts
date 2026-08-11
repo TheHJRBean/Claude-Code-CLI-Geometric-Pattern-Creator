@@ -111,6 +111,9 @@ export const DESIGN_MODE_ACTIONS: ReadonlySet<string> = new Set([
   'SET_CELL_SHAPE',
   'SET_CELL_BOUNDARY_SIZE',
   'SET_EDITOR_ALTERNATE_BOUNDARY',
+  // Freeform — changes what the Patch IS (a repeat unit vs a one-off drawing),
+  // and it withdraws pick targets, so it has to be reversible in one step.
+  'SET_EDITOR_FREEFORM',
   'SET_CELL_SEED_SIDES',
   'EDITOR_PLACE_TILE_ON_EDGE',
   // Boundary-inward placement (mutates Tiles + possibly `patch.edgeLength`)

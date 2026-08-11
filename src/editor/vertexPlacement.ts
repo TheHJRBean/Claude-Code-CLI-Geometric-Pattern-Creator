@@ -216,11 +216,20 @@ function subtractWedge(open: OpenSector[], wedgeStart: number, wedgeSweep: numbe
  * corner of an empty Cell is a natural seed move. Their open sectors are
  * clipped to the Boundary's inward wedge (the new Tile must not extend
  * outside the Boundary polygon).
+ *
+ * `ignoreBoundary` (**Freeform**) drops the Boundary from both halves of that:
+ * its corners contribute no vertices, and a Tile corner that happens to sit on
+ * the outline keeps its full open sector instead of being clipped inward. Under
+ * Freeform there is nothing to stay inside of, and a wedge silently clipped to
+ * an invisible polygon reads as placements the picker refuses for no reason.
  */
-export function computeExposedVertices(cell: EditorCell): ExposedVertex[] {
+export function computeExposedVertices(
+  cell: EditorCell,
+  { ignoreBoundary = false }: { ignoreBoundary?: boolean } = {},
+): ExposedVertex[] {
   const tiles = cell.tiles
   const vertsByTile = tiles.map(tileVertices)
-  const boundaryVerts = editorBoundaryVertices(cell)
+  const boundaryVerts = ignoreBoundary ? [] : editorBoundaryVertices(cell)
 
   // Phase 1 — collect every (point, incident-tile-record) pair.
   interface Group {

@@ -49,6 +49,9 @@ export type Action =
   | { type: 'SET_CELL_SHAPE'; payload: BoundaryShape }
   | { type: 'SET_CELL_BOUNDARY_SIZE'; payload: number }
   | { type: 'SET_EDITOR_ALTERNATE_BOUNDARY'; payload: boolean }
+  // **Freeform** — switch the Lattice and the Cell Boundary off so the Patch
+  // is one unbounded drawing rather than a repeat unit (`EditorPatch.freeform`).
+  | { type: 'SET_EDITOR_FREEFORM'; payload: boolean }
   // Per-cell. `cellId` targets a specific Cell (the panel shows a control
   // group per Cell); absent ⇒ the active Cell (back-compat / single-cell).
   | { type: 'SET_CELL_SEED_SIDES'; payload: { sides: number; cellId?: string } }

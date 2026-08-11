@@ -93,8 +93,14 @@ Distinct from **Composition** (Tiling + Strands rendered).
 _Avoid_: tessellation (deprecated alias — kept only as an informal synonym; not in code or canonical prose)
 
 **Lattice**:
-The translation basis that stamps a **Patch** across the canvas to produce the **Tiling**. Cell vectors live in `compositionLatticeStamps` / `editorLatticeStamps`. Standard math term.
+The translation basis that stamps a **Patch** across the canvas to produce the **Tiling**. Cell vectors live in `compositionLatticeStamps` / `editorLatticeStamps`; every consumer asks for its stamps through `editor/patchLattice.ts`, which is also where **Freeform** switches them off. Standard math term.
 _Avoid_: grid, tiling vectors, repeat basis
+
+**Freeform**:
+The Patch-level mode in which the Patch is a **one-off drawing rather than a repeat unit** (`EditorPatch.freeform`, Design-panel toggle "Freeform — no tiling"). Two things switch off together, because they are the same promise: the **Lattice** (nothing is stamped — no Composition repeats, no neighbour ghosts or their pick targets, no stamped **Guide** copies, no n-Ring **Frame**) and the **Boundary** as an authoring surface (not drawn, its sections and corners are not pickable, and it no longer clips a corner's placement wedge). What remains is one Patch the user can grow as far as they like in any direction.
+
+Freeform is a *view* of the same data, not a different data model: the Boundary geometry stays put and still frames each Cell's **symmetry** orbit, resolves which Cell a point is in, and supplies the Decoration **Twins** rung — so **Symmetry** keeps working while Freeform is on, and switching it off returns the tiled Patch unchanged. A **Frame** is still available (Shape type) — Freeform removes the *repeat*, not the ability to present a bounded artifact.
+_Avoid_: unbounded mode, infinite canvas, "no lattice mode"; "free draw" (nothing here is drawn free-hand — Tiles still snap to Anchors)
 
 **Archimedean**:
 The family of edge-to-edge tilings whose vertices are all transitive (same vertex configuration at every vertex). The preset BFS generator (`tilings/archimedean.ts`) handles this family; non-Archimedean presets (`category: 'rosette-patch'`) go through Taprats data blocks instead. Literature term — keep as-is.

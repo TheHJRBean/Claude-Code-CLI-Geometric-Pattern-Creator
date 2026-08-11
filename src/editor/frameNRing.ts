@@ -47,6 +47,9 @@ export const MAX_FRAME_RINGS = 6
  * substrate has no Patch and never reaches here — it gets Shape Frames only.)
  */
 export function nRingFrameSupported(patch: EditorPatch): boolean {
+  // Freeform switches the Lattice off, so there are no neighbouring stamps to
+  // ring — an n-ring Frame would clip to a shell of nothing.
+  if (patch.freeform) return false
   if (patch.cells.length > 1) return true
   const cell = activeCell(patch)
   return !!cell && (cell.shape === 'square' || cell.shape === 'hexagon' || cell.shape === 'triangle')

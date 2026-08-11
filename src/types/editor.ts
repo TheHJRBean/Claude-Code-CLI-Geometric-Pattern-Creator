@@ -786,6 +786,23 @@ export interface EditorPatch {
    * Patches leave this absent and use the per-Cell flag instead. Optional for
    * back-compat. */
   alternateOrientation?: boolean
+  /**
+   * **Freeform** (CONTEXT.md) — the Patch is a one-off drawing, not a repeat
+   * unit. When true the **Lattice** is switched off (nothing is stamped: no
+   * Composition-Phase repeats, no neighbour ghosts, no neighbour pick targets,
+   * no stamped Guide copies) and the Cell **Boundary** stops acting as an
+   * authoring surface — it isn't drawn, its sections and corners are not
+   * pickable, and it no longer clips a corner's placement wedge. The Patch can
+   * then grow as far as the user wants in any direction.
+   *
+   * The Boundary *geometry* survives in the data: it still frames each Cell's
+   * symmetry orbit (so Symmetry keeps working), still resolves which Cell a
+   * point belongs to, and still supplies the Decoration `cell` (Twins) rung —
+   * turning Freeform back off restores the tiled Patch exactly.
+   *
+   * Optional + additive; absent ⇒ the tiled behaviour, byte-identical.
+   */
+  freeform?: boolean
 }
 
 export interface EditorConfig extends EditorPatch {

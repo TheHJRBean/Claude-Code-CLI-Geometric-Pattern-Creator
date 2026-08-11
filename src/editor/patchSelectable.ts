@@ -4,8 +4,9 @@ import type { EditorPatch, EditorCell, EditorTile } from '../types/editor'
 import { computeAllCycles, computeBoundaryCycle } from './boundary'
 import { editorBoundaryVertices } from './buildEditorPolygons'
 import { EDITOR_EPS, tileVertices } from './exposedEdges'
-import { applyStamp, editorNeighbourStamps, type LatticeStamp } from './lattice'
-import { compositionNeighbourStamps, patchRotation } from './compositionLattice'
+import { applyStamp, type LatticeStamp } from './lattice'
+import { patchNeighbourStamps } from './patchLattice'
+import { patchRotation } from './compositionLattice'
 import { ensureCCW } from './complete'
 import { validateNGapPolygon } from './completeN'
 import { overlapsExistingDetail, type OverlapDetail } from './tileOverlap'
@@ -169,9 +170,7 @@ export function neighbourStampsNear(patch: EditorPatch, points: Vec2[]): Lattice
     width: box.width + 2 * r,
     height: box.height + 2 * r,
   }
-  return patch.cells.length > 1
-    ? compositionNeighbourStamps(patch, inflated)
-    : editorNeighbourStamps(patch.cells[0], inflated)
+  return patchNeighbourStamps(patch, inflated)
 }
 
 /**

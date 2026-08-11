@@ -1258,3 +1258,17 @@ unique). Frame/Guide world-space Tiles ride the same per-edge evaluation.
   Morph Boundaries on one Patch, Linear/Radial, per-edge-midpoint θ for
   Strand continuity, angles-only v1 with full-capability-shaped schema.
   ADR-0009 + PATTERN_MORPH_SPEC.md + CONTEXT.md vocabulary + tickets filed.
+- **2026-08-11** — **Freeform** shipped (`aa575dc`), browser-verified. A
+  Patch-level toggle that turns the Patch from a repeat unit into a one-off
+  drawing: the **Lattice** goes off (no Composition repeats, no neighbour
+  ghosts or their pick targets, no stamped Guide copies, no n-Ring Frame) and
+  the **Boundary** stops being an authoring surface (not drawn, sections and
+  corners unpickable, no inward wedge-clipping at corners). Seam is the new
+  `editor/patchLattice.ts` — the single stamp dispatch every consumer now asks,
+  so "no tiling" cannot mean different things in different places. The Boundary
+  *geometry* survives (symmetry orbit, Cell containment, Decoration Twins rung),
+  so Symmetry keeps working and toggling off restores the tiled Patch exactly.
+  Disqualifies the periodic fast path. Relaxes — but does not deliver — the
+  "boundary = regular polygon" restriction the nested-layers idea targets: the
+  Patch is now unbounded, but its lattice cell is still one of {triangle,
+  square, hexagon} whenever tiling is back on.

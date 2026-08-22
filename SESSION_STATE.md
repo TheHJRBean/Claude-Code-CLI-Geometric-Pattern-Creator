@@ -5,7 +5,15 @@
 ## ▶ RESUME HERE
 
 > **2026-08-22 — Large PNG exports came out blank (Max-fill, 8192 px).**
-> **Fixed + browser-measured. `src/export/exportSVG.ts`.**
+> **Fixed (`ff048d9` + `cc37fda`), browser-measured, ✅ user-verified ("all
+> good"). `src/export/exportSVG.ts`.**
+>
+> **Next (cold start): nothing open here.** If a blank export is ever reported
+> again, the untested candidate is the GPU dropping `<mask>` layers (every
+> Strand band + the Frame border are masked) — headless CPU raster cannot
+> reproduce it; ask for a bug capture taken straight after the failed export
+> and read the console warn line, which now says whether the canvas was
+> refitted or a tile failed.
 >
 > A `<canvas>` past the browser's budget does **not** throw: it allocates, the
 > context accepts every call, every draw is dropped, and the export saves a

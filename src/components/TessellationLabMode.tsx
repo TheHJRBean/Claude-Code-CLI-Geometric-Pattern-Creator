@@ -29,7 +29,7 @@ import { activeCell } from '../editor/active'
 import { useEditorHistory } from '../editor/useEditorHistory'
 import { FigureControls } from './strands/FigureControls'
 import { broadcastFigureAction } from '../state/figureBroadcast'
-import { linkStrokeAction, type StrokeLinkContext } from '../state/strokeLink'
+import { copyStrokeDesign, linkStrokeAction, type StrokeCopyDirection, type StrokeLinkContext } from '../state/strokeLink'
 import { pushRecentColour } from './ColourPicker'
 import { SectionTitle, FieldLabel } from './lab/labShared'
 import { StrandStyleControls } from './ui/StrandStyleControls'
@@ -118,6 +118,11 @@ export function TessellationLabMode({
   const strokeLinkRef = useRef<{ enabled: boolean; ctx: StrokeLinkContext }>(
     { enabled: false, ctx: { frame: null, frameAction: 'SET_FRAME' } },
   )
+  // The strand as it stands, for the one-shot copy. Same ref reasoning; also
+  // the copy must read the CURRENT design, not one captured when the button
+  // was rendered.
+  const strandRef = useRef(config.strand)
+  strandRef.current = config.strand
 
   // Step 17.9 — wrap dispatch so Design-Phase Builder mutations push undo
   // snapshots. All Lab-side dispatches must use this `dispatch`; bypassing
@@ -161,6 +166,15 @@ export function TessellationLabMode({
       for (const b of linkStrokeAction(a, link.enabled, link.ctx)) historyDispatch(b)
     }
   }, [historyDispatch, presetId])
+
+  // One-shot copy in a named direction. The live link only fires on an edit,
+  // so it can keep the two strokes in step but never seed one from the other
+  // — see `copyStrokeDesign`.
+  const copyStroke = useCallback((direction: StrokeCopyDirection) => {
+    for (const a of copyStrokeDesign(direction, strokeLinkRef.current.ctx, strandRef.current)) {
+      dispatch(a)
+    }
+  }, [dispatch])
 
   // Cmd/Ctrl+Z and Cmd/Ctrl+Shift+Z (or Ctrl+Y) drive undo / redo. Listener
   // is mounted only while Lab is active since the component unmounts on
@@ -746,7 +760,7 @@ export function TessellationLabMode({
             <SectionTitle open={isOpen('editor')} onToggle={() => toggleSection('editor')}>Editor</SectionTitle>
             {isOpen('editor') && (config.tiling.type === 'editor' && config.editor ? (
               <EditorDesignControls
-                strokeLink={{ enabled: strokeLinked, onChange: setStrokeLinked }}
+                strokeLink={{ enabled: strokeLinked, onChange: setStrokeLinked, onCopy: copyStroke }}
                 config={config}
                 editor={config.editor}
                 dispatch={dispatch}
@@ -849,7 +863,7 @@ export function TessellationLabMode({
                   // without it the two buttons below read as the only thing to
                   // do here, and either one DISCARDS the loaded pattern.
                   <LegacySubstrateControls
-                    strokeLink={{ enabled: strokeLinked, onChange: setStrokeLinked }}
+                    strokeLink={{ enabled: strokeLinked, onChange: setStrokeLinked, onCopy: copyStroke }}
                     config={config}
                     dispatch={dispatch}
                     tilingLabel={def.label}
@@ -1177,6 +1191,7 @@ export function TessellationLabMode({
                   strokeLink={{
                     enabled: strokeLinked,
                     onChange: setStrokeLinked,
+                    onCopy: copyStroke,
                     // The link needs a border to write to. Offering the toggle
                     // with no Frame would be a control that silently does half
                     // of what it says.

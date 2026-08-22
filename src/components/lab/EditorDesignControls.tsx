@@ -10,6 +10,7 @@ import type { Vec2 } from '../../utils/math'
 import { FieldLabel, HistoryButtonRow, segmentedButtonStyle } from './labShared'
 import { hasDecoration } from '../../decoration/store'
 import { CompositionPanel } from './CompositionPanel'
+import type { StrokeLinkControls } from '../ui/StrandStyleControls'
 import { DecorationPanel } from './DecorationPanel'
 import { patchSeedBBox } from './decorationSeedBox'
 import { FramePanel } from './FramePanel'
@@ -56,7 +57,7 @@ export interface EditorDesignControlsProps {
   onSetDecorationColor: (c: string) => void
   /** **Link stroke design** (`state/strokeLink.ts`) — passed through to the
    *  Decoration panel's Frame border block. */
-  strokeLink?: { enabled: boolean; onChange: (v: boolean) => void }
+  strokeLink?: StrokeLinkControls
   paintTarget: PaintTarget
   onSetPaintTarget: (t: PaintTarget) => void
   voidScope: VoidPaintScope

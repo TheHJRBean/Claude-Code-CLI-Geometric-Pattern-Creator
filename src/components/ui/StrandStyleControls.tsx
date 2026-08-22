@@ -1,6 +1,7 @@
 import type { PatternConfig } from '../../types/pattern'
 import { STROKE_WIDTH_MAX, STROKE_WIDTH_MIN, STROKE_WIDTH_STEP } from '../../rendering/strandStyle'
 import type { Action } from '../../state/actions'
+import type { StrokeCopyDirection } from '../../state/strokeLink'
 import { FieldLabel } from './FieldLabel'
 import { StrokeFillControls } from './StrokeFillControls'
 import { LineStyleControls } from './LineStyleControls'
@@ -18,7 +19,7 @@ export function StrandStyleControls({ strand, dispatch, strokeLink }: {
   dispatch: React.Dispatch<Action>
   /** **Link stroke design** (`state/strokeLink.ts`). Absent ⇒ no toggle, which
    *  is right anywhere there is no Frame border to link to. */
-  strokeLink?: { enabled: boolean; onChange: (v: boolean) => void; available: boolean }
+  strokeLink?: StrokeLinkControls & { available: boolean }
 }) {
   const weave = strand.weave ?? false
   return (
@@ -99,16 +100,52 @@ export function StrandStyleControls({ strand, dispatch, strokeLink }: {
  * versa" is only discoverable if you can find the switch from whichever side
  * you are editing. One session-state flag behind both.
  */
-export function StrokeLinkToggle({ enabled, onChange }: {
+export function StrokeLinkToggle({ enabled, onChange, onCopy }: StrokeLinkControls) {
+  return (
+    <>
+      <Toggle
+        checked={enabled}
+        onChange={onChange}
+        label="Link stroke design to Frame border"
+        title="Divisions, line/gap ratio and the gap and line colours are kept the same on the Strands and the Frame border, edited from either. Width and the base colour stay separate — a border runs far wider than the line work it surrounds, and the Strand colour is the Decoration phase's."
+      />
+      {/* The link cannot SEED either side from the other: it only fires on an
+          edit, so with it on the only way to make the Strands wear the
+          border's design is to edit the Strands — which pushes theirs onto
+          the border and destroys what you wanted to copy. Direction has to be
+          a control, so here it is, and it works with the link off too. */}
+      <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+        <button
+          onClick={() => onCopy('strand-to-border')}
+          style={copyButtonStyle}
+          title="Give the Frame border the Strands' current divisions, ratio and band colours. Its width and base colour are left alone."
+        >
+          Copy to border
+        </button>
+        <button
+          onClick={() => onCopy('border-to-strand')}
+          style={copyButtonStyle}
+          title="Give the Strands the Frame border's current divisions, ratio and band colours. Their width and base colour are left alone."
+        >
+          Copy to strands
+        </button>
+      </div>
+    </>
+  )
+}
+
+/** The link's controls: the live toggle plus a one-shot copy in either
+ *  direction (`state/strokeLink.ts`). */
+export interface StrokeLinkControls {
   enabled: boolean
   onChange: (v: boolean) => void
-}) {
-  return (
-    <Toggle
-      checked={enabled}
-      onChange={onChange}
-      label="Link stroke design to Frame border"
-      title="Divisions, line/gap ratio and the gap and line colours are kept the same on the Strands and the Frame border, edited from either. Width and the base colour stay separate — a border runs far wider than the line work it surrounds, and the Strand colour is the Decoration phase's."
-    />
-  )
+  onCopy: (direction: StrokeCopyDirection) => void
+}
+
+const copyButtonStyle: React.CSSProperties = {
+  flex: 1,
+  fontFamily: 'var(--font-body)', fontSize: 'var(--fs-label)',
+  padding: '4px 8px', cursor: 'pointer',
+  background: 'transparent',
+  border: '1px solid var(--border-subtle)', color: 'var(--text-muted)',
 }

@@ -115,6 +115,43 @@ export function linkStrokeAction(
   return [action]
 }
 
+/** Which way a one-shot copy runs. */
+export type StrokeCopyDirection = 'strand-to-border' | 'border-to-strand'
+
+/**
+ * **Copy the stroke design once, in a named direction.**
+ *
+ * The live link keeps two strokes in step but cannot *seed* either from the
+ * other: it only fires on an edit, so with the link on the only way to make
+ * the Strands wear the border's design is to edit the Strands — which pushes
+ * the Strand design onto the border and destroys the very thing you wanted to
+ * copy. The link is symmetric and still leaves one direction unreachable,
+ * which is what "I can only copy the strand stroke to the frame, not the other
+ * way around" describes.
+ *
+ * So direction is a control, not an inference. These buttons work whether or
+ * not the link is on, and copy exactly `STROKE_DESIGN_KEYS` — the same fields,
+ * so a copy and a linked edit can never disagree about what "the design" is.
+ *
+ * Returns `[]` when there is nothing to copy to (no Frame, or a Frame whose
+ * border stroke was never enabled).
+ */
+export function copyStrokeDesign(
+  direction: StrokeCopyDirection,
+  ctx: StrokeLinkContext,
+  strand: Partial<StrandStyle>,
+): Action[] {
+  const stroke = ctx.frame?.stroke
+  if (!ctx.frame || !stroke) return []
+  if (direction === 'strand-to-border') {
+    return [{
+      type: ctx.frameAction,
+      payload: { ...ctx.frame, stroke: { ...stroke, ...pickStrokeDesign(strand) } },
+    } as Action]
+  }
+  return [{ type: 'SET_STRAND_STYLE', payload: pickStrokeDesign(stroke) } as Action]
+}
+
 /** Exposed for bug capture: would this action fan out under the link? */
 export function isLinkableStrokeAction(action: Action): boolean {
   return action.type === 'SET_STRAND_STYLE'

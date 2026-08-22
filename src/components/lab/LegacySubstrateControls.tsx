@@ -9,6 +9,7 @@ import type { WorldBounds } from '../../editor/guides'
 import { frameOutlinePolygon } from '../../editor/frame'
 import { hasDecoration, patternDecoration } from '../../decoration/store'
 import { FieldLabel, HistoryButtonRow, segmentedButtonStyle } from './labShared'
+import type { StrokeLinkControls } from '../ui/StrandStyleControls'
 import { DecorationPanel } from './DecorationPanel'
 import { FramePanel } from './FramePanel'
 
@@ -61,7 +62,7 @@ interface Props {
   onSetDecorationColor: (c: string) => void
   /** **Link stroke design** (`state/strokeLink.ts`) — passed through to the
    *  Decoration panel's Frame border block. */
-  strokeLink?: { enabled: boolean; onChange: (v: boolean) => void }
+  strokeLink?: StrokeLinkControls
   paintTarget: PaintTarget
   onSetPaintTarget: (t: PaintTarget) => void
   voidScope: VoidPaintScope

@@ -13,7 +13,7 @@ import { buildVoidMergeRecord, canCombine } from '../../decoration/voidMerge'
 import { ColourPicker, pushRecentColour } from '../ColourPicker'
 import { STROKE_WIDTH_MAX, STROKE_WIDTH_MIN, STROKE_WIDTH_STEP } from '../../rendering/strandStyle'
 import { StrokeFillControls } from '../ui/StrokeFillControls'
-import { StrokeLinkToggle } from '../ui/StrandStyleControls'
+import { StrokeLinkToggle, type StrokeLinkControls } from '../ui/StrandStyleControls'
 import { LineStyleControls } from '../ui/LineStyleControls'
 import { FieldLabel, segmentedButtonStyle } from './labShared'
 import { StampFocusEditor } from './StampFocusEditor'
@@ -127,7 +127,7 @@ interface DecorationPanelProps {
   /** **Link stroke design** (`state/strokeLink.ts`) — the same session flag the
    *  Strand controls show, surfaced here so the link is reachable from the end
    *  you happen to be editing. Absent ⇒ no toggle. */
-  strokeLink?: { enabled: boolean; onChange: (v: boolean) => void }
+  strokeLink?: StrokeLinkControls
   /** World bbox anchoring a freshly seeded gradient — the Frame outline, the
    *  Patch's content, or the visible field. Null ⇒ nothing to span, and the
    *  gradient toggles stay inert. */

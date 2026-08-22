@@ -373,11 +373,31 @@ divisions when the ceiling that actually bit was the width one.
   substrate's own (`SET_FRAME` for a Patch, `SET_GALLERY_FRAME` for a legacy
   substrate) or it writes a Frame nothing reads. The toggle renders at both
   ends, since "vice versa" is only discoverable from the side you are editing.
+- **The link is symmetric and still leaves one direction unreachable, which is
+  why `copyStrokeDesign` exists.** It fires only on an *edit*, so it can keep
+  two strokes in step but never seed one from the other: with the link on, the
+  only way to make the Strands wear the border's design is to edit the
+  Strands — which pushes theirs onto the border and destroys the thing being
+  copied. Reported as "I can only copy strand stroke to the frame but not the
+  other way around". Direction is therefore a control (**Copy to border** /
+  **Copy to strands**, working with the link off too) over the same
+  `STROKE_DESIGN_KEYS`, so a copy and a linked edit cannot disagree about what
+  "the design" is.
 - Persistence for every field above goes through **`readLineStyleFields`**,
   which both load paths already share (`state/configValidation.ts` and
   `editor/migrations.ts`) — add a stroke field there and both substrates read it.
-- Verify: `scripts/verify/strokeBandFills.mjs`, `borderLineFills.mjs`,
-  `strokeLink.mjs`, `lineDivisions.mjs`, `gapFillsAndBorder.mjs`.
+- **Band stacks are BAND-major, never piece-major.** A ring's stroke is as wide
+  as everything inside it, so looping pieces-outer lets the next Strand's ring 0
+  paint over the inner rings of every Strand it crosses — banding intact along
+  a Strand, blotched in the outermost colour at each junction. `maskBands`,
+  `gapMaskBands`, `gapFills` and `lineFills` all loop band-outer for this
+  reason. **One piece cannot show it**, and one piece is exactly what the
+  periodic fast path renders, so a verify run on a plain Composition passes
+  while every real field is wrong — drive a Frame completion (or a Morph, or a
+  Combine) to get `inkPaths > 1` first.
+- Verify: `scripts/verify/strokeBandFills.mjs` (multi-piece; pins the band-major
+  order), `borderLineFills.mjs`, `strokeLink.mjs` (asserts on the canvas, not
+  the panel sliders), `lineDivisions.mjs`, `gapFillsAndBorder.mjs`.
 
 ### Generator (`src/generator/`)
 

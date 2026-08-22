@@ -58,6 +58,21 @@ const setSlider = async (label, value, after = null) => {
   return { value: Number(got), min, max }
 }
 
+// A Frame with boundary treatment "complete" mints world-space tiles, which
+// disqualifies the periodic fast path — so the layer draws one piece per
+// Strand instead of a single base fragment.
+//
+// This matters more than it looks. On the fast path there is exactly ONE ink
+// piece, and with one piece a piece-major and a band-major ring stack render
+// identically. The first version of this script ran on a plain Composition,
+// measured `inkPaths: 1`, and passed while every crossing on a real field was
+// being blotched with the outermost ring colour.
+const design0 = await page.$('button:has-text("Design")')
+if (design0) { await design0.click(); await page.waitForTimeout(900) }
+const addFrame = await page.$('button:has-text("+ Shape Frame")')
+if (addFrame) { await addFrame.scrollIntoViewIfNeeded(); await addFrame.click(); await page.waitForTimeout(1000) }
+const completeBtn = await page.$('button:has-text("Complete")')
+if (completeBtn) { await completeBtn.scrollIntoViewIfNeeded(); await completeBtn.click(); await page.waitForTimeout(1200) }
 const comp = await page.$('button:has-text("Composition")')
 if (comp) { await comp.click(); await page.waitForTimeout(900) }
 
@@ -94,6 +109,22 @@ console.log('LINE RINGS match', JSON.stringify(matching))
 console.log('RING COVER      ', matching.distinctWidths === 3
   ? 'PASS — all 3 line rings of a 5-line stroke are drawn'
   : `FAIL — ${matching.distinctWidths} distinct ring widths, expected 3`)
+
+// ── 2b. The ring stack is BAND-major, across every piece ────────────────────
+// A ring's stroke is as wide as everything inside it, so a piece-major loop
+// lets the next Strand's ring 0 paint over the inner rings of every Strand it
+// crosses. Read the DOM order as ring indices: band-major is 0,0,…,1,1,…
+const order = await page.evaluate(() => {
+  const rings = [...document.querySelectorAll('#strand-layer path[data-band="line-ring"]')]
+  const widths = [...new Set(rings.map(r => Number(r.getAttribute('stroke-width'))))].sort((a, c) => c - a)
+  const ink = document.querySelectorAll('#strand-layer g[mask] > path:not([data-band])').length
+  return { ink, seq: rings.map(r => widths.indexOf(Number(r.getAttribute('stroke-width')))) }
+})
+const nonDecreasing = order.seq.every((v, i) => i === 0 || v >= order.seq[i - 1])
+console.log('RING ORDER      ', order.ink > 1 && nonDecreasing
+  ? `PASS — band-major across ${order.ink} pieces (${order.seq.slice(0, 8).join(',')}…)`
+  : `FAIL — ${order.ink} piece(s), order ${order.seq.slice(0, 12).join(',')}`)
+if (order.ink <= 1) console.log('                  (one piece cannot show this — the fast path is still on)')
 
 // ── 3. Individual grain on a Strand ─────────────────────────────────────────
 const indiv = await page.$$('button:has-text("Individual")')

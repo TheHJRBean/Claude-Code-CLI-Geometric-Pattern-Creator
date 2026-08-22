@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Action } from './actions'
 import type { FrameConfig } from '../types/editor'
-import { linkStrokeAction, pickStrokeDesign, STROKE_DESIGN_KEYS } from './strokeLink'
+import { copyStrokeDesign, linkStrokeAction, pickStrokeDesign, STROKE_DESIGN_KEYS } from './strokeLink'
 
 const frame = (stroke?: FrameConfig['stroke']): FrameConfig => ({
   shape: 'square', size: 400, aspect: 1, rotation: 0, stroke,
@@ -103,5 +103,55 @@ describe('linkStrokeAction', () => {
     for (const k of STROKE_DESIGN_KEYS) {
       expect(fromBorder.payload[k]).toEqual(full[k])
     }
+  })
+})
+
+describe('copyStrokeDesign', () => {
+  const strand = {
+    width: 4, color: '#1a1a2e', background: '#f5f0e8',
+    lineStyle: 'lines' as const, lineCount: 20, styleRatio: 1.5,
+    lineFillMode: 'matching' as const, lineFills: ['#aaaaaa', '#bbbbbb'],
+  }
+
+  it('seeds the border from the Strands without touching its width or colour', () => {
+    const out = copyStrokeDesign('strand-to-border', ctx, strand)
+    expect(out).toHaveLength(1)
+    const { type, payload } = out[0] as { type: string; payload: FrameConfig }
+    expect(type).toBe('SET_FRAME')
+    expect(payload.stroke).toMatchObject({ lineCount: 20, styleRatio: 1.5, lineFillMode: 'matching' })
+    expect(payload.stroke!.width).toBe(40)
+    expect(payload.stroke!.colour).toBe('#111111')
+  })
+
+  it('seeds the Strands from the border — the direction the live link cannot reach', () => {
+    // The link only fires on an edit, so with it on the only way to make the
+    // Strands match the border was to edit the Strands, which pushes THEIR
+    // design onto the border and destroys the one being copied.
+    const out = copyStrokeDesign('border-to-strand', ctx, strand)
+    expect(out).toEqual([{ type: 'SET_STRAND_STYLE', payload: pickStrokeDesign(bordered.stroke) }])
+    // Width and base colour are not design keys, so they cannot ride along.
+    const payload = (out[0] as { payload: Record<string, unknown> }).payload
+    expect(payload.width).toBeUndefined()
+    expect(payload.color).toBeUndefined()
+    expect(payload.colour).toBeUndefined()
+  })
+
+  it('copies exactly what the live link copies', () => {
+    // A copy and a linked edit disagreeing about what "the design" is would
+    // be the worst kind of bug here — silent, and only visible on one field.
+    const copied = (copyStrokeDesign('border-to-strand', ctx, strand)[0] as { payload: object }).payload
+    const linked = linkStrokeAction(
+      { type: 'SET_FRAME', payload: frame({ ...bordered.stroke!, lineCount: 7 }) } as Action, true, ctx,
+    )[1] as { payload: object }
+    expect(Object.keys(copied).sort()).toEqual(Object.keys(linked.payload).sort())
+  })
+
+  it('has nothing to copy without a border', () => {
+    expect(copyStrokeDesign('strand-to-border', { frame: null, frameAction: 'SET_FRAME' }, strand)).toEqual([])
+    expect(copyStrokeDesign('border-to-strand', { frame: frame(undefined), frameAction: 'SET_FRAME' }, strand)).toEqual([])
+  })
+
+  it('works regardless of the link toggle — it takes no `enabled`', () => {
+    expect(copyStrokeDesign('border-to-strand', ctx, strand)).toHaveLength(1)
   })
 })

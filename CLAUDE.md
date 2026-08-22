@@ -25,7 +25,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm run dev      # Start Vite dev server
 npm run build    # Type-check + production build
 npx tsc --noEmit # Type-check only
-npx vitest run   # Run the test suite (~600 tests)
+npx vitest run   # Run the test suite (~1,900 tests across 115 files)
 ```
 
 ## Git workflow
@@ -127,7 +127,7 @@ Key bits:
 - `editor/history.ts` + `editor/useEditorHistory.ts` — undo/redo with `DESIGN_MODE_ACTIONS` allowlist, depth 50, 500 ms coalesce keyed on `historyCoalesceKey` (action type + payload `cellId`/`hostCellId`/`guideId`/decoration `key`, so same-control edits on different Cells — or paints on different Void groups — stay separate undo steps). `SET_BUILDER_CONFIGURATION` is in the set. **Decoration (2026-08-04):** every paint action is on the allowlist (fills, strand colours, Stamps, all three gradients, `COMBINE_VOIDS` / `SEPARATE_VOIDS`, `CLEAR_DECORATION`), and a snapshot is a **pair** — `HistorySnapshot = { editor, decoration }` — because decoration has two homes (`decoration/store.ts`): a Patch's rides inside `EditorConfig`, a legacy substrate's sits at `config.decoration`. `restoreSnapshotActions` owns how one goes back and **omits** `EDITOR_RESTORE_SNAPSHOT` when there is no Patch on either side (that action with a `null` payload *clears the Lab*, which used to blank a painted preset on the first Ctrl+Z); the paired `RESTORE_DECORATION_SNAPSHOT` writes the legacy home only and is inert while a Patch is loaded. UI: the sidebar's Undo/Redo row (`labShared.tsx::HistoryButtonRow`) is shared by both substrates and carries a third **Clear paint** button in the Decoration Phase (`CLEAR_DECORATION`, confirm-guarded, disabled via `hasDecoration`) — deliberately NOT labelled "Clear", which in Design wipes the whole Patch.
 - `usePattern` accepts `editorStrandMode`, `showBoundaryLattice`, `editorNeighbourPreview`, `editorNeighbourBoundaries`, `editorNeighbourStrands`. Branches once on `patch.cells.length > 1` for the Builder branch — multi-cell uses `compositionToPolygons` + `compositionLatticeStamps` + `compositionBoundaryOutlines`. Surfaces `seedOutlineCount` (first N entries of `boundaryOutlines` are seed Cells, rest are ghosts) and `ghostPolygonIds` (Set used by `StrandLayer` to split each Strand into seed/ghost runs and fade the ghost portion).
 
-**Flexible placement (2026-06-01).** Design-Phase Place mode no longer hard-scopes the picker. All three flows (edge / boundary-section / vertex) show **every** `PICKER_SIDES` size; clean sizes commit directly, sizes that would overlap an existing Tile (or, under symmetry, an orbit sibling) are badged ⚠ and route through `OverlapConfirmModal` — a **local popover** (anchored at the picker, Complete-mode Art-Deco styling) whose "Accept" commits with `force: true`. The three placement actions + reducer + all three orbit placers (`placeTilesOnOrbit` / `placeTilesOnVertexOrbit` / `placeTilesOnBoundarySectionOrbit`) take a `force` flag that skips the overlap gate but keeps structural resolution. Overlap detection is the shared edge-cross `overlapsExisting` (`tileOverlap.ts`) across all flows, so symmetry orbit-mate collisions are caught accurately. The `viableSidesFor*` exports are now the **clean** set (used to decide which sizes badge), not a filter. Mirrors the multi-vertex Complete `force` pattern. Canonical memo: `memory/project_flexible_placement_idea.md`.
+**Flexible placement (2026-06-01).** Design-Phase Place mode no longer hard-scopes the picker. All three flows (edge / boundary-section / vertex) show **every** `PICKER_SIDES` size; clean sizes commit directly, sizes that would overlap an existing Tile (or, under symmetry, an orbit sibling) are badged ⚠ and route through `OverlapConfirmModal` — a **local popover** (anchored at the picker, Complete-mode Art-Deco styling) whose "Accept" commits with `force: true`. The three placement actions + reducer + all three orbit placers (`placeTilesOnOrbit` / `placeTilesOnVertexOrbit` / `placeTilesOnBoundarySectionOrbit`) take a `force` flag that skips the overlap gate but keeps structural resolution. Overlap detection is the shared edge-cross `overlapsExisting` (`tileOverlap.ts`) across all flows, so symmetry orbit-mate collisions are caught accurately. The `viableSidesFor*` exports are now the **clean** set (used to decide which sizes badge), not a filter. Mirrors the multi-vertex Complete `force` pattern.
 
 **Freeform (CONTEXT: Freeform).** A Patch-level flag that turns the Patch from a repeat unit into a one-off drawing. It switches off the **Lattice** (above) and the **Boundary** as an authoring surface together — the outline isn't drawn (`usePattern` returns no `boundaryOutlines`, and refuses `showBoundaryLattice`, which is session state that survives the flip), boundary sections and corners leave the pickers, and `computeExposedVertices(cell, { ignoreBoundary })` stops clipping a corner's open sector to the Boundary's inward wedge. That last one is the half that is easy to miss: withdrawing the *dots* still leaves the picker refusing placements at corners on the invisible outline, for a reason nothing on screen explains — so the Canvas, the reducer's `EDITOR_PLACE_TILE_ON_VERTEX` validator and `placeTilesOnVertexOrbit` all take the same option, or the canvas offers a placement the reducer then drops.
 
@@ -310,6 +310,54 @@ after areas and lines.
 - **v1 is solid Strands only** (`junctionOrnamentsSupported`) — one predicate
   shared by the renderer and the panel, so the control and what it produces
   can't disagree. Verify: `scripts/verify/junctionOrnaments.mjs`.
+
+### Generator (`src/generator/`)
+
+The third top-level workspace beside Gallery and Lab (`AppMode` in
+`types/appMode.ts`; ADR-0007). It samples patterns for the user to rate, and
+learns from the ratings.
+
+- `randomPattern.ts` — the v1 sampler: seeded RNG → a complete, renderable
+  `PatternConfig` over the shipped Gallery tilings. Only the *look* is
+  randomised; colour/background are frozen and Frame is absent so a rating
+  measures geometry taste. **Determinism contract:** `(seed, GENERATOR_VERSION)`
+  always reproduces the same config, so **any** change to `SAMPLER_TUNING` or
+  the sampling logic MUST bump `GENERATOR_VERSION` (currently 2).
+- `datasetStore.ts` — its **own** IndexedDB database (`geometric-atlas-generator`),
+  separate from the thumbnail and bug-report stores: this is durable taste data,
+  not a disposable cache. Fails soft on every path. Its version is bumped for
+  rating-*shape* changes, independently of the sampler version.
+- `features.ts` / `preprocess.ts` / `tasteModel.ts` — in-browser ridge regression
+  over ~30 extracted features, retrained from IndexedDB every time the Generator
+  opens (no persisted weights — the closed-form solve is instant at this size).
+  Scores are centred **per era** so the user's hardening grading doesn't poison
+  old rows; the headline CV metric pools **random-sourced rows only**, because
+  guided rows are best-of-K by an earlier model and would flatter it.
+- `guidedPattern.ts` — best-of-K over the random sampler, scored by the taste
+  model with a UCB exploration term. Guided is a source *option* beside Random,
+  never a replacement: every candidate is a legitimate sample whose seed
+  reproduces it. Exploration lives here, not in the sampler — widening
+  `SAMPLER_TUNING` would change the rated universe instead of the model's
+  curiosity.
+
+### Export (`src/export/`)
+
+SVG / PNG / JSON output for both substrates.
+
+- `exportSVG.ts` — serialises the live canvas. **CSS custom properties must be
+  inlined** (`inlineCssVariables` / `substituteCssVariables`): a cloned
+  standalone SVG loses the document cascade, so `stroke="var(--accent)"` would
+  export colourless. The substitution scans with a paren-depth counter — a regex
+  can't find a `var()`'s own closing paren when the fallback is itself a
+  function.
+- Anything that must not appear in an export is wrapped in
+  `data-export="exclude"` inside `PatternSVG` (editor overlays, Guides layer).
+  Exclusion is **structural**, not a per-feature flag.
+- `exportActions.ts` — the export menu model (`ExportMenuItem`: action / submenu
+  / toggle), incl. PNG resolutions, transparent background and Max-fill.
+- `stampAssets.ts` — Void **Stamp** asset I/O: the shape-canvas export is
+  EXACTLY the Void's canonical bounding box with no padding, so a design made on
+  it cover-fits back pixel-true on re-import.
 
 ### Bug capture (`src/bugreport/`)
 

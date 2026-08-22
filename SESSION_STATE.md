@@ -4,6 +4,36 @@
 
 ## ▶ RESUME HERE
 
+> **2026-08-22 — Large PNG exports came out blank (Max-fill, 8192 px).**
+> **Fixed + browser-measured. `src/export/exportSVG.ts`.**
+>
+> A `<canvas>` past the browser's budget does **not** throw: it allocates, the
+> context accepts every call, every draw is dropped, and the export saves a
+> blank PNG with nothing in the console. Max-fill takes the raster height from
+> the content's own aspect, so `8192 px` + Max-fill is the biggest raster the
+> menu can ask for and the first to cross the line.
+>
+> Measured headless (4.8.8, Composition): at 8192 × 32800 (269M px, past
+> Chrome's 2^28 area cap) the old path sampled **100% transparent** — even the
+> background `fillRect` was dropped. Fitted + probed it lands at 8183 × 32767
+> with 9% ink. In-budget sizes are byte-identical to before (1024/2048/4096/
+> 8192, Max-fill on and off).
+>
+> `fittedRasterSize` (pure, tested) scales the request inside the published
+> ceilings — `MAX_RASTER_DIMENSION` 32767, `MAX_RASTER_AREA` 2^28 — and
+> `allocateRasterCanvas` then **probes** each candidate by writing a pixel and
+> reading it back, halving the area on failure: the published limits differ per
+> engine and the real budget also depends on free memory, so they are a
+> starting point, not the answer. The SVG is decoded at whatever size the
+> canvas settled on. A reduced export logs a `console.warn` (so a bug capture
+> records it) — a smaller PNG beats a blank one.
+>
+> **Not reproduced at a normal aspect**: 8192 px Max-fill on 4.8.8 is
+> 8192 × 6851 and has always drawn. If the user's blank was at ~4:3, the cause
+> is a lower real budget (memory pressure / another engine), which the probe
+> now catches; if it persists, get a bug capture and check the warn line.
+
+
 > **2026-08-22 — Stroke bands round: gradient pose fix + per-line colours + link.**
 > **All four shipped + two follow-up fixes from a bug capture. Browser-verified,
 > 1924 tests green.**

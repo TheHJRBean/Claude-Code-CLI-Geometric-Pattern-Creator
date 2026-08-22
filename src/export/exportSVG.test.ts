@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { unwovenSvgMarkup, substituteCssVariables, stripExportExclusions, boundsFromPointsAttr, padContentBounds, insertBackgroundRect } from './exportSVG'
+import { unwovenSvgMarkup, substituteCssVariables, stripExportExclusions, boundsFromPointsAttr, padContentBounds, insertBackgroundRect, fittedRasterSize, MAX_RASTER_AREA, MAX_RASTER_DIMENSION } from './exportSVG'
 import type { Segment } from '../types/geometry'
 
 // Pin the pure "unwoven" SVG markup builder extracted from exportUnwovenSVG:
@@ -257,5 +257,42 @@ describe('insertBackgroundRect', () => {
   it('ignores a malformed or degenerate viewBox and covers the viewport instead', () => {
     expect(insertBackgroundRect(svg('viewBox="0 0 nope 10"'), '#fff')).toContain('width="100%"')
     expect(insertBackgroundRect(svg('viewBox="0 0 0 10"'), '#fff')).toContain('width="100%"')
+  })
+})
+
+// A canvas over the browser's budget does not throw — it silently drops every
+// draw and the export saves a blank PNG. `fittedRasterSize` is the policy that
+// keeps the request inside the published ceilings before that can happen; the
+// runtime probe in `allocateRasterCanvas` handles engines whose real budget is
+// lower still.
+describe('fittedRasterSize', () => {
+  it('leaves a size that already fits alone', () => {
+    expect(fittedRasterSize(8192, 6851)).toEqual({ width: 8192, height: 6851 })
+  })
+
+  it('scales an over-area request down, aspect preserved', () => {
+    // 8192 × 40960 = 335M px, past Chrome's 2^28 area cap — exactly the shape
+    // a Max-fill export of a tall, narrow pattern asks for.
+    const fitted = fittedRasterSize(8192, 40960)
+    expect(fitted.width * fitted.height).toBeLessThanOrEqual(MAX_RASTER_AREA)
+    expect(fitted.height / fitted.width).toBeCloseTo(5, 2)
+  })
+
+  it('caps a single over-long dimension even when the area fits', () => {
+    const fitted = fittedRasterSize(100, 60000)
+    expect(fitted.height).toBeLessThanOrEqual(MAX_RASTER_DIMENSION)
+    // Flooring a 54 px width costs a little aspect precision; 2% is the bar.
+    expect(Math.abs((fitted.height / fitted.width) / 600 - 1)).toBeLessThan(0.02)
+  })
+
+  it('halves the area on request — the retry step after a failed probe', () => {
+    const fitted = fittedRasterSize(8192, 8192, { maxArea: (8192 * 8192) / 2 })
+    expect(fitted.width).toBe(5792)
+    expect(fitted.height).toBe(5792)
+  })
+
+  it('never returns a zero dimension', () => {
+    expect(fittedRasterSize(0, 0)).toEqual({ width: 1, height: 1 })
+    expect(fittedRasterSize(1, 1_000_000).width).toBeGreaterThanOrEqual(1)
   })
 })

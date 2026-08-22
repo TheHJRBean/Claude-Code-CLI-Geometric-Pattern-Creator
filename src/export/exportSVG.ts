@@ -365,16 +365,90 @@ export interface PngExportOptions {
   name?: string | null
 }
 
+/** Ceilings a browser puts on a `<canvas>` backing store. Over either one the
+ *  allocation does NOT throw: the canvas exists, every draw against it is
+ *  silently dropped, and the export saves a perfectly blank PNG — which is the
+ *  8192 px Max-fill symptom (Max-fill picks the height from the content's own
+ *  aspect, so it is the biggest raster the menu can ask for). 32767 is the
+ *  smallest max-dimension in the field; 2^28 px is Chrome's max area — Firefox
+ *  caps area lower still, which the runtime probe below catches. */
+export const MAX_RASTER_DIMENSION = 32767
+export const MAX_RASTER_AREA = 268_435_456
+
+/** Scale `width`×`height` down — aspect preserved — until it is inside both
+ *  ceilings. Pure, so the policy is testable without a DOM. */
+export function fittedRasterSize(
+  width: number,
+  height: number,
+  { maxDimension = MAX_RASTER_DIMENSION, maxArea = MAX_RASTER_AREA }: { maxDimension?: number; maxArea?: number } = {},
+): { width: number; height: number } {
+  const w0 = Math.max(1, Math.floor(width))
+  const h0 = Math.max(1, Math.floor(height))
+  const scale = Math.min(1, maxDimension / w0, maxDimension / h0, Math.sqrt(maxArea / (w0 * h0)))
+  if (!(scale < 1)) return { width: w0, height: h0 }
+  return { width: Math.max(1, Math.floor(w0 * scale)), height: Math.max(1, Math.floor(h0 * scale)) }
+}
+
+/** Does this context actually paint? A canvas past the browser's budget still
+ *  hands back a 2D context and accepts every call — so the only honest test is
+ *  to write a pixel and read it back. */
+function canvasPaints(ctx: CanvasRenderingContext2D): boolean {
+  try {
+    ctx.fillStyle = '#ff0000'
+    ctx.fillRect(0, 0, 1, 1)
+    const d = ctx.getImageData(0, 0, 1, 1).data
+    ctx.clearRect(0, 0, 1, 1)
+    return d[0] === 255 && d[3] === 255
+  } catch {
+    return false
+  }
+}
+
 /**
- * Rasterise a live `<svg>` onto a 2D canvas at the given size, with the same
- * overlay-stripping + CSS-var inlining the file exports use. Shared by
- * `exportPNG` (which downloads it) and the thumbnail renderer (which reads a
- * data URL back off it). Returns null if the SVG can't be loaded as an image.
+ * Allocate the largest canvas at this aspect ratio that the browser will
+ * really draw on, at most the requested size. The published limits are a
+ * starting point, not the answer: they differ per engine and the real budget
+ * also depends on how much memory the tab has left, so each candidate size is
+ * probed and the area halved on failure rather than trusted.
+ *
+ * Returns the canvas WITH the size it settled on — a smaller PNG than asked
+ * for is a far better export than a blank one at full size.
  */
-export async function rasterizeSvgToCanvas(
+function allocateRasterCanvas(
+  width: number,
+  height: number,
+): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; width: number; height: number } | null {
+  let { width: w, height: h } = fittedRasterSize(width, height)
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d')
+    if (ctx && canvasPaints(ctx)) {
+      if (w !== Math.floor(width) || h !== Math.floor(height)) {
+        console.warn(`Export raster reduced from ${Math.floor(width)}×${Math.floor(height)} to ${w}×${h} — the browser would not paint a canvas that large.`)
+      }
+      return { canvas, ctx, width: w, height: h }
+    }
+    const next = fittedRasterSize(w, h, { maxArea: (w * h) / 2 })
+    if (next.width === w && next.height === h) break
+    w = next.width
+    h = next.height
+  }
+  console.error('Export failed: no usable canvas at any size.')
+  return null
+}
+
+/** Serialise the live `<svg>` (overlays stripped, CSS vars inlined) and decode
+ *  it as an `<img>` at the given raster size. Null when the browser refuses to
+ *  load it — a very large SVG image has its own decode budget, separate from
+ *  the canvas's. */
+async function loadSvgImage(
   svgEl: SVGSVGElement,
-  { width = 2048, height = 2048, background = DEFAULT_PNG_BACKGROUND, viewBox }: PngExportOptions = {},
-): Promise<HTMLCanvasElement | null> {
+  width: number,
+  height: number,
+  viewBox?: ContentBounds,
+): Promise<HTMLImageElement | null> {
   const clone = svgEl.cloneNode(true) as SVGSVGElement
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
   clone.setAttribute('width', String(width))
@@ -383,7 +457,6 @@ export async function rasterizeSvgToCanvas(
   const str = inlineCssVariables(stripExportExclusions(new XMLSerializer().serializeToString(clone)), svgEl)
   const blob = new Blob([str], { type: 'image/svg+xml' })
   const url = URL.createObjectURL(blob)
-
   const img = new Image()
   img.width = width
   img.height = height
@@ -393,23 +466,48 @@ export async function rasterizeSvgToCanvas(
       img.onerror = reject
       img.src = url
     })
+    return img
   } catch {
-    URL.revokeObjectURL(url)
     return null
+  } finally {
+    URL.revokeObjectURL(url)
   }
-  URL.revokeObjectURL(url)
+}
 
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return null
+/**
+ * Rasterise a live `<svg>` onto a 2D canvas at the given size, with the same
+ * overlay-stripping + CSS-var inlining the file exports use. Shared by
+ * `exportPNG` (which downloads it) and the thumbnail renderer (which reads a
+ * data URL back off it). Returns null if the SVG can't be loaded as an image.
+ *
+ * The size is what the browser will honour, not necessarily what was asked
+ * for (`allocateRasterCanvas`), and the SVG is decoded at that same size — an
+ * image bitmap for a canvas the tab can't afford costs the same memory that
+ * made the canvas fail.
+ */
+export async function rasterizeSvgToCanvas(
+  svgEl: SVGSVGElement,
+  { width = 2048, height = 2048, background = DEFAULT_PNG_BACKGROUND, viewBox }: PngExportOptions = {},
+): Promise<HTMLCanvasElement | null> {
+  const target = allocateRasterCanvas(width, height)
+  if (!target) return null
+  const { canvas, ctx } = target
+
+  let img = await loadSvgImage(svgEl, target.width, target.height, viewBox)
+  if (!img) {
+    // The decode has its own budget; half the size is worth one retry before
+    // giving the user nothing.
+    const half = fittedRasterSize(target.width, target.height, { maxArea: (target.width * target.height) / 4 })
+    img = await loadSvgImage(svgEl, half.width, half.height, viewBox)
+    if (!img) return null
+  }
+
   // Skip the fill for a transparent export — a fresh canvas is already clear.
   if (background) {
     ctx.fillStyle = background
-    ctx.fillRect(0, 0, width, height)
+    ctx.fillRect(0, 0, target.width, target.height)
   }
-  ctx.drawImage(img, 0, 0, width, height)
+  ctx.drawImage(img, 0, 0, target.width, target.height)
   return canvas
 }
 

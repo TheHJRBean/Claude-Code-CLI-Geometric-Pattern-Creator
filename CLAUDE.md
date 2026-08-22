@@ -441,6 +441,16 @@ SVG / PNG / JSON output for both substrates.
 - Anything that must not appear in an export is wrapped in
   `data-export="exclude"` inside `PatternSVG` (editor overlays, Guides layer).
   Exclusion is **structural**, not a per-feature flag.
+- **A canvas past the browser's budget doesn't throw** — it allocates, accepts
+  every draw, drops them all, and the export saves a **blank** PNG in silence.
+  So the PNG path never trusts the requested size: `fittedRasterSize` clamps it
+  inside the published ceilings (`MAX_RASTER_DIMENSION` 32767 /
+  `MAX_RASTER_AREA` 2^28) and `allocateRasterCanvas` **probes** each candidate
+  — write a pixel, read it back — halving the area on failure, because the real
+  budget varies by engine and by free memory. Max-fill takes the raster height
+  from the content's own aspect, so it asks for the biggest rasters and hits
+  this first. A reduced export `console.warn`s (bug capture keeps it); a
+  smaller PNG beats a blank one.
 - `exportActions.ts` — the export menu model (`ExportMenuItem`: action / submenu
   / toggle), incl. PNG resolutions, transparent background and Max-fill.
 - `stampAssets.ts` — Void **Stamp** asset I/O: the shape-canvas export is

@@ -11,6 +11,7 @@ import { downloadAllVoidShapeCanvases, downloadVoidShapePNG, downloadVoidShapeSV
 import { canonicalPose, canonicalSelfMirror } from '../../decoration/stamps'
 import { buildVoidMergeRecord, canCombine } from '../../decoration/voidMerge'
 import { ColourPicker, pushRecentColour } from '../ColourPicker'
+import { STROKE_WIDTH_MAX, STROKE_WIDTH_MIN, STROKE_WIDTH_STEP } from '../../rendering/strandStyle'
 import { GapFillControls } from '../ui/GapFillControls'
 import { LineStyleControls } from '../ui/LineStyleControls'
 import { FieldLabel, segmentedButtonStyle } from './labShared'
@@ -477,7 +478,7 @@ export function DecorationPanel({
                 <input
                   type="range"
                   className="pattern-slider"
-                  min={0.5} max={120} step={0.5}
+                  min={STROKE_WIDTH_MIN} max={STROKE_WIDTH_MAX} step={STROKE_WIDTH_STEP}
                   value={stroke.width}
                   onChange={e => setStroke({ ...stroke, width: Number(e.target.value) })}
                 />

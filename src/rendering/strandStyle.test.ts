@@ -9,6 +9,8 @@ import {
   readLineStyleFields,
   ringGapIndices,
   strandStyleAttrs,
+  LINE_COUNT_MAX,
+  LINE_COUNT_MIN,
 } from './strandStyle'
 
 /**
@@ -53,9 +55,9 @@ describe('strandStyleAttrs', () => {
     expect(gaps[0]).toBeCloseTo(1, 9) // half of the 0.5w centre gap
   })
 
-  it('every count from 2 to 10 lays down that many lines filling the width', () => {
+  it('every supported count lays down that many lines filling the width', () => {
     const w = 12
-    for (let n = 2; n <= 10; n++) {
+    for (let n = LINE_COUNT_MIN; n <= LINE_COUNT_MAX; n++) {
       const { line, gap } = lineBandWidths(w, n, 1.4)
       const { ink, gaps } = halfSection(w, strandStyleAttrs('lines', w, 1.4, n).maskBands)
       // Half-section: ceil(n/2) ink runs (the centre one halved when n is odd).
@@ -85,11 +87,14 @@ describe('strandStyleAttrs', () => {
   })
 
   it('clamps out-of-band counts and ratios instead of emitting a degenerate stroke', () => {
-    expect(strandStyleAttrs('lines', 4, 1, 99)).toEqual(strandStyleAttrs('lines', 4, 1, 10))
-    expect(strandStyleAttrs('lines', 4, 1, 0)).toEqual(strandStyleAttrs('lines', 4, 1, 2))
+    expect(strandStyleAttrs('lines', 4, 1, 99)).toEqual(strandStyleAttrs('lines', 4, 1, LINE_COUNT_MAX))
+    expect(strandStyleAttrs('lines', 4, 1, 0)).toEqual(strandStyleAttrs('lines', 4, 1, LINE_COUNT_MIN))
     expect(strandStyleAttrs('lines', 4, 1000, 3)).toEqual(strandStyleAttrs('lines', 4, 4, 3))
     expect(strandStyleAttrs('lines', 4, NaN, 3)).toEqual(strandStyleAttrs('lines', 4, 1, 3))
-    for (const band of strandStyleAttrs('lines', 4, 4, 10).maskBands) {
+    // Every band of the widest supported division count still has positive
+    // width inside the stroke — the ceiling can rise without the mask
+    // collapsing.
+    for (const band of strandStyleAttrs('lines', 4, 4, LINE_COUNT_MAX).maskBands) {
       expect(band).toBeGreaterThan(0)
       expect(band).toBeLessThan(4)
     }

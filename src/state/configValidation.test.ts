@@ -5,6 +5,7 @@ import {
   loadPatternConfig,
   readPatternConfig,
 } from './configValidation'
+import { LINE_COUNT_MAX } from '../rendering/strandStyle'
 
 /**
  * Characterization tests for the load-time validator (Chunk 12). These pin the
@@ -117,7 +118,7 @@ describe('loadPatternConfig — strand / legacy lacing', () => {
       ...minimalRaw(),
       strand: { width: 3, color: '#111', background: '#eee', lineStyle: 'lines', lineCount: 99 },
     })
-    expect(out.strand.lineCount).toBe(10)
+    expect(out.strand.lineCount).toBe(LINE_COUNT_MAX)
   })
 
   it('ignores an unknown lineStyle', () => {

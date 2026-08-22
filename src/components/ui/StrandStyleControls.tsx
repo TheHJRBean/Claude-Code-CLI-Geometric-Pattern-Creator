@@ -1,4 +1,5 @@
 import type { PatternConfig } from '../../types/pattern'
+import { STROKE_WIDTH_MAX, STROKE_WIDTH_MIN, STROKE_WIDTH_STEP } from '../../rendering/strandStyle'
 import type { Action } from '../../state/actions'
 import { FieldLabel } from './FieldLabel'
 import { GapFillControls } from './GapFillControls'
@@ -27,7 +28,7 @@ export function StrandStyleControls({ strand, dispatch }: {
       <input
         type="range"
         className="pattern-slider"
-        min={1} max={20} step={0.5}
+        min={STROKE_WIDTH_MIN} max={STROKE_WIDTH_MAX} step={STROKE_WIDTH_STEP}
         value={strand.width}
         onChange={e => dispatch({ type: 'SET_STRAND_STYLE', payload: { width: Number(e.target.value) } })}
       />

@@ -147,7 +147,21 @@ export function gapCrossSections(
 /** Number of parallel lines a `'lines'` stroke is divided into. */
 export const DEFAULT_LINE_COUNT = 2
 export const LINE_COUNT_MIN = 2
-export const LINE_COUNT_MAX = 10
+export const LINE_COUNT_MAX = 20
+
+/**
+ * **Stroke width band, shared by the Strand and the Frame border.**
+ *
+ * One constant because they are one vocabulary: both resolve through
+ * `strandStyleAttrs`, both carry the same line-style trio, and both offer the
+ * same `LINE_COUNT_MAX` divisions. The two sliders used to be written out
+ * inline and had drifted to 1–20 and 0.5–120, which read as the Strand
+ * supporting fewer divisions than the Frame — at 20 px wide, twenty lines are
+ * a sub-pixel smear, so the ceiling that actually bit was the width one.
+ */
+export const STROKE_WIDTH_MIN = 0.5
+export const STROKE_WIDTH_MAX = 120
+export const STROKE_WIDTH_STEP = 0.5
 
 /**
  * **Line/gap ratio** — one line's thickness divided by one gap's, for the

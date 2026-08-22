@@ -4,6 +4,55 @@
 
 ## ▶ RESUME HERE
 
+> **2026-08-22 — Stroke bands round: gradient pose fix + per-line colours + link.**
+> **All four shipped, browser-verified. 1919 tests green.**
+>
+> Four asks in one round. Commits `f6cd58a`, `703f75f`, `41fc714`, `c07c45f`.
+>
+> **1. Gradients ran backwards on half of every congruent class** (`f6cd58a`).
+> `canonicalPose` breaks its tie by world angle; a **self-mirror-symmetric**
+> outline ties on BOTH handednesses and their traversals start at different
+> vertices, so the sort picked the mirrored pose wherever a reflected traversal
+> pointed nearer +x. Measured on 3.6.3.6: 104 congruent Voids all posed at
+> angle 0, **52 of them mirrored**. The outline is identical under that flip,
+> so the field looked right and only the gradient gave it away. Handedness now
+> outranks the angle; a chiral shape reaches its minimal token from one
+> direction only, so its genuinely-mirrored placements still pose reflected
+> (pinned on 4.6.12's half-mirrored group of 96). This also closed the
+> `gradientCurvedGeometry` residual that was pinned as out of reach — congruent
+> curved hexagons posed through boxes differing ~9%, so `resolveVoidStamps`
+> drew one class at two scales. Now one box, overrun 2.4e-15.
+>
+> **2. One width band for both strokes** (`703f75f`). `STROKE_WIDTH_MIN/MAX/STEP`
+> beside `LINE_COUNT_MAX` (now 20); the sliders had drifted to 1–20 and 0.5–120
+> written out inline, which read as the Strand supporting fewer divisions when
+> the ceiling that bit was the width one.
+>
+> **3. Per-line colours + `individual` on Strands** (`41fc714`). `lineFills` /
+> `lineFillMode`, same three grains as the gaps, one component
+> (`StrokeFillControls`) for both bands. **An unfilled band means opposite
+> things on the two sides** — a gap is cut out, a line falls back to the
+> stroke's paint — which is why the line side needs no reveal mask but MUST
+> draw every ring (widths are outer extents; a skipped ring wears its
+> neighbour's colour). `individual` could not be a mask at all, so
+> `strand/offsetCurvedStrand.ts` is new and `StrandLayer`'s piece builder is now
+> a function of the chain array so it can re-run over offset copies.
+>
+> **4. Link stroke design** (`c07c45f`). `state/strokeLink.ts`, a dispatch-layer
+> fan-out beside `figureBroadcast.ts`. Copies the design only — **not** width,
+> **not** the base colour. Border→Strand diffs the design first (a Frame action
+> carries the whole config and fires per drag frame); the mirrored action must
+> be the substrate's own `SET_FRAME` / `SET_GALLERY_FRAME`.
+>
+> **Verified in a browser** on 4.8.8, both renderers and both link directions:
+> `scripts/verify/strokeBandFills.mjs`, `borderLineFills.mjs`, `strokeLink.mjs`.
+>
+> **Next / open:** none of the four has an open thread. Standing items unchanged
+> — Freeform has no ADR (next number `0010`), and the `/update-docs` audit found
+> `src/theme/` + `src/utils/` still uncovered in CLAUDE.md (both trivial).
+
+---
+
 > **2026-08-11 — Freeform: a Patch with no tiling and no boundaries.**
 > **Shipped, browser-verified. 1883 tests green.**
 >

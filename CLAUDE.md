@@ -160,6 +160,16 @@ that edits a Figure obeys it, including on-canvas control-point dragging.
 **Combine** fuses adjacent **Voids** into one shape for the whole Decoration Phase (CONTEXT: Combine). Voids are re-derived from the ray field every frame, so a Combine cannot be an edit of a Void — it is a **record that re-finds its own members**, the same way a `ColourRecord` re-finds the shapes it paints.
 
 - `DecorationConfig.voidMerges?: VoidMergeRecord[]` — each record is an **anchor** named at a Reach rung (`scope` + `key` + `signature`) plus the other members' centroids **in the anchor's canonical pose** (`stamps.ts`). That frame is what makes the `congruent` rung work: a stored offset is a statement about a neighbour's position *relative to the anchor's own shape*, so it carries onto rotated and mirrored instances with no lattice or symmetry bookkeeping. `canonicalPoses` (new, `canonicalPose` = its first element) exposes every tied pose — a **symmetric** anchor needs all of them, since only one aims the offsets at the real neighbours.
+- **`canonicalPose`'s tie-break sorts by handedness BEFORE world angle.** A
+  self-mirror-symmetric outline ties on both handednesses and their traversals
+  start at different vertices, so an angle-first sort picked the mirrored pose
+  wherever it happened to point nearer +x — measured on 3.6.3.6, 104 congruent
+  Voids all posed at angle 0 with 52 mirrored. The outline is identical under
+  that flip; a gradient or stamp posed through it is not, so one Matching-rung
+  gradient ran backwards on half the field. A chiral shape reaches its minimal
+  token from one direction only, so its genuinely-mirrored placements still
+  pose reflected. Pinned by `decoration/gradientPoseProbe.test.ts` over real
+  fields.
 - `polyUnion.ts::unionOutlines` — union of faces from one arrangement by edge cancellation (they meet edge-to-edge and never properly overlap, so no intersection arithmetic). Re-splits every edge at member vertices first, because `extractVoids` simplifies each face independently and a T-junction kept on one side of a shared edge otherwise defeats pair cancellation. Returns outers + holes + the cancelled **seams**. Its vertex grid is sized off the **mean edge length**, never `tol` — the latter made it quadratic in the pattern's world scale (5.5 s for 78 two-triangle groups on 3.6.3.6); guarded by a scale-invariance ratio test.
 - `applyVoidMerges(keyed, merges, stampTranslations, cellFrames)` runs **after** `keyVoids` and re-keys only the composites: keying is the expensive half (`cellOrbitKey`) and must stay memoised on the field, while merges change on a click. Records apply in array order and a Void joins at most one group. A composite is an ordinary `VoidRegion` with a bigger outline (+ `holes` / `seams` / `mergedCount` / `mergedFrom`), so `colourVoids`, `resolveVoidStamps`, `buildVoidTargeting` and the paint overlay are all untouched — and a composite is congruent to another composite of the same shape, so `congruent` paint spreads across combined groups unchanged.
 - **A Combine disqualifies the periodic fast path** (`periodicFastPathEligible`): a combined group can straddle the fundamental domain and the `<use>` fragment cannot express a shape that leaves it. `voidMerges` must therefore be an explicit dep of the `stampedField` and `decorationReps` memos — without it `fastPath` stays stale-true and nothing on the canvas changes (same trap the two gradient `enabled` flags hit).
@@ -310,6 +320,64 @@ after areas and lines.
 - **v1 is solid Strands only** (`junctionOrnamentsSupported`) — one predicate
   shared by the renderer and the panel, so the control and what it produces
   can't disagree. Verify: `scripts/verify/junctionOrnaments.mjs`.
+
+### Divided strokes (`rendering/strandStyle.ts`)
+
+One vocabulary for the **Strand** and the **Frame border** — both resolve
+through `strandStyleAttrs`, so a style reads identically in the pattern and
+around it. `LINE_COUNT_MAX` (20) and `STROKE_WIDTH_MIN/MAX/STEP` (0.5–120)
+live here and both sliders read them; they were written out inline once and
+drifted to 1–20 and 0.5–120, which read as the Strand supporting fewer
+divisions when the ceiling that actually bit was the width one.
+
+- **Bands.** `n` lines and `n − 1` gaps, interleaved from the outside in. The
+  ink is ONE masked stroke; `maskBands` alternate cut / restore so the gaps are
+  cut out of it rather than painted over (an overdraw would cover the Void
+  fills the stroke straddles). Even-index bands are the gap rings
+  (`gapRingWidths`), odd-index plus the full width are the line rings
+  (`lineRingWidths`).
+- **Both bands take colours at three grains** (`GapFillMode`, shared): All /
+  Matching (a band and its mirror) / Individual (per band, asymmetric). UI is
+  one component, `components/ui/StrokeFillControls.tsx`, pointed at either band
+  — the ring pairing, grain switch and seed-on-switch rules are identical and
+  two components would have drifted.
+- **An unfilled band means opposite things on the two sides, and that is the
+  design.** An unfilled **gap** is cut out, so a *mixed* set needs the reveal
+  mask `gapFillMaskBands` builds. An unfilled **line** is still ink and falls
+  back to the stroke's own resolved paint — no mask, but every ring must be
+  drawn even when unfilled, because the ring widths are outer extents and
+  skipping one leaves it wearing its outer neighbour's colour.
+- **`'individual'` cannot be a mask at all.** A stroke is centred on its path,
+  so any band cut at `+x` is cut at `−x`; asymmetry needs a path down one side.
+  The Frame border offsets its closed outline (`offsetPolygonOutward`); a
+  Strand offsets its open chain (`strand/offsetCurvedStrand.ts` — mitred and
+  miter-clamped the same way, since chains hairpin at a star tip; control
+  points ride the same normals, exact for the straight edges that dominate).
+  `StrandLayer`'s piece builder is therefore a **function of the chain array**
+  so it can re-run over offset copies: every split it makes is by edge index
+  (ghost host, per-edge Decoration stroke, weave cut), which an offset
+  preserves, so a band breaks where the ink it sits inside breaks.
+- **A Strand has no outward side.** Which band is "first" comes from the order
+  its Rays chained, so the same colours land on opposite sides of neighbouring
+  Strands. The control says so in its hint rather than being withheld, and the
+  per-band labels read "first"/"last" there against
+  "outermost"/"innermost" on the border.
+- **Link stroke design** (`state/strokeLink.ts`) keeps the two strokes matching,
+  edited from either end — a dispatch-layer fan-out like
+  `state/figureBroadcast.ts`, session state, never `PatternConfig`. Copies
+  `STROKE_DESIGN_KEYS` only: **not** width (a border runs an order of magnitude
+  wider) and **not** the base colour (the Decoration phase owns the Strand's).
+  Two traps: a Frame action carries the whole `FrameConfig` and fires per drag
+  frame, so the border→Strand direction **diffs the design first** or every
+  drag rewrites the Strand style; and the mirrored action must be the
+  substrate's own (`SET_FRAME` for a Patch, `SET_GALLERY_FRAME` for a legacy
+  substrate) or it writes a Frame nothing reads. The toggle renders at both
+  ends, since "vice versa" is only discoverable from the side you are editing.
+- Persistence for every field above goes through **`readLineStyleFields`**,
+  which both load paths already share (`state/configValidation.ts` and
+  `editor/migrations.ts`) — add a stroke field there and both substrates read it.
+- Verify: `scripts/verify/strokeBandFills.mjs`, `borderLineFills.mjs`,
+  `strokeLink.mjs`, `lineDivisions.mjs`, `gapFillsAndBorder.mjs`.
 
 ### Generator (`src/generator/`)
 

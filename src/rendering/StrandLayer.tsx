@@ -1,15 +1,16 @@
-import { memo, useMemo } from 'react'
+import { memo, useCallback, useMemo } from 'react'
 import type { Segment } from '../types/geometry'
 import type { PatternConfig } from '../types/pattern'
 import type { ColourRecord, StrandGradient } from '../types/editor'
 import type { Vec2 } from '../utils/math'
 import { sortedStops } from '../decoration/gradients'
 import { buildStrands } from '../strand/buildStrands'
-import { computeCurves, smoothCurves } from '../strand/computeCurves'
+import { computeCurves, smoothCurves, type CurvedStrand } from '../strand/computeCurves'
 import { curvedPathD, curvedPathDSplit, curvedPathDSplitBy } from '../strand/curvedPathD'
 import { computeWeave } from '../strand/weave'
 import { weaveCapWedgeD, wovenPath, wovenPathD } from '../strand/wovenPathD'
-import { gapFillMaskBands, gapRingFills, strandStyleAttrs } from './strandStyle'
+import { offsetCurvedStrand } from '../strand/offsetCurvedStrand'
+import { gapCrossSections, gapFillMaskBands, gapRingFills, hasLineFills, lineCrossSections, lineRingFills, strandStyleAttrs } from './strandStyle'
 import { buildColourIndex, orbitOffset, resolveColour } from '../decoration/scopes'
 import { strandColour, strandColourContext } from '../decoration/strandColour'
 import { cellOrbitKey, reduceToOrbit, type CellFrame } from '../decoration/cellScope'
@@ -211,7 +212,14 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
   // to different Decoration strokes (per-run split — border-truncated chains
   // must not take one majority stroke whole). Weave keeps the whole-chain
   // stroke: the over/under cut walk needs the chain in one path.
-  const { pieces, ghostPaths } = useMemo(() => {
+  //
+  // Taken as a function of the chain array rather than closing over
+  // `curvedStrands` so the `'individual'` colour grain can run it again over
+  // sideways-offset copies (`offsetCurvedStrand`). Every split it performs is
+  // by EDGE INDEX — ghost host polygon, per-edge Decoration stroke, weave cut
+  // parameter — and an offset preserves those, so a band's sub-paths break in
+  // the same places as the ink it has to sit inside.
+  const buildPieces = useCallback((chains: CurvedStrand[]) => {
     // `si` = source strand index (into strandData / curvedStrands) so the
     // scope-aware `paintOf` can match this piece's strand even after a
     // multi-class chain splits into several pieces.
@@ -228,7 +236,7 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
         // cut — wedges are solid fills and would fight dash gaps / the
         // double/triple centre mask.
         const wedges = (strand.lineStyle ?? 'solid') === 'solid'
-        const out: Piece[] = curvedStrands.map((cs, i) => {
+        const out: Piece[] = chains.map((cs, i) => {
           const under = weaves[i].under
           if (under.length === 0) {
             return { d: curvedPathD(cs), stroke: strokeOf(i), cap: null, si: i }
@@ -256,13 +264,13 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
         return { pieces: out, ghostPaths: [] as string[] }
       }
       const out: Piece[] = []
-      for (let i = 0; i < curvedStrands.length; i++) {
+      for (let i = 0; i < chains.length; i++) {
         const perEdge = strokes?.edgeStrokes[i]
         if (!perEdge) {
-          out.push({ d: curvedPathD(curvedStrands[i]), stroke: strokeOf(i), cap: null, si: i })
+          out.push({ d: curvedPathD(chains[i]), stroke: strokeOf(i), cap: null, si: i })
           continue
         }
-        for (const [strokeKey, d] of curvedPathDSplitBy(curvedStrands[i], j => perEdge[j])) {
+        for (const [strokeKey, d] of curvedPathDSplitBy(chains[i], j => perEdge[j])) {
           out.push({ d, stroke: strokeKey, cap: null, si: i })
         }
       }
@@ -270,18 +278,18 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
     }
     const seeds: Piece[] = []
     const ghosts: string[] = []
-    for (let s = 0; s < curvedStrands.length; s++) {
+    for (let s = 0; s < chains.length; s++) {
       const sd = strandData[s]
       const isGhostEdge = (i: number) =>
         ghostPolygonIds.has(segments[sd.segmentIndices[i]].polygonId)
-      const { seedD, ghostD } = curvedPathDSplit(curvedStrands[s], isGhostEdge)
+      const { seedD, ghostD } = curvedPathDSplit(chains[s], isGhostEdge)
       if (seedD) seeds.push({ d: seedD, stroke, cap: null, si: s })
       if (ghostD) ghosts.push(ghostD)
     }
     return { pieces: seeds, ghostPaths: ghosts }
-  }, [curvedStrands, strandData, segments, ghostPolygonIds, weaves, strand.width, strand.weaveGap, strand.lineStyle, strokes, stroke])
+  }, [strandData, segments, ghostPolygonIds, weaves, strand.width, strand.weaveGap, strand.lineStyle, strokes, stroke])
 
-  if (pieces.length === 0 && ghostPaths.length === 0) return null
+  const { pieces, ghostPaths } = useMemo(() => buildPieces(curvedStrands), [buildPieces, curvedStrands])
 
   // ── Strand line style ────────────────────────────────────────────────────
   // `'lines'` divides the stroke into parallel lines by cutting the gaps out
@@ -299,8 +307,58 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
   // so `'individual'` (which the Strand panel doesn't offer) renders as
   // `'matching'` rather than colouring one strand's left and its neighbour's
   // right.
-  const gapFills = gapRingFills(styleAttrs, strand, strand.lineCount)
-  const gapMaskBands = gapFillMaskBands(styleAttrs, gapFills)
+  // `'individual'` is asymmetric, so it cannot be a concentric mask at all: a
+  // stroke is centred on its path, and any band cut at +x is cut at −x too.
+  // It is drawn instead as bands on sideways-OFFSET copies of the chain
+  // (`offsetCurvedStrand`) — the one thing a Strand needed that a closed Frame
+  // outline already had. The sides are whichever way the Rays chained; the
+  // panel says so rather than the control being withheld.
+  const perGapSections = masked && strand.gapFillMode === 'individual' && strand.gapFills?.some(Boolean)
+    ? gapCrossSections(w, strand.lineCount, strand.styleRatio)
+    : null
+  const perLineSections = masked && strand.lineFillMode === 'individual' && hasLineFills(strand)
+    ? lineCrossSections(w, strand.lineCount, strand.styleRatio)
+    : null
+  const gapFills = perGapSections ? [] : gapRingFills(styleAttrs, strand, strand.lineCount)
+  const gapMaskBands = perGapSections ? null : gapFillMaskBands(styleAttrs, gapFills)
+  // Every ring is drawn, filled or not: the widths are outer extents, so a
+  // skipped ring would wear the colour of the one outside it instead of the
+  // Strand's own resolved paint.
+  const lineFills = masked && !perLineSections && hasLineFills(strand)
+    ? lineRingFills(styleAttrs, strand, strand.lineCount)
+    : null
+  // Sideways-offset copies of every chain, one per coloured `'individual'`
+  // band. Built here — above the empty-field guard — because it is a hook and
+  // must run unconditionally; it costs nothing until a band actually carries a
+  // colour, which is the only case that reaches `offsetCurvedStrand`.
+  const offsetBands = useMemo(() => {
+    const bands: { d: string; colour: string; width: number; key: string }[] = []
+    const collect = (
+      sections: { centre: number; width: number }[] | null,
+      fills: (string | null)[] | undefined,
+      tag: string,
+    ) => {
+      if (!sections) return
+      sections.forEach((sec, i) => {
+        const colour = fills?.[i]
+        if (!colour) return
+        // Cross-sections are measured from the stroke's first edge; an offset
+        // is measured from its centreline.
+        const offsetChains = curvedStrands.map(cs => offsetCurvedStrand(cs, sec.centre - w / 2))
+        // Ghost runs are a Design-phase preview and always draw solid, so a
+        // band has nothing to add there — take the seed pieces only.
+        for (const piece of buildPieces(offsetChains).pieces) {
+          bands.push({ d: piece.d, colour, width: sec.width, key: `${tag}-${i}-${bands.length}` })
+        }
+      })
+    }
+    collect(perGapSections, strand.gapFills, 'gap')
+    collect(perLineSections, strand.lineFills, 'line')
+    return bands
+  }, [perGapSections, perLineSections, strand.gapFills, strand.lineFills, buildPieces, curvedStrands, w])
+
+  if (pieces.length === 0 && ghostPaths.length === 0) return null
+
   // Visible pieces (hidden 'none' strands excluded — their mask cuts
   // would otherwise carve through visible strands crossing them).
   const visiblePieces = pieces
@@ -433,6 +491,23 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
           )) : null))}
         </g>
       )}
+      {/* Individual gaps: one band per gap, drawn on a sideways-offset copy of
+          the chain and stroked that gap's own thickness — so a gap and its
+          mirror can differ, which no concentric mask can express. Under the
+          ink, showing through the cuts the style mask makes. Butt caps: a
+          round one would bulge a half-band past the end of the Strand. */}
+      {offsetBands.filter(b => b.key.startsWith('gap')).map(b => (
+        <path
+          key={`strand-gapband-${b.key}`}
+          data-band="gap-individual"
+          d={b.d}
+          fill="none"
+          stroke={b.colour}
+          strokeWidth={b.width}
+          strokeLinecap="butt"
+          strokeLinejoin="round"
+        />
+      ))}
       {/* `'none'` = the hidden-strand sentinel (Decoration "Remove strand
           colour"): emit nothing so Void fills meet seamlessly underneath. */}
       <g mask={maskRect ? `url(#${maskId})` : undefined}>
@@ -447,6 +522,24 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
             strokeLinejoin="round"
           />
         ))}
+        {/* Per-line colours, concentric over the ink: each ring's width is its
+            outer extent, so the stack walks inward and the style mask cuts the
+            gaps back out of the result. An unfilled ring falls back to the
+            piece's own paint — a line is ink, not a hole. */}
+        {lineFills && visiblePieces.map(({ d, stroke: pieceStroke, i, si }) =>
+          lineFills.map(({ width, colour }, r) => (
+            <path
+              key={`strand-linefill-${r}-${i}`}
+              data-band="line-ring"
+              d={d}
+              fill="none"
+              stroke={colour ?? paintOf(pieceStroke, si)}
+              strokeWidth={width}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )),
+        )}
         {/* Angled-cut wedges dressing the woven gap ends (solid style only). */}
         {visiblePieces.map(({ cap, stroke: pieceStroke, i, si }) =>
           cap ? (
@@ -459,6 +552,22 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
           ) : null,
         )}
       </g>
+      {/* Individual lines: same offset-band construction as the gaps, but drawn
+          OVER the ink — an unset line keeps the Strand's own colour underneath
+          rather than being cut out, so the band only has to cover the ones that
+          were given a colour. */}
+      {offsetBands.filter(b => b.key.startsWith('line')).map(b => (
+        <path
+          key={`strand-lineband-${b.key}`}
+          data-band="line-individual"
+          d={b.d}
+          fill="none"
+          stroke={b.colour}
+          strokeWidth={b.width}
+          strokeLinecap="butt"
+          strokeLinejoin="round"
+        />
+      ))}
     </g>
   )
 })

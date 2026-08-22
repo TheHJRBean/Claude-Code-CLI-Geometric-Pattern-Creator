@@ -224,7 +224,12 @@ export interface FrameStroke {
   /** Per-gap fills, same semantics as `StrandStyle.gapFills` — outermost gap
    * first. */
   gapFills?: (string | null)[]
-  /** Parallel line count (2–10), same semantics as `StrandStyle.lineCount`. */
+  /** Per-line fills, same semantics as `StrandStyle.lineFills` — outermost
+   * line first. `null` ⇒ that line takes `colour`. */
+  lineFills?: (string | null)[]
+  /** Line-fill grain, same semantics as `StrandStyle.lineFillMode`. */
+  lineFillMode?: GapFillMode
+  /** Parallel line count, same semantics as `StrandStyle.lineCount`. */
   lineCount?: number
   /** Line ÷ gap thickness, same semantics as `StrandStyle.styleRatio`. */
   styleRatio?: number

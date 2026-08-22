@@ -12,7 +12,7 @@ import { canonicalPose, canonicalSelfMirror } from '../../decoration/stamps'
 import { buildVoidMergeRecord, canCombine } from '../../decoration/voidMerge'
 import { ColourPicker, pushRecentColour } from '../ColourPicker'
 import { STROKE_WIDTH_MAX, STROKE_WIDTH_MIN, STROKE_WIDTH_STEP } from '../../rendering/strandStyle'
-import { GapFillControls } from '../ui/GapFillControls'
+import { StrokeFillControls } from '../ui/StrokeFillControls'
 import { LineStyleControls } from '../ui/LineStyleControls'
 import { FieldLabel, segmentedButtonStyle } from './labShared'
 import { StampFocusEditor } from './StampFocusEditor'
@@ -486,13 +486,19 @@ export function DecorationPanel({
                   value={stroke}
                   onChange={patch => setStroke({ ...stroke, ...patch })}
                 />
-                <GapFillControls
+                <StrokeFillControls
                   value={stroke}
                   onChange={patch => setStroke({ ...stroke, ...patch })}
                   defaultColour={decorationColor}
-                  // Outward and inward are fixed directions on a Frame
-                  // outline, so per-gap fills mean something here.
-                  allowIndividual
+                  band="gap"
+                  surface="border"
+                />
+                <StrokeFillControls
+                  value={stroke}
+                  onChange={patch => setStroke({ ...stroke, ...patch })}
+                  defaultColour={stroke.colour}
+                  band="line"
+                  surface="border"
                 />
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 8 }}>
                   <input

@@ -18,7 +18,7 @@ import type { VoidFill } from '../decoration/resolve'
 import type { StampPlacement } from '../decoration/stamps'
 import type { ColourRecord, FrameGradient, FrameStroke, StrandGradient } from '../types/editor'
 import { sortedStops } from '../decoration/gradients'
-import { gapCrossSections, gapFillMaskBands, gapRingFills, strandStyleAttrs } from './strandStyle'
+import { gapCrossSections, gapFillMaskBands, gapRingFills, hasLineFills, lineCrossSections, lineRingFills, strandStyleAttrs } from './strandStyle'
 import type { CellFrame } from '../decoration/cellScope'
 
 interface Props {
@@ -463,6 +463,17 @@ function FrameBorder({ outline, stroke }: {
     : null
   const gapFills = perGap ? [] : gapRingFills(attrs, stroke, stroke.lineCount)
   const gapMaskBands = perGap ? null : gapFillMaskBands(attrs, gapFills)
+  // The ink side, same three grains. `'individual'` offsets a ring onto each
+  // line; the other grains stack concentric strokes under the style mask.
+  const perLine = masked && hasLineFills(stroke) && stroke.lineFillMode === 'individual'
+    ? lineCrossSections(w, stroke.lineCount, stroke.styleRatio)
+    : null
+  // Every ring is drawn, filled or not: the widths are outer extents, so a
+  // skipped ring would wear the colour of the one outside it rather than the
+  // border's own.
+  const lineFills = masked && !perLine && hasLineFills(stroke)
+    ? lineRingFills(attrs, stroke, stroke.lineCount)
+    : null
   const maskId = 'frame-stroke-mask'
   const gapMaskId = 'frame-gap-fill-mask'
   let maskRect = null as { x: number; y: number; width: number; height: number } | null
@@ -475,9 +486,10 @@ function FrameBorder({ outline, stroke }: {
     const m = w * 2
     maskRect = { x: minX - m, y: minY - m, width: maxX - minX + 2 * m, height: maxY - minY + 2 * m }
   }
-  const bandPolygons = (bands: { width: number; colour: string }[], key: string) => bands.map((band, b) => (
+  const bandPolygons = (bands: { width: number; colour: string }[], key: string, band$?: string) => bands.map((band, b) => (
     <polygon
       key={`${key}-${b}`}
+      data-band={band$}
       points={points}
       fill="none"
       stroke={band.colour}
@@ -520,6 +532,7 @@ function FrameBorder({ outline, stroke }: {
         return (
           <polygon
             key={`gap-${g}`}
+            data-band="gap-individual"
             points={ring.map(p => `${p.x},${p.y}`).join(' ')}
             fill="none"
             stroke={colour}
@@ -539,18 +552,50 @@ function FrameBorder({ outline, stroke }: {
           )}
         </g>
       )}
-      <polygon
-        points={points}
-        fill="none"
-        stroke={stroke.colour}
-        strokeWidth={w}
-        // Mitred, not round: the stroke hangs outside the outline, so a round
-        // join reads as a heavily rounded picture frame at these widths — and
-        // the mask bands must join the same way or the cuts miss the corners.
-        strokeLinejoin="miter"
-        strokeMiterlimit={8}
-        mask={maskRect ? `url(#${maskId})` : undefined}
-      />
+      <g mask={maskRect ? `url(#${maskId})` : undefined}>
+        <polygon
+          points={points}
+          fill="none"
+          stroke={stroke.colour}
+          strokeWidth={w}
+          // Mitred, not round: the stroke hangs outside the outline, so a round
+          // join reads as a heavily rounded picture frame at these widths — and
+          // the mask bands must join the same way or the cuts miss the corners.
+          strokeLinejoin="miter"
+          strokeMiterlimit={8}
+        />
+        {/* Per-line colours, concentric over the base stroke: each ring's
+            width is its outer extent, so the stack walks inward and the mask
+            cuts the gaps back out of the result. */}
+        {lineFills && bandPolygons(
+          lineFills.map(f => ({ width: f.width, colour: f.colour ?? stroke.colour })),
+          'linefill',
+          'line-ring',
+        )}
+      </g>
+      {/* Individual lines: one ring per line, offset to that line's own centre
+          and stroked its thickness, so the outer and inner lines of a ring can
+          differ. Drawn over the masked stroke — a line is ink, and an unset one
+          keeps the border colour underneath rather than being cut out. */}
+      {perLine && perLine.map((sec, i) => {
+        const colour = stroke.lineFills?.[i]
+        if (!colour) return null
+        // `outline` is the border's INNER edge (the stroke hangs outside it),
+        // and line 0 is the outermost, so measure back from the outer edge.
+        const ring = offsetPolygonOutward(outline, w - sec.centre)
+        return (
+          <polygon
+            key={`line-${i}`}
+            data-band="line-individual"
+            points={ring.map(p => `${p.x},${p.y}`).join(' ')}
+            fill="none"
+            stroke={colour}
+            strokeWidth={sec.width}
+            strokeLinejoin="miter"
+            strokeMiterlimit={8}
+          />
+        )
+      })}
     </g>
   )
 }

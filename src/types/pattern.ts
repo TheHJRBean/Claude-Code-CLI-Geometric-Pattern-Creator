@@ -111,16 +111,21 @@ export interface FigureConfig {
 export type StrandLineStyle = 'solid' | 'lines'
 
 /**
- * How the gaps of a `'lines'` stroke are filled (`rendering/strandStyle.ts`):
+ * The **grain** a divided stroke's bands are coloured at
+ * (`rendering/strandStyle.ts`). One vocabulary, used twice: for the gaps
+ * between the parallel lines, and for the lines themselves.
  *
- * - `'all'` — one colour for every gap.
- * - `'matching'` — a colour per gap **ring**: one radial position measured
- *   from the centreline, so a gap and its mirror on the far side move
- *   together. Drawable on any stroke, because a centred stroke is symmetric.
- * - `'individual'` — a colour per gap, mirror included, so the stroke can be
- *   asymmetric. Needs geometry that can be offset sideways, so it is offered
- *   on the **Frame border** only (outward/inward are fixed directions there;
- *   a Strand's two sides come from the order its Rays chained).
+ * - `'all'` — one colour for every band.
+ * - `'matching'` — a colour per **ring**: one radial position measured from
+ *   the centreline, so a band and its mirror on the far side move together.
+ *   Drawable on any stroke, because a centred stroke is symmetric.
+ * - `'individual'` — a colour per band, mirror included, so the stroke can be
+ *   asymmetric. Needs geometry that can be offset sideways: the Frame border
+ *   offsets its closed outline, a Strand offsets its open path
+ *   (`strand/offsetCurvedStrand.ts`). On a Strand the two sides are not
+ *   "outer" and "inner" but whichever way its Rays happened to chain, so the
+ *   same colours land on opposite sides of neighbouring Strands — the control
+ *   says so rather than being withheld.
  *
  * Saves written before 2026-08-05 use `'individual'` for what is now
  * `'matching'`, and a ring-length `gapFills`; `readLineStyleFields` renames
@@ -156,8 +161,17 @@ export interface StrandStyle {
    * stroke. `null` or absent ⇒ that gap stays cut out. `'matching'` writes a
    * ring's pair together; `'individual'` writes each independently. */
   gapFills?: (string | null)[]
-  /** How many parallel lines a `'lines'` stroke divides into, 2–10.
-   * Default 2 (`DEFAULT_LINE_COUNT`). Ignored while `lineStyle` is solid. */
+  /** Fill colour per **line**, `lineCount` of them, ordered across the stroke.
+   * `null` or absent ⇒ that line takes the Strand's own resolved colour. Not
+   * the same as a gap's `null`, which cuts the band out — see
+   * `LineFillStyle`. */
+  lineFills?: (string | null)[]
+  /** Whether `lineFills` paints per ring (`'matching'`) or per line
+   * (`'individual'`); `'all'` paints every line entry `[0]`. Default `'all'`. */
+  lineFillMode?: GapFillMode
+  /** How many parallel lines a `'lines'` stroke divides into, up to
+   * `LINE_COUNT_MAX`. Default 2 (`DEFAULT_LINE_COUNT`). Ignored while
+   * `lineStyle` is solid. */
   lineCount?: number
   /** Line thickness ÷ gap thickness for a `'lines'` stroke
    * (`rendering/strandStyle.ts`). Default 1 = equal; higher = thicker lines,

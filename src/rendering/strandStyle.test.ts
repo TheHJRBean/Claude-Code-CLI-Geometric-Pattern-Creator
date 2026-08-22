@@ -9,6 +9,11 @@ import {
   readLineStyleFields,
   ringGapIndices,
   strandStyleAttrs,
+  lineCrossSections,
+  lineRingCount,
+  lineRingFills,
+  ringLineIndices,
+  hasLineFills,
   LINE_COUNT_MAX,
   LINE_COUNT_MIN,
 } from './strandStyle'
@@ -37,7 +42,7 @@ function halfSection(w: number, bands: number[]): { ink: number[]; gaps: number[
 describe('strandStyleAttrs', () => {
   it('solid: no mask, no bands', () => {
     expect(strandStyleAttrs('solid', 4))
-      .toEqual({ masked: false, maskBands: [], innerFillWidth: 0, gapRingWidths: [] })
+      .toEqual({ masked: false, maskBands: [], innerFillWidth: 0, gapRingWidths: [], lineRingWidths: [] })
   })
 
   it('lines: defaults to 2 lines at an equal line/gap ratio', () => {
@@ -270,5 +275,96 @@ describe('readLineStyleFields — gap fills', () => {
   it('drops an unknown gap-fill mode', () => {
     expect(readLineStyleFields({ lineStyle: 'lines', gapFillMode: 'sideways' }).gapFillMode)
       .toBeUndefined()
+  })
+})
+
+describe('line rings (colouring the ink, not the gaps)', () => {
+  it('counts one ring per radial line position, pairing a line with its mirror', () => {
+    // Opposite parity to the gaps: an ODD line count is what leaves a line
+    // alone in the centre, where an EVEN count is what leaves a gap alone.
+    expect([2, 3, 4, 5, 6, 10].map(lineRingCount)).toEqual([1, 2, 2, 3, 3, 5])
+    expect([2, 3, 4, 5, 6, 10].map(gapRingCount)).toEqual([1, 1, 2, 2, 3, 5])
+    for (const n of [2, 3, 4, 5, 6, 7, 8, 9, 10, LINE_COUNT_MAX]) {
+      expect(strandStyleAttrs('lines', 12, 1, n).lineRingWidths).toHaveLength(lineRingCount(n))
+    }
+  })
+
+  it('pairs the line indices a ring owns, outside in', () => {
+    expect(ringLineIndices(0, 6)).toEqual([0, 5])
+    expect(ringLineIndices(1, 6)).toEqual([1, 4])
+    expect(ringLineIndices(2, 6)).toEqual([2, 3])
+    expect(ringLineIndices(1, 3)).toEqual([1, 1]) // lone centre line
+  })
+
+  it('ring 0 starts at the full width — nothing is cut outside the outer lines', () => {
+    const a = strandStyleAttrs('lines', 7, 1, 4)
+    expect(a.lineRingWidths[0]).toBe(7)
+    expect(a.lineRingWidths).toEqual([7, a.maskBands[1]])
+    // Lines and gaps interleave, so the two lists alternate down the stroke.
+    expect(a.gapRingWidths).toEqual([a.maskBands[0], a.maskBands[2]])
+  })
+
+  it('all mode paints every ring one colour; matching reads its pair', () => {
+    const a = strandStyleAttrs('lines', 9, 1, 5)
+    expect(lineRingFills(a, { lineFills: ['#abc123'] }, 5).map(f => f.colour))
+      .toEqual(['#abc123', '#abc123', '#abc123'])
+    expect(lineRingFills(a, {
+      lineFillMode: 'matching',
+      lineFills: ['#111111', '#222222', '#333333', '#222222', '#111111'],
+    }, 5).map(f => f.colour)).toEqual(['#111111', '#222222', '#333333'])
+  })
+
+  it('an unfilled ring resolves to null — the caller substitutes the stroke colour', () => {
+    // Deliberately NOT the gaps' meaning. An unfilled gap is cut out; an
+    // unfilled line is still ink, so the renderer must still draw it, in the
+    // Strand's own paint. Skipping it would leave it wearing the colour of
+    // the ring outside it, because these widths are outer extents.
+    const a = strandStyleAttrs('lines', 9, 1, 5)
+    const fills = lineRingFills(a, { lineFillMode: 'matching', lineFills: ['#111111', null, null, null, '#111111'] }, 5)
+    expect(fills.map(f => f.colour)).toEqual(['#111111', null, null])
+    expect(fills).toHaveLength(lineRingCount(5))
+  })
+
+  it('hasLineFills is false until some line actually carries a colour', () => {
+    expect(hasLineFills({})).toBe(false)
+    expect(hasLineFills({ lineFills: [null, null] })).toBe(false)
+    expect(hasLineFills({ lineFills: [null, '#fff'] })).toBe(true)
+  })
+
+  it('line and gap cross-sections tile the whole stroke, alternating', () => {
+    const w = 12
+    for (const n of [2, 3, 5, 8]) {
+      for (const ratio of [1, 0.4, 3]) {
+        const lines = lineCrossSections(w, n, ratio)
+        const gaps = gapCrossSections(w, n, ratio)
+        expect(lines).toHaveLength(n)
+        expect(gaps).toHaveLength(n - 1)
+        // Walk outward: each band starts where the last one ended.
+        let cursor = 0
+        for (let i = 0; i < n; i++) {
+          expect(lines[i].centre - lines[i].width / 2).toBeCloseTo(cursor, 9)
+          cursor = lines[i].centre + lines[i].width / 2
+          if (i < n - 1) {
+            expect(gaps[i].centre - gaps[i].width / 2).toBeCloseTo(cursor, 9)
+            cursor = gaps[i].centre + gaps[i].width / 2
+          }
+        }
+        expect(cursor).toBeCloseTo(w, 6)
+      }
+    }
+  })
+
+  it('the cross-sections agree with the mask bands they have to land inside', () => {
+    // The `individual` grain draws off cross-sections while the mask is cut
+    // from the bands. If the two ever disagree, a colour lands half on a gap
+    // — so pin them against each other rather than each on its own.
+    const w = 10, n = 5, ratio = 1.6
+    const a = strandStyleAttrs('lines', w, ratio, n)
+    const lines = lineCrossSections(w, n, ratio)
+    // Line ring r's outer extent = 2 × (distance from centreline to its outer edge).
+    a.lineRingWidths.forEach((width, r) => {
+      const outerEdge = lines[r].centre + lines[r].width / 2
+      expect(width).toBeCloseTo(2 * (w / 2 - (outerEdge - lines[r].width)), 9)
+    })
   })
 })

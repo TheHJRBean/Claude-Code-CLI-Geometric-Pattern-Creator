@@ -37,6 +37,17 @@ export interface StrandStyleAttrs {
    * of it are the same ring and cannot take different colours.
    */
   gapRingWidths: number[]
+  /**
+   * Stroke width per **line ring**, outermost first — `w` followed by the
+   * odd-index `maskBands`. Each is that ring's OUTER extent, so painting the
+   * rings in order lays each colour down over the ones inside it and the
+   * style mask then cuts the gaps back out.
+   *
+   * The gap version is the even-index bands. Lines and gaps interleave from
+   * the outside in — line 0, gap 0, line 1, … — which is why one list starts
+   * at the full width and the other does not.
+   */
+  lineRingWidths: number[]
 }
 
 /** The gap-fill fields, as carried by `StrandStyle` and `FrameStroke`. */
@@ -46,6 +57,24 @@ export interface GapFillStyle {
    * Frame border that is outermost → innermost. */
   gapFills?: (string | null)[]
   gapFillMode?: GapFillMode
+}
+
+/**
+ * The line-fill fields — the same three grains applied to the **ink** rather
+ * than the gaps between it, as carried by `StrandStyle` and `FrameStroke`.
+ *
+ * A `null` entry means something different here than it does for a gap. An
+ * unfilled gap is *cut out* — whatever is behind the stroke shows through. An
+ * unfilled line is still ink: it falls back to the stroke's own colour,
+ * whatever that resolved to (the global colour, a Decoration strand record, or
+ * the strand gradient). So there is no reveal mask on this side; every ring
+ * resolves to a paint.
+ */
+export interface LineFillStyle {
+  /** One entry per **line**, `n` of them, ordered across the stroke: for a
+   * Frame border that is outermost → innermost. */
+  lineFills?: (string | null)[]
+  lineFillMode?: GapFillMode
 }
 
 /** Number of gaps an `n`-line stroke has. */
@@ -66,6 +95,53 @@ export function gapRingCount(lineCount: number): number {
 export function ringGapIndices(r: number, lineCount: number): [number, number] {
   const last = gapCount(lineCount) - 1
   return [r, last - r]
+}
+
+/**
+ * Number of **line** rings — the `'matching'` grain's unit on the ink side. A
+ * ring is a radial line position measured from the centreline, so it covers a
+ * line and its mirror; only an ODD line count has a lone centre line. (The gap
+ * count is the other parity: an even line count is what leaves a gap alone.)
+ */
+export function lineRingCount(lineCount: number): number {
+  return Math.ceil(clampLineCount(lineCount) / 2)
+}
+
+/** The two line indices that make up ring `r` of an `n`-line stroke (equal at a lone centre line). */
+export function ringLineIndices(r: number, lineCount: number): [number, number] {
+  return [r, clampLineCount(lineCount) - 1 - r]
+}
+
+/**
+ * Resolve what each line ring is painted with, outermost first. `null` = paint
+ * it with the stroke's own colour — see `LineFillStyle` for why that is not
+ * the same as a gap's `null`.
+ *
+ * The widths are outer extents, so a caller must draw **every** ring in order,
+ * substituting the base paint for a `null`: a ring's stroke covers all the
+ * rings inside it, so skipping an unfilled one would leave it wearing its
+ * outer neighbour's colour rather than the stroke's.
+ */
+export function lineRingFills(
+  attrs: StrandStyleAttrs,
+  style: LineFillStyle,
+  lineCount: number = DEFAULT_LINE_COUNT,
+): { width: number; colour: string | null }[] {
+  const perLine = style.lineFillMode === 'matching' || style.lineFillMode === 'individual'
+  return attrs.lineRingWidths.map((width, r) => {
+    if (!perLine) return { width, colour: style.lineFills?.[0] ?? null }
+    // A ring shows one colour, so an asymmetric pair (authored in
+    // `'individual'`, rendered somewhere that can only do symmetric bands)
+    // resolves to the outer line's — same rule as `gapRingFills`.
+    const [a, b] = ringLineIndices(r, lineCount)
+    return { width, colour: style.lineFills?.[a] ?? style.lineFills?.[b] ?? null }
+  })
+}
+
+/** True when any line carries a colour — i.e. the ring stack is worth drawing
+ *  at all instead of one plain stroke. */
+export function hasLineFills(style: LineFillStyle): boolean {
+  return !!style.lineFills?.some(Boolean)
 }
 
 /**
@@ -144,6 +220,28 @@ export function gapCrossSections(
   }))
 }
 
+/**
+ * Where each **line** sits across the stroke, in the same first-edge-relative
+ * frame `gapCrossSections` uses — line 0 is the one against that edge. The
+ * `'individual'` grain paints against this: a stroke drawn on the path offset
+ * by `centre` and `width` thick lands on exactly one line.
+ *
+ * Lines and gaps alternate, so between them these two functions tile the whole
+ * stroke: line 0, gap 0, line 1, … line n−1.
+ */
+export function lineCrossSections(
+  w: number,
+  lineCount: number = DEFAULT_LINE_COUNT,
+  ratio: number = DEFAULT_STYLE_RATIO,
+): { centre: number; width: number }[] {
+  const n = clampLineCount(lineCount)
+  const { line, gap } = lineBandWidths(w, n, ratio)
+  return Array.from({ length: n }, (_, i) => ({
+    centre: i * (line + gap) + line / 2,
+    width: line,
+  }))
+}
+
 /** Number of parallel lines a `'lines'` stroke is divided into. */
 export const DEFAULT_LINE_COUNT = 2
 export const LINE_COUNT_MIN = 2
@@ -217,6 +315,8 @@ export function readLineStyleFields(raw: Record<string, unknown>): {
   styleRatio?: number
   gapFills?: (string | null)[]
   gapFillMode?: GapFillMode
+  lineFills?: (string | null)[]
+  lineFillMode?: GapFillMode
 } {
   // NOTE: `lineCount` must be resolved before the gap-fill block below reads
   // it — the legacy ring→gap expansion is sized off it.
@@ -226,6 +326,8 @@ export function readLineStyleFields(raw: Record<string, unknown>): {
     styleRatio?: number
     gapFills?: (string | null)[]
     gapFillMode?: GapFillMode
+    lineFills?: (string | null)[]
+    lineFillMode?: GapFillMode
   } = {}
   const style = raw.lineStyle
   if (style === 'solid' || style === 'dashed' || style === 'dotted') {
@@ -255,6 +357,14 @@ export function readLineStyleFields(raw: Record<string, unknown>): {
   if (out.lineStyle === 'lines' && GAP_FILL_MODES.has(raw.gapFillMode as GapFillMode)) {
     out.gapFillMode = raw.gapFillMode as GapFillMode
   }
+  if (out.lineStyle === 'lines' && Array.isArray(raw.lineFills)) {
+    out.lineFills = raw.lineFills
+      .slice(0, LINE_COUNT_MAX)
+      .map(c => (typeof c === 'string' && c.length > 0 ? c : null))
+  }
+  if (out.lineStyle === 'lines' && GAP_FILL_MODES.has(raw.lineFillMode as GapFillMode)) {
+    out.lineFillMode = raw.lineFillMode as GapFillMode
+  }
   if (out.gapFillMode === 'individual' && out.gapFills) {
     // Pre-2026-08-05 `'individual'` WAS today's `'matching'`, and stored one
     // entry per ring. Length is the discriminator: a current array always
@@ -280,7 +390,7 @@ export function strandStyleAttrs(
   lineCount: number = DEFAULT_LINE_COUNT,
 ): StrandStyleAttrs {
   if (lineStyle !== 'lines') {
-    return { masked: false, maskBands: [], innerFillWidth: 0, gapRingWidths: [] }
+    return { masked: false, maskBands: [], innerFillWidth: 0, gapRingWidths: [], lineRingWidths: [] }
   }
   const n = clampLineCount(lineCount)
   const { line, gap } = lineBandWidths(w, n, ratio)
@@ -303,5 +413,8 @@ export function strandStyleAttrs(
     maskBands: bands,
     innerFillWidth: bands.length > 0 ? bands[0] : 0,
     gapRingWidths: bands.filter((_, i) => i % 2 === 0),
+    // Line ring 0 runs from the full width in — there is no band above it,
+    // because nothing is cut outside the outermost pair of lines.
+    lineRingWidths: bands.length > 0 ? [w, ...bands.filter((_, i) => i % 2 === 1)] : [],
   }
 }

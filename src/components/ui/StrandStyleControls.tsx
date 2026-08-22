@@ -2,13 +2,14 @@ import type { PatternConfig } from '../../types/pattern'
 import { STROKE_WIDTH_MAX, STROKE_WIDTH_MIN, STROKE_WIDTH_STEP } from '../../rendering/strandStyle'
 import type { Action } from '../../state/actions'
 import { FieldLabel } from './FieldLabel'
-import { GapFillControls } from './GapFillControls'
+import { StrokeFillControls } from './StrokeFillControls'
 import { LineStyleControls } from './LineStyleControls'
 import { Toggle } from './Toggle'
 
 /**
  * Strand-level stroke controls: width, line divisions + line/gap ratio, the
- * over–under Lacing toggle, and (when laced) the weave gap. Previously duplicated verbatim in
+ * colours of the gaps and of the lines themselves, the over–under Lacing
+ * toggle, and (when laced) the weave gap. Previously duplicated verbatim in
  * the Gallery Sidebar's "Strand Thickness" section and the Lab's "Display"
  * section — now one component driving both. Strand-level, not Ray-level.
  */
@@ -38,10 +39,20 @@ export function StrandStyleControls({ strand, dispatch }: {
         onChange={payload => dispatch({ type: 'SET_STRAND_STYLE', payload })}
       />
 
-      <GapFillControls
+      <StrokeFillControls
         value={strand}
         onChange={payload => dispatch({ type: 'SET_STRAND_STYLE', payload })}
         defaultColour="#f5ead6"
+        band="gap"
+        surface="strand"
+      />
+
+      <StrokeFillControls
+        value={strand}
+        onChange={payload => dispatch({ type: 'SET_STRAND_STYLE', payload })}
+        defaultColour={strand.color}
+        band="line"
+        surface="strand"
       />
 
       <div style={{ marginTop: 10 }}>

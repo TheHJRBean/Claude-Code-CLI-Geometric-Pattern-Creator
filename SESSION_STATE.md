@@ -28,10 +28,30 @@
 > canvas settled on. A reduced export logs a `console.warn` (so a bug capture
 > records it) — a smaller PNG beats a blank one.
 >
-> **Not reproduced at a normal aspect**: 8192 px Max-fill on 4.8.8 is
-> 8192 × 6851 and has always drawn. If the user's blank was at ~4:3, the cause
-> is a lower real budget (memory pressure / another engine), which the probe
-> now catches; if it persists, get a bug capture and check the warn line.
+> **Round 2 — the bug capture ("max fill hi dpi export blank", Edge 151 /
+> Windows / DPR 1.25, 3.3.4.3.4 with a shape Frame).** Its exact config, loaded
+> headlessly through Load JSON at the same viewport and DPR, exported cleanly
+> at all four sizes — so the canvas ceiling is not the whole story. The user
+> reports the file is "completely empty, one flat colour", which is a canvas
+> that never received the image: the **second** silent ceiling is the single
+> SVG→bitmap decode (`drawImage` a no-op, nothing thrown).
+>
+> Past `MAX_DECODE_PIXELS` (4096²) the raster is now drawn as a **grid of
+> tiles** at the FULL requested resolution — `rasterTileGrid` splits the longer
+> side first; every tile carries the same markup and differs only in its root
+> `viewBox` window (`withRootSvgAttrs`, so the expensive strip + var-inline runs
+> once); each tile renders 2 px oversize and is cropped on draw so its own edge
+> AA never lands in the output. Safe because every `maskRect` in the renderers
+> is geometry-derived, not viewport-derived. Measured against a single decode
+> on the capture's config at 8192 × 7226: **mean |Δ| 0.006/255**, columns at the
+> split 0.03 vs 0.00 control — no seam. Verify: `scripts/verify/bigRasterExport.mjs`.
+>
+> **If it STILL comes back blank on the user's machine**, the remaining
+> candidate is the GPU raster dropping the mask layers (every Strand band and
+> the Frame border go through `<mask>`), which headless CPU raster cannot
+> reproduce — next step there is a capture taken right after a failed export
+> plus the console warn line, and a fallback that verifies the drawn output
+> rather than the call.
 
 
 > **2026-08-22 — Stroke bands round: gradient pose fix + per-line colours + link.**

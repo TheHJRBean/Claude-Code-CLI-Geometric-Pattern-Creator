@@ -439,23 +439,85 @@ function allocateRasterCanvas(
   return null
 }
 
-/** Serialise the live `<svg>` (overlays stripped, CSS vars inlined) and decode
- *  it as an `<img>` at the given raster size. Null when the browser refuses to
- *  load it — a very large SVG image has its own decode budget, separate from
- *  the canvas's. */
-async function loadSvgImage(
-  svgEl: SVGSVGElement,
+/** Largest single SVG→bitmap decode this module will ask a browser for. One
+ *  giant decode is the other way a big export comes back blank: the canvas is
+ *  fine, `drawImage` is a no-op, and nothing is thrown — reported as an 8192 px
+ *  Max-fill PNG that is "completely empty, one flat colour". Past this budget
+ *  the export is rendered as a grid of tiles instead, each a small decode, at
+ *  the FULL requested resolution. 4096² is the common GPU max-texture size. */
+export const MAX_DECODE_PIXELS = 16_777_216
+
+/**
+ * How many tiles to split a `width`×`height` raster into so that no single
+ * decode exceeds `maxPixels`. The longer side splits first, so tiles stay
+ * roughly square rather than becoming a strip that spends the whole budget on
+ * one dimension. Pure — the policy is testable without a DOM.
+ */
+export function rasterTileGrid(
   width: number,
   height: number,
-  viewBox?: ContentBounds,
-): Promise<HTMLImageElement | null> {
+  maxPixels: number = MAX_DECODE_PIXELS,
+): { cols: number; rows: number } {
+  let cols = 1
+  let rows = 1
+  // The bound is a guard against a pathological maxPixels, not a real ceiling.
+  while (Math.ceil(width / cols) * Math.ceil(height / rows) > maxPixels && cols * rows < 4096) {
+    if (width / cols >= height / rows) cols++
+    else rows++
+  }
+  return { cols, rows }
+}
+
+/** Set/replace the sizing attributes on serialized markup's root `<svg>` open
+ *  tag. Pure: the export markup is built once and then re-pointed per tile,
+ *  since stripping exclusions and inlining CSS vars over a large pattern is far
+ *  more expensive than the render itself. */
+export function withRootSvgAttrs(
+  markup: string,
+  attrs: { width: number; height: number; viewBox?: ContentBounds; preserveAspectRatio?: string },
+): string {
+  const svgStart = markup.indexOf('<svg')
+  if (svgStart === -1) return markup
+  const openEnd = markup.indexOf('>', svgStart)
+  if (openEnd === -1) return markup
+  const selfClosing = markup[openEnd - 1] === '/'
+  let openTag = markup.slice(svgStart, selfClosing ? openEnd - 1 : openEnd)
+  openTag = openTag.replace(/\s(?:width|height|viewBox|preserveAspectRatio)\s*=\s*"[^"]*"/g, '')
+  const vb = attrs.viewBox
+  const parts = [
+    openTag.trimEnd(),
+    `width="${attrs.width}"`,
+    `height="${attrs.height}"`,
+    ...(vb ? [`viewBox="${vb.x} ${vb.y} ${vb.width} ${vb.height}"`] : []),
+    ...(attrs.preserveAspectRatio ? [`preserveAspectRatio="${attrs.preserveAspectRatio}"`] : []),
+  ]
+  return parts.join(' ') + (selfClosing ? '/' : '') + markup.slice(openEnd)
+}
+
+/** The live canvas's own viewBox, as content bounds. The tiled path needs a
+ *  user-space frame to cut into tiles; a screen-view export doesn't carry one
+ *  explicitly, but the live `<svg>` always has it. */
+function liveViewBox(svgEl: SVGSVGElement): ContentBounds | null {
+  const attr = svgEl.getAttribute('viewBox')
+  if (!attr) return null
+  const n = attr.trim().split(/[\s,]+/).map(Number)
+  if (n.length < 4 || n.some(v => !Number.isFinite(v)) || n[2] <= 0 || n[3] <= 0) return null
+  return { x: n[0], y: n[1], width: n[2], height: n[3] }
+}
+
+/** The export markup for this canvas — overlays stripped, CSS vars inlined —
+ *  with its root sizing left to `withRootSvgAttrs`. */
+function buildExportMarkup(svgEl: SVGSVGElement): string {
   const clone = svgEl.cloneNode(true) as SVGSVGElement
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
-  clone.setAttribute('width', String(width))
-  clone.setAttribute('height', String(height))
-  if (viewBox) clone.setAttribute('viewBox', `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`)
-  const str = inlineCssVariables(stripExportExclusions(new XMLSerializer().serializeToString(clone)), svgEl)
-  const blob = new Blob([str], { type: 'image/svg+xml' })
+  return inlineCssVariables(stripExportExclusions(new XMLSerializer().serializeToString(clone)), svgEl)
+}
+
+/** Decode SVG markup as an `<img>` at the given pixel size. Null when the
+ *  browser refuses to load it — a very large SVG image has its own decode
+ *  budget, separate from the canvas's. */
+async function decodeSvgMarkup(markup: string, width: number, height: number): Promise<HTMLImageElement | null> {
+  const blob = new Blob([markup], { type: 'image/svg+xml' })
   const url = URL.createObjectURL(blob)
   const img = new Image()
   img.width = width
@@ -474,16 +536,72 @@ async function loadSvgImage(
   }
 }
 
+/** Overlap rendered around each tile and cropped off when it is drawn, so the
+ *  antialiasing at a tile's own edge never lands in the output. */
+const TILE_PAD_PX = 2
+
+/**
+ * Draw the pattern into `ctx` as a `cols`×`rows` grid of separate renders,
+ * each a small decode. Every tile carries the FULL markup and differs only in
+ * its viewBox window, so geometry crossing a tile edge is drawn in both and
+ * the seam is invisible — nothing here clips, it only frames.
+ *
+ * False if any tile failed to decode; the caller then re-fills and falls back
+ * to one whole-canvas render.
+ */
+async function drawSvgTiles(
+  ctx: CanvasRenderingContext2D,
+  markup: string,
+  width: number,
+  height: number,
+  vb: ContentBounds,
+  cols: number,
+  rows: number,
+): Promise<boolean> {
+  const unitsPerPxX = vb.width / width
+  const unitsPerPxY = vb.height / height
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x0 = Math.round((c * width) / cols)
+      const x1 = Math.round(((c + 1) * width) / cols)
+      const y0 = Math.round((r * height) / rows)
+      const y1 = Math.round(((r + 1) * height) / rows)
+      const tw = x1 - x0
+      const th = y1 - y0
+      if (tw <= 0 || th <= 0) continue
+      const tileVb: ContentBounds = {
+        x: vb.x + (x0 - TILE_PAD_PX) * unitsPerPxX,
+        y: vb.y + (y0 - TILE_PAD_PX) * unitsPerPxY,
+        width: (tw + 2 * TILE_PAD_PX) * unitsPerPxX,
+        height: (th + 2 * TILE_PAD_PX) * unitsPerPxY,
+      }
+      // `none`: the tile viewBox is derived from the tile's own pixel rect, so
+      // it must fill it exactly — `meet` would letterbox each tile separately
+      // and shift the content by a fraction of a pixel per tile.
+      const tileMarkup = withRootSvgAttrs(markup, {
+        width: tw + 2 * TILE_PAD_PX,
+        height: th + 2 * TILE_PAD_PX,
+        viewBox: tileVb,
+        preserveAspectRatio: 'none',
+      })
+      const img = await decodeSvgMarkup(tileMarkup, tw + 2 * TILE_PAD_PX, th + 2 * TILE_PAD_PX)
+      if (!img) return false
+      ctx.drawImage(img, TILE_PAD_PX, TILE_PAD_PX, tw, th, x0, y0, tw, th)
+    }
+  }
+  return true
+}
+
 /**
  * Rasterise a live `<svg>` onto a 2D canvas at the given size, with the same
  * overlay-stripping + CSS-var inlining the file exports use. Shared by
  * `exportPNG` (which downloads it) and the thumbnail renderer (which reads a
- * data URL back off it). Returns null if the SVG can't be loaded as an image.
+ * data URL back off it). Returns null if the SVG can't be rendered at all.
  *
- * The size is what the browser will honour, not necessarily what was asked
- * for (`allocateRasterCanvas`), and the SVG is decoded at that same size — an
- * image bitmap for a canvas the tab can't afford costs the same memory that
- * made the canvas fail.
+ * Two ceilings stand between a request and a PNG, and crossing either one
+ * fails silently rather than throwing: the canvas backing store
+ * (`allocateRasterCanvas` probes it) and the single SVG→bitmap decode
+ * (`rasterTileGrid` splits past it). Both were seen as an "empty" export.
  */
 export async function rasterizeSvgToCanvas(
   svgEl: SVGSVGElement,
@@ -492,20 +610,40 @@ export async function rasterizeSvgToCanvas(
   const target = allocateRasterCanvas(width, height)
   if (!target) return null
   const { canvas, ctx } = target
+  const markup = buildExportMarkup(svgEl)
 
-  let img = await loadSvgImage(svgEl, target.width, target.height, viewBox)
+  const paintBackground = () => {
+    // Skip the fill for a transparent export — a fresh canvas is already clear.
+    if (!background) return
+    ctx.fillStyle = background
+    ctx.fillRect(0, 0, target.width, target.height)
+  }
+  paintBackground()
+
+  const vb = viewBox ?? liveViewBox(svgEl)
+  const grid = vb ? rasterTileGrid(target.width, target.height) : { cols: 1, rows: 1 }
+  // Tiles stretch to their own pixel rect, so they are only equivalent to the
+  // whole render when the raster's aspect already matches the viewBox's — the
+  // export menu derives the height that way, a thumbnail may not.
+  const squareOn = vb ? Math.abs((vb.width / target.width) / (vb.height / target.height) - 1) < 0.01 : false
+  if (vb && squareOn && grid.cols * grid.rows > 1) {
+    if (await drawSvgTiles(ctx, markup, target.width, target.height, vb, grid.cols, grid.rows)) return canvas
+    console.warn('Export: a tile failed to render; falling back to a single full-size decode.')
+    paintBackground()
+  }
+
+  const whole = withRootSvgAttrs(markup, { width: target.width, height: target.height, viewBox: vb ?? undefined })
+  let img = await decodeSvgMarkup(whole, target.width, target.height)
   if (!img) {
     // The decode has its own budget; half the size is worth one retry before
     // giving the user nothing.
     const half = fittedRasterSize(target.width, target.height, { maxArea: (target.width * target.height) / 4 })
-    img = await loadSvgImage(svgEl, half.width, half.height, viewBox)
+    img = await decodeSvgMarkup(
+      withRootSvgAttrs(markup, { width: half.width, height: half.height, viewBox: vb ?? undefined }),
+      half.width,
+      half.height,
+    )
     if (!img) return null
-  }
-
-  // Skip the fill for a transparent export — a fresh canvas is already clear.
-  if (background) {
-    ctx.fillStyle = background
-    ctx.fillRect(0, 0, target.width, target.height)
   }
   ctx.drawImage(img, 0, 0, target.width, target.height)
   return canvas

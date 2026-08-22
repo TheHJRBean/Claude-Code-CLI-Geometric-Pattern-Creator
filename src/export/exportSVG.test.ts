@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { unwovenSvgMarkup, substituteCssVariables, stripExportExclusions, boundsFromPointsAttr, padContentBounds, insertBackgroundRect, fittedRasterSize, MAX_RASTER_AREA, MAX_RASTER_DIMENSION } from './exportSVG'
+import { unwovenSvgMarkup, substituteCssVariables, stripExportExclusions, boundsFromPointsAttr, padContentBounds, insertBackgroundRect, fittedRasterSize, rasterTileGrid, withRootSvgAttrs, MAX_RASTER_AREA, MAX_RASTER_DIMENSION, MAX_DECODE_PIXELS } from './exportSVG'
 import type { Segment } from '../types/geometry'
 
 // Pin the pure "unwoven" SVG markup builder extracted from exportUnwovenSVG:
@@ -294,5 +294,57 @@ describe('fittedRasterSize', () => {
   it('never returns a zero dimension', () => {
     expect(fittedRasterSize(0, 0)).toEqual({ width: 1, height: 1 })
     expect(fittedRasterSize(1, 1_000_000).width).toBeGreaterThanOrEqual(1)
+  })
+})
+
+// The second silent ceiling: one giant SVG→bitmap decode. The canvas is fine,
+// `drawImage` is a no-op, and the export saves a flat colour — so past the
+// decode budget the raster is drawn as a grid of small renders instead.
+describe('rasterTileGrid', () => {
+  const tileArea = (w: number, h: number, cols: number, rows: number) =>
+    Math.ceil(w / cols) * Math.ceil(h / rows)
+
+  it('leaves a raster inside the decode budget in one piece', () => {
+    expect(rasterTileGrid(4096, 3613)).toEqual({ cols: 1, rows: 1 })
+  })
+
+  it('splits an 8192 px Max-fill raster until every tile fits', () => {
+    // The reported case: 8192 × 7226 = 59M px in one decode.
+    const { cols, rows } = rasterTileGrid(8192, 7226)
+    expect(cols * rows).toBeGreaterThan(1)
+    expect(tileArea(8192, 7226, cols, rows)).toBeLessThanOrEqual(MAX_DECODE_PIXELS)
+  })
+
+  it('splits the longer side first, so tiles stay roughly square', () => {
+    // A 4:1 raster split evenly would spend the whole budget on the long side.
+    const { cols, rows } = rasterTileGrid(16384, 4096, 4_194_304)
+    expect(cols).toBeGreaterThan(rows)
+    expect(tileArea(16384, 4096, cols, rows)).toBeLessThanOrEqual(4_194_304)
+  })
+})
+
+describe('withRootSvgAttrs', () => {
+  const src = '<svg xmlns="http://www.w3.org/2000/svg" width="1208" height="742" viewBox="-764 -397 1208 742" style="background:#f5f0e8"><g/></svg>'
+
+  it('replaces the root sizing without touching the rest of the tag', () => {
+    const out = withRootSvgAttrs(src, { width: 4096, height: 3613, viewBox: { x: -764, y: -397, width: 1208, height: 742 } })
+    expect(out).toContain('style="background:#f5f0e8"')
+    expect(out).toContain('width="4096"')
+    expect(out).toContain('height="3613"')
+    expect(out).toContain('viewBox="-764 -397 1208 742"')
+    // The originals must be gone, not merely followed by an override.
+    expect(out).not.toContain('width="1208"')
+    expect(out.match(/viewBox=/g)).toHaveLength(1)
+    expect(out).toContain('<g/></svg>')
+  })
+
+  it('carries a tile\'s own window and stretch', () => {
+    const out = withRootSvgAttrs(src, { width: 100, height: 50, viewBox: { x: 1, y: 2, width: 3, height: 4 }, preserveAspectRatio: 'none' })
+    expect(out).toContain('viewBox="1 2 3 4"')
+    expect(out).toContain('preserveAspectRatio="none"')
+  })
+
+  it('leaves markup with no root svg alone', () => {
+    expect(withRootSvgAttrs('<g/>', { width: 10, height: 10 })).toBe('<g/>')
   })
 })

@@ -451,6 +451,20 @@ SVG / PNG / JSON output for both substrates.
   from the content's own aspect, so it asks for the biggest rasters and hits
   this first. A reduced export `console.warn`s (bug capture keeps it); a
   smaller PNG beats a blank one.
+- **The single SVG→bitmap decode is the SECOND silent ceiling**, and the one
+  behind "completely empty, one flat colour" at 8192 px: the canvas is fine,
+  `drawImage` is a no-op, nothing throws. Past `MAX_DECODE_PIXELS` (4096², the
+  common GPU max-texture size) the raster is drawn as a **grid of tiles** at
+  the full requested resolution — same markup every tile, only the root
+  `viewBox` window differs (`withRootSvgAttrs`, so exclusion-stripping and
+  var-inlining run once), each tile rendered 2 px oversize and cropped on draw
+  so its own edge antialiasing never lands in the output. Nothing here clips,
+  it only frames, so geometry crossing a tile edge is drawn in both — and the
+  masks are safe to cut this way because every `maskRect` in the renderers is
+  derived from **geometry**, not from the viewport. Tiles stretch to their own
+  pixel rect (`preserveAspectRatio="none"`), so the path is taken only when the
+  raster's aspect already matches the viewBox's. Measured equal to a single
+  decode: mean |Δ| 0.006/255 over an 8192 × 7226 export, no seam at the split.
 - `exportActions.ts` — the export menu model (`ExportMenuItem`: action / submenu
   / toggle), incl. PNG resolutions, transparent background and Max-fill.
 - `stampAssets.ts` — Void **Stamp** asset I/O: the shape-canvas export is

@@ -1272,3 +1272,33 @@ unique). Frame/Guide world-space Tiles ride the same per-edge evaluation.
   "boundary = regular polygon" restriction the nested-layers idea targets: the
   Patch is now unbounded, but its lattice cell is still one of {triangle,
   square, hexagon} whenever tiling is back on.
+
+### 2026-08-22 — Divided-stroke bands + the `canonicalPose` tie-break
+
+Not Step 17 — Decoration / rendering — but logged here because two of the
+findings reach code the Builder depends on.
+
+- **`canonicalPose`'s tie-break now sorts by handedness before world angle**
+  (`f6cd58a`). A self-mirror-symmetric outline ties on both handednesses and
+  their traversals start at different vertices, so an angle-first sort picked
+  the mirrored pose on whichever instances a reflected traversal happened to
+  aim nearer +x. Measured on 3.6.3.6: 104 congruent Voids all at pose angle 0,
+  52 of them mirrored — so one Matching-rung gradient ran backwards on half the
+  field and a stamp landed flipped on half its instances. Chiral outlines reach
+  their minimal token from one direction only and still pose reflected where
+  the placement really is mirrored. This also closed the class-wide residual
+  `gradientCurvedGeometry` had pinned as out of reach (congruent curved
+  hexagons posed through boxes differing ~9%, so one image was fitted to two
+  scales); now one box, overrun 2.4e-15.
+- **Divided strokes gained per-line colours and the `individual` grain on
+  Strands** (`41fc714`), a shared width band with the Frame border and a
+  20-division ceiling (`703f75f`), a link + one-shot copy between the two
+  strokes (`c07c45f`, `31af8ca`), and a draw-order fix (`ee78d03`). See the
+  CLAUDE.md **Divided strokes** section; the two rules worth carrying are that
+  an unfilled *gap* is cut out while an unfilled *line* is still ink, and that
+  concentric band stacks must loop band-major or the next Strand's outermost
+  ring blotches every crossing.
+- **A verify on the periodic fast path has ONE ink piece.** Any assertion about
+  ordering or overlap *between* Strands is vacuous there and passes while every
+  real field is wrong. Force the fast path off (Frame completion, Morph,
+  Combine) and assert the piece count before asserting anything else.

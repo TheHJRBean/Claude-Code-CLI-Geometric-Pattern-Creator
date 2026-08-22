@@ -5,9 +5,11 @@
 ## ▶ RESUME HERE
 
 > **2026-08-22 — Stroke bands round: gradient pose fix + per-line colours + link.**
-> **All four shipped, browser-verified. 1919 tests green.**
+> **All four shipped + two follow-up fixes from a bug capture. Browser-verified,
+> 1924 tests green.**
 >
-> Four asks in one round. Commits `f6cd58a`, `703f75f`, `41fc714`, `c07c45f`.
+> Four asks in one round: `f6cd58a`, `703f75f`, `41fc714`, `c07c45f`, docs
+> `db4ed9a`; then `ee78d03` + `31af8ca` off the user's bug report.
 >
 > **1. Gradients ran backwards on half of every congruent class** (`f6cd58a`).
 > `canonicalPose` breaks its tie by world angle; a **self-mirror-symmetric**
@@ -44,11 +46,38 @@
 > carries the whole config and fires per drag frame); the mirrored action must
 > be the substrate's own `SET_FRAME` / `SET_GALLERY_FRAME`.
 >
-> **Verified in a browser** on 4.8.8, both renderers and both link directions:
-> `scripts/verify/strokeBandFills.mjs`, `borderLineFills.mjs`, `strokeLink.mjs`.
+> **5. Per-line colours blotched every crossing** (`ee78d03`, from a bug capture
+> on a 3.3.4.3.4 Patch with a completing Frame). The ring stack looped
+> **piece-major** where every sibling band stack in `StrandLayer` loops
+> band-major. A ring's stroke is as wide as everything inside it, so the next
+> Strand's ring 0 painted over the inner rings of every Strand it crossed.
+> **The verify could not see it**: the periodic fast path renders ONE ink piece,
+> and with one piece the two loop orders are identical. `strokeBandFills.mjs`
+> now drives a Frame completion first (`inkPaths > 1`) and pins the order —
+> confirmed FAIL against the old code.
 >
-> **Next / open:** none of the four has an open thread. Standing items unchanged
-> — Freeform has no ADR (next number `0010`), and the `/update-docs` audit found
+> **6. The link could not seed either side from the other** (`31af8ca`). Reported
+> as "I can only copy strand stroke to the frame but not the other way around".
+> The fan-out was working both ways the whole time; the gap is that a *link*
+> fires only on an **edit**, so with it on the only way to make the Strands wear
+> the border's design is to edit the Strands — which pushes theirs onto the
+> border and destroys what you were copying. Direction is now a control:
+> `copyStrokeDesign` + **Copy to border** / **Copy to strands** at both ends,
+> over the same `STROKE_DESIGN_KEYS` (pinned, so copy and link cannot disagree).
+>
+> **Verified in a browser** on 4.8.8, both renderers, both link directions and
+> both copy directions: `scripts/verify/strokeBandFills.mjs` (multi-piece),
+> `borderLineFills.mjs`, `strokeLink.mjs`.
+>
+> **Two harness lessons, both now in memory.** A verify on the periodic fast
+> path has ONE piece, so any cross-piece ordering/overlap assertion is vacuous.
+> And `strokeLink.mjs` originally read panel **sliders** — which read back
+> whatever you typed whether or not it reached the pattern — and so reported
+> both directions passing while the user could only use one; it asserts on
+> rendered mask-band counts now.
+>
+> **Next / open:** no open thread on any of the six. Standing items unchanged —
+> Freeform has no ADR (next number `0010`), and the `/update-docs` audit found
 > `src/theme/` + `src/utils/` still uncovered in CLAUDE.md (both trivial).
 
 ---

@@ -29,6 +29,7 @@ import { activeCell } from '../editor/active'
 import { useEditorHistory } from '../editor/useEditorHistory'
 import { FigureControls } from './strands/FigureControls'
 import { broadcastFigureAction } from '../state/figureBroadcast'
+import { linkStrokeAction, type StrokeLinkContext } from '../state/strokeLink'
 import { pushRecentColour } from './ColourPicker'
 import { SectionTitle, FieldLabel } from './lab/labShared'
 import { StrandStyleControls } from './ui/StrandStyleControls'
@@ -110,6 +111,14 @@ export function TessellationLabMode({
     { enabled: false, ids: [], figures: config.figures },
   )
 
+  // **Link stroke design** — session state, like "Apply to all Tiles": an
+  // editing mode, not pattern data. Same ref-not-deps reasoning as above; the
+  // Frame moves on every drag frame and would churn `dispatch`'s identity.
+  const [strokeLinked, setStrokeLinked] = useState(false)
+  const strokeLinkRef = useRef<{ enabled: boolean; ctx: StrokeLinkContext }>(
+    { enabled: false, ctx: { frame: null, frameAction: 'SET_FRAME' } },
+  )
+
   // Step 17.9 — wrap dispatch so Design-Phase Builder mutations push undo
   // snapshots. All Lab-side dispatches must use this `dispatch`; bypassing
   // it skips history. `LOAD_CONFIG` clears the stack inside the hook (Q12).
@@ -145,7 +154,12 @@ export function TessellationLabMode({
     // Dirty / structural-note bookkeeping keys on the action the user actually
     // took; the fan-out copies are the same edit on sibling Tile types.
     const { enabled, ids, figures } = broadcastRef.current
-    for (const a of broadcastFigureAction(action, enabled, ids, figures)) historyDispatch(a)
+    const link = strokeLinkRef.current
+    // The two fan-outs are disjoint — a Figure action is never a stroke action
+    // — so nesting them costs nothing and neither has to know about the other.
+    for (const a of broadcastFigureAction(action, enabled, ids, figures)) {
+      for (const b of linkStrokeAction(a, link.enabled, link.ctx)) historyDispatch(b)
+    }
   }, [historyDispatch, presetId])
 
   // Cmd/Ctrl+Z and Cmd/Ctrl+Shift+Z (or Ctrl+Y) drive undo / redo. Listener
@@ -569,6 +583,18 @@ export function TessellationLabMode({
     figures: config.figures,
   }
 
+  // A Patch authors `editor.frame`; a legacy substrate authors the top-level
+  // `config.frame`. Sending the wrong action writes a Frame the substrate
+  // never reads, which looks exactly like the link doing nothing.
+  const patchSubstrate = !!config.editor
+  strokeLinkRef.current = {
+    enabled: strokeLinked,
+    ctx: {
+      frame: patchSubstrate ? config.editor?.frame : config.frame,
+      frameAction: patchSubstrate ? 'SET_FRAME' : 'SET_GALLERY_FRAME',
+    },
+  }
+
   // 17.11.4 — preview validates in multi mode with ≥3 picks. Same gates the
   // reducer applies (selectable, real-Cell pick, non-overlapping,
   // non-self-intersecting, centroid outside tiles). Computed once and
@@ -669,6 +695,7 @@ export function TessellationLabMode({
       // Figure edits fan out across Tile types while this is on — a report of
       // "changing one Tile changed them all" is answered by this line.
       { label: 'Apply to all Tiles', value: applyToAllTiles ? 'on' : 'off' },
+      { label: 'Link stroke design', value: strokeLinked ? 'on' : 'off' },
     ],
   })
 
@@ -719,6 +746,7 @@ export function TessellationLabMode({
             <SectionTitle open={isOpen('editor')} onToggle={() => toggleSection('editor')}>Editor</SectionTitle>
             {isOpen('editor') && (config.tiling.type === 'editor' && config.editor ? (
               <EditorDesignControls
+                strokeLink={{ enabled: strokeLinked, onChange: setStrokeLinked }}
                 config={config}
                 editor={config.editor}
                 dispatch={dispatch}
@@ -821,6 +849,7 @@ export function TessellationLabMode({
                   // without it the two buttons below read as the only thing to
                   // do here, and either one DISCARDS the loaded pattern.
                   <LegacySubstrateControls
+                    strokeLink={{ enabled: strokeLinked, onChange: setStrokeLinked }}
                     config={config}
                     dispatch={dispatch}
                     tilingLabel={def.label}
@@ -1142,7 +1171,18 @@ export function TessellationLabMode({
                 draw; the Design-phase ghost split skips weaving regardless. */}
             {showStrands && (
               <div style={{ marginLeft: 26 }}>
-                <StrandStyleControls strand={config.strand} dispatch={dispatch} />
+                <StrandStyleControls
+                  strand={config.strand}
+                  dispatch={dispatch}
+                  strokeLink={{
+                    enabled: strokeLinked,
+                    onChange: setStrokeLinked,
+                    // The link needs a border to write to. Offering the toggle
+                    // with no Frame would be a control that silently does half
+                    // of what it says.
+                    available: !!(patchSubstrate ? config.editor?.frame?.stroke : config.frame?.stroke),
+                  }}
+                />
               </div>
             )}
 

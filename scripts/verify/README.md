@@ -35,6 +35,7 @@ LD_LIBRARY_PATH=<libdir>/usr/lib/x86_64-linux-gnu node verify3.mjs
 | `gapFillsAndBorder.mjs` | Per-gap-ring fills (mixed rings render behind `#strand-gap-fill-mask` / `#frame-gap-fill-mask`) on both Strands and the Frame border; the border polygon offset outward by exactly w/2 | ✅ passes |
 | `strokeBandFills.mjs` | Per-**line** colours on Strands: the raised ceilings reach the sliders (width 120, divisions 20); all 3 line rings of a 5-line stroke are drawn (a skipped one would wear its neighbour's colour); the Individual grain is offered on a Strand at all; and each Individual band is drawn on an **offset** path — only the odd count's centre line rides the ink's own `d` | ✅ passes |
 | `borderLineFills.mjs` | The same two grains on the **Frame border** — a different renderer (closed polygons offset outward) through the same `strandStyle` resolver. 4 individually-coloured rings at w/(n + n−1) each | ✅ passes |
+| `strokeLink.mjs` | **Link stroke design**: the toggle is offered at both ends; a border divisions change reaches the Strands and back again; border width holds while linked (the one field the link must not copy) | ✅ passes |
 
 ⚠️ Each gradient **surface** (This shape / Across frame / Strands) holds its own
 draft. Switch surface first, then add stops — doing it the other way leaves the

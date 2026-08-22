@@ -3,13 +3,15 @@
  * defined inline in the Gallery Sidebar; now shared with StrandStyleControls
  * and the Lab.
  */
-export function Toggle({ checked, onChange, label }: {
+export function Toggle({ checked, onChange, label, title }: {
   checked: boolean
   onChange: (v: boolean) => void
   label: string
+  /** Hover explanation for the row. */
+  title?: string
 }) {
   return (
-    <label style={{
+    <label title={title} style={{
       display: 'flex',
       alignItems: 'center',
       gap: 12,

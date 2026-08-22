@@ -59,6 +59,9 @@ interface Props {
   onSetEditorPhase: (p: 'design' | 'strand' | 'decoration') => void
   decorationColor: string
   onSetDecorationColor: (c: string) => void
+  /** **Link stroke design** (`state/strokeLink.ts`) — passed through to the
+   *  Decoration panel's Frame border block. */
+  strokeLink?: { enabled: boolean; onChange: (v: boolean) => void }
   paintTarget: PaintTarget
   onSetPaintTarget: (t: PaintTarget) => void
   voidScope: VoidPaintScope
@@ -102,6 +105,7 @@ export function LegacySubstrateControls({
   onSetEditorPhase,
   decorationColor,
   onSetDecorationColor,
+  strokeLink,
   paintTarget,
   onSetPaintTarget,
   voidScope,
@@ -198,6 +202,7 @@ export function LegacySubstrateControls({
           decoration={patternDecoration(config)}
           frame={config.frame}
           onSetFrame={f => dispatch({ type: 'SET_GALLERY_FRAME', payload: f })}
+          strokeLink={strokeLink}
           seedBBox={() => legacySeedBBox(config.frame, viewBoundsRef.current)}
           dispatch={dispatch}
           decorationColor={decorationColor}

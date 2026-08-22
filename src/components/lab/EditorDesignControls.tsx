@@ -54,6 +54,9 @@ export interface EditorDesignControlsProps {
   onSetEditorPhase: (p: 'design' | 'strand' | 'decoration') => void
   decorationColor: string
   onSetDecorationColor: (c: string) => void
+  /** **Link stroke design** (`state/strokeLink.ts`) — passed through to the
+   *  Decoration panel's Frame border block. */
+  strokeLink?: { enabled: boolean; onChange: (v: boolean) => void }
   paintTarget: PaintTarget
   onSetPaintTarget: (t: PaintTarget) => void
   voidScope: VoidPaintScope
@@ -132,6 +135,7 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
     editorPhase,
     onSetEditorPhase,
     decorationColor,
+    strokeLink,
     onSetDecorationColor,
     paintTarget,
     onSetPaintTarget,
@@ -256,6 +260,7 @@ export function EditorDesignControls(props: EditorDesignControlsProps) {
           decoration={editor.decoration}
           frame={editor.frame}
           onSetFrame={f => dispatch({ type: 'SET_FRAME', payload: f })}
+          strokeLink={strokeLink}
           seedBBox={() => patchSeedBBox(editor)}
           dispatch={dispatch}
           decorationColor={decorationColor}

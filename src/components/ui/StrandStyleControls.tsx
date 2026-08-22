@@ -13,9 +13,12 @@ import { Toggle } from './Toggle'
  * the Gallery Sidebar's "Strand Thickness" section and the Lab's "Display"
  * section — now one component driving both. Strand-level, not Ray-level.
  */
-export function StrandStyleControls({ strand, dispatch }: {
+export function StrandStyleControls({ strand, dispatch, strokeLink }: {
   strand: PatternConfig['strand']
   dispatch: React.Dispatch<Action>
+  /** **Link stroke design** (`state/strokeLink.ts`). Absent ⇒ no toggle, which
+   *  is right anywhere there is no Frame border to link to. */
+  strokeLink?: { enabled: boolean; onChange: (v: boolean) => void; available: boolean }
 }) {
   const weave = strand.weave ?? false
   return (
@@ -55,6 +58,12 @@ export function StrandStyleControls({ strand, dispatch }: {
         surface="strand"
       />
 
+      {strokeLink?.available && (
+        <div style={{ marginTop: 10 }}>
+          <StrokeLinkToggle {...strokeLink} />
+        </div>
+      )}
+
       <div style={{ marginTop: 10 }}>
         <Toggle
           checked={weave}
@@ -81,5 +90,25 @@ export function StrandStyleControls({ strand, dispatch }: {
         </>
       )}
     </>
+  )
+}
+
+/**
+ * The **Link stroke design** toggle, shown on both ends of the link — beside
+ * the Strand controls and inside the Frame border block — because "and vice
+ * versa" is only discoverable if you can find the switch from whichever side
+ * you are editing. One session-state flag behind both.
+ */
+export function StrokeLinkToggle({ enabled, onChange }: {
+  enabled: boolean
+  onChange: (v: boolean) => void
+}) {
+  return (
+    <Toggle
+      checked={enabled}
+      onChange={onChange}
+      label="Link stroke design to Frame border"
+      title="Divisions, line/gap ratio and the gap and line colours are kept the same on the Strands and the Frame border, edited from either. Width and the base colour stay separate — a border runs far wider than the line work it surrounds, and the Strand colour is the Decoration phase's."
+    />
   )
 }

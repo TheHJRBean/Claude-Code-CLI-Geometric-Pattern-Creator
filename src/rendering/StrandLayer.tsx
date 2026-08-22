@@ -525,9 +525,19 @@ export const StrandLayer = memo(function StrandLayer({ segments, config, ghostPo
         {/* Per-line colours, concentric over the ink: each ring's width is its
             outer extent, so the stack walks inward and the style mask cuts the
             gaps back out of the result. An unfilled ring falls back to the
-            piece's own paint — a line is ink, not a hole. */}
-        {lineFills && visiblePieces.map(({ d, stroke: pieceStroke, i, si }) =>
-          lineFills.map(({ width, colour }, r) => (
+            piece's own paint — a line is ink, not a hole.
+
+            **Ring-major, not piece-major**, like every other band stack here
+            (`maskBands`, `gapMaskBands`, `gapFills`). A ring's stroke is as
+            wide as everything inside it, so a piece-major loop lets the NEXT
+            Strand's ring 0 — full width, outermost colour — paint over the
+            inner rings of every Strand it crosses. One piece hides it
+            completely, which is what the periodic fast path renders and what
+            the first verify measured; on a field where the fast path is off
+            (a Frame completion, a Morph, a Combine) it blotches every
+            crossing in the outermost colour. */}
+        {lineFills && lineFills.map(({ width, colour }, r) =>
+          visiblePieces.map(({ d, stroke: pieceStroke, i, si }) => (
             <path
               key={`strand-linefill-${r}-${i}`}
               data-band="line-ring"

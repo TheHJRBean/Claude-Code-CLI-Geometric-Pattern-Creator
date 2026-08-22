@@ -125,11 +125,27 @@ export function canonicalPoses(polygon: Vec2[]): CanonicalPose[] {
   }
 
   // Symmetric shapes tie on the token string (one candidate per symmetry
-  // image). Break ties by world orientation — the traversal whose first edge
-  // has the smallest world angle, preferring the unreflected direction — so
+  // image). Break ties by **handedness first**, then world orientation — so
   // congruent instances agree on WHICH symmetry image they pose through:
-  // translated instances get identical poses, rotated/mirrored ones the
-  // most world-aligned pose the shape's symmetry group offers.
+  // translated instances get identical poses, rotated ones the most
+  // world-aligned pose the shape's symmetry group offers.
+  //
+  // Handedness has to outrank the angle, and the reason is invisible on a
+  // chiral shape. A **self-mirror-symmetric** outline ties on BOTH
+  // handednesses, and its reflected traversals start at different vertices,
+  // so they carry different world angles — an angle-first sort therefore
+  // picks the reflected pose on exactly those instances where a mirrored
+  // traversal happens to point closer to +x. The shape is identical either
+  // way; anything posed THROUGH it is not. Measured on 3.6.3.6: 104
+  // congruent Voids all posed at angle 0, 52 of them mirrored — so a linear
+  // gradient painted once at the congruent rung ran one way on half the
+  // field and the other way on the rest, and a stamp landed flipped on half
+  // its instances with the Mirror control untouched.
+  //
+  // A **chiral** shape reaches its minimal token from one direction only, so
+  // its mirrored instances have no unreflected candidate to prefer and still
+  // pose reflected — which is right: there the reflection is a real property
+  // of the placement, not an artifact of the tie-break.
   const ANGLE_EPS = 1e-7
   const TAU = 2 * Math.PI
   const tied = candidates.filter(c => c.ser === bestSer).map(c => {
@@ -141,8 +157,8 @@ export function canonicalPoses(polygon: Vec2[]): CanonicalPose[] {
     return { ...c, ang }
   })
   tied.sort((a, b) => {
-    if (Math.abs(a.ang - b.ang) > ANGLE_EPS) return a.ang - b.ang
     if (a.dir !== b.dir) return b.dir - a.dir // unreflected (dir 1) first
+    if (Math.abs(a.ang - b.ang) > ANGLE_EPS) return a.ang - b.ang
     return a.start - b.start
   })
 

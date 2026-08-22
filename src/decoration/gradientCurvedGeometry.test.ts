@@ -202,18 +202,19 @@ describe('per-shape gradient seeding on a curved field', () => {
     }
   })
 
-  it('the class-wide residual is the canonical POSE, not the extent', () => {
-    // What the fix cannot reach. Congruent instances of one curved Void can
-    // pose through canonical frames whose rendered boxes differ ~9% (4.8.8
-    // hexagons: 121.3×98.1 vs 111.5×102.2 — same area, same perimeter, same
-    // shape), so no choice of extent spans every instance exactly.
+  it('one congruent class poses through ONE canonical box', () => {
+    // This used to be the residual the extent fix could not reach: congruent
+    // instances of one curved Void posed through canonical frames whose
+    // rendered boxes differed ~9% (4.8.8 hexagons: 121.3×98.1 vs 111.5×102.2
+    // — same area, same perimeter, same shape), so no choice of extent
+    // spanned every instance and `resolveVoidStamps` fitted one image to two
+    // boxes, rendering the same class at two scales.
     //
-    // Pinned, not asserted away: it sits in `canonicalPose`'s tie-break, which
-    // also underpins Void identity and stamp placement — `resolveVoidStamps`
-    // fits ONE image to both of those boxes, so the same class renders it at
-    // two scales. Fixing it there is a separate change with a much wider blast
-    // radius. If this test starts failing because the numbers dropped, that
-    // was fixed and this test should go.
+    // It was `canonicalPose`'s tie-break sorting by world angle ahead of
+    // handedness, and it went when that was reversed (see
+    // `gradientPoseProbe.test.ts`). Measured after: one box, overrun 2.4e-15.
+    // Kept as the guard on the property, since the cost of it coming back is
+    // silent — a class that still keys, still paints, and draws at two sizes.
     const groups = congruentGroups(curvedVoids('4.8.8', 0.3))
     const hexes = [...groups.values()].find(g => g[0].keyPolygon!.length === 6)!
     const boxes = new Set(
@@ -222,8 +223,8 @@ describe('per-shape gradient seeding on a curved field', () => {
         return `${b.width.toFixed(1)}x${b.height.toFixed(1)}`
       }),
     )
-    expect(boxes.size).toBe(2)
-    expect(worstClassOverrun(hexes, 90, true)).toBeGreaterThan(0.05)
+    expect([...boxes]).toHaveLength(1)
+    expect(worstClassOverrun(hexes, 90, true)).toBeLessThan(1e-9)
   })
 
   it('gradientCanonicalBox encloses the rendered outline', () => {
